@@ -408,29 +408,26 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
 
     int nLocalServices = 0;
 
-    for (var serviceType :
-        List.of(
-            KlabService.Type.RESOURCES,
-            KlabService.Type.REASONER,
-            KlabService.Type.RUNTIME,
-            KlabService.Type.RESOLVER)) {
+    for (var serviceType : KlabService.Type.operationCritical()) {
 
       String serviceName = serviceType.name().toLowerCase();
       Ikon icon = Theme.LOCAL_SERVICE_ICON;
-      var service = user.getService(serviceType.classify());
-      String tooltip = Utils.Strings.capitalize(serviceName) + " ";
+      var provision = status.getServicesStatus().get(serviceType);
 
-      if (service != null)
-        if (!Utils.URLs.isLocalHost(service.getUrl())) {
-          tooltip = "Remote " + serviceName + " " + service.getServiceName();
-          icon =
-              user.getServices(serviceType.classify()).size() > 1
-                  ? Theme.REMOTE_SERVICE_ICON_MANY
-                  : Theme.REMOTE_SERVICE_ICON_ONE;
-        } else {
-          tooltip = "Local " + serviceName;
-          nLocalServices++;
-        }
+//      var service = user.getService(serviceType.classify());
+//      String tooltip = Utils.Strings.capitalize(serviceName) + " ";
+//
+//      if (service != null) // FIXME this never happens
+//        if (!Utils.URLs.isLocalHost(service.getUrl())) {
+//          tooltip = "Remote " + serviceName + " " + service.getServiceName();
+//          icon =
+//              user.getServices(serviceType.classify()).size() > 1
+//                  ? Theme.REMOTE_SERVICE_ICON_MANY
+//                  : Theme.REMOTE_SERVICE_ICON_ONE;
+//        } else {
+//          tooltip = "Local " + serviceName;
+//          nLocalServices++;
+//        }
 
       var button =
           switch (serviceType) {
@@ -441,56 +438,56 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
             default -> throw new KlabInternalErrorException("?"); // can't happen
           };
 
-      var color =
-          switch (serviceType) {
-            case REASONER ->
-                service.status().isOperational()
-                    ? Theme.REASONER_COLOR_ACTIVE
-                    : Theme.REASONER_COLOR_MUTED;
-            case RESOURCES ->
-                service.status().isOperational()
-                    ? Theme.RESOURCES_COLOR_ACTIVE
-                    : Theme.RESOURCES_COLOR_MUTED;
-            case RESOLVER ->
-                service.status().isOperational()
-                    ? Theme.RESOLVER_COLOR_ACTIVE
-                    : Theme.RESOLVER_COLOR_MUTED;
-            case RUNTIME ->
-                service.status().isOperational()
-                    ? Theme.RUNTIME_COLOR_ACTIVE
-                    : Theme.RUNTIME_COLOR_MUTED;
-            default -> throw new KlabInternalErrorException("?"); // can't happen
-          };
-
-      if (serviceType == KlabService.Type.RESOURCES
-          && user.getServices(ResourcesService.class).stream()
-              .anyMatch(s -> s.status().isOperational())) {
-        setButton(
-            workspacesButton,
-            Theme.RESOURCES_ICON,
-            24,
-            Color.DARKGREEN,
-            workspacesButton.getTooltip().getText());
-        setButton(
-            resourcesManagerButton,
-            Theme.RESOURCES_ICON,
-            24,
-            Color.DARKGREEN,
-            resourcesManagerButton.getTooltip().getText());
-      } else {
-        setButton(
-            workspacesButton,
-            Theme.WORKSPACES_ICON,
-            24,
-            Color.GREY,
-            workspacesButton.getTooltip().getText());
-        setButton(
-            resourcesManagerButton,
-            Theme.RESOURCES_ICON,
-            24,
-            Color.GREY,
-            resourcesManagerButton.getTooltip().getText());
-      }
+//      var color =
+//          switch (serviceType) {
+//            case REASONER ->
+//                service.status().isOperational()
+//                    ? Theme.REASONER_COLOR_ACTIVE
+//                    : Theme.REASONER_COLOR_MUTED;
+//            case RESOURCES ->
+//                service.status().isOperational()
+//                    ? Theme.RESOURCES_COLOR_ACTIVE
+//                    : Theme.RESOURCES_COLOR_MUTED;
+//            case RESOLVER ->
+//                service.status().isOperational()
+//                    ? Theme.RESOLVER_COLOR_ACTIVE
+//                    : Theme.RESOLVER_COLOR_MUTED;
+//            case RUNTIME ->
+//                service.status().isOperational()
+//                    ? Theme.RUNTIME_COLOR_ACTIVE
+//                    : Theme.RUNTIME_COLOR_MUTED;
+//            default -> throw new KlabInternalErrorException("?"); // can't happen
+//          };
+//
+//      if (serviceType == KlabService.Type.RESOURCES
+//          && user.getServices(ResourcesService.class).stream()
+//              .anyMatch(s -> s.status().isOperational())) {
+//        setButton(
+//            workspacesButton,
+//            Theme.RESOURCES_ICON,
+//            24,
+//            Color.DARKGREEN,
+//            workspacesButton.getTooltip().getText());
+//        setButton(
+//            resourcesManagerButton,
+//            Theme.RESOURCES_ICON,
+//            24,
+//            Color.DARKGREEN,
+//            resourcesManagerButton.getTooltip().getText());
+//      } else {
+//        setButton(
+//            workspacesButton,
+//            Theme.WORKSPACES_ICON,
+//            24,
+//            Color.GREY,
+//            workspacesButton.getTooltip().getText());
+//        setButton(
+//            resourcesManagerButton,
+//            Theme.RESOURCES_ICON,
+//            24,
+//            Color.GREY,
+//            resourcesManagerButton.getTooltip().getText());
+//      }
 
       if (serviceType == KlabService.Type.RUNTIME
           && user.getServices(RuntimeService.class).stream()
@@ -510,7 +507,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
             digitalTwinsButton.getTooltip().getText());
       }
 
-      setButton(button, icon, 16, color, tooltip);
+//      setButton(button, icon, 16, color, tooltip);
     }
   }
 
@@ -519,8 +516,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
 
   @Override
   public void engineStatusChanged(Engine.Status status) {
+
     // This only gets called when the status has changed.
-    Logging.INSTANCE.info("" + status);
+    Logging.INSTANCE.info("DIO RUDO " + status);
 
     if (status.isAvailable()) {
 

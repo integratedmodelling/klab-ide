@@ -28,6 +28,7 @@ module org.integratedmodelling.klab.ide {
     requires org.jgrapht.core;
     requires org.checkerframework.checker.qual;
     requires klab.cli;
+    requires org.kordamp.ikonli.materialdesign;
 
     opens org.integratedmodelling.klab.ide to javafx.fxml;
     opens org.integratedmodelling.klab.ide.components to javafx.fxml;

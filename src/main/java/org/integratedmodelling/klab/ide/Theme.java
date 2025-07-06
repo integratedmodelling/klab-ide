@@ -6,6 +6,7 @@ import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tooltip;
 import javafx.scene.paint.Color;
+import javafx.scene.paint.Material;
 import org.integratedmodelling.klab.api.data.RepositoryState;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
@@ -23,6 +24,7 @@ import org.kordamp.ikonli.evaicons.Evaicons;
 import org.kordamp.ikonli.fontawesome5.FontAwesomeSolid;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
+import org.kordamp.ikonli.materialdesign.MaterialDesign;
 
 public enum Theme {
   LIGHT_DEFAULT(false),
@@ -107,10 +109,9 @@ public enum Theme {
 
   // services
   public static final Ikon LOCAL_SERVICE_ICON = Material2AL.DONUT_SMALL;
-  public static final Ikon REMOTE_SERVICE_ICON_ONE = BootstrapIcons.CLOUDS_FILL;
+  public static final Ikon REMOTE_SERVICE_ICON_ONE = BootstrapIcons.CLOUD_FILL;
   public static final Ikon REMOTE_SERVICE_ICON_MANY = BootstrapIcons.CLOUDS;
-  public static final Ikon LOCAL_AND_REMOTE_SERVICE_ICON_ONE = BootstrapIcons.CLOUDS;
-  public static final Ikon LOCAL_AND_REMOTE_SERVICE_ICON_MANY = BootstrapIcons.CLOUDS;
+  public static final Ikon LOCAL_AND_REMOTE_SERVICE_ICON = MaterialDesign.MDI_CLOUD_SYNC;
 
   public static Ikon getIcon(KlabAsset.KnowledgeClass knowledgeClass) {
     return switch (knowledgeClass) {
