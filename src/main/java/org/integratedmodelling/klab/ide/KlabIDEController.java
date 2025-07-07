@@ -4,7 +4,7 @@ import atlantafx.base.theme.Styles;
 import java.awt.*;
 import java.util.*;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
@@ -27,7 +27,6 @@ import org.integratedmodelling.klab.api.services.*;
 import org.integratedmodelling.klab.api.services.resources.ResourceSet;
 import org.integratedmodelling.klab.api.services.runtime.Message;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
-import org.integratedmodelling.klab.api.utils.Utils;
 import org.integratedmodelling.klab.api.view.UIView;
 import org.integratedmodelling.klab.api.view.modeler.Modeler;
 import org.integratedmodelling.klab.api.view.modeler.views.RuntimeView;
@@ -57,6 +56,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
   private Set<View> neverSeen = EnumSet.of(View.RESOURCES, View.WORKSPACES, View.DIGITAL_TWINS);
   private static KlabIDEController _this;
   private Map<String, DigitalTwinPeer> digitalTwinPeerMap = new HashMap<>();
+  private AtomicReference<Engine.Status> engineStatus = new AtomicReference<>();
 
   /** The "circled" (current) view in the main area. */
   public enum View {
@@ -93,8 +93,8 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
   private Distribution distribution;
   private IDESettings settings;
   private Map<View, Button> viewButtons = new HashMap<>();
-  private AtomicBoolean engineStarted = new AtomicBoolean(false);
-  private AtomicBoolean engineTransitioning = new AtomicBoolean(false);
+  //  private AtomicBoolean engineStarted = new AtomicBoolean(false);
+  //  private AtomicBoolean engineTransitioning = new AtomicBoolean(false);
 
   private WorkspaceView workspaceView;
   private ResourcesView resourcesView;
@@ -251,7 +251,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
     sessionsButton.setGraphic(new IconLabel(Theme.APPLICATION_VIEW_ICON, 24, Color.GREY));
     worldviewButton.setGraphic(new IconLabel(Theme.WORLDVIEW_ICON, 24, Color.GREY));
     downloadButton.setGraphic(new IconLabel(Material2AL.GET_APP, 16, Color.GREY));
-    startButton.setGraphic(new IconLabel(Material2MZ.POWER_SETTINGS_NEW, 16, Color.GREY));
+    startButton.setGraphic(new IconLabel(BootstrapIcons.POWER, 16, Color.GREY));
     reasonerButton.setGraphic(new IconLabel(Theme.LOCAL_SERVICE_ICON, 16, Color.GREY));
     resourcesButton.setGraphic(new IconLabel(Theme.LOCAL_SERVICE_ICON, 16, Color.GREY));
     resolverButton.setGraphic(new IconLabel(Theme.LOCAL_SERVICE_ICON, 16, Color.GREY));
@@ -274,45 +274,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
           toggleInspector();
         });
 
-    startButton.setOnMouseClicked(
-        mouseEvent -> {
-          if (engineTransitioning.get()) {
-            Toolkit.getDefaultToolkit().beep();
-            return;
-          }
-
-          Thread.ofPlatform()
-              .start(
-                  () -> {
-                    engineTransitioning.set(true);
-                    if (engineStarted.get()) {
-                      //                      engineStarted.set(false);
-                      setButton(
-                          startButton,
-                          Material2AL.ACCESS_TIME,
-                          16,
-                          Color.DARKGOLDENROD,
-                          "Wait while local services are stopping");
-                      KlabIDEController.modeler().engine().stopLocalServices();
-                      setButton(
-                          startButton,
-                          Material2MZ.POWER_SETTINGS_NEW,
-                          16,
-                          Color.GREEN,
-                          "Click to start the local k.LAB services");
-                    } else {
-                      setButton(
-                          startButton,
-                          Material2AL.ACCESS_TIME,
-                          16,
-                          Color.DARKGOLDENROD,
-                          "Wait while local services are starting");
-                      //                      engineStarted.set(true);
-                      KlabIDEController.modeler().engine().startLocalServices();
-                    }
-                    engineTransitioning.set(false);
-                  });
-        });
+    startButton.setOnMouseClicked(mouseEvent -> handleStartButtonPress());
 
     downloadButton.setOnMouseClicked(
         mouseEvent -> {
@@ -366,6 +328,22 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
     }
   }
 
+  private void handleStartButtonPress() {
+
+    var condition =
+        engineStatus.get() == null
+            ? Engine.Status.EngineCondition.INOPERATIVE
+            : engineStatus.get().getCondition();
+
+    switch (condition) {
+      case INOPERATIVE, ACTIVE_REMOTE_ONLY ->
+          KlabIDEController.modeler().engine().startLocalServices();
+      case ACTIVE_LOCAL_ONLY, ACTIVE_LOCAL_AND_REMOTE ->
+          KlabIDEController.modeler().engine().stopLocalServices();
+      case TRANSITIONING -> Toolkit.getDefaultToolkit().beep();
+    }
+  }
+
   private void toggleInspector() {
 
     setButton(
@@ -397,128 +375,50 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
     return inspectorView;
   }
 
-  /**
-   * If single service in the cloud, use BootstrapIcons.CLOUDY_FILL If multiple services in the
-   * cloud, use BootstrapIcons.CLOUDS_FILL If local service, use Material2AL.DONUT_SMALL All with
-   * the color from Theme. If Local + Remote available, decide what to do.
-   *
-   * @param user
-   */
-  private void checkServices(UserScope user, Engine.Status status) {
-
-    int nLocalServices = 0;
-
-    for (var serviceType : KlabService.Type.operationCritical()) {
-
-      String serviceName = serviceType.name().toLowerCase();
-      Ikon icon = Theme.LOCAL_SERVICE_ICON;
-      var provision = status.getServicesStatus().get(serviceType);
-
-      //      var service = user.getService(serviceType.classify());
-      //      String tooltip = Utils.Strings.capitalize(serviceName) + " ";
-      //
-      //      if (service != null) // FIXME this never happens
-      //        if (!Utils.URLs.isLocalHost(service.getUrl())) {
-      //          tooltip = "Remote " + serviceName + " " + service.getServiceName();
-      //          icon =
-      //              user.getServices(serviceType.classify()).size() > 1
-      //                  ? Theme.REMOTE_SERVICE_ICON_MANY
-      //                  : Theme.REMOTE_SERVICE_ICON_ONE;
-      //        } else {
-      //          tooltip = "Local " + serviceName;
-      //          nLocalServices++;
-      //        }
-
-      var button =
-          switch (serviceType) {
-            case REASONER -> reasonerButton;
-            case RESOURCES -> resourcesButton;
-            case RESOLVER -> resolverButton;
-            case RUNTIME -> runtimeButton;
-            default -> throw new KlabInternalErrorException("?"); // can't happen
-          };
-
-      //      var color =
-      //          switch (serviceType) {
-      //            case REASONER ->
-      //                service.status().isOperational()
-      //                    ? Theme.REASONER_COLOR_ACTIVE
-      //                    : Theme.REASONER_COLOR_MUTED;
-      //            case RESOURCES ->
-      //                service.status().isOperational()
-      //                    ? Theme.RESOURCES_COLOR_ACTIVE
-      //                    : Theme.RESOURCES_COLOR_MUTED;
-      //            case RESOLVER ->
-      //                service.status().isOperational()
-      //                    ? Theme.RESOLVER_COLOR_ACTIVE
-      //                    : Theme.RESOLVER_COLOR_MUTED;
-      //            case RUNTIME ->
-      //                service.status().isOperational()
-      //                    ? Theme.RUNTIME_COLOR_ACTIVE
-      //                    : Theme.RUNTIME_COLOR_MUTED;
-      //            default -> throw new KlabInternalErrorException("?"); // can't happen
-      //          };
-      //
-      //      if (serviceType == KlabService.Type.RESOURCES
-      //          && user.getServices(ResourcesService.class).stream()
-      //              .anyMatch(s -> s.status().isOperational())) {
-      //        setButton(
-      //            workspacesButton,
-      //            Theme.RESOURCES_ICON,
-      //            24,
-      //            Color.DARKGREEN,
-      //            workspacesButton.getTooltip().getText());
-      //        setButton(
-      //            resourcesManagerButton,
-      //            Theme.RESOURCES_ICON,
-      //            24,
-      //            Color.DARKGREEN,
-      //            resourcesManagerButton.getTooltip().getText());
-      //      } else {
-      //        setButton(
-      //            workspacesButton,
-      //            Theme.WORKSPACES_ICON,
-      //            24,
-      //            Color.GREY,
-      //            workspacesButton.getTooltip().getText());
-      //        setButton(
-      //            resourcesManagerButton,
-      //            Theme.RESOURCES_ICON,
-      //            24,
-      //            Color.GREY,
-      //            resourcesManagerButton.getTooltip().getText());
-      //      }
-
-      if (serviceType == KlabService.Type.RUNTIME
-          && user.getServices(RuntimeService.class).stream()
-              .anyMatch(s -> s.status().isOperational())) {
-        setButton(
-            digitalTwinsButton,
-            Theme.DIGITAL_TWINS_ICON,
-            24,
-            Color.DARKRED,
-            digitalTwinsButton.getTooltip().getText());
-      } else {
-        setButton(
-            digitalTwinsButton,
-            Theme.DIGITAL_TWINS_ICON,
-            24,
-            Color.GREY,
-            digitalTwinsButton.getTooltip().getText());
-      }
-
-      //      setButton(button, icon, 16, color, tooltip);
-    }
-  }
-
   @Override
   public void notifyServiceStatus(KlabService service, KlabService.ServiceStatus status) {}
 
   @Override
   public void engineStatusChanged(Engine.Status status) {
 
-    // This only gets called when the status has changed.
-    Logging.INSTANCE.info("DIO RUDO " + status);
+    Logging.INSTANCE.info("ZIO PANDORO " + status);
+    engineStatus.set(status);
+
+    switch (status.getCondition()) {
+      case TRANSITIONING ->
+          setButton(
+              startButton,
+              BootstrapIcons.CLOCK,
+              16,
+              Color.DARKGOLDENROD,
+              "Local services are starting or stopping. Wait until status changes.");
+      case INOPERATIVE, ACTIVE_REMOTE_ONLY -> {
+        if (distribution != null && distribution.isUsable()) {
+          setButton(
+              startButton,
+              BootstrapIcons.POWER,
+              16,
+              Color.DARKGREEN,
+              "Local services are not running. Click to start them.");
+          startButton.setDisable(false);
+        } else {
+          setButton(
+              startButton,
+              BootstrapIcons.POWER,
+              16,
+              Color.GREY,
+              "No distribution is available. Please download one.");
+          startButton.setDisable(true);
+        }
+      }
+      case ACTIVE_LOCAL_ONLY, ACTIVE_LOCAL_AND_REMOTE ->
+          setButton(
+              startButton,
+              BootstrapIcons.STOP,
+              16,
+              Color.DARKRED,
+              "Local services are running. Click to stop them.");
+    }
 
     for (var serviceType : KlabService.Type.operationCritical()) {
 
@@ -564,44 +464,13 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
             case LOCAL_REMOTE_SINGLE, LOCAL_REMOTE_MULTI -> Theme.LOCAL_AND_REMOTE_SERVICE_ICON;
           };
 
-      //
-      //      if (serviceType == KlabService.Type.RESOURCES
-      //          && user.getServices(ResourcesService.class).stream()
-      //              .anyMatch(s -> s.status().isOperational())) {
-      //        setButton(
-      //            workspacesButton,
-      //            Theme.RESOURCES_ICON,
-      //            24,
-      //            Color.DARKGREEN,
-      //            workspacesButton.getTooltip().getText());
-      //        setButton(
-      //            resourcesManagerButton,
-      //            Theme.RESOURCES_ICON,
-      //            24,
-      //            Color.DARKGREEN,
-      //            resourcesManagerButton.getTooltip().getText());
-      //      } else {
-      //        setButton(
-      //            workspacesButton,
-      //            Theme.WORKSPACES_ICON,
-      //            24,
-      //            Color.GREY,
-      //            workspacesButton.getTooltip().getText());
-      //        setButton(
-      //            resourcesManagerButton,
-      //            Theme.RESOURCES_ICON,
-      //            24,
-      //            Color.GREY,
-      //            resourcesManagerButton.getTooltip().getText());
-      //      }
-
       if (serviceType == KlabService.Type.RUNTIME) {
         if (provision.isOperational()) {
           setButton(
               digitalTwinsButton,
               Theme.DIGITAL_TWINS_ICON,
               24,
-              Color.DARKRED,
+              Color.DARKGREEN,
               digitalTwinsButton.getTooltip().getText());
         } else {
           setButton(
@@ -617,7 +486,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
               worldviewButton,
               Theme.WORLDVIEW_ICON,
               24,
-              Color.DARKRED,
+              Color.DARKGREEN,
               worldviewButton.getTooltip().getText());
         } else {
           setButton(
@@ -633,14 +502,20 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
               workspacesButton,
               Theme.WORKSPACES_ICON,
               24,
-              Color.DARKRED,
+              Color.DARKGREEN,
               workspacesButton.getTooltip().getText());
           setButton(
-              resourcesButton,
+              resourcesManagerButton,
               Theme.RESOURCES_ICON,
               24,
-              Color.DARKRED,
-              resourcesButton.getTooltip().getText());
+              Color.DARKGREEN,
+              resourcesManagerButton.getTooltip().getText());
+          setButton(
+              sessionsButton,
+              Theme.APPLICATION_VIEW_ICON,
+              24,
+              Color.DARKGREEN,
+              sessionsButton.getTooltip().getText());
         } else {
           setButton(
               workspacesButton,
@@ -649,11 +524,17 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
               Color.GREY,
               workspacesButton.getTooltip().getText());
           setButton(
-              resourcesButton,
+              resourcesManagerButton,
               Theme.RESOURCES_ICON,
               24,
-              Color.DARKRED,
-              resourcesButton.getTooltip().getText());
+              Color.GREY,
+              resourcesManagerButton.getTooltip().getText());
+          setButton(
+              sessionsButton,
+              Theme.APPLICATION_VIEW_ICON,
+              24,
+              Color.GREY,
+              sessionsButton.getTooltip().getText());
         }
       }
 
@@ -661,73 +542,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
 
       setButton(button, icon, 16, color, tooltip);
     }
-
-    if (status.isAvailable()) {
-
-      if (distribution != null) {
-        var localServicesCount =
-            modeler().user().getServices(Reasoner.class).stream()
-                    .filter(s -> Utils.URLs.isLocalHost(s.getUrl()))
-                    .count()
-                + modeler().user().getServices(RuntimeService.class).stream()
-                    .filter(s -> Utils.URLs.isLocalHost(s.getUrl()))
-                    .count()
-                + modeler().user().getServices(Resolver.class).stream()
-                    .filter(s -> Utils.URLs.isLocalHost(s.getUrl()))
-                    .count()
-                + modeler().user().getServices(ResourcesService.class).stream()
-                    .filter(s -> Utils.URLs.isLocalHost(s.getUrl()))
-                    .count();
-
-        var localOperationalCount =
-            modeler().user().getServices(Reasoner.class).stream()
-                    .filter(s -> s.status().isOperational() && Utils.URLs.isLocalHost(s.getUrl()))
-                    .count()
-                + modeler().user().getServices(RuntimeService.class).stream()
-                    .filter(s -> s.status().isOperational() && Utils.URLs.isLocalHost(s.getUrl()))
-                    .count()
-                + modeler().user().getServices(Resolver.class).stream()
-                    .filter(s -> s.status().isOperational() && Utils.URLs.isLocalHost(s.getUrl()))
-                    .count()
-                + modeler().user().getServices(ResourcesService.class).stream()
-                    .filter(s -> s.status().isOperational() && Utils.URLs.isLocalHost(s.getUrl()))
-                    .count();
-
-        if (localServicesCount == 0) {
-          setButton(
-              startButton,
-              Material2MZ.POWER_SETTINGS_NEW,
-              16,
-              Color.GREEN,
-              "Local services are not running. Click to start them.");
-        } else if (localServicesCount >= 4 && localOperationalCount >= 4) {
-          setButton(
-              startButton,
-              Material2MZ.STOP,
-              16,
-              Color.DARKRED,
-              "Local services are running. Click to stop them.");
-        } else {
-          setButton(
-              startButton,
-              Material2AL.ACCESS_TIME,
-              16,
-              Color.DARKGOLDENROD,
-              "Local services are starting or stopping. Wait until status changes.");
-        }
-
-        this.engineStarted.set(localOperationalCount > 0);
-      }
-    }
-
-    /**
-     * Services: absent or !available -> grey; available && !operational -> clock; available &&
-     * operational -> icon; Engine on/off: all services operational -> stop; no service or none
-     * available -> on; anything else -> wait;
-     */
-    checkServices(modeler().user(), status);
-
-    //    this.workspaceView.updateServices(status);
   }
 
   @Override
@@ -853,7 +667,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
 
   }
 
-  //  @Override
   public void notifyDistribution(Distribution distribution) {
 
     Ikon icon = BootstrapIcons.DOWNLOAD;
