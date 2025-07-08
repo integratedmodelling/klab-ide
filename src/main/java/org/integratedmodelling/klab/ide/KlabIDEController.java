@@ -105,7 +105,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
 
   public KlabIDEController() {
     _this = this;
-    createModeler();
   }
 
   public DigitalTwinPeer requireDigitalTwinPeer(ContextScope scope) {
@@ -150,6 +149,8 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
     inspectorView = new InspectorView();
     applicationView = new SessionView();
     ontologyView = new OntologyView();
+
+    Logging.INSTANCE.info("Modeler initialized");
   }
 
   public <T extends BrowsablePage> T getView(View view, Class<T> cls) {
@@ -241,8 +242,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
   @FXML
   protected void initialize() {
 
-    modeler.boot();
-
     homeButton.setGraphic(
         new IconLabel(Material2AL.HOME, 24, Theme.CURRENT_THEME.getDefaultTextColor()));
     workspacesButton.setGraphic(new IconLabel(Theme.WORKSPACES_ICON, 24, Color.GREY));
@@ -316,16 +315,21 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
       viewButtons.get(key).setOnMouseClicked(mouseEvent -> selectView(key));
     }
 
-    this.user = modeler.authenticate();
+    Platform.runLater(
+        () -> {
+          createModeler();
+          modeler.boot();
+          this.user = modeler.authenticate();
 
-    // must call explicitly because the callback won't be used before boot.
-    notifyUser(this.user.getUser());
-    notifyDistribution(modeler().getDistribution());
+          // must call explicitly because the callback won't be used before boot.
+          notifyUser(this.user.getUser());
+          notifyDistribution(modeler().getDistribution());
 
-    if (settings.getStartServicesOnStartup().getValue()) {
-      // TODO
-      //      Thread.ofPlatform().start(this::toggleLocalServices);
-    }
+          if (settings.getStartServicesOnStartup().getValue()) {
+            // TODO
+            //      Thread.ofPlatform().start(this::toggleLocalServices);
+          }
+        });
   }
 
   private void handleStartButtonPress() {
@@ -381,7 +385,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
   @Override
   public void engineStatusChanged(Engine.Status status) {
 
-    Logging.INSTANCE.info("ZIO PANDORO " + status);
     engineStatus.set(status);
 
     switch (status.getCondition()) {
@@ -400,7 +403,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
               16,
               Color.DARKGREEN,
               "Local services are not running. Click to start them.");
-          startButton.setDisable(false);
         } else {
           setButton(
               startButton,
@@ -408,7 +410,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
               16,
               Color.GREY,
               "No distribution is available. Please download one.");
-          startButton.setDisable(true);
         }
       }
       case ACTIVE_LOCAL_ONLY, ACTIVE_LOCAL_AND_REMOTE ->
@@ -519,7 +520,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
         } else {
           setButton(
               workspacesButton,
-              Theme.WORLDVIEW_ICON,
+              Theme.WORKSPACES_ICON,
               24,
               Color.GREY,
               workspacesButton.getTooltip().getText());
@@ -689,18 +690,22 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
         case UNAVAILABLE -> {
           color = Color.RED;
           tooltip = "No distribution available. Click to download";
+          startButton.setDisable(true);
         }
         case LOCAL_ONLY -> {
           startTooltip = "Start local k.LAB services";
+          startButton.setDisable(false);
         }
         case UP_TO_DATE -> {
           startTooltip = "Start local k.LAB services";
           icon = BootstrapIcons.CHECK;
+          startButton.setDisable(false);
         }
         case OBSOLETE -> {
           color = Color.GOLDENROD;
           tooltip = "Updated k.LAB distribution available. Click to update";
           startTooltip = "Start out-of-date local services";
+          startButton.setDisable(false);
         }
       }
     }
