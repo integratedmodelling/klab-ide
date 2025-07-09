@@ -1,22 +1,25 @@
 package org.integratedmodelling.klab.ide.components;
 
 import atlantafx.base.controls.Card;
+import atlantafx.base.controls.ToggleSwitch;
 import atlantafx.base.theme.Styles;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+
+import atlantafx.base.theme.Tweaks;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.*;
+import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.beans.property.SimpleObjectProperty;
+import javafx.beans.binding.Bindings;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.Slider;
@@ -30,7 +33,9 @@ import javafx.scene.paint.Color;
 import javafx.util.StringConverter;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.configuration.Configuration;
+import org.integratedmodelling.klab.api.configuration.Setting;
 import org.integratedmodelling.klab.api.data.Version;
+import org.integratedmodelling.klab.api.engine.Engine;
 import org.integratedmodelling.klab.api.engine.distribution.Distribution;
 import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.api.scope.UserScope;
@@ -487,6 +492,121 @@ public class Components {
 
     protected void createContent() {
       var card = new Card();
+
+      TabPane tabPane = new TabPane();
+      tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+
+      for (var settingPage : Setting.Page.values()) {
+        Tab tab = new Tab();
+        tab.setText(Utils.Strings.capitalize(settingPage.name().replace("_", " ").toLowerCase()));
+
+        VBox content = new VBox(10);
+        content.setPadding(new Insets(0));
+        VBox.setVgrow(content, Priority.ALWAYS);
+        content.setMinHeight(360);
+
+        var pageSettings =
+            Arrays.stream(Setting.values()).filter(s -> s.page == settingPage).toList();
+
+        TableView<Setting> table = new TableView<>();
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        table.setTableMenuButtonVisible(false);
+        table
+            .getStyleClass()
+            .addAll(Styles.DENSE, Styles.STRIPED, Tweaks.EDGE_TO_EDGE, Tweaks.NO_HEADER);
+        table.setMinHeight(360);
+
+        TableColumn<Setting, Node> labelColumn = new TableColumn<>();
+        labelColumn.setCellValueFactory(
+            data -> {
+              VBox labelBox = new VBox(2);
+              Label nameLabel =
+                  new Label(
+                      Utils.Strings.capitalize(
+                          data.getValue().name().replace("_", " ").toLowerCase()));
+              nameLabel.setStyle("-fx-font-weight: bold");
+              Label descLabel = new Label(data.getValue().description);
+              descLabel.setStyle("-fx-font-size: 11px");
+              descLabel.setWrapText(true);
+              labelBox.getChildren().addAll(nameLabel, descLabel);
+              return new SimpleObjectProperty<>(labelBox);
+            });
+
+        TableColumn<Setting, Node> inputColumn = new TableColumn<>();
+        inputColumn.setCellValueFactory(
+            data -> {
+              Node input;
+              if (data.getValue().valueClass == Boolean.class) {
+                ToggleSwitch toggle = new ToggleSwitch();
+                toggle.setSelected(
+                    KlabIDEController.modeler()
+                        .engine()
+                        .getSettings()
+                        .get(data.getValue(), Boolean.class));
+                input = toggle;
+                toggle.setOnMouseClicked(
+                    e -> {
+                      KlabIDEController.modeler()
+                          .engine()
+                          .getSettings()
+                          .set(data.getValue(), toggle.isSelected());
+                    });
+              } else if (Integer.class.isAssignableFrom(data.getValue().valueClass)) {
+                TextField field = new TextField();
+                field.setText(
+                    KlabIDEController.modeler()
+                            .engine()
+                            .getSettings()
+                            .get(data.getValue(), Integer.class)
+                        + "");
+                field.setTextFormatter(
+                    new TextFormatter<>(
+                        change ->
+                            change.getControlNewText().matches("-?\\d*\\.?\\d*") ? change : null));
+                field.setOnAction(
+                    e -> {
+                      KlabIDEController.modeler()
+                          .engine()
+                          .getSettings()
+                          .set(data.getValue(), Integer.parseInt(field.getText()));
+                    });
+                input = field;
+              } else {
+                // TODO
+                TextField field = new TextField();
+                if (data.getValue().defaultValue != null) {
+                  field.setText(
+                      KlabIDEController.modeler()
+                          .engine()
+                          .getSettings()
+                          .get(data.getValue(), Object.class)
+                          .toString());
+                }
+                input = field;
+              }
+              return new SimpleObjectProperty<>(input);
+            });
+
+        table.getColumns().addAll(labelColumn, inputColumn);
+        table.getItems().addAll(pageSettings);
+        table.setFixedCellSize(46);
+        table
+            .prefHeightProperty()
+            .bind(table.fixedCellSizeProperty().multiply(Bindings.size(table.getItems())));
+
+        ScrollPane scroll = new ScrollPane(table);
+        scroll.setFitToWidth(true);
+        scroll.setFitToHeight(true);
+        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scroll.setMinHeight(360);
+
+        content.getChildren().add(scroll);
+
+        tab.setContent(content);
+        tabPane.getTabs().add(tab);
+      }
+
+      card.setBody(tabPane);
       this.getChildren().add(card);
     }
   }
@@ -933,7 +1053,7 @@ public class Components {
       Tab infoTab = new Tab("Info");
       infoTab.setClosable(false);
       VBox infoContent = new VBox(10, nameLabel, hostLink, apiLink);
-//      infoContent.setPadding(new Insets(10));
+      //      infoContent.setPadding(new Insets(10));
       infoTab.setContent(infoContent);
 
       //      Tab exportTab = new Tab("Export");
@@ -953,7 +1073,7 @@ public class Components {
       //      schemaSelector.setOnAction(e -> updateExportForm());
 
       parameterForm = new VBox(2);
-//      parameterForm.setSpacing(10);
+      //      parameterForm.setSpacing(10);
 
       ScrollPane scrollPane = new ScrollPane();
       scrollPane.setContent(parameterForm);
@@ -992,7 +1112,7 @@ public class Components {
 
       VBox importPane = new VBox(10);
       importPane.setPadding(new Insets(10));
-      importPane.setMinHeight(380);
+      importPane.setMinHeight(360);
 
       ComboBox<String> importSchemaSelector = new ComboBox<>();
       importSchemaSelector.setPromptText("Select Import Schema");

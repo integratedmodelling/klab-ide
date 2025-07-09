@@ -37,7 +37,6 @@ import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.integratedmodelling.klab.ide.components.*;
 import org.integratedmodelling.klab.ide.model.DigitalTwinPeer;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
-import org.integratedmodelling.klab.ide.settings.IDESettings;
 import org.integratedmodelling.klab.ide.utils.NodeUtils;
 import org.integratedmodelling.klab.modeler.ModelerImpl;
 import org.kordamp.ikonli.Ikon;
@@ -91,7 +90,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
   private ServicesViewController servicesController;
   private RuntimeViewController runtimeController;
   private Distribution distribution;
-  private IDESettings settings;
   private Map<View, Button> viewButtons = new HashMap<>();
   //  private AtomicBoolean engineStarted = new AtomicBoolean(false);
   //  private AtomicBoolean engineTransitioning = new AtomicBoolean(false);
@@ -134,8 +132,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
   private void createModeler() {
 
     modeler = new ModelerImpl(this);
-
-    this.settings = new IDESettings();
 
     this.servicesController = modeler.viewController(ServicesViewController.class);
     this.runtimeController = modeler.viewController(RuntimeViewController.class);
@@ -325,10 +321,10 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
           notifyUser(this.user.getUser());
           notifyDistribution(modeler().getDistribution());
 
-          if (settings.getStartServicesOnStartup().getValue()) {
-            // TODO
-            //      Thread.ofPlatform().start(this::toggleLocalServices);
-          }
+//          if (settings.getStartServicesOnStartup().getValue()) {
+//            // TODO
+//            //      Thread.ofPlatform().start(this::toggleLocalServices);
+//          }
         });
   }
 
@@ -678,7 +674,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
     var startTooltip = "Local services are not available";
 
     if (status.getDevelopmentStatus() == Product.Status.UP_TO_DATE
-        && "source".equals(settings.getPrimaryDistribution().getValue())) {
+        /*&& "source".equals(settings.getPrimaryDistribution().getValue())*/) {
 
       this.distribution = distribution;
       icon = BootstrapIcons.LAPTOP;
