@@ -435,7 +435,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
           };
 
       var color =
-          provision == Engine.Status.ServiceProvision.INOP
+          provision == Engine.Status.ServiceProvision.INOPERATIVE
               ? Color.GREY
               : switch (serviceType) {
                 case REASONER ->
@@ -459,7 +459,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
 
       var icon =
           switch (provision) {
-            case INOP, LOCAL_INOP_SINGLE, LOCAL_SINGLE -> Theme.LOCAL_SERVICE_ICON;
+            case INOPERATIVE, LOCAL_INOP_SINGLE, LOCAL_SINGLE -> Theme.LOCAL_SERVICE_ICON;
             case REMOTE_SINGLE, LOCAL_INOP_REMOTE_SINGLE -> Theme.REMOTE_SERVICE_ICON_ONE;
             case REMOTE_MULTI, LOCAL_INOP_REMOTE_MULTI -> Theme.REMOTE_SERVICE_ICON_MANY;
             case LOCAL_REMOTE_SINGLE, LOCAL_REMOTE_MULTI -> Theme.LOCAL_AND_REMOTE_SERVICE_ICON;
