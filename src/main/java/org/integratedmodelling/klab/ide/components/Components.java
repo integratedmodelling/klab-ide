@@ -3,23 +3,20 @@ package org.integratedmodelling.klab.ide.components;
 import atlantafx.base.controls.Card;
 import atlantafx.base.controls.ToggleSwitch;
 import atlantafx.base.theme.Styles;
+import atlantafx.base.theme.Tweaks;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-
-import atlantafx.base.theme.Tweaks;
+import javafx.beans.binding.Bindings;
+import javafx.beans.property.SimpleObjectProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.*;
-import javafx.scene.control.cell.PropertyValueFactory;
-import javafx.beans.property.SimpleObjectProperty;
-import javafx.beans.binding.Bindings;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.Slider;
@@ -30,12 +27,11 @@ import javafx.scene.input.TransferMode;
 import javafx.scene.layout.*;
 import javafx.scene.layout.Priority;
 import javafx.scene.paint.Color;
+import javafx.stage.FileChooser;
 import javafx.util.StringConverter;
 import org.integratedmodelling.common.utils.Utils;
-import org.integratedmodelling.klab.api.configuration.Configuration;
 import org.integratedmodelling.klab.api.configuration.Setting;
 import org.integratedmodelling.klab.api.data.Version;
-import org.integratedmodelling.klab.api.engine.Engine;
 import org.integratedmodelling.klab.api.engine.distribution.Distribution;
 import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.api.scope.UserScope;
@@ -571,6 +567,41 @@ public class Components {
                           .set(data.getValue(), Integer.parseInt(field.getText()));
                     });
                 input = field;
+              } else if (File.class.isAssignableFrom(data.getValue().valueClass)) {
+
+                HBox fileBox = new HBox(10);
+                TextField fileField = new TextField();
+                fileField.setEditable(false);
+                Button chooseButton = new Button("Choose...");
+                fileBox.getChildren().addAll(fileField, chooseButton);
+                HBox.setHgrow(fileBox, Priority.ALWAYS);
+                HBox.setHgrow(fileField, Priority.ALWAYS);
+
+                chooseButton.setOnAction(
+                    e -> {
+                      FileChooser fileChooser = new FileChooser();
+                      fileChooser.setTitle("Select File");
+                      File selectedFile = fileChooser.showOpenDialog(getScene().getWindow());
+                      if (selectedFile != null) {
+                        fileField.setText(selectedFile.getAbsolutePath());
+                        KlabIDEController.modeler()
+                            .engine()
+                            .getSettings()
+                            .set(data.getValue(), selectedFile);
+                      }
+                    });
+
+                File currentValue =
+                    KlabIDEController.modeler()
+                        .engine()
+                        .getSettings()
+                        .get(data.getValue(), File.class);
+                if (currentValue != null) {
+                  fileField.setText(currentValue.getAbsolutePath());
+                }
+
+                input = fileBox;
+
               } else {
                 // TODO
                 TextField field = new TextField();
@@ -582,6 +613,16 @@ public class Components {
                           .get(data.getValue(), Object.class)
                           .toString());
                 }
+                field.setOnAction(
+                    e -> {
+                      KlabIDEController.modeler()
+                          .engine()
+                          .getSettings()
+                          .set(
+                              data.getValue(),
+                              Utils.Data.parseAsType(field.getText(), data.getValue().valueClass));
+                    });
+                HBox.setHgrow(field, Priority.ALWAYS);
                 input = field;
               }
               return new SimpleObjectProperty<>(input);

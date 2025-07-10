@@ -11,6 +11,7 @@ import org.integratedmodelling.klab.api.data.RepositoryState;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
+import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableAsset;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableFolder;
 import org.integratedmodelling.klab.ide.components.Asset;
@@ -113,7 +114,18 @@ public enum Theme {
   public static final Ikon REMOTE_SERVICE_ICON_MANY = BootstrapIcons.CLOUDS;
   public static final Ikon LOCAL_AND_REMOTE_SERVICE_ICON = MaterialDesign.MDI_CLOUD_SYNC;
 
-  public static Ikon getIcon(KlabAsset.KnowledgeClass knowledgeClass) {
+  public static Ikon getIcon(Notification.Level level) {
+    return switch (level) {
+      // TODO
+        case Debug -> MODEL_ICON;
+        case Info -> MODEL_ICON;
+        case Warning -> MODEL_ICON;
+        case Error -> MODEL_ICON;
+        case SystemError -> MODEL_ICON;
+    };
+  }
+
+    public static Ikon getIcon(KlabAsset.KnowledgeClass knowledgeClass) {
     return switch (knowledgeClass) {
       case CONCEPT -> CONCEPT_DEFINITION_ICON;
       case OBSERVABLE -> CONCEPT_DEFINITION_ICON;

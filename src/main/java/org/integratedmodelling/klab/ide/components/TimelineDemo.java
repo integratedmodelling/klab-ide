@@ -109,7 +109,6 @@ public class TimelineDemo extends Components.BaseComponent {
         redrawButton = new Button("Redraw");
         redrawButton.setOnAction(e -> timeline.drawTimeline());
 
-
         Label eventTypeLabel = new Label("Event Type:");
         eventTypeComboBox = new ComboBox<>();
         eventTypeComboBox.getItems().addAll(Timeline.EventType.values());

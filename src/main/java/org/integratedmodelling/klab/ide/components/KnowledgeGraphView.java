@@ -52,6 +52,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     this.scope = scope;
     this.knowledgeGraph = knowledgeGraph;
     this.editor = editor;
+    this.focalAsset = RuntimeAsset.CONTEXT_ASSET;
 
     HBox controls = new HBox(2);
     controls.getStyleClass().add(Styles.SMALL);

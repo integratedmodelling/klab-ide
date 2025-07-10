@@ -1,8 +1,7 @@
 package org.integratedmodelling.klab.ide.components;
 
-import java.util.*;
-
 import atlantafx.base.theme.Styles;
+import java.util.*;
 import javafx.application.Platform;
 import javafx.geometry.HPos;
 import javafx.geometry.Insets;
@@ -12,16 +11,19 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.klab.api.authentication.CRUDOperation;
+import org.integratedmodelling.klab.api.authentication.ResourcePrivileges;
+import org.integratedmodelling.klab.api.digitaltwin.DigitalTwin;
 import org.integratedmodelling.klab.api.scope.ContextScope;
+import org.integratedmodelling.klab.api.scope.Persistence;
 import org.integratedmodelling.klab.api.services.ResourcesService;
 import org.integratedmodelling.klab.api.services.RuntimeService;
-import org.integratedmodelling.klab.api.services.resources.ResourceInfo;
 import org.integratedmodelling.klab.api.services.runtime.objects.ContextInfo;
 import org.integratedmodelling.klab.api.utils.Utils;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 import org.kordamp.ikonli.javafx.FontIcon;
+import org.kordamp.ikonli.material2.Material2AL;
 
 public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor> {
 
@@ -111,8 +113,8 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor> {
             .toList();
 
     GridPane grid = new GridPane();
-    grid.setHgap(10);
-    grid.setVgap(10);
+    grid.setHgap(6);
+    grid.setVgap(6);
     grid.setStyle("-fx-background-color: -color-neutral-muted;");
     grid.setPadding(new Insets(6, 6, 6, 6));
 
@@ -129,15 +131,6 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor> {
     var ok = new Button("Create");
     var cancel = new Button("Cancel");
     var service = (ResourcesService) null;
-    ok.setOnAction(
-        event -> {
-          createDigitalTwin(
-              workspaceTitle.getText(),
-              description.getText(),
-              availableServices.get(serviceSelector.getSelectionModel().getSelectedIndex()));
-          workspaceDialog = null;
-          updateBrowser();
-        });
     ok.getStyleClass().addAll(Styles.BUTTON_OUTLINED, Styles.SUCCESS, Styles.SMALL);
     cancel.setOnAction(
         event -> {
@@ -159,13 +152,59 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor> {
 
     grid.add(new FontIcon(Theme.LOCAL_SERVICE_ICON), 0, 2);
     grid.add(serviceSelector, 1, 2);
-    grid.add(buttons, 0, 3, 2, 1);
 
-    CheckBox persistenceCheck = new CheckBox("Enable Persistence");
-    CheckBox publicAccessCheck = new CheckBox("Public Access");
+    ComboBox<Persistence> persistenceCombo = new ComboBox<>();
+    persistenceCombo.getItems().addAll(Persistence.values());
+    persistenceCombo.setValue(Persistence.SERVICE_SHUTDOWN);
+    persistenceCombo.setMaxWidth(Double.MAX_VALUE);
 
-    grid.add(persistenceCheck, 0, 4, 2, 1);
-    grid.add(publicAccessCheck, 0, 5, 2, 1);
+    TextField accessField = new TextField();
+    accessField.setEditable(false);
+    accessField.setText(ResourcePrivileges.create(KlabIDEController.modeler().user()).toString());
+    Button accessChooser = new Button("", new FontIcon(Material2AL.LOCK_OPEN));
+    accessChooser.setOnAction(
+        e -> {
+          Dialog<ButtonType> dialog = new Dialog<>();
+          dialog.setTitle("Public Access Settings");
+
+          Node genericContent = new VBox(); // Replace with your desired content
+
+          dialog.getDialogPane().setContent(genericContent);
+          dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+          dialog
+              .showAndWait()
+              .ifPresent(
+                  result -> {
+                    if (result == ButtonType.OK) {
+                      // Handle OK button action
+                    }
+                  });
+        });
+
+    HBox publicAccessBox = new HBox(4, accessField, accessChooser);
+
+    grid.add(new FontIcon(Material2AL.ACCESS_ALARMS), 0, 3);
+    grid.add(persistenceCombo, 1, 3);
+    grid.add(new FontIcon(Material2AL.ACCESSIBILITY), 0, 4, 2, 1);
+    grid.add(publicAccessBox, 1, 4, 2, 1);
+    grid.add(buttons, 0, 5, 2, 1);
+
+    ok.setOnAction(
+        event -> {
+          var configuration =
+              DigitalTwin.Configuration.builder()
+                  .accessRights(ResourcePrivileges.create(accessField.getText()))
+                  .name(workspaceTitle.getText())
+                  .description(description.getText())
+                  .persistence(persistenceCombo.getSelectionModel().getSelectedItem())
+                  .build();
+          createDigitalTwin(
+              configuration,
+              availableServices.get(serviceSelector.getSelectionModel().getSelectedIndex()));
+          workspaceDialog = null;
+          updateBrowser();
+        });
 
     if (availableServices.isEmpty()) {
       grid.setDisable(true);
@@ -175,7 +214,8 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor> {
     return grid;
   }
 
-  private void createDigitalTwin(String text, String text1, RuntimeService runtimeService) {
+  private void createDigitalTwin(
+      DigitalTwin.Configuration configuration, RuntimeService runtimeService) {
     Logging.INSTANCE.info("DIO PETO");
   }
 
