@@ -149,6 +149,12 @@ public class DigitalTwinPeer {
     executor.shutdown();
   }
 
+  public void focus(ContextScope contextScope) {
+    // TODO reset view to the passed scope!
+    Logging.INSTANCE.info(
+        "ZIO CAN RESET THE VIEWER TO THE SCOPE: " + contextScope.getName() + " !");
+  }
+
   public void focus(RuntimeAsset asset) {
     if (asset instanceof Observation observation
         && observation.getObservable().is(SemanticType.COUNTABLE)
@@ -161,9 +167,10 @@ public class DigitalTwinPeer {
 
     executor.submit(
         () -> {
-          viewers.forEach(v -> {
-            v.cleanup();
-          });
+          viewers.forEach(
+              v -> {
+                v.cleanup();
+              });
           scope.close();
         });
     try {

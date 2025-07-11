@@ -16,6 +16,7 @@ import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.organization.ProjectStorage;
 import org.integratedmodelling.klab.api.lang.kim.KlabDocument;
 import org.integratedmodelling.klab.api.lang.kim.KlabStatement;
+import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.api.services.ResourcesService;
 import org.integratedmodelling.klab.api.services.resources.ResourceInfo;
 import org.integratedmodelling.klab.api.services.resources.ResourceSet;
@@ -31,7 +32,7 @@ import org.integratedmodelling.klab.modeler.model.NavigableKimModel;
 import org.integratedmodelling.klab.modeler.model.NavigableProject;
 import org.integratedmodelling.klab.modeler.model.NavigableWorkspace;
 
-public class WorkspaceEditor extends EditorPage<NavigableAsset> {
+public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAsset> {
 
   private final ResourcesService service;
   private final NavigableWorkspace workspace;
@@ -41,11 +42,12 @@ public class WorkspaceEditor extends EditorPage<NavigableAsset> {
   private TreeView<NavigableAsset> treeView;
 
   public WorkspaceEditor(ResourcesService service, ResourceInfo resourceInfo, WorkspaceView view) {
+    super(
+        new NavigableWorkspace(
+            service.retrieveWorkspace(resourceInfo.getUrn(), KlabIDEController.modeler().user())));
     this.service = service;
     this.view = view;
-    this.workspace =
-        new NavigableWorkspace(
-            service.retrieveWorkspace(resourceInfo.getUrn(), KlabIDEController.modeler().user()));
+    this.workspace = getEditedAsset();
     if (service instanceof ResourcesService.Admin admin) {
       // lock all projects that let us
       for (var project : workspace.getProjects()) {
@@ -215,55 +217,59 @@ public class WorkspaceEditor extends EditorPage<NavigableAsset> {
     return root;
   }
 
-//  @Override
-//  protected Region createMenuArea() {
-//    var separator = new Separator();
-//    separator.setPrefHeight(3);
-//    separator.setPadding(new javafx.geometry.Insets(0, 0, 0, 0));
-//    var left = new HBox();
-//    left.setAlignment(Pos.CENTER_LEFT);
-//    left.setSpacing(2);
-//    var addButton =
-//        new Button(
-//            "",
-//            new IconLabel(Theme.ADD_PROJECT_ICON, 18, Theme.CURRENT_THEME.getDefaultTextColor()));
-//    var importButton =
-//        new Button(
-//            "",
-//            new IconLabel(Theme.IMPORT_ASSET_ICON, 18, Theme.CURRENT_THEME.getDefaultTextColor()));
-//    left.getChildren().addAll(addButton, importButton);
-//    addButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
-//    importButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
-//
-//    var right = new HBox();
-//    right.setAlignment(Pos.CENTER_RIGHT);
-//    right.setSpacing(2);
-//
-//    var collapseButton =
-//        new Button(
-//            "", new IconLabel(Theme.COLLAPSE_ICON, 18, Theme.CURRENT_THEME.getDefaultTextColor()));
-//    var expandButton =
-//        new Button(
-//            "", new IconLabel(Theme.EXPAND_ICON, 18, Theme.CURRENT_THEME.getDefaultTextColor()));
-//    collapseButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
-//    expandButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
-//    collapseButton.setOnAction(actionEvent -> root.setExpanded(false));
-//    expandButton.setOnAction(actionEvent -> root.setExpanded(true));
-//
-//    right.getChildren().addAll(collapseButton, expandButton);
-//
-//    progressBar = new ProgressBar(0);
-//    progressBar.setPrefWidth(160);
-//    progressBar.setPrefHeight(3);
-//
-//    var ret = new HBox(4);
-//    ret.setAlignment(Pos.CENTER);
-//    ret.setPadding(new javafx.geometry.Insets(5));
-//    progressBar.setMaxWidth(Double.MAX_VALUE);
-//    HBox.setHgrow(progressBar, javafx.scene.layout.Priority.ALWAYS);
-//    ret.getChildren().addAll(left, progressBar, right);
-//    return new VBox(separator, ret);
-//  }
+  //  @Override
+  //  protected Region createMenuArea() {
+  //    var separator = new Separator();
+  //    separator.setPrefHeight(3);
+  //    separator.setPadding(new javafx.geometry.Insets(0, 0, 0, 0));
+  //    var left = new HBox();
+  //    left.setAlignment(Pos.CENTER_LEFT);
+  //    left.setSpacing(2);
+  //    var addButton =
+  //        new Button(
+  //            "",
+  //            new IconLabel(Theme.ADD_PROJECT_ICON, 18,
+  // Theme.CURRENT_THEME.getDefaultTextColor()));
+  //    var importButton =
+  //        new Button(
+  //            "",
+  //            new IconLabel(Theme.IMPORT_ASSET_ICON, 18,
+  // Theme.CURRENT_THEME.getDefaultTextColor()));
+  //    left.getChildren().addAll(addButton, importButton);
+  //    addButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
+  //    importButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
+  //
+  //    var right = new HBox();
+  //    right.setAlignment(Pos.CENTER_RIGHT);
+  //    right.setSpacing(2);
+  //
+  //    var collapseButton =
+  //        new Button(
+  //            "", new IconLabel(Theme.COLLAPSE_ICON, 18,
+  // Theme.CURRENT_THEME.getDefaultTextColor()));
+  //    var expandButton =
+  //        new Button(
+  //            "", new IconLabel(Theme.EXPAND_ICON, 18,
+  // Theme.CURRENT_THEME.getDefaultTextColor()));
+  //    collapseButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
+  //    expandButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
+  //    collapseButton.setOnAction(actionEvent -> root.setExpanded(false));
+  //    expandButton.setOnAction(actionEvent -> root.setExpanded(true));
+  //
+  //    right.getChildren().addAll(collapseButton, expandButton);
+  //
+  //    progressBar = new ProgressBar(0);
+  //    progressBar.setPrefWidth(160);
+  //    progressBar.setPrefHeight(3);
+  //
+  //    var ret = new HBox(4);
+  //    ret.setAlignment(Pos.CENTER);
+  //    ret.setPadding(new javafx.geometry.Insets(5));
+  //    progressBar.setMaxWidth(Double.MAX_VALUE);
+  //    HBox.setHgrow(progressBar, javafx.scene.layout.Priority.ALWAYS);
+  //    ret.getChildren().addAll(left, progressBar, right);
+  //    return new VBox(separator, ret);
+  //  }
 
   @Override
   protected Node createEditor(NavigableAsset asset) {

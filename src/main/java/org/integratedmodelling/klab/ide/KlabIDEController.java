@@ -109,6 +109,13 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
     return digitalTwinPeerMap.computeIfAbsent(scope.getId(), id -> new DigitalTwinPeer(scope));
   }
 
+  public static void setCurrentContext(ContextScope scope) {
+    modeler().setCurrentContext(scope);
+    for (var peer : _this.digitalTwinPeerMap.values()) {
+        peer.focus(scope);
+    }
+  }
+
   public DigitalTwinPeer getDigitalTwinPeer(String id) {
     return digitalTwinPeerMap.get(id);
   }
@@ -219,7 +226,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
         };
 
     // If it's a browser and it hasn't been seen yet, open the browser
-    if (neverSeen.remove(view) && ui instanceof BrowsablePage<?> browsablePage) {
+    if (neverSeen.remove(view) && ui instanceof BrowsablePage<?,?> browsablePage) {
       //      browsablePage.showBrowser();
     }
 
@@ -321,10 +328,10 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
           notifyUser(this.user.getUser());
           notifyDistribution(modeler().getDistribution());
 
-//          if (settings.getStartServicesOnStartup().getValue()) {
-//            // TODO
-//            //      Thread.ofPlatform().start(this::toggleLocalServices);
-//          }
+          //          if (settings.getStartServicesOnStartup().getValue()) {
+          //            // TODO
+          //            //      Thread.ofPlatform().start(this::toggleLocalServices);
+          //          }
         });
   }
 
@@ -674,7 +681,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
     var startTooltip = "Local services are not available";
 
     if (status.getDevelopmentStatus() == Product.Status.UP_TO_DATE
-        /*&& "source".equals(settings.getPrimaryDistribution().getValue())*/) {
+    /*&& "source".equals(settings.getPrimaryDistribution().getValue())*/ ) {
 
       this.distribution = distribution;
       icon = BootstrapIcons.LAPTOP;

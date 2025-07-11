@@ -25,9 +25,10 @@ import java.util.Map;
 /**
  * Editor for a first-class container - resource, digital twin or workspace.
  *
- * @param <T>
+ * @param <A> the overall asset being edited
+ * @param <T> the individual assets we create editors for
  */
-public abstract class EditorPage<T> extends BorderPane {
+public abstract class EditorPage<A, T> extends BorderPane {
 
   private final BorderPane browsingArea;
   private final TabPane editorTabs;
@@ -40,19 +41,15 @@ public abstract class EditorPage<T> extends BorderPane {
   protected DigitalTwinControlPanel digitalTwinControlPanel;
   private TreeView<T> tree;
   private HBox toggleBar;
+  private A currentAsset;
+  private boolean isContentShown = false;
 
-  public EditorPage() {
+  public EditorPage(A asset) {
+    this.currentAsset = asset;
     this.browsingArea = new BorderPane();
-    //    this.menuArea = createMenuArea();
-    //    menuArea.setStyle("-fx-background-color: -color-neutral-subtle;");
-    //    if (menuArea instanceof Region region) {
-    //      region.setPrefHeight(44);
-    //    }
     this.editorTabs = new TabPane();
     this.editorTabs.getStyleClass().add(Styles.TABS_CLASSIC);
     this.editorTabs.setSide(Side.BOTTOM);
-    //    browsingArea.setBottom(menuArea);
-
     SplitPane splitPane = new SplitPane();
     splitPane.setOrientation(Orientation.HORIZONTAL);
     splitPane.getItems().addAll(editorTabs, browsingArea);
@@ -186,6 +183,15 @@ public abstract class EditorPage<T> extends BorderPane {
     }
   }
 
+  /**
+   * Return the asset being edited
+   *
+   * @return
+   */
+  public A getEditedAsset() {
+    return currentAsset;
+  }
+
   protected abstract Node createEditor(T asset);
 
   /**
@@ -223,7 +229,7 @@ public abstract class EditorPage<T> extends BorderPane {
     if (!result.isEmpty() && result.get().getButtonData() == ButtonBar.ButtonData.YES) {
       // TODO IT - start at the peer, which deletes the scope. All DT CPs
       //  emptied and minified or moved to previous in stack, then all editors closed
-        KlabIDEController.instance().requireDigitalTwinPeer(scope).closeScope();
+      KlabIDEController.instance().requireDigitalTwinPeer(scope).closeScope();
     }
   }
 }

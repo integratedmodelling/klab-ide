@@ -26,9 +26,8 @@ import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultEdge;
 
-public class DigitalTwinEditor extends EditorPage<RuntimeAsset> implements DigitalTwinViewer {
+public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset> implements DigitalTwinViewer {
 
-  //  private final ContextScope contextScope;
   private final DigitalTwinPeer controller;
   private final RuntimeService runtimeService;
   private final DigitalTwinView view;
@@ -38,11 +37,11 @@ public class DigitalTwinEditor extends EditorPage<RuntimeAsset> implements Digit
   private RuntimeAsset context;
   private KnowledgeGraphView knowledgeGraphView;
   private TreeItem<RuntimeAsset> root;
-  //  private Map<Long, Activity> activities = new TreeMap<>();
   private final ContextScope contextScope;
 
   public DigitalTwinEditor(
       ContextScope contextScope, RuntimeService runtimeService, DigitalTwinView digitalTwinView) {
+    super(contextScope);
     this.controller = KlabIDEController.instance().requireDigitalTwinPeer(contextScope);
     this.controller.register(this);
     this.contextScope = contextScope;

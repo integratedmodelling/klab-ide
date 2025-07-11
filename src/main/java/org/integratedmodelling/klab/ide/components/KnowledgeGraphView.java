@@ -181,7 +181,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
       // Create the timeline component
       timeline = new Timeline(currentTimeMs, oneHourLaterMs, TimeUnit.MINUTES, 1);
       this.setBottom(timeline);
-      timeline.setVisible(false);
+      timeline.setVisible(true);
 
       // Initialize the graph view after it's been added to the scene
       Platform.runLater(

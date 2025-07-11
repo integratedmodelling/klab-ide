@@ -25,6 +25,7 @@ import org.integratedmodelling.klab.ide.KlabIDEApplication;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
+import org.integratedmodelling.klab.modeler.model.NavigableWorkspace;
 import org.kordamp.ikonli.javafx.FontIcon;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
@@ -38,7 +39,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class WorkspaceView extends BrowsablePage<WorkspaceEditor> {
+public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorkspace> {
 
   private final ResourcesNavigatorController controller;
 
@@ -52,6 +53,16 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor> {
   public WorkspaceView() {
     this.controller =
         KlabIDEController.modeler().viewController(ResourcesNavigatorController.class);
+  }
+
+  @Override
+  protected void assetEditorSelected(NavigableWorkspace asset) {
+
+  }
+
+  @Override
+  protected void assetEditorClosed(NavigableWorkspace asset) {
+
   }
 
   @Override

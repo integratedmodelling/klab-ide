@@ -25,7 +25,7 @@ import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
 
-public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor> {
+public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, ContextScope> {
 
   //  private final Map<String, ContextScope> digitalTwins = new HashMap<>();
   private final Map<String, DigitalTwinEditor> openEditors = new HashMap<>();
@@ -72,6 +72,26 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor> {
       }
     }
     return ret;
+  }
+
+  @Override
+  protected void assetEditorSelected(ContextScope asset) {
+    Logging.INSTANCE.info("SELECTED " + asset);
+    KlabIDEController.setCurrentContext(asset);
+  }
+
+  @Override
+  protected void assetEditorClosed(ContextScope asset) {
+    Logging.INSTANCE.info("CLOSED " + asset);
+    if (openEditors.containsKey(asset.getId())) {
+      removeEditor(openEditors.get(asset.getId()));
+    }
+    openEditors.remove(asset.getId());
+    if (openEditors.isEmpty()) {
+      hideBrowser();
+    } else {
+      updateBrowser();
+    }
   }
 
   @Override
@@ -157,6 +177,23 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor> {
     persistenceCombo.getItems().addAll(Persistence.values());
     persistenceCombo.setValue(Persistence.SERVICE_SHUTDOWN);
     persistenceCombo.setMaxWidth(Double.MAX_VALUE);
+    persistenceCombo.setCellFactory(
+        lv ->
+            new ListCell<Persistence>() {
+              @Override
+              protected void updateItem(Persistence item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty ? null : item.description);
+              }
+            });
+    persistenceCombo.setButtonCell(
+        new ListCell<Persistence>() {
+          @Override
+          protected void updateItem(Persistence item, boolean empty) {
+            super.updateItem(item, empty);
+            setText(empty ? null : item.description);
+          }
+        });
 
     TextField accessField = new TextField();
     accessField.setEditable(false);
@@ -216,12 +253,19 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor> {
 
   private void createDigitalTwin(
       DigitalTwin.Configuration configuration, RuntimeService runtimeService) {
-    Logging.INSTANCE.info("DIO PETO");
+    var session = KlabIDEController.modeler().user().getUserSession(runtimeService);
+    if (session != null) {
+      var context = session.createContext(configuration);
+      if (context != null) {
+        showDigitalTwin(context);
+      }
+    }
   }
 
   public DigitalTwinEditor showDigitalTwin(ContextScope scope) {
     DigitalTwinEditor ret = null;
     hideBrowser();
+    KlabIDEController.setCurrentContext(scope);
     if (openEditors.containsKey(scope.getId())) {
       ret = openEditors.get(scope.getId());
       ret.requestFocus(); // FIXME must remember the tabs and select(tab) - in both cases

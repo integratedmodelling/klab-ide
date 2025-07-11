@@ -23,7 +23,7 @@ import org.kordamp.ikonli.material2.Material2MZ;
 import java.awt.*;
 
 /** The generic browser with a modal index on the left. */
-public abstract class BrowsablePage<T extends Node> extends StackPane implements Page {
+public abstract class BrowsablePage<T extends Node, A> extends StackPane implements Page {
 
   protected static final int BROWSER_WIDTH = 280;
   private final TabPane tabPane;
@@ -62,8 +62,49 @@ public abstract class BrowsablePage<T extends Node> extends StackPane implements
               showBrowser();
             });
     this.tabPane.getTabs().add(menuTab);
+    this.tabPane
+        .getTabs()
+        .addListener(
+            (javafx.collections.ListChangeListener.Change<? extends Tab> c) -> {
+              while (c.next()) {
+                if (c.wasRemoved()) {
+                  onTabClosed(c.getRemoved().getFirst());
+                }
+              }
+            });
+    this.tabPane
+        .getSelectionModel()
+        .selectedItemProperty()
+        .addListener(
+            (observable, oldValue, newValue) -> {
+              if (newValue != null) {
+                onTabSelected(newValue);
+              }
+            });
     getChildren().addAll(tabPane, modalPane);
   }
+
+  protected void onTabClosed(Tab closedTab) {
+    if (closedTab.getContent() instanceof EditorPage<?, ?> editor) {
+      var asset = editor.getEditedAsset();
+      if (asset != null) {
+        assetEditorClosed((A) asset);
+      }
+    }
+  }
+
+  protected void onTabSelected(Tab selectedTab) {
+    if (selectedTab.getContent() instanceof EditorPage<?, ?> editor) {
+      var asset = editor.getEditedAsset();
+      if (asset != null) {
+        assetEditorSelected((A) asset);
+      }
+    }
+  }
+
+  protected abstract void assetEditorSelected(A asset);
+
+  protected abstract void assetEditorClosed(A asset);
 
   protected Node makeHeader(String title, Runnable addAction) {
 
@@ -83,7 +124,7 @@ public abstract class BrowsablePage<T extends Node> extends StackPane implements
     return new HBox(workspacesLabel, alignedButton);
   }
 
-  public void addEditor(EditorPage<?> node, String title, FontIcon icon) {
+  public void addEditor(EditorPage<?, ?> node, String title, FontIcon icon) {
     var tab = new Tab(title, node);
     tab.setGraphic(icon);
     Platform.runLater(
@@ -94,7 +135,7 @@ public abstract class BrowsablePage<T extends Node> extends StackPane implements
         });
   }
 
-  public void removeEditor(EditorPage<?> node) {
+  public void removeEditor(EditorPage<?, ?> node) {
     Platform.runLater(
         () -> {
           Tab tab =

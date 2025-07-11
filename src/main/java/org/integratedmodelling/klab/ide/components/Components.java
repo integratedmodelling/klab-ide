@@ -898,7 +898,7 @@ public class Components {
       description.setPrefRowCount(3);
 
       Label persistence =
-          new Label("Persistence: " + digitalTwin.getConfiguration().getPersistence());
+          new Label("Persistence: " + digitalTwin.getConfiguration().getPersistence().description);
       persistence.setStyle("-fx-font-size: 12px;");
 
       content.getChildren().addAll(titleBox, url, size, description, persistence);

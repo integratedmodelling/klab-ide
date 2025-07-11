@@ -71,7 +71,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   // otherwise?
 
-  public DigitalTwinControlPanel(int size, EditorPage<?> editorPage) {
+  public DigitalTwinControlPanel(int size, EditorPage<?, ?> editorPage) {
     super();
     setMinHeight(size);
     setMinWidth(size);
@@ -309,20 +309,22 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   public void activitiesModified(Graph<Activity, DefaultEdge> activityGraph) {
     // Create defensive copies of the data to avoid ConcurrentModificationException
     var vertices = new ArrayList<>(activityGraph.vertexSet());
-    var rootActivities = vertices.stream()
-        .filter(activity -> activityGraph.incomingEdgesOf(activity).isEmpty())
-        .sorted(Comparator.comparingLong(Activity::getStart))
-        .toList();
-    
+    var rootActivities =
+        vertices.stream()
+            .filter(activity -> activityGraph.incomingEdgesOf(activity).isEmpty())
+            .sorted(Comparator.comparingLong(Activity::getStart))
+            .toList();
+
     // Create a snapshot of the graph structure for each activity
     var activityChildren = new HashMap<Activity, List<Activity>>();
     for (Activity activity : vertices) {
-      var children = activityGraph.outgoingEdgesOf(activity).stream()
-          .map(activityGraph::getEdgeTarget)
-          .toList();
+      var children =
+          activityGraph.outgoingEdgesOf(activity).stream()
+              .map(activityGraph::getEdgeTarget)
+              .toList();
       activityChildren.put(activity, children);
     }
-    
+
     Platform.runLater(
         () -> {
           treeTableView.getRoot().getChildren().clear();
