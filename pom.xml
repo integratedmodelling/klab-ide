@@ -88,6 +88,11 @@
             <version>21</version>
         </dependency>
         <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-graphics</artifactId>
+            <version>21</version>
+        </dependency>
+        <dependency>
             <groupId>org.controlsfx</groupId>
             <artifactId>controlsfx</artifactId>
             <version>11.2.1</version>
@@ -244,7 +249,7 @@
                         <!-- Default configuration for running with: mvn clean javafx:run -->
                         <id>default-cli</id>
                         <configuration>
-                            <mainClass>com.example.klabide/com.example.klabide.HelloApplication</mainClass>
+                            <mainClass>org.integratedmodelling.klab.ide.KlabIDEApplication</mainClass>
                             <launcher>app</launcher>
                             <jlinkZipName>app</jlinkZipName>
                             <jlinkImageName>app</jlinkImageName>
@@ -257,4 +262,18 @@
             </plugin>
         </plugins>
     </build>
+
+    <repositories>
+        <repository>
+            <name>Central Portal Snapshots</name>
+            <id>central-portal-snapshots</id>
+            <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
 </project>
