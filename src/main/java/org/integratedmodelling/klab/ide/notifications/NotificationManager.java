@@ -16,6 +16,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.util.Duration;
+import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.klab.ide.Theme;
 import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.javafx.FontIcon;
@@ -296,7 +297,7 @@ public class NotificationManager {
     Platform.runLater(
         () -> {
           // Debug
-          System.out.println("Showing notification: " + title + " - " + message);
+          Logging.INSTANCE.info("Showing notification: " + title + " - " + message);
 
           notificationContainer.toFront();
 

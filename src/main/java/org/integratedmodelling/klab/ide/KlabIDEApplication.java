@@ -2,14 +2,13 @@ package org.integratedmodelling.klab.ide;
 
 import java.io.IOException;
 import java.util.List;
-
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
-import org.integratedmodelling.common.logging.Logging;
 import org.eclipse.xtext.ide.server.ServerLauncher;
+import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.ide.notifications.NotificationManager;
 

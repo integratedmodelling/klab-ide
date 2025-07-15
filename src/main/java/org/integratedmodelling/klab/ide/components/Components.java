@@ -30,9 +30,11 @@ import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
 import javafx.util.StringConverter;
 import org.integratedmodelling.common.utils.Utils;
+import org.integratedmodelling.klab.api.configuration.Configuration;
 import org.integratedmodelling.klab.api.configuration.Setting;
 import org.integratedmodelling.klab.api.data.Version;
 import org.integratedmodelling.klab.api.engine.distribution.Distribution;
+import org.integratedmodelling.klab.api.knowledge.Urn;
 import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.api.scope.UserScope;
 import org.integratedmodelling.klab.api.services.*;
@@ -1096,58 +1098,13 @@ public class Components {
       VBox infoContent = new VBox(10, nameLabel, hostLink, apiLink);
       //      infoContent.setPadding(new Insets(10));
       infoTab.setContent(infoContent);
-
-      //      Tab exportTab = new Tab("Export");
-      //      exportTab.setClosable(false);
-      //      exportPane = new VBox(10);
-      //      exportPane.setPadding(new Insets(10));
-
-      //      schemaSelector = new ComboBox<>();
-      //      schemaSelector.setPromptText("Select Export Schema");
-      //      schemaSelector
-      //          .getItems()
-      //          .addAll(
-      //              service
-      //                  .capabilities(KlabIDEController.modeler().user())
-      //                  .getExportSchemata()
-      //                  .keySet());
-      //      schemaSelector.setOnAction(e -> updateExportForm());
-
       parameterForm = new VBox(2);
-      //      parameterForm.setSpacing(10);
-
       ScrollPane scrollPane = new ScrollPane();
       scrollPane.setContent(parameterForm);
       scrollPane.setFitToWidth(true);
       scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
       scrollPane.setMinHeight(360);
       VBox.setVgrow(scrollPane, Priority.ALWAYS);
-
-      //      dropTarget = new VBox(10);
-      //      dropTarget.setAlignment(Pos.CENTER);
-      //      dropTarget.setPrefHeight(200);
-      //      dropTarget.setStyle(
-      //          "-fx-border-color: #cccccc; -fx-border-style: dashed; -fx-border-radius: 5;");
-
-      //      Label dropLabel = new Label("Drop files here");
-      //      dropTarget.getChildren().add(dropLabel);
-      //
-      //      dropTarget.setOnDragOver(
-      //          event -> {
-      //            event.acceptTransferModes(TransferMode.COPY);
-      //            event.consume();
-      //          });
-      //
-      //      dropTarget.setOnDragDropped(
-      //          event -> {
-      //            // Handle file drop
-      //            event.setDropCompleted(true);
-      //            event.consume();
-      //          });
-
-      //      exportPane.getChildren().addAll(schemaSelector, parameterForm /*, dropTarget*/);
-      //      exportTab.setContent(exportPane);
-
       Tab importTab = new Tab("Import");
       importTab.setClosable(false);
 
@@ -1214,8 +1171,7 @@ public class Components {
         }
       } else {
 
-        String targetDir = System.getProperty("user.home"); // TODO preset, recover extension
-        String promptText = "Drop file or URL to upload";
+        final var targetDir = Configuration.INSTANCE.getTemporaryDataPath();
 
         // Create callback for successful uploads
         Consumer<File> onSuccess =
@@ -1233,7 +1189,8 @@ public class Components {
             };
 
         // Create the upload box
-        UploadBox uploadBox = new UploadBox(targetDir, promptText, onSuccess, onError);
+        UploadBox uploadBox =
+            new UploadBox(targetDir.toString(), "Drop file or URL to upload", onSuccess, onError);
 
         parameterForm.getChildren().add(uploadBox);
       }
@@ -1254,14 +1211,13 @@ public class Components {
                                         "Import failed: specifications are incomplete")));
                         return;
                       }
-                      var urn =
-                          service.importAsset(
-                              schema, asset, null, KlabIDEController.modeler().user());
-                      var notification =
-                          (urn == null || urn.isEmpty())
-                              ? Notification.error("Import failed")
-                              : Notification.info("Import successful: URN is " + urn);
-                      KlabIDEApplication.instance().handleNotifications(List.of(notification));
+                      service.importAsset(
+                          schema, asset, Urn.UNDEFINED_URN, KlabIDEController.modeler().user()).thenAccept(resourceSet -> {
+                        // TODO register the new resource, possibly open it
+                        KlabIDEApplication.instance().handleNotifications(resourceSet.getNotifications());
+                      }).exceptionally(t -> {
+                        return null;
+                      });
                     });
           });
       HBox buttonBox = new HBox(10, submitButton);
