@@ -4,12 +4,17 @@ import atlantafx.base.theme.Styles;
 import java.awt.*;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.control.Button;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
+import javafx.scene.layout.VBox;
+import javafx.geometry.Insets;
 import javafx.scene.paint.Color;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
@@ -36,6 +41,7 @@ import org.integratedmodelling.klab.api.view.modeler.views.controllers.ServicesV
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.integratedmodelling.klab.ide.components.*;
 import org.integratedmodelling.klab.ide.model.DigitalTwinPeer;
+import org.integratedmodelling.klab.ide.notifications.NotificationManager;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 import org.integratedmodelling.klab.ide.utils.NodeUtils;
 import org.integratedmodelling.klab.modeler.ModelerImpl;
@@ -67,6 +73,8 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
     WORLDVIEW
   }
 
+  @FXML BorderPane rootPane;
+  @FXML VBox notificationArea;
   @FXML Button homeButton;
   @FXML Button workspacesButton;
   @FXML Button digitalTwinsButton;
@@ -82,11 +90,13 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
   @FXML Button resourcesManagerButton;
   @FXML Button sessionsButton;
   @FXML Button worldviewButton;
-
+  @FXML HBox statusBar;
   @FXML NotebookView notebook;
   @FXML Pane mainArea;
   @FXML Pane inspectorArea;
-
+  private Button toggleRightSideButton;
+  private AtomicBoolean notificationsVisible = new AtomicBoolean(false);
+  private NotificationManager notificationManager;
   private ServicesViewController servicesController;
   private RuntimeViewController runtimeController;
   private Distribution distribution;
@@ -112,7 +122,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
   public static void setCurrentContext(ContextScope scope) {
     modeler().setCurrentContext(scope);
     for (var peer : _this.digitalTwinPeerMap.values()) {
-        peer.focus(scope);
+      peer.focus(scope);
     }
   }
 
@@ -226,7 +236,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
         };
 
     // If it's a browser and it hasn't been seen yet, open the browser
-    if (neverSeen.remove(view) && ui instanceof BrowsablePage<?,?> browsablePage) {
+    if (neverSeen.remove(view) && ui instanceof BrowsablePage<?, ?> browsablePage) {
       //      browsablePage.showBrowser();
     }
 
@@ -264,12 +274,28 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
         new IconLabel(Theme.INSPECTOR_ICON, 24, Theme.CURRENT_THEME.getDefaultTextColor()));
     profileButton.setGraphic(new IconLabel(FontAwesomeSolid.USER_CIRCLE, 32, Color.GREY));
 
+    toggleRightSideButton = new Button();
+    toggleRightSideButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
+    toggleRightSideButton.setOnAction(e -> toggleRightSide());
+    statusBar.getChildren().add(toggleRightSideButton);
+    toggleRightSideButton.setGraphic(
+        new IconLabel(Material2MZ.NAVIGATE_BEFORE, 24, Theme.CURRENT_THEME.getDefaultTextColor()));
+
     viewButtons.put(View.NOTEBOOK, homeButton);
     viewButtons.put(View.DIGITAL_TWINS, digitalTwinsButton);
     viewButtons.put(View.RESOURCES, resourcesManagerButton);
     viewButtons.put(View.APPLICATIONS, sessionsButton);
     viewButtons.put(View.WORKSPACES, workspacesButton);
     viewButtons.put(View.WORLDVIEW, worldviewButton);
+
+    //    HBox.setHgrow(mainArea, Priority.ALWAYS);
+    notificationArea = new VBox();
+    notificationArea.setMinWidth(280);
+    BorderPane.setMargin(notificationArea, new Insets(0));
+    //    rightSide.setVisible(false);
+    notificationArea.setStyle("-fx-background-color: -color-neutral-muted;");
+    //    HBox.setHgrow(mainArea, Priority.ALWAYS);
+    //    BorderPane.setMargin(rightSide, new Insets(0));
 
     inspectorButton.setOnMouseClicked(
         event -> {
@@ -327,6 +353,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
           // must call explicitly because the callback won't be used before boot.
           notifyUser(this.user.getUser());
           notifyDistribution(modeler().getDistribution());
+          notificationManager = new NotificationManager(rootPane);
 
           //          if (settings.getStartServicesOnStartup().getValue()) {
           //            // TODO
@@ -349,6 +376,40 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
           KlabIDEController.modeler().engine().stopLocalServices();
       case TRANSITIONING -> Toolkit.getDefaultToolkit().beep();
     }
+  }
+
+  /**
+   * Receive a set of notifications and handle them through the UI; return true if any of them was
+   * an error.
+   *
+   * @param notifications
+   * @return
+   */
+  public boolean handleNotifications(List<Notification> notifications) {
+
+    int errorCount = 0;
+    for (var notification : notifications) {
+      if (notification.getLevel().severity > 2) {
+        errorCount++;
+      }
+
+      Platform.runLater(
+          () -> {
+            switch (notification.getLevel()) {
+              case Debug, Info ->
+                  notificationManager.showInformation(
+                      notification.getLevel().name(), notification.getMessage());
+              case Warning ->
+                  notificationManager.showWarning(
+                      notification.getLevel().name(), notification.getMessage());
+              case Error, SystemError -> {
+                notificationManager.showError(
+                    notification.getLevel().name(), notification.getMessage());
+              }
+            }
+          });
+    }
+    return errorCount > 0;
   }
 
   private void toggleInspector() {
@@ -374,12 +435,26 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
             inspectorIsOn = true;
             KlabIDEApplication.instance().setInspectorShown(true);
             NodeUtils.toggleVisibility(inspectorArea, true);
+            notificationManager.showInformation("DIO PETO", "DIO MAIALE");
           }
         });
   }
 
   public InspectorView getInspector() {
     return inspectorView;
+  }
+
+  public void toggleRightSide() {
+    notificationsVisible.set(!notificationsVisible.get());
+    if (notificationsVisible.get()) {
+      rootPane.setRight(notificationArea);
+      setButton(
+          toggleRightSideButton, Material2MZ.NAVIGATE_NEXT, 24, Color.GREY, "Hide right panel");
+    } else {
+      rootPane.setRight(null);
+      setButton(
+          toggleRightSideButton, Material2MZ.NAVIGATE_BEFORE, 24, Color.GREY, "Show right panel");
+    }
   }
 
   @Override

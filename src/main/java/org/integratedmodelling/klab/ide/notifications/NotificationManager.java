@@ -11,10 +11,7 @@ import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
-import javafx.scene.layout.VBox;
+import javafx.scene.layout.*;
 import javafx.util.Duration;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.klab.ide.Theme;
@@ -146,7 +143,7 @@ public class NotificationManager {
   private static final int MAX_NOTIFICATIONS = 5;
 
   /** Private constructor to enforce singleton pattern. */
-  public NotificationManager(Scene scene) {
+  public NotificationManager(Pane root) {
 
     notificationContainer = new VBox(10); // 10px spacing between notifications
     notificationContainer.setAlignment(Pos.BOTTOM_RIGHT);
@@ -168,7 +165,7 @@ public class NotificationManager {
     // Set ID for debugging
     notificationContainer.setId("notification-container");
 
-    initialize(scene);
+    initialize(root);
   }
 
   //    /**
@@ -186,64 +183,64 @@ public class NotificationManager {
    * Initialize the notification manager with the main scene. This should be called once from the
    * main application.
    *
-   * @param scene The main application scene
+   * @param root The main application scene
    */
-  public void initialize(Scene scene) {
-    if (scene == null) {
-      throw new IllegalArgumentException("Scene cannot be null");
-    }
+  public void initialize(Pane root) {
+    //    if (scene == null) {
+    //      throw new IllegalArgumentException("Scene cannot be null");
+    //    }
+    //
+    //    // Add the notification container to the scene's root
+    //    if (scene.getRoot() instanceof javafx.scene.layout.Pane) {
+    //      javafx.scene.layout.Pane root = (javafx.scene.layout.Pane) scene.getRoot();
+    var scene = root.getScene();
+    // Remove if already added (in case of re-initialization)
+    root.getChildren().remove(notificationContainer);
 
-    // Add the notification container to the scene's root
-    if (scene.getRoot() instanceof javafx.scene.layout.Pane) {
-      javafx.scene.layout.Pane root = (javafx.scene.layout.Pane) scene.getRoot();
+    // Create a StackPane to hold the notification container
+    javafx.scene.layout.StackPane notificationPane = new javafx.scene.layout.StackPane();
+    notificationPane.setPrefSize(scene.getWidth(), scene.getHeight());
+    notificationPane.setPickOnBounds(false);
+    notificationPane.setMouseTransparent(true);
 
-      // Remove if already added (in case of re-initialization)
-      root.getChildren().remove(notificationContainer);
+    // Position the notification container at the bottom-right
+    notificationPane.setAlignment(Pos.BOTTOM_RIGHT);
+    notificationPane.getChildren().add(notificationContainer);
 
-      // Create a StackPane to hold the notification container
-      javafx.scene.layout.StackPane notificationPane = new javafx.scene.layout.StackPane();
-      notificationPane.setPrefSize(scene.getWidth(), scene.getHeight());
-      notificationPane.setPickOnBounds(false);
-      notificationPane.setMouseTransparent(true);
+    // Add the notification pane to the root
+    root.getChildren().add(notificationPane);
 
-      // Position the notification container at the bottom-right
-      notificationPane.setAlignment(Pos.BOTTOM_RIGHT);
-      notificationPane.getChildren().add(notificationContainer);
+    // Ensure the notification container is always on top
+    notificationPane.setViewOrder(-1000);
+    notificationPane.toFront();
+    notificationContainer.toFront();
 
-      // Add the notification pane to the root
-      root.getChildren().add(notificationPane);
+    // Make sure it's visible
+    notificationPane.setVisible(true);
+    notificationPane.setManaged(true);
+    notificationContainer.setVisible(true);
+    notificationContainer.setManaged(true);
 
-      // Ensure the notification container is always on top
-      notificationPane.setViewOrder(-1000);
-      notificationPane.toFront();
-      notificationContainer.toFront();
+    // Update size when scene size changes
+    scene
+        .widthProperty()
+        .addListener(
+            (obs, oldVal, newVal) -> {
+              notificationPane.setPrefWidth(newVal.doubleValue());
+            });
 
-      // Make sure it's visible
-      notificationPane.setVisible(true);
-      notificationPane.setManaged(true);
-      notificationContainer.setVisible(true);
-      notificationContainer.setManaged(true);
+    scene
+        .heightProperty()
+        .addListener(
+            (obs, oldVal, newVal) -> {
+              notificationPane.setPrefHeight(newVal.doubleValue());
+            });
 
-      // Update size when scene size changes
-      scene
-          .widthProperty()
-          .addListener(
-              (obs, oldVal, newVal) -> {
-                notificationPane.setPrefWidth(newVal.doubleValue());
-              });
-
-      scene
-          .heightProperty()
-          .addListener(
-              (obs, oldVal, newVal) -> {
-                notificationPane.setPrefHeight(newVal.doubleValue());
-              });
-
-      // Debug
-      System.out.println("Notification container initialized and added to scene with StackPane");
-    } else {
-      throw new IllegalArgumentException("Scene root must be a Pane");
-    }
+    // Debug
+    Logging.INSTANCE.info("Notification container initialized and added to scene with StackPane");
+    //    } else {
+    //      throw new IllegalArgumentException("Scene root must be a Pane");
+    //    }
   }
 
   /**
@@ -320,9 +317,9 @@ public class NotificationManager {
 
           // Make sure the container is in the scene
           if (notificationContainer.getScene() == null) {
-            System.err.println("ERROR: Notification container is not in scene!");
+            Logging.INSTANCE.error("ERROR: Notification container is not in scene!");
           } else {
-            System.out.println("Notification container is in scene");
+            Logging.INSTANCE.info("Notification container is in scene");
 
             // If the parent is a StackPane, make sure it's visible and at the front
             if (notificationContainer.getParent() instanceof javafx.scene.layout.StackPane) {
@@ -330,7 +327,7 @@ public class NotificationManager {
                   (javafx.scene.layout.StackPane) notificationContainer.getParent();
               parent.setVisible(true);
               parent.toFront();
-              System.out.println("Parent StackPane is visible and at the front");
+              Logging.INSTANCE.info("Parent StackPane is visible and at the front");
             }
           }
 

@@ -1177,14 +1177,14 @@ public class Components {
         Consumer<File> onSuccess =
             (uploadedFile) -> {
               file.set(uploadedFile);
-              KlabIDEApplication.instance()
+              KlabIDEController.instance()
                   .handleNotifications(List.of(Notification.info("File upload successful")));
             };
 
         // Create error handler
         BiConsumer<String, Throwable> onError =
             (message, throwable) -> {
-              KlabIDEApplication.instance()
+              KlabIDEController.instance()
                   .handleNotifications(List.of(Notification.error("Upload error: " + message)));
             };
 
@@ -1204,20 +1204,26 @@ public class Components {
                       var asset =
                           file.get() == null ? schema.asset(userInput) : schema.asset(file.get());
                       if (asset.isEmpty()) {
-                        KlabIDEApplication.instance()
+                        KlabIDEController.instance()
                             .handleNotifications(
                                 List.of(
                                     Notification.error(
                                         "Import failed: specifications are incomplete")));
                         return;
                       }
-                      service.importAsset(
-                          schema, asset, Urn.UNDEFINED_URN, KlabIDEController.modeler().user()).thenAccept(resourceSet -> {
-                        // TODO register the new resource, possibly open it
-                        KlabIDEApplication.instance().handleNotifications(resourceSet.getNotifications());
-                      }).exceptionally(t -> {
-                        return null;
-                      });
+                      service
+                          .importAsset(
+                              schema, asset, Urn.UNDEFINED_URN, KlabIDEController.modeler().user())
+                          .thenAccept(
+                              resourceSet -> {
+                                // TODO register the new resource, possibly open it
+                                KlabIDEController.instance()
+                                    .handleNotifications(resourceSet.getNotifications());
+                              })
+                          .exceptionally(
+                              t -> {
+                                return null;
+                              });
                     });
           });
       HBox buttonBox = new HBox(10, submitButton);

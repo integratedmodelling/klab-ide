@@ -159,7 +159,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         .exceptionally(
             throwable -> {
               digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.ERROR);
-              KlabIDEApplication.instance()
+              KlabIDEController.instance()
                   .handleNotifications(List.of(Notification.error(throwable)));
               return Observation.EMPTY_OBSERVATION;
             })
@@ -352,7 +352,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
             .toList();
 
     if (!systemNotifications.isEmpty()
-        && KlabIDEApplication.instance().handleNotifications(systemNotifications)) {
+        && KlabIDEController.instance().handleNotifications(systemNotifications)) {
       return;
     }
 

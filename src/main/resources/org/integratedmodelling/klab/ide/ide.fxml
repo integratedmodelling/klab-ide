@@ -8,7 +8,8 @@
 
 <?import org.integratedmodelling.klab.ide.components.NotebookView?>
 <BorderPane prefHeight="960.0" prefWidth="1280.0" xmlns="http://javafx.com/javafx/17.0.12"
-            xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.integratedmodelling.klab.ide.KlabIDEController">
+            xmlns:fx="http://javafx.com/fxml/1" fx:id="rootPane"
+            fx:controller="org.integratedmodelling.klab.ide.KlabIDEController">
     <left>
         <BorderPane prefHeight="960.0" prefWidth="69.0" style="-fx-background-color: -color-neutral-muted;"
                     BorderPane.alignment="CENTER">
@@ -142,4 +143,8 @@
             </center>
         </BorderPane>
     </center>
+    <bottom>
+        <HBox alignment="CENTER_RIGHT" prefHeight="40" fx:id="statusBar"
+              style="-fx-background-color: -color-neutral-muted;"></HBox>
+    </bottom>
 </BorderPane>
