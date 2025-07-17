@@ -27,6 +27,12 @@ import java.util.List;
  * A singleton class for managing notifications in the application. Notifications appear in the
  * bottom-right corner of the scene and support stacking. After a set duration, notifications will
  * fade out automatically.
+ *
+ * TODO revise:
+ * 1. Configure with status bar components + notification list vbox
+ * 2. Add notifications to a queue (limited in config)
+ * 3. Report how many read/unread by category
+ *
  */
 public class NotificationManager {
 
