@@ -2,7 +2,6 @@ module org.integratedmodelling.klab.ide {
     requires javafx.fxml;
     requires javafx.web;
 
-    requires org.controlsfx.controls;
     requires org.kordamp.ikonli.javafx;
     requires klab.core.api;
     requires klab.modeler;

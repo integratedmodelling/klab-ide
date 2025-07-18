@@ -22,6 +22,12 @@
             <groupId>eu.mihosoft.monacofx</groupId>
             <artifactId>monacofx</artifactId>
             <version>0.0.8</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.openjfx</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
@@ -90,13 +96,13 @@
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-graphics</artifactId>
-            <version>21</version>
+            <version>21.0.1</version>
         </dependency>
-        <dependency>
+<!--        <dependency>
             <groupId>org.controlsfx</groupId>
             <artifactId>controlsfx</artifactId>
             <version>11.2.1</version>
-        </dependency>
+        </dependency>-->
         <!--
                 <dependency>
                     <groupId>com.dlsc.formsfx</groupId>

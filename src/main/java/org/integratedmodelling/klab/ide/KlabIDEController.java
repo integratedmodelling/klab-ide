@@ -5,11 +5,18 @@ import java.awt.*;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+
+import com.google.common.collect.EvictingQueue;
+import com.google.common.collect.Queues;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
+import javafx.geometry.Orientation;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.control.Button;
+import javafx.scene.control.Label;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
@@ -18,7 +25,9 @@ import javafx.geometry.Insets;
 import javafx.scene.paint.Color;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
+import javafx.animation.PauseTransition;
 import org.integratedmodelling.common.logging.Logging;
+import org.integratedmodelling.klab.api.configuration.Setting;
 import org.integratedmodelling.klab.api.digitaltwin.DigitalTwin;
 import org.integratedmodelling.klab.api.engine.Engine;
 import org.integratedmodelling.klab.api.engine.distribution.Distribution;
@@ -62,6 +71,14 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
   private static KlabIDEController _this;
   private Map<String, DigitalTwinPeer> digitalTwinPeerMap = new HashMap<>();
   private AtomicReference<Engine.Status> engineStatus = new AtomicReference<>();
+  private Label infoLabel;
+  private Label errorLabel;
+  private Label warningLabel;
+  private Label messageLabel;
+  private AtomicInteger infoCount = new AtomicInteger(0);
+  private AtomicInteger errorCount = new AtomicInteger(0);
+  private AtomicInteger warningCount = new AtomicInteger(0);
+  private PauseTransition currentPause;
 
   /** The "circled" (current) view in the main area. */
   public enum View {
@@ -94,13 +111,14 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
   @FXML NotebookView notebook;
   @FXML Pane mainArea;
   @FXML Pane inspectorArea;
+
   private Button toggleRightSideButton;
-  private AtomicBoolean notificationsVisible = new AtomicBoolean(false);
-  private NotificationManager notificationManager;
+  private final AtomicBoolean notificationsVisible = new AtomicBoolean(false);
+  private Queue<Notification> notifications;
   private ServicesViewController servicesController;
   private RuntimeViewController runtimeController;
   private Distribution distribution;
-  private Map<View, Button> viewButtons = new HashMap<>();
+  private final Map<View, Button> viewButtons = new HashMap<>();
   //  private AtomicBoolean engineStarted = new AtomicBoolean(false);
   //  private AtomicBoolean engineTransitioning = new AtomicBoolean(false);
 
@@ -166,10 +184,10 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
     Logging.INSTANCE.info("Modeler initialized");
   }
 
-  public <T extends BrowsablePage> T getView(View view, Class<T> cls) {
+  public <T extends BrowsablePage<?, ?>> T getView(View view, Class<T> cls) {
     return (T)
         switch (view) {
-          //      case NOTEBOOK -> notebook;
+          case NOTEBOOK -> notebook;
           case RESOURCES -> resourcesView;
           case DIGITAL_TWINS -> digitalTwinView;
           case WORKSPACES -> workspaceView;
@@ -274,13 +292,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
         new IconLabel(Theme.INSPECTOR_ICON, 24, Theme.CURRENT_THEME.getDefaultTextColor()));
     profileButton.setGraphic(new IconLabel(FontAwesomeSolid.USER_CIRCLE, 32, Color.GREY));
 
-    toggleRightSideButton = new Button();
-    toggleRightSideButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
-    toggleRightSideButton.setOnAction(e -> toggleRightSide());
-    statusBar.getChildren().add(toggleRightSideButton);
-    toggleRightSideButton.setGraphic(
-        new IconLabel(Material2MZ.NAVIGATE_BEFORE, 24, Theme.CURRENT_THEME.getDefaultTextColor()));
-
     viewButtons.put(View.NOTEBOOK, homeButton);
     viewButtons.put(View.DIGITAL_TWINS, digitalTwinsButton);
     viewButtons.put(View.RESOURCES, resourcesManagerButton);
@@ -344,6 +355,8 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
       viewButtons.get(key).setOnMouseClicked(mouseEvent -> selectView(key));
     }
 
+    setStatusBar();
+
     Platform.runLater(
         () -> {
           createModeler();
@@ -353,13 +366,46 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
           // must call explicitly because the callback won't be used before boot.
           notifyUser(this.user.getUser());
           notifyDistribution(modeler().getDistribution());
-          notificationManager = new NotificationManager(rootPane);
+          notifications =
+              Queues.synchronizedQueue(
+                  EvictingQueue.create(
+                      modeler
+                          .engine()
+                          .getSettings()
+                          .get(Setting.NOTIFICATIONS_CACHED, Integer.class)));
 
           //          if (settings.getStartServicesOnStartup().getValue()) {
           //            // TODO
           //            //      Thread.ofPlatform().start(this::toggleLocalServices);
           //          }
         });
+  }
+
+  private void setStatusBar() {
+
+    toggleRightSideButton = new Button();
+    toggleRightSideButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
+    toggleRightSideButton.setOnAction(e -> toggleNotificationPanel());
+    toggleRightSideButton.setGraphic(
+        new IconLabel(Material2MZ.NAVIGATE_BEFORE, 24, Theme.CURRENT_THEME.getDefaultTextColor()));
+
+    this.infoLabel =
+        new Label(null, new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, Color.BLUE));
+    this.errorLabel =
+        new Label(null, new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, Color.RED));
+    this.warningLabel =
+        new Label(null, new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, Color.ORANGE));
+    this.messageLabel = new Label();
+
+    statusBar
+        .getChildren()
+        .addAll(
+            messageLabel,
+            new Separator(Orientation.VERTICAL),
+            infoLabel,
+            warningLabel,
+            errorLabel,
+            toggleRightSideButton);
   }
 
   private void handleStartButtonPress() {
@@ -378,6 +424,118 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
     }
   }
 
+  public boolean handleNotification(Notification notification) {
+    var ret = false;
+    if (notification.getLevel().severity > 2) {
+      ret = true;
+    }
+
+    notifications.add(notification);
+
+    Platform.runLater(
+        () -> {
+          if (notificationsVisible.get()) {
+            // add component on top
+            redrawNotificationBox();
+          } else {
+            // notify unread status
+            switch (notification.getLevel()) {
+              case Debug, Info ->
+                  infoLabel.setGraphic(new IconLabel(Material2MZ.NOTIFICATIONS, 16, Color.BLUE));
+              case Warning ->
+                  warningLabel.setGraphic(
+                      new IconLabel(Material2MZ.NOTIFICATIONS, 16, Color.ORANGE));
+              case Error, SystemError ->
+                  errorLabel.setGraphic(new IconLabel(Material2MZ.NOTIFICATIONS, 16, Color.RED));
+              default -> throw new KlabInternalErrorException("?");
+            }
+          }
+
+          if (currentPause != null) {
+            currentPause.stop();
+          }
+          messageLabel.setText(notification.getMessage());
+          messageLabel.setGraphic(
+              switch (notification.getLevel()) {
+                case Debug, Info ->
+                    new IconLabel(
+                        Notification.Outcome.Success == notification.getOutcome()
+                            ? Material2AL.CHECK_CIRCLE
+                            : Material2AL.INFO,
+                        16,
+                        Notification.Outcome.Success == notification.getOutcome()
+                            ? Color.GREEN
+                            : Color.BLUE);
+                case Warning -> new IconLabel(Material2MZ.WARNING, 16, Color.ORANGE);
+                case Error, SystemError -> new IconLabel(Material2AL.ERROR, 16, Color.RED);
+              });
+          currentPause = new PauseTransition(Duration.seconds(5));
+          currentPause.setOnFinished(
+              event -> {
+                messageLabel.setText("");
+                messageLabel.setGraphic(null);
+              });
+          currentPause.play();
+        });
+    return ret;
+  }
+
+  private void redrawNotificationBox() {
+    Platform.runLater(
+        () -> {
+          // reset icons to "all read"
+          infoLabel.setGraphic(new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, Color.BLUE));
+          warningLabel.setGraphic(new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, Color.ORANGE));
+          errorLabel.setGraphic(new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, Color.RED));
+
+          notificationArea.getChildren().clear();
+          var notificationOrder =
+              notifications.stream().sorted(Collections.reverseOrder()).toList();
+          for (var notification : notificationOrder) {
+            notificationArea.getChildren().add(makeNotificationPanel(notification));
+          }
+        });
+  }
+
+  private Node makeNotificationPanel(Notification notification) {
+    var ret =
+        new atlantafx.base.controls.Notification(
+            notification.getMessage(),
+            switch (notification.getLevel()) {
+              case Debug, Info ->
+                  new IconLabel(
+                      Notification.Outcome.Success == notification.getOutcome()
+                          ? Material2AL.CHECK_CIRCLE
+                          : Material2AL.INFO,
+                      24,
+                      Notification.Outcome.Success == notification.getOutcome()
+                          ? Color.GREEN
+                          : Color.BLUE);
+              case Warning -> new IconLabel(Material2MZ.WARNING, 24, Color.ORANGE);
+              case Error, SystemError -> new IconLabel(Material2AL.ERROR, 24, Color.RED);
+            });
+    ret.getStyleClass()
+        .addAll(
+            switch (notification.getLevel()) {
+              case Debug, Info ->
+                  List.of(
+                      Styles.ELEVATED_1,
+                      Notification.Outcome.Success == notification.getOutcome()
+                          ? Styles.SUCCESS
+                          : Styles.ACCENT);
+              case Warning -> List.of(Styles.ELEVATED_1, Styles.WARNING);
+              case Error, SystemError -> List.of(Styles.ELEVATED_1, Styles.DANGER);
+            });
+
+    ret.setOnClose(
+        e -> {
+          notifications.remove(notification);
+          redrawNotificationBox();
+        });
+
+    return ret;
+  }
+
   /**
    * Receive a set of notifications and handle them through the UI; return true if any of them was
    * an error.
@@ -389,25 +547,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
 
     int errorCount = 0;
     for (var notification : notifications) {
-      if (notification.getLevel().severity > 2) {
+      if (handleNotification(notification)) {
         errorCount++;
       }
-
-      Platform.runLater(
-          () -> {
-            switch (notification.getLevel()) {
-              case Debug, Info ->
-                  notificationManager.showInformation(
-                      notification.getLevel().name(), notification.getMessage());
-              case Warning ->
-                  notificationManager.showWarning(
-                      notification.getLevel().name(), notification.getMessage());
-              case Error, SystemError -> {
-                notificationManager.showError(
-                    notification.getLevel().name(), notification.getMessage());
-              }
-            }
-          });
     }
     return errorCount > 0;
   }
@@ -435,7 +577,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
             inspectorIsOn = true;
             KlabIDEApplication.instance().setInspectorShown(true);
             NodeUtils.toggleVisibility(inspectorArea, true);
-            notificationManager.showInformation("DIO PETO", "DIO MAIALE");
           }
         });
   }
@@ -444,16 +585,25 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
     return inspectorView;
   }
 
-  public void toggleRightSide() {
+  public void toggleNotificationPanel() {
     notificationsVisible.set(!notificationsVisible.get());
     if (notificationsVisible.get()) {
+      redrawNotificationBox();
       rootPane.setRight(notificationArea);
       setButton(
-          toggleRightSideButton, Material2MZ.NAVIGATE_NEXT, 24, Color.GREY, "Hide right panel");
+          toggleRightSideButton,
+          Material2MZ.NAVIGATE_NEXT,
+          24,
+          Color.GREY,
+          "Hide recent notifications");
     } else {
       rootPane.setRight(null);
       setButton(
-          toggleRightSideButton, Material2MZ.NAVIGATE_BEFORE, 24, Color.GREY, "Show right panel");
+          toggleRightSideButton,
+          Material2MZ.NAVIGATE_BEFORE,
+          24,
+          Color.GREY,
+          "Show recent notifications");
     }
   }
 
@@ -490,13 +640,18 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
               "No distribution is available. Please download one.");
         }
       }
-      case ACTIVE_LOCAL_ONLY, ACTIVE_LOCAL_AND_REMOTE ->
-          setButton(
-              startButton,
-              BootstrapIcons.STOP,
-              16,
-              Color.DARKRED,
-              "Local services are running. Click to stop them.");
+      case ACTIVE_LOCAL_ONLY, ACTIVE_LOCAL_AND_REMOTE -> {
+        setButton(
+            startButton,
+            BootstrapIcons.STOP,
+            16,
+            Color.DARKRED,
+            "Local services are running. Click to stop them.");
+        if (notifications != null) {
+          handleNotification(
+              Notification.info("Local services ready for use", Notification.Outcome.Success));
+        }
+      }
     }
 
     for (var serviceType : KlabService.Type.operationCritical()) {

@@ -28,11 +28,7 @@ import java.util.List;
  * bottom-right corner of the scene and support stacking. After a set duration, notifications will
  * fade out automatically.
  *
- * TODO revise:
- * 1. Configure with status bar components + notification list vbox
- * 2. Add notifications to a queue (limited in config)
- * 3. Report how many read/unread by category
- *
+ * <p>UNUSED - tests work, but unable to make notifications show as needed in the application.
  */
 public class NotificationManager {
 
