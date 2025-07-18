@@ -447,7 +447,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
                       new IconLabel(Material2MZ.NOTIFICATIONS, 16, Color.ORANGE));
               case Error, SystemError ->
                   errorLabel.setGraphic(new IconLabel(Material2MZ.NOTIFICATIONS, 16, Color.RED));
-              default -> throw new KlabInternalErrorException("?");
             }
           }
 
@@ -489,8 +488,8 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
           errorLabel.setGraphic(new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, Color.RED));
 
           notificationArea.getChildren().clear();
-          var notificationOrder =
-              notifications.stream().sorted(Collections.reverseOrder()).toList();
+          var notificationOrder = new ArrayList<>(notifications);
+          Collections.reverse(notificationOrder);
           for (var notification : notificationOrder) {
             notificationArea.getChildren().add(makeNotificationPanel(notification));
           }
@@ -499,7 +498,12 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
 
   private Node makeNotificationPanel(Notification notification) {
     var ret =
-        new atlantafx.base.controls.Notification(
+        new atlantafx.base.controls.Message(
+            switch (notification.getLevel()) {
+              case Debug, Info -> "Information";
+              case Warning -> "Warning";
+              case Error, SystemError -> "Error";
+            },
             notification.getMessage(),
             switch (notification.getLevel()) {
               case Debug, Info ->
@@ -519,12 +523,11 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
             switch (notification.getLevel()) {
               case Debug, Info ->
                   List.of(
-                      Styles.ELEVATED_1,
                       Notification.Outcome.Success == notification.getOutcome()
                           ? Styles.SUCCESS
                           : Styles.ACCENT);
-              case Warning -> List.of(Styles.ELEVATED_1, Styles.WARNING);
-              case Error, SystemError -> List.of(Styles.ELEVATED_1, Styles.DANGER);
+              case Warning -> List.of(Styles.WARNING);
+              case Error, SystemError -> List.of(Styles.DANGER);
             });
 
     ret.setOnClose(
