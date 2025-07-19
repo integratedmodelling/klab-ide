@@ -1,17 +1,21 @@
 package org.integratedmodelling.klab.ide;
 
 import atlantafx.base.theme.Styles;
+import com.google.common.collect.EvictingQueue;
+import com.google.common.collect.Queues;
 import java.awt.*;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.FormatStyle;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-
-import com.google.common.collect.EvictingQueue;
-import com.google.common.collect.Queues;
+import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
+import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.scene.Node;
 import javafx.scene.control.*;
@@ -21,11 +25,9 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
-import javafx.geometry.Insets;
 import javafx.scene.paint.Color;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
-import javafx.animation.PauseTransition;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.klab.api.configuration.Setting;
 import org.integratedmodelling.klab.api.digitaltwin.DigitalTwin;
@@ -50,7 +52,6 @@ import org.integratedmodelling.klab.api.view.modeler.views.controllers.ServicesV
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.integratedmodelling.klab.ide.components.*;
 import org.integratedmodelling.klab.ide.model.DigitalTwinPeer;
-import org.integratedmodelling.klab.ide.notifications.NotificationManager;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 import org.integratedmodelling.klab.ide.utils.NodeUtils;
 import org.integratedmodelling.klab.modeler.ModelerImpl;
@@ -65,7 +66,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
   private static Modeler modeler;
   private View currentView;
   private UserScope user;
-  private Map<KlabService.Type, KlabService.ServiceCapabilities> capabilities = new HashMap<>();
   private boolean inspectorIsOn;
   private Set<View> neverSeen = EnumSet.of(View.RESOURCES, View.WORKSPACES, View.DIGITAL_TWINS);
   private static KlabIDEController _this;
@@ -497,13 +497,17 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
   }
 
   private Node makeNotificationPanel(Notification notification) {
+
+    var date = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).format(ZonedDateTime.now());
     var ret =
         new atlantafx.base.controls.Message(
             switch (notification.getLevel()) {
-              case Debug, Info -> "Information";
-              case Warning -> "Warning";
-              case Error, SystemError -> "Error";
-            },
+                  case Debug, Info -> "Information";
+                  case Warning -> "Warning";
+                  case Error, SystemError -> "Error";
+                }
+                + " "
+                + date,
             notification.getMessage(),
             switch (notification.getLevel()) {
               case Debug, Info ->

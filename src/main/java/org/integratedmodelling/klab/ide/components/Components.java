@@ -29,6 +29,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
 import javafx.util.StringConverter;
+import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.configuration.Configuration;
 import org.integratedmodelling.klab.api.configuration.Setting;
@@ -1177,8 +1178,9 @@ public class Components {
         Consumer<File> onSuccess =
             (uploadedFile) -> {
               file.set(uploadedFile);
-              KlabIDEController.instance()
-                  .handleNotifications(List.of(Notification.info("File upload successful")));
+              //              KlabIDEController.instance()
+              //                  .handleNotifications(List.of(Notification.info("File upload
+              // successful")));
             };
 
         // Create error handler
@@ -1211,17 +1213,21 @@ public class Components {
                                         "Import failed: specifications are incomplete")));
                         return;
                       }
+                      Logging.INSTANCE.info("DIO PORCO SUBMITTING " + asset);
                       service
                           .importAsset(
                               schema, asset, Urn.UNDEFINED_URN, KlabIDEController.modeler().user())
                           .thenAccept(
                               resourceSet -> {
+                                Logging.INSTANCE.info("DIO PORCO GOT " + resourceSet);
                                 // TODO register the new resource, possibly open it
                                 KlabIDEController.instance()
                                     .handleNotifications(resourceSet.getNotifications());
                               })
                           .exceptionally(
                               t -> {
+                                KlabIDEController.instance()
+                                    .handleNotification(Notification.error(t));
                                 return null;
                               });
                     });
