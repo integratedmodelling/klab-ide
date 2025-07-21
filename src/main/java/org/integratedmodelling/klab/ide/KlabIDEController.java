@@ -396,6 +396,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
     this.warningLabel =
         new Label(null, new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, Color.ORANGE));
     this.messageLabel = new Label();
+    this.warningLabel.setTooltip(new Tooltip("No unread warnings."));
+    this.errorLabel.setTooltip(new Tooltip("No unread errors."));
+    this.infoLabel.setTooltip(new Tooltip("No unread notifications."));
 
     statusBar
         .getChildren()
@@ -440,13 +443,21 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
           } else {
             // notify unread status
             switch (notification.getLevel()) {
-              case Debug, Info ->
-                  infoLabel.setGraphic(new IconLabel(Material2MZ.NOTIFICATIONS, 16, Color.BLUE));
-              case Warning ->
-                  warningLabel.setGraphic(
-                      new IconLabel(Material2MZ.NOTIFICATIONS, 16, Color.ORANGE));
-              case Error, SystemError ->
-                  errorLabel.setGraphic(new IconLabel(Material2MZ.NOTIFICATIONS, 16, Color.RED));
+              case Debug, Info -> {
+                infoLabel.setGraphic(
+                    new IconLabel(Material2MZ.NOTIFICATIONS_ACTIVE, 16, Color.BLUE));
+                infoLabel.setTooltip(new Tooltip("There are new notifications."));
+              }
+              case Warning -> {
+                warningLabel.setGraphic(
+                    new IconLabel(Material2MZ.NOTIFICATIONS_ACTIVE, 16, Color.ORANGE));
+                warningLabel.setTooltip(new Tooltip("There are new warnings."));
+              }
+              case Error, SystemError -> {
+                errorLabel.setGraphic(
+                    new IconLabel(Material2MZ.NOTIFICATIONS_ACTIVE, 16, Color.RED));
+                errorLabel.setTooltip(new Tooltip("There are new errors."));
+              }
             }
           }
 
@@ -482,12 +493,17 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
   private void redrawNotificationBox() {
     Platform.runLater(
         () -> {
+
           // reset icons to "all read"
           infoLabel.setGraphic(new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, Color.BLUE));
           warningLabel.setGraphic(new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, Color.ORANGE));
           errorLabel.setGraphic(new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, Color.RED));
+          infoLabel.setTooltip(new Tooltip("No unread notifications."));
+          warningLabel.setTooltip(new Tooltip("No unread warnings."));
+          errorLabel.setTooltip(new Tooltip("No unread errors."));
 
           notificationArea.getChildren().clear();
+
           var notificationOrder = new ArrayList<>(notifications);
           Collections.reverse(notificationOrder);
           for (var notification : notificationOrder) {

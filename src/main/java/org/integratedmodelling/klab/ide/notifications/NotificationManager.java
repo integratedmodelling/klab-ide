@@ -170,17 +170,6 @@ public class NotificationManager {
     initialize(root);
   }
 
-  //    /**
-  //     * Get the singleton instance of NotificationManager.
-  //     * @return The NotificationManager instance
-  //     */
-  //    public static synchronized NotificationManager getInstance() {
-  //        if (instance == null) {
-  //            instance = new NotificationManager();
-  //        }
-  //        return instance;
-  //    }
-
   /**
    * Initialize the notification manager with the main scene. This should be called once from the
    * main application.
@@ -188,13 +177,7 @@ public class NotificationManager {
    * @param root The main application scene
    */
   public void initialize(Pane root) {
-    //    if (scene == null) {
-    //      throw new IllegalArgumentException("Scene cannot be null");
-    //    }
-    //
-    //    // Add the notification container to the scene's root
-    //    if (scene.getRoot() instanceof javafx.scene.layout.Pane) {
-    //      javafx.scene.layout.Pane root = (javafx.scene.layout.Pane) scene.getRoot();
+
     var scene = root.getScene();
     // Remove if already added (in case of re-initialization)
     root.getChildren().remove(notificationContainer);
@@ -237,12 +220,6 @@ public class NotificationManager {
             (obs, oldVal, newVal) -> {
               notificationPane.setPrefHeight(newVal.doubleValue());
             });
-
-    // Debug
-    Logging.INSTANCE.info("Notification container initialized and added to scene with StackPane");
-    //    } else {
-    //      throw new IllegalArgumentException("Scene root must be a Pane");
-    //    }
   }
 
   /**
