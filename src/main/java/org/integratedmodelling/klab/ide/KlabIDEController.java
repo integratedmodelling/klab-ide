@@ -553,7 +553,11 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
     ret.setOnClose(
         e -> {
           notifications.remove(notification);
-          redrawNotificationBox();
+          if (notifications.isEmpty()) {
+            toggleNotificationPanel();
+          } else {
+            redrawNotificationBox();
+          }
         });
 
     return ret;
