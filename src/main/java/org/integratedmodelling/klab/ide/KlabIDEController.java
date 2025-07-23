@@ -29,6 +29,7 @@ import javafx.scene.paint.Color;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
 import org.integratedmodelling.common.logging.Logging;
+import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.configuration.Setting;
 import org.integratedmodelling.klab.api.digitaltwin.DigitalTwin;
 import org.integratedmodelling.klab.api.engine.Engine;
@@ -513,7 +514,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
   }
 
   private Node makeNotificationPanel(Notification notification) {
-
+    var text = Utils.Strings.justifyLeft(notification.getMessage(), 40);
     var date = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).format(ZonedDateTime.now());
     var ret =
         new atlantafx.base.controls.Message(
@@ -524,7 +525,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
                 }
                 + " "
                 + date,
-            notification.getMessage(),
+            text,
             switch (notification.getLevel()) {
               case Debug, Info ->
                   new IconLabel(
