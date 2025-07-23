@@ -13,6 +13,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.Slider;
 import javafx.scene.control.Tooltip;
 import javafx.scene.Node;
+import org.integratedmodelling.common.logging.Logging;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -123,10 +124,14 @@ public class Timeline extends Components.BaseComponent {
   private TimeUnit timeUnit;
   private int multiplier;
 
+  private double dragStartX;
+  private long dragStartTimeMs;
+  private long dragEndTimeMs;
+  private boolean isDragging;
+
   private Pane timelinePane;
   private Label startTimeLabel;
   private Label endTimeLabel;
-  private Slider endTimeSlider;
 
   private List<Event> events = new ArrayList<>();
 
@@ -136,7 +141,7 @@ public class Timeline extends Components.BaseComponent {
   private static final double EVENT_VERTICAL_SPACING = 5.0;
   private static final DateTimeFormatter TIME_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
-        private static final double TIME_EVENT_BOTTOM_MARGIN = 10.0;
+  private static final double TIME_EVENT_BOTTOM_MARGIN = 10.0;
 
   /**
    * Creates a new Timeline component with the specified configuration.
@@ -158,7 +163,7 @@ public class Timeline extends Components.BaseComponent {
   @Override
   protected void createContent() {
     VBox container = new VBox(10);
-//    container.setPadding(new Insets(10));
+    //    container.setPadding(new Insets(10));
 
     // Create the timeline pane
     timelinePane = new Pane();
@@ -171,37 +176,72 @@ public class Timeline extends Components.BaseComponent {
     startTimeLabel = new Label(formatTime(startTimeMs));
     endTimeLabel = new Label(formatTime(endTimeMs));
 
-//    HBox labelsBox = new HBox();
-//    labelsBox.setSpacing(10);
-//    HBox.setHgrow(labelsBox, Priority.ALWAYS);
-//
-//    VBox startLabelBox = new VBox(startTimeLabel);
-//    startLabelBox.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-//
-//    VBox endLabelBox = new VBox(endTimeLabel);
-//    endLabelBox.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
-//
-//    HBox.setHgrow(startLabelBox, Priority.ALWAYS);
-//    HBox.setHgrow(endLabelBox, Priority.ALWAYS);
-//
-//    labelsBox.getChildren().addAll(startLabelBox, endLabelBox);
+    //    HBox labelsBox = new HBox();
+    //    labelsBox.setSpacing(10);
+    //    HBox.setHgrow(labelsBox, Priority.ALWAYS);
+    //
+    //    VBox startLabelBox = new VBox(startTimeLabel);
+    //    startLabelBox.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+    //
+    //    VBox endLabelBox = new VBox(endTimeLabel);
+    //    endLabelBox.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
+    //
+    //    HBox.setHgrow(startLabelBox, Priority.ALWAYS);
+    //    HBox.setHgrow(endLabelBox, Priority.ALWAYS);
+    //
+    //    labelsBox.getChildren().addAll(startLabelBox, endLabelBox);
 
-    // Create end time slider
-    endTimeSlider = new Slider();
-    endTimeSlider.setMin(startTimeMs);
-    endTimeSlider.setMax(
-        startTimeMs + (endTimeMs - startTimeMs) * 2); // Allow extending beyond initial end time
-    endTimeSlider.setValue(endTimeMs);
+    // Add mouse wheel handler for zoom
+    timelinePane.setOnScroll(
+        event -> {
+          double delta = event.getDeltaY();
+          long currentRange = endTimeMs - startTimeMs;
+          long newEndTime;
 
-    endTimeSlider
-        .valueProperty()
-        .addListener(
-            (obs, oldVal, newVal) -> {
-              updateEndTime(newVal.longValue());
-            });
+          if (delta > 0) {
+            // Zoom in - decrease range by 10%
+            newEndTime = endTimeMs - (currentRange / 10);
+          } else {
+            // Zoom out - increase range by 10%
+            newEndTime = endTimeMs + (currentRange / 10);
+          }
+
+          updateEndTime(newEndTime);
+        });
+
+    // Add mouse handlers for dragging
+    timelinePane.setOnMousePressed(
+        event -> {
+          if (event.isPrimaryButtonDown()) {
+            dragStartX = event.getX();
+            dragStartTimeMs = startTimeMs;
+            dragEndTimeMs = endTimeMs;
+            isDragging = true;
+          }
+        });
+
+    // TODO check the logics
+    timelinePane.setOnMouseDragged(
+        event -> {
+          if (isDragging) {
+            double dragDelta = event.getX() - dragStartX;
+            double timePerPixel =
+                (double) (dragEndTimeMs - dragStartTimeMs) / timelinePane.getWidth();
+            long timeDelta = (long) (dragDelta * timePerPixel);
+            Logging.INSTANCE.info("draggeroni");
+            startTimeMs = dragStartTimeMs - timeDelta;
+            endTimeMs = dragEndTimeMs - timeDelta;
+            drawTimeline();
+          }
+        });
+
+    timelinePane.setOnMouseReleased(
+        event -> {
+          isDragging = false;
+        });
 
     // Add components to container
-    container.getChildren().addAll(timelinePane/*, labelsBox*/, endTimeSlider);
+    container.getChildren().addAll(timelinePane /*, labelsBox*/);
 
     this.getChildren().add(container);
 
@@ -233,11 +273,6 @@ public class Timeline extends Components.BaseComponent {
       // If the event is beyond the end time, extend the timeline
       if (event.getTimestamp() > endTimeMs) {
         updateEndTime(event.getTimestamp());
-
-        // Also update the slider's max value if needed
-        if (event.getTimestamp() > endTimeSlider.getMax()) {
-          endTimeSlider.setMax(event.getTimestamp() + (endTimeMs - startTimeMs));
-        }
       }
 
       this.events.add(event);
@@ -305,7 +340,7 @@ public class Timeline extends Components.BaseComponent {
 
     double width = timelinePane.getWidth();
     double height = timelinePane.getHeight();
-    
+
     if (width <= 0) {
       // If the pane hasn't been laid out yet, set a listener to redraw when it is
       timelinePane
