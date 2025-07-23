@@ -39,4 +39,5 @@ module org.integratedmodelling.klab.ide {
     exports org.integratedmodelling.klab.ide.test;
 
     opens org.integratedmodelling.klab.ide.api to javafx.fxml;
+    opens org.integratedmodelling.klab.ide.test to javafx.fxml;
 }

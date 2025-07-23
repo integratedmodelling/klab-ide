@@ -7,6 +7,7 @@ import atlantafx.base.theme.Tweaks;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -483,9 +484,9 @@ public class Components {
     }
   }
 
-  public static class SettingsContentComponent extends VBox {
+  public static class SettingsPage extends VBox {
 
-    public SettingsContentComponent(Setting.Page settingPage) {
+    public SettingsPage(Setting.Page settingPage) {
       super(10);
       setPadding(new Insets(0));
       VBox.setVgrow(this, Priority.ALWAYS);
@@ -657,10 +658,19 @@ public class Components {
       TabPane tabPane = new TabPane();
       tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
 
-      for (var settingPage : Setting.Page.values()) {
+      // service settings are handled in the Services tab
+      for (var settingPage :
+          List.of(
+              Setting.Page.GENERAL,
+              Setting.Page.APPEARANCE,
+              Setting.Page.EDITOR,
+              Setting.Page.SERVICES,
+              Setting.Page.MESSAGING,
+              Setting.Page.DEBUGGING)) {
+
         Tab tab = new Tab();
         tab.setText(Utils.Strings.capitalize(settingPage.name().replace("_", " ").toLowerCase()));
-        tab.setContent(new SettingsContentComponent(settingPage));
+        tab.setContent(new SettingsPage(settingPage));
         tabPane.getTabs().add(tab);
       }
 
@@ -1211,40 +1221,34 @@ public class Components {
         parameterForm.getChildren().add(uploadBox);
       }
 
-      Button submitButton = new Button("Submit");
+      var submitButton = new WaitButton("Submit");
       submitButton.setOnAction(
-          event -> {
-            Thread.ofVirtual()
-                .start(
-                    () -> {
-                      var asset =
-                          file.get() == null ? schema.asset(userInput) : schema.asset(file.get());
-                      if (asset.isEmpty()) {
-                        KlabIDEController.instance()
-                            .handleNotifications(
-                                List.of(
-                                    Notification.error(
-                                        "Import failed: specifications are incomplete")));
-                        return;
-                      }
-                      Logging.INSTANCE.info("DIO PORCO SUBMITTING " + asset);
-                      service
-                          .importAsset(
-                              schema, asset, Urn.UNDEFINED_URN, KlabIDEController.modeler().user())
-                          .thenAccept(
-                              resourceSet -> {
-                                Logging.INSTANCE.info("DIO PORCO GOT " + resourceSet);
-                                // TODO register the new resource, possibly open it
-                                KlabIDEController.instance()
-                                    .handleNotifications(resourceSet.getNotifications());
-                              })
-                          .exceptionally(
-                              t -> {
-                                KlabIDEController.instance()
-                                    .handleNotification(Notification.error(t));
-                                return null;
-                              });
-                    });
+          () -> {
+            var asset = file.get() == null ? schema.asset(userInput) : schema.asset(file.get());
+            if (asset.isEmpty()) {
+              KlabIDEController.instance()
+                  .handleNotifications(
+                      List.of(Notification.error("Import failed: specifications are incomplete")));
+              return false;
+            }
+            AtomicBoolean success = new AtomicBoolean(false);
+            service
+                .importAsset(schema, asset, Urn.UNDEFINED_URN, KlabIDEController.modeler().user())
+                .thenAccept(
+                    resourceSet -> {
+                      // TODO register the new resource, possibly open it
+                      KlabIDEController.instance()
+                          .handleNotifications(resourceSet.getNotifications());
+                      success.set(true);
+                    })
+                .exceptionally(
+                    t -> {
+                      KlabIDEController.instance().handleNotification(Notification.error(t));
+                      success.set(false);
+                      return null;
+                    })
+                .join();
+            return success.get();
           });
       HBox buttonBox = new HBox(10, submitButton);
       buttonBox.setAlignment(Pos.CENTER_RIGHT);
