@@ -1132,7 +1132,8 @@ public class Components {
       VBox.setVgrow(scrollPane, Priority.ALWAYS);
       Tab importTab = new Tab("Import");
       importTab.setClosable(false);
-
+      ScrollPane importScroll = new ScrollPane();
+      importScroll.setFitToWidth(true);
       VBox importPane = new VBox(10);
       importPane.setPadding(new Insets(10));
       importPane.setMinHeight(360);
@@ -1157,7 +1158,8 @@ public class Components {
           e -> updateImportForm(schemaKey.get(importSchemaSelector.getValue())));
 
       importPane.getChildren().addAll(importSchemaSelector, scrollPane);
-      importTab.setContent(importPane);
+      importScroll.setContent(importPane);
+      importTab.setContent(importScroll);
 
       tabPane.getTabs().addAll(infoTab, /*exportTab, */ importTab);
       content.getChildren().addAll(tabPane);
