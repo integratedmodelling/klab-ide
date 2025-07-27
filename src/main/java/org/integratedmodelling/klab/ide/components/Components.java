@@ -24,6 +24,8 @@ import javafx.scene.control.Slider;
 import javafx.scene.control.TextArea;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.TransferMode;
 import javafx.scene.layout.*;
 import javafx.scene.layout.Priority;
@@ -484,7 +486,7 @@ public class Components {
     }
   }
 
-  public static class SettingsPage extends VBox {
+  public abstract static class SettingsPage extends VBox {
 
     public SettingsPage(Setting.Page settingPage) {
       super(10);
@@ -533,10 +535,7 @@ public class Components {
               input = toggle;
               toggle.setOnMouseClicked(
                   e -> {
-                    KlabIDEController.modeler()
-                        .engine()
-                        .getSettings()
-                        .set(data.getValue(), toggle.isSelected());
+                    onChangedSetting(data.getValue(), toggle.isSelected());
                   });
             } else if (Integer.class.isAssignableFrom(data.getValue().valueClass)) {
               TextField field = new TextField();
@@ -552,10 +551,7 @@ public class Components {
                           change.getControlNewText().matches("-?\\d*\\.?\\d*") ? change : null));
               field.setOnAction(
                   e -> {
-                    KlabIDEController.modeler()
-                        .engine()
-                        .getSettings()
-                        .set(data.getValue(), Integer.parseInt(field.getText()));
+                    onChangedSetting(data.getValue(), Integer.parseInt(field.getText()));
                   });
               input = field;
             } else if (Map.class.isAssignableFrom(data.getValue().valueClass)) {
@@ -566,6 +562,7 @@ public class Components {
                     //   a notification on result. This should be done on service settings
                     //                          KlabIDEController.modeler()
                     //                                           .engine());
+                    onChangedSetting(data.getValue(), Map.of());
                   });
               input = field;
             } else if (File.class.isAssignableFrom(data.getValue().valueClass)) {
@@ -585,10 +582,7 @@ public class Components {
                     File selectedFile = fileChooser.showOpenDialog(getScene().getWindow());
                     if (selectedFile != null) {
                       fileField.setText(selectedFile.getAbsolutePath());
-                      KlabIDEController.modeler()
-                          .engine()
-                          .getSettings()
-                          .set(data.getValue(), selectedFile);
+                      onChangedSetting(data.getValue(), selectedFile);
                     }
                   });
 
@@ -616,12 +610,7 @@ public class Components {
               }
               field.setOnAction(
                   e -> {
-                    KlabIDEController.modeler()
-                        .engine()
-                        .getSettings()
-                        .set(
-                            data.getValue(),
-                            Utils.Data.parseAsType(field.getText(), data.getValue().valueClass));
+                    onChangedSetting(data.getValue(), field.getText());
                   });
               HBox.setHgrow(field, Priority.ALWAYS);
               input = field;
@@ -644,6 +633,8 @@ public class Components {
 
       getChildren().add(scroll);
     }
+
+    protected abstract void onChangedSetting(Setting setting, Object newValue);
   }
 
   public static class Settings extends BaseComponent {
@@ -670,7 +661,16 @@ public class Components {
 
         Tab tab = new Tab();
         tab.setText(Utils.Strings.capitalize(settingPage.name().replace("_", " ").toLowerCase()));
-        tab.setContent(new SettingsPage(settingPage));
+        tab.setContent(
+            new SettingsPage(settingPage) {
+              @Override
+              protected void onChangedSetting(Setting setting, Object newValue) {
+                KlabIDEController.modeler()
+                    .engine()
+                    .getSettings()
+                    .set(setting, Utils.Data.parseAsType(newValue.toString(), setting.valueClass));
+              }
+            });
         tabPane.getTabs().add(tab);
       }
 
@@ -751,9 +751,7 @@ public class Components {
     }
 
     private Tab createServiceTab(
-        String title,
-        String serviceType,
-        Class<? extends org.integratedmodelling.klab.api.services.KlabService> serviceClass) {
+        String title, String serviceType, Class<? extends KlabService> serviceClass) {
       Tab tab = new Tab();
       tab.setText(title);
 
@@ -775,7 +773,7 @@ public class Components {
 
       // Convert service to display string
       serviceSelector.setConverter(
-          new StringConverter<org.integratedmodelling.klab.api.services.KlabService>() {
+          new StringConverter<KlabService>() {
             @Override
             public String toString(KlabService service) {
               return service.getServiceName() + " [" + service.getUrl() + "]";
@@ -860,8 +858,8 @@ public class Components {
       linkButton.setOnAction(
           e -> {
             if (selectAction != null) {
-              final var clipboard = javafx.scene.input.Clipboard.getSystemClipboard();
-              final var ct = new javafx.scene.input.ClipboardContent();
+              final var clipboard = Clipboard.getSystemClipboard();
+              final var ct = new ClipboardContent();
               ct.putString(digitalTwin.getConfiguration().getUrl().toString());
               clipboard.setContent(ct);
             }
@@ -1138,6 +1136,14 @@ public class Components {
       importPane.setPadding(new Insets(10));
       importPane.setMinHeight(360);
 
+      Tab settingsTab = new Tab("Settings");
+      settingsTab.setClosable(false);
+      ScrollPane settingsScroll = new ScrollPane();
+      settingsScroll.setFitToWidth(true);
+      VBox settingsPane = new VBox(10);
+      settingsPane.setPadding(new Insets(10));
+      settingsPane.setMinHeight(360);
+
       ComboBox<String> importSchemaSelector = new ComboBox<>();
       importSchemaSelector.setPromptText("Select Import Schema");
       var importSchemata =
@@ -1161,7 +1167,24 @@ public class Components {
       importScroll.setContent(importPane);
       importTab.setContent(importScroll);
 
-      tabPane.getTabs().addAll(infoTab, /*exportTab, */ importTab);
+      settingsPane
+          .getChildren()
+          .add(
+              new SettingsPage(
+                  switch (service.status().getServiceType()) {
+                    case REASONER -> Setting.Page.REASONER;
+                    case RESOURCES -> Setting.Page.RESOURCES;
+                    case RESOLVER -> Setting.Page.RESOLVER;
+                    case RUNTIME -> Setting.Page.RUNTIME;
+                    default -> null; // won't happen
+                  }) {
+                @Override
+                protected void onChangedSetting(Setting setting, Object newValue) {}
+              });
+      settingsScroll.setContent(settingsPane);
+      settingsTab.setContent(settingsScroll);
+
+      tabPane.getTabs().addAll(infoTab, /*exportTab, */ importTab, settingsTab);
       content.getChildren().addAll(tabPane);
       VBox.setVgrow(tabPane, Priority.ALWAYS);
 
