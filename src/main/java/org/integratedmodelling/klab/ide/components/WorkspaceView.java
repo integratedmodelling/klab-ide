@@ -56,14 +56,10 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
   }
 
   @Override
-  protected void assetEditorSelected(NavigableWorkspace asset) {
-
-  }
+  protected void assetEditorSelected(NavigableWorkspace asset) {}
 
   @Override
-  protected void assetEditorClosed(NavigableWorkspace asset) {
-
-  }
+  protected void assetEditorClosed(NavigableWorkspace asset) {}
 
   @Override
   public String getName() {
@@ -116,7 +112,8 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
             components.add(workspaceDialog);
           }
           for (var workspace : getWorkspaceList()) {
-            components.add(new Components.Resource(workspace, this::raiseWorkspace));
+            components.add(
+                new Components.Resource(workspace, this::raiseWorkspace, /* TODO */ null));
           }
           browserComponents.getChildren().addAll(components);
         });
@@ -233,5 +230,4 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
       addEditor(newEditor, resourceInfo.getUrn(), new FontIcon(Theme.WORKSPACE_ICON));
     }
   }
-
 }

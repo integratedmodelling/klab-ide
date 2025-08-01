@@ -110,7 +110,7 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
                             for (ResourceInfo resource : results) {
                               resultsBox
                                   .getChildren()
-                                  .add(new Components.Resource(resource, this::viewResource));
+                                  .add(new Components.Resource(resource, this::viewResource, null /* TODO */));
                             }
                           }
                         });

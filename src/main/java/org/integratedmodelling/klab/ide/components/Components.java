@@ -19,6 +19,7 @@ import javafx.beans.property.SimpleObjectProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
+import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.control.Button;
@@ -35,7 +36,6 @@ import javafx.scene.layout.Priority;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
 import javafx.util.StringConverter;
-import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.configuration.Configuration;
 import org.integratedmodelling.klab.api.configuration.Setting;
@@ -685,13 +685,18 @@ public class Components {
 
   public static class Resource extends BaseComponent {
 
-    private final Consumer<ResourceInfo> clickHandler;
+    private final Consumer<ResourceInfo> selectHandler;
+    private final Consumer<ResourceInfo> deleteHandler;
     private ResourceInfo descriptor;
 
-    public Resource(ResourceInfo descriptor, Consumer<ResourceInfo> clickHandler) {
+    public Resource(
+        ResourceInfo descriptor,
+        Consumer<ResourceInfo> selectHandler,
+        Consumer<ResourceInfo> deleteHandler) {
       super(Type.Object, descriptor.getUrn(), false);
       this.descriptor = descriptor;
-      this.clickHandler = clickHandler;
+      this.selectHandler = selectHandler;
+      this.deleteHandler = deleteHandler;
       createContent();
     }
 
@@ -712,10 +717,58 @@ public class Components {
         comment = this.descriptor.getMetadata().get(Metadata.DC_COMMENT).toString();
       }
 
+      var tooltip = label + "\n" + this.descriptor.getUrn();
+
       Label title = new Label(label);
       title.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
-      HBox header = new HBox(10, icon, title);
+      title.setTooltip(new Tooltip(tooltip));
+      title.setMaxWidth(180);
+
+      HBox buttonContainer = new HBox();
+      buttonContainer.setSpacing(3);
+      buttonContainer.setAlignment(Pos.CENTER_RIGHT);
+
+      if (selectHandler != null) {
+        var openButton =
+            new Label(null, new IconLabel(Material2MZ.OPEN_IN_NEW, 14, Color.DARKGREEN));
+        openButton.setCursor(Cursor.HAND);
+        openButton.setOnMouseClicked(
+            e -> {
+              selectHandler.accept(this.descriptor);
+            });
+        buttonContainer.getChildren().add(openButton);
+      }
+
+      var linkButton =
+          new Label(null, new IconLabel(Material2AL.CONTENT_COPY, 14, Color.DARKGOLDENROD));
+      linkButton.setTooltip(new Tooltip("Copy URN to clipboard"));
+      linkButton.setCursor(Cursor.HAND);
+      linkButton.setOnMouseClicked(
+          e -> {
+            final var clipboard = Clipboard.getSystemClipboard();
+            final var ct = new ClipboardContent();
+            ct.putString(descriptor.getUrn());
+            clipboard.setContent(ct);
+          });
+      buttonContainer.getChildren().add(linkButton);
+
+      if (deleteHandler != null) {
+        var deleteButton =
+            new Label(null, new IconLabel(Material2AL.DELETE_FOREVER, 14, Color.DARKRED));
+        deleteButton.setCursor(Cursor.HAND);
+        deleteButton.setOnMouseClicked(
+            e -> {
+              deleteHandler.accept(this.descriptor);
+            });
+        buttonContainer.getChildren().add(deleteButton);
+      }
+
+      HBox.setHgrow(buttonContainer, Priority.ALWAYS);
+
+      HBox header = new HBox(10, icon, title, buttonContainer);
       header.setAlignment(Pos.CENTER_LEFT);
+      header.setMaxWidth(Double.MAX_VALUE);
+      HBox.setHgrow(header, Priority.ALWAYS);
 
       TextArea description = new TextArea(comment);
       description.setWrapText(true);
@@ -731,7 +784,7 @@ public class Components {
 
       card.setOnMouseClicked(
           event -> {
-            clickHandler.accept(this.descriptor);
+            selectHandler.accept(this.descriptor);
           });
 
       card.setBody(body);
