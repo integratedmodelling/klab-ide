@@ -11,6 +11,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+
+import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.geometry.Insets;
@@ -1265,6 +1267,24 @@ public class Components {
                       KlabIDEController.instance()
                           .handleNotifications(resourceSet.getNotifications());
                       success.set(true);
+
+                      // Reset form fields
+                      Platform.runLater(
+                          () -> {
+                            // Reset form after delay
+                            // TODO use an executor
+                            new Thread(
+                                    () -> {
+                                      try {
+                                        Thread.sleep(1500);
+                                        parameterForm.getChildren().clear();
+                                        updateImportForm(schema);
+                                      } catch (InterruptedException e) {
+                                        // Ignore
+                                      }
+                                    })
+                                .start();
+                          });
                     })
                 .exceptionally(
                     t -> {
