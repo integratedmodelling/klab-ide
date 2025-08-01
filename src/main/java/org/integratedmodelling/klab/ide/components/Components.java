@@ -6,6 +6,7 @@ import atlantafx.base.theme.Styles;
 import atlantafx.base.theme.Tweaks;
 import java.io.File;
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -38,6 +39,7 @@ import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.configuration.Configuration;
 import org.integratedmodelling.klab.api.configuration.Setting;
+import org.integratedmodelling.klab.api.data.Metadata;
 import org.integratedmodelling.klab.api.data.Version;
 import org.integratedmodelling.klab.api.engine.distribution.Distribution;
 import org.integratedmodelling.klab.api.knowledge.Urn;
@@ -696,21 +698,33 @@ public class Components {
     protected void createContent() {
       var card = new Card();
       VBox body = new VBox(10);
-
       var icon = new FontIcon(Theme.getIcon(descriptor.getKnowledgeClass()));
 
-      Label title = new Label(this.descriptor.getUrn());
+      var label = this.descriptor.getUrn();
+      if (this.descriptor.getMetadata().containsKey(Metadata.DC_LABEL)) {
+        label = this.descriptor.getMetadata().get(Metadata.DC_LABEL).toString();
+      } else if (this.descriptor.getMetadata().containsKey(Metadata.DC_TITLE)) {
+        label = this.descriptor.getMetadata().get(Metadata.DC_TITLE).toString();
+      }
+
+      var comment = "No description available";
+      if (this.descriptor.getMetadata().containsKey(Metadata.DC_COMMENT)) {
+        comment = this.descriptor.getMetadata().get(Metadata.DC_COMMENT).toString();
+      }
+
+      Label title = new Label(label);
       title.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
       HBox header = new HBox(10, icon, title);
       header.setAlignment(Pos.CENTER_LEFT);
 
-      TextArea description = new TextArea("Resource description placeholder text");
+      TextArea description = new TextArea(comment);
       description.setWrapText(true);
       description.setEditable(false);
       description.setPrefRowCount(3);
       body.getChildren().add(description);
 
-      Label status = new Label("Status: Active | Last modified: 2025-05-30");
+      Label status =
+          new Label("Status: " + this.descriptor.getStage().name() + " " + LocalDateTime.now());
       status.setStyle("-fx-font-size: 10px;");
       HBox footer = new HBox(status);
       footer.setAlignment(Pos.CENTER_RIGHT);
@@ -1269,22 +1283,22 @@ public class Components {
                       success.set(true);
 
                       // Reset form fields
-                      Platform.runLater(
-                          () -> {
-                            // Reset form after delay
-                            // TODO use an executor
-                            new Thread(
-                                    () -> {
-                                      try {
-                                        Thread.sleep(1500);
+                      // Reset form after delay
+                      // TODO use an executor
+                      new Thread(
+                              () -> {
+                                try {
+                                  Thread.sleep(1500);
+                                  Platform.runLater(
+                                      () -> {
                                         parameterForm.getChildren().clear();
                                         updateImportForm(schema);
-                                      } catch (InterruptedException e) {
-                                        // Ignore
-                                      }
-                                    })
-                                .start();
-                          });
+                                      });
+                                } catch (InterruptedException e) {
+                                  // Ignore
+                                }
+                              })
+                          .start();
                     })
                 .exceptionally(
                     t -> {
