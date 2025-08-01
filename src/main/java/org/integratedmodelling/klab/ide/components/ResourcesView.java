@@ -13,13 +13,19 @@ import org.integratedmodelling.klab.api.knowledge.Resource;
 import org.integratedmodelling.klab.api.services.ResourcesService;
 import org.integratedmodelling.klab.api.services.resources.ResourceInfo;
 import org.integratedmodelling.klab.ide.KlabIDEController;
+import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
+import org.kordamp.ikonli.javafx.FontIcon;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
+
+  private final Map<String, ResourceEditor> openEditors = new HashMap<>();
 
   @Override
   public String getName() {
@@ -110,7 +116,9 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
                             for (ResourceInfo resource : results) {
                               resultsBox
                                   .getChildren()
-                                  .add(new Components.Resource(resource, this::viewResource, null /* TODO */));
+                                  .add(
+                                      new Components.Resource(
+                                          resource, this::viewResource, null /* TODO */));
                             }
                           }
                         });
@@ -141,8 +149,31 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
         });
   }
 
-  private void viewResource(ResourceInfo resource) {
-    // Handle resource selection
-    System.out.println("Selected resource: " + resource.getUrn());
+  private void viewResource(ResourceInfo resourceInfo) {
+
+    hideBrowser();
+    if (openEditors.containsKey(resourceInfo.getUrn())) {
+      openEditors
+          .get(resourceInfo.getUrn())
+          .requestFocus(); // FIXME must remember the tabs and select(tab) - in both cases
+    } else {
+      var service =
+          KlabIDEController.modeler()
+              .user()
+              .getService(
+                  ResourcesService.class, s -> resourceInfo.getServiceId().equals(s.serviceId()));
+
+      // TODO handle the unlikely case that the service is unavailable. That will throw an exception
+      //  from getService
+
+      var resource =
+          service.retrieveResource(
+              List.of(resourceInfo.getUrn()), KlabIDEController.modeler().user());
+
+      var newEditor = new ResourceEditor(resource /*, resourceInfo, this*/);
+      openEditors.put(resourceInfo.getUrn(), newEditor);
+      addEditor(newEditor, resourceInfo.getUrn(), new FontIcon(Theme.WORKSPACE_ICON));
+      newEditor.edit(resource);
+    }
   }
 }
