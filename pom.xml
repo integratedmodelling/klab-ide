@@ -253,7 +253,7 @@
                 <executions>
                     <execution>
                         <!-- Default configuration for running with: mvn clean javafx:run -->
-                        <id>default-cli</id>
+                        <id>run</id>
                         <configuration>
                             <mainClass>org.integratedmodelling.klab.ide.KlabIDEApplication</mainClass>
                             <launcher>app</launcher>
@@ -262,6 +262,15 @@
                             <noManPages>true</noManPages>
                             <stripDebug>true</stripDebug>
                             <noHeaderFiles>true</noHeaderFiles>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>debug</id>
+                        <configuration>
+                            <mainClass>org.integratedmodelling.klab.ide.KlabIDEApplication</mainClass>
+                            <options>
+                                <option>-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=0.0.0.0:8000</option>
+                            </options>
                         </configuration>
                     </execution>
                 </executions>
