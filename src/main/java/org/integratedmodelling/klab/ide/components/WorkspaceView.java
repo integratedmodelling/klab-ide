@@ -227,7 +227,10 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
 
       var newEditor = new WorkspaceEditor(service, resourceInfo, this);
       openEditors.put(resourceInfo.getUrn(), newEditor);
-      addEditor(newEditor, resourceInfo.getUrn(), new FontIcon(Theme.WORKSPACE_ICON));
+      addEditor(
+          newEditor,
+          resourceInfo.getUrn() + "@" + service.serviceName(),
+          new FontIcon(Theme.WORKSPACE_ICON));
     }
   }
 }

@@ -705,11 +705,21 @@ public class Components {
       VBox body = new VBox(10);
       var icon = new FontIcon(Theme.getIcon(descriptor.getKnowledgeClass()));
 
+      // add @ serviceName to titl
+      var service =
+          KlabIDEController.modeler()
+              .user()
+              .getService(
+                  ResourcesService.class, s -> s.serviceId().equals(descriptor.getServiceId()));
+
       var label = this.descriptor.getUrn();
       if (this.descriptor.getMetadata().containsKey(Metadata.DC_LABEL)) {
         label = this.descriptor.getMetadata().get(Metadata.DC_LABEL).toString();
       } else if (this.descriptor.getMetadata().containsKey(Metadata.DC_TITLE)) {
         label = this.descriptor.getMetadata().get(Metadata.DC_TITLE).toString();
+      }
+      if (service != null) {
+        label += "@" + service.serviceName();
       }
 
       var comment = "No description available";
@@ -725,12 +735,12 @@ public class Components {
       title.setMaxWidth(180);
 
       HBox buttonContainer = new HBox();
-      buttonContainer.setSpacing(3);
+      buttonContainer.setSpacing(4);
       buttonContainer.setAlignment(Pos.CENTER_RIGHT);
 
       if (selectHandler != null) {
         var openButton =
-            new Label(null, new IconLabel(Material2MZ.OPEN_IN_NEW, 14, Color.DARKGREEN));
+            new Label(null, new IconLabel(Material2MZ.OPEN_IN_NEW, 16, Color.DARKGREEN));
         openButton.setCursor(Cursor.HAND);
         openButton.setOnMouseClicked(
             e -> {
@@ -740,7 +750,7 @@ public class Components {
       }
 
       var linkButton =
-          new Label(null, new IconLabel(Material2AL.CONTENT_COPY, 14, Color.DARKGOLDENROD));
+          new Label(null, new IconLabel(Material2AL.CONTENT_COPY, 16, Color.DARKGOLDENROD));
       linkButton.setTooltip(new Tooltip("Copy URN to clipboard"));
       linkButton.setCursor(Cursor.HAND);
       linkButton.setOnMouseClicked(
@@ -754,7 +764,7 @@ public class Components {
 
       if (deleteHandler != null) {
         var deleteButton =
-            new Label(null, new IconLabel(Material2AL.DELETE_FOREVER, 14, Color.DARKRED));
+            new Label(null, new IconLabel(Material2AL.DELETE_FOREVER, 16, Color.DARKRED));
         deleteButton.setCursor(Cursor.HAND);
         deleteButton.setOnMouseClicked(
             e -> {
