@@ -252,7 +252,7 @@
                 <version>0.0.8</version>
                 <executions>
                     <execution>
-                        <!-- Default configuration for running with: mvn clean javafx:run -->
+                        <!-- Default configuration for running with: mvn clean javafx:run@run -->
                         <id>run</id>
                         <configuration>
                             <mainClass>org.integratedmodelling.klab.ide.KlabIDEApplication</mainClass>
@@ -265,6 +265,7 @@
                         </configuration>
                     </execution>
                     <execution>
+                        <!-- Debug configuration for running with: mvn clean javafx:run@debug -->
                         <id>debug</id>
                         <configuration>
                             <mainClass>org.integratedmodelling.klab.ide.KlabIDEApplication</mainClass>
