@@ -137,6 +137,13 @@ public abstract class OutlinePage extends StackPane implements Page {
         userContent.getChildren().add(createFormattedText(text, handleUrl));
     }
 
+    public void removeAll() {
+        userContent.getChildren().clear();
+        outline.getChildren().clear();
+        outline.add(Heading.TOP);
+        isRendered = false;
+    }
+
     public void addSection(String title, Node content) {
 
         var titleIcon = new FontIcon(Material2AL.ATTACH_FILE);

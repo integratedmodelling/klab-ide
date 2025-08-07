@@ -1,6 +1,7 @@
 package org.integratedmodelling.klab.ide.components;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import javafx.application.Platform;
@@ -23,7 +24,7 @@ public class NotebookView extends BorderPane implements Page {
   private final Notebook notebook;
   private DashboardTerminal terminal;
   private DashboardLineReader lineReader;
-  private final Map<Components.Type, Components.Component> componentMap = new HashMap<>();
+  private final Map<Components.Type, Components.Component> componentMap = new LinkedHashMap<>();
 
   public NotebookView() {
 
@@ -51,7 +52,7 @@ public class NotebookView extends BorderPane implements Page {
             });
 
     addComponent(new Components.About());
-//    addComponent(new Components.TimelineComponent());
+    //    addComponent(new Components.TimelineComponent());
   }
 
   public static class InputBox extends AutoCompleteTextField {
@@ -82,7 +83,29 @@ public class NotebookView extends BorderPane implements Page {
 
   public void focus(Components.Type componentType, Object... arguments) {
     if (this.componentMap.containsKey(componentType)) {
-      // TODO focus
+      this.componentMap.remove(componentType);
+    } else {
+      componentMap.put(
+          componentType,
+          switch (componentType) {
+            case Distribution ->
+                new Components.DistributionComponent(KlabIDEController.modeler().getDistribution());
+            case UserInfo -> new Components.User(KlabIDEController.modeler().user());
+            case ServiceInfo -> new Components.Services();
+            case About -> new Components.About();
+            case Settings -> new Components.Settings();
+            //            case AutoScroll -> new Components.AutoScrollDemo();
+            default ->
+                throw new KlabInternalErrorException("unexpected component " + componentType);
+          });
+      addComponent(componentMap.get(componentType));
+    }
+  }
+
+  public void toggle(Components.Type componentType, Object... arguments) {
+    if (this.componentMap.containsKey(componentType)) {
+      componentMap.remove(componentType);
+      redraw();
     } else {
       componentMap.put(
           componentType,
@@ -107,6 +130,13 @@ public class NotebookView extends BorderPane implements Page {
           () -> {
             notebook.addSection(component.getTitle(), node);
           });
+    }
+  }
+
+  public void redraw() {
+    notebook.removeAll();
+    for (var type : componentMap.keySet()) {
+      addComponent(componentMap.get(type));
     }
   }
 

@@ -21,6 +21,7 @@ import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
@@ -112,6 +113,8 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
   @FXML NotebookView notebook;
   @FXML Pane mainArea;
   @FXML Pane inspectorArea;
+  @FXML
+  ImageView logo;
 
   private Button toggleRightSideButton;
   private final AtomicBoolean notificationsVisible = new AtomicBoolean(false);
@@ -120,8 +123,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
   private RuntimeViewController runtimeController;
   private Distribution distribution;
   private final Map<View, Button> viewButtons = new HashMap<>();
-  //  private AtomicBoolean engineStarted = new AtomicBoolean(false);
-  //  private AtomicBoolean engineTransitioning = new AtomicBoolean(false);
 
   private WorkspaceView workspaceView;
   private ResourcesView resourcesView;
@@ -318,39 +319,46 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
 
     downloadButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.focus(Components.Type.Distribution);
+          notebook.toggle(Components.Type.Distribution); 
           selectView(View.NOTEBOOK);
+        });
+    logo.setOnMouseClicked(
+        mouseEvent -> {
+          notebook.toggle(Components.Type.About);
+//          selectView(View.NOTEBOOK);
         });
     profileButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.focus(Components.Type.UserInfo);
+          notebook.toggle(Components.Type.UserInfo);
           selectView(View.NOTEBOOK);
         });
     settingsButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.focus(Components.Type.Settings);
+          notebook.toggle(Components.Type.Settings);
           selectView(View.NOTEBOOK);
         });
     reasonerButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.focus(Components.Type.ServiceInfo, KlabService.Type.REASONER);
+          notebook.toggle(Components.Type.ServiceInfo, KlabService.Type.REASONER);
           selectView(View.NOTEBOOK);
         });
     resourcesButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.focus(Components.Type.ServiceInfo, KlabService.Type.RESOURCES);
+          notebook.toggle(Components.Type.ServiceInfo, KlabService.Type.RESOURCES);
           selectView(View.NOTEBOOK);
         });
     resolverButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.focus(Components.Type.ServiceInfo, KlabService.Type.RESOLVER);
+          notebook.toggle(Components.Type.ServiceInfo, KlabService.Type.RESOLVER);
           selectView(View.NOTEBOOK);
         });
     runtimeButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.focus(Components.Type.ServiceInfo, KlabService.Type.RUNTIME);
+          notebook.toggle(Components.Type.ServiceInfo, KlabService.Type.RUNTIME);
           selectView(View.NOTEBOOK);
         });
+    
+    
 
     for (var key : viewButtons.keySet()) {
       viewButtons.get(key).setOnMouseClicked(mouseEvent -> selectView(key));
