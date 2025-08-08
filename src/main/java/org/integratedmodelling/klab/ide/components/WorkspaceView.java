@@ -151,7 +151,7 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
     final ComboBox<String> serviceSelector = new ComboBox<>();
     serviceSelector
         .getItems()
-        .addAll(availableServices.stream().map(ResourcesService::getServiceName).toList());
+        .addAll(availableServices.stream().map(ResourcesService::serviceName).toList());
     serviceSelector.setMaxWidth(Double.MAX_VALUE);
     var ok = new Button("Create");
     var cancel = new Button("Cancel");
