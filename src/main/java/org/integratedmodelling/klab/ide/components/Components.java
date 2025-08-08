@@ -848,14 +848,14 @@ public class Components {
       final Map<String, KlabService> serviceMap = new HashMap<>();
       services.forEach(
           service ->
-              serviceMap.put(service.getServiceName() + " [" + service.getUrl() + "]", service));
+              serviceMap.put(service.serviceName() + " [" + service.getUrl() + "]", service));
 
       // Convert service to display string
       serviceSelector.setConverter(
           new StringConverter<KlabService>() {
             @Override
             public String toString(KlabService service) {
-              return service.getServiceName() + " [" + service.getUrl() + "]";
+              return service.serviceName() + " [" + service.getUrl() + "]";
             }
 
             @Override
@@ -1173,10 +1173,7 @@ public class Components {
       VBox content = new VBox(10);
       content.setPadding(new Insets(10));
 
-      Label nameLabel =
-          new Label(
-              "Service: "
-                  + service.capabilities(KlabIDEController.modeler().user()).getServiceName());
+      Label nameLabel = new Label("Service: " + service.serviceName());
       nameLabel.setStyle("-fx-font-weight: bold");
 
       Hyperlink hostLink = new Hyperlink(service.getUrl().toString());

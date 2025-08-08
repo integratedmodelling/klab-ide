@@ -146,7 +146,7 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, ContextSco
     final ComboBox<String> serviceSelector = new ComboBox<>();
     serviceSelector
         .getItems()
-        .addAll(availableServices.stream().map(RuntimeService::getServiceName).toList());
+        .addAll(availableServices.stream().map(RuntimeService::serviceName).toList());
     serviceSelector.setMaxWidth(Double.MAX_VALUE);
     var ok = new Button("Create");
     var cancel = new Button("Cancel");
