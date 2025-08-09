@@ -105,7 +105,6 @@ public class NotebookView extends BorderPane implements Page {
   public void toggle(Components.Type componentType, Object... arguments) {
     if (this.componentMap.containsKey(componentType)) {
       componentMap.remove(componentType);
-      redraw();
     } else {
       componentMap.put(
           componentType,
@@ -116,12 +115,11 @@ public class NotebookView extends BorderPane implements Page {
             case ServiceInfo -> new Components.Services();
             case About -> new Components.About();
             case Settings -> new Components.Settings();
-            //            case AutoScroll -> new Components.AutoScrollDemo();
             default ->
                 throw new KlabInternalErrorException("unexpected component " + componentType);
           });
-      addComponent(componentMap.get(componentType));
     }
+    redraw();
   }
 
   public void addComponent(Components.Component component) {
@@ -134,10 +132,16 @@ public class NotebookView extends BorderPane implements Page {
   }
 
   public void redraw() {
-    notebook.removeAll();
-    for (var type : componentMap.keySet()) {
-      addComponent(componentMap.get(type));
-    }
+    Platform.runLater(
+        () -> {
+          notebook.removeAll();
+          for (var type : componentMap.keySet()) {
+            Components.Component comp = componentMap.get(type);
+            if (comp instanceof Node node) {
+              notebook.addSection(comp.getTitle(), node);
+            }
+          }
+        });
   }
 
   @Override

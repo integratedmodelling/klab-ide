@@ -221,13 +221,32 @@ public abstract class OutlinePage extends StackPane implements Page {
         }
 
         public void add(Heading heading) {
+            Objects.requireNonNull(heading, "heading");
+
+            // Ensure default structure exists if the outline was cleared.
+            if (getChildren().size() < 2) {
+                // Rebuild defaults: a separator and the persistent "Top" entry
+                getChildren().clear();
+                getChildren().add(new Separator());
+                Label topLabel = createEntry(Heading.TOP);
+                getChildren().add(topLabel);
+
+                // If the first heading to be added is TOP, do not duplicate it.
+                if (Objects.equals(heading.title(), Heading.TOP.title())) {
+                    // select Top entry by default
+                    topLabel.pseudoClassStateChanged(SELECTED, true);
+                    this.selected = topLabel;
+                    toc.add(heading.title());
+                    return;
+                }
+            }
+
             var label = createEntry(heading);
-            if (getChildren().size() == 2) { // top entry
+            if (getChildren().size() == 2) { // first dynamic entry, select it
                 label.pseudoClassStateChanged(SELECTED, true);
                 this.selected = label;
             }
 
-            Objects.requireNonNull(heading, "heading");
             getChildren().add(getChildren().size() - 2, label);
             toc.add(heading.title());
         }
