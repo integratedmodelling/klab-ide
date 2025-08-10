@@ -993,7 +993,11 @@ public class Components {
                   .showDocument(digitalTwin.getConfiguration().getUrl().toString()));
 
       Label size =
-          new Label(String.format("Size: %d observations", digitalTwin.getObservationCount()));
+          new Label(
+              String.format(
+                  "ID: %s; Size: %d observations",
+                  Utils.Paths.getLast(digitalTwin.getId(), '.'),
+                  digitalTwin.getObservationCount()));
       size.setStyle("-fx-font-size: 12px;");
 
       TextArea description = new TextArea(digitalTwin.getDescription());

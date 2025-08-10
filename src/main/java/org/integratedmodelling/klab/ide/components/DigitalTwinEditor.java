@@ -9,6 +9,7 @@ import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 import javafx.scene.layout.HBox;
+import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientDigitalTwin;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
@@ -26,7 +27,8 @@ import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultEdge;
 
-public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset> implements DigitalTwinViewer {
+public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
+    implements DigitalTwinViewer {
 
   private final DigitalTwinPeer controller;
   private final RuntimeService runtimeService;
@@ -244,6 +246,7 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset> im
 
   public void selectAsset(RuntimeAsset asset) {
     // TODO we can link the action to the selection and stop here.
+    Logging.INSTANCE.info("Selecting asset: " + asset);
     var item = findTreeItemById(root, asset.getId());
     Platform.runLater(
         () -> {
