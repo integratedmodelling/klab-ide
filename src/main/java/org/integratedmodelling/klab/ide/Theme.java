@@ -80,6 +80,7 @@ public enum Theme {
   public static Ikon NAMESPACE_ICON = Material2AL.DEVELOPER_BOARD;
   public static Ikon MODEL_ICON = Material2MZ.WORK_OUTLINE;
   public static Ikon CONCEPT_DEFINITION_ICON = Material2MZ.WORK_OUTLINE;
+  public static Ikon OBSERVATION_ICON = Material2MZ.WORK_OUTLINE;
   public static Ikon DEFINITION_ICON = Material2MZ.WORK_OUTLINE;
   public static Ikon BEHAVIOR_ICON = Material2MZ.WORK_OUTLINE;
   public static Ikon FOLDER_ICON = Material2AL.FOLDER_OPEN;
@@ -117,15 +118,15 @@ public enum Theme {
   public static Ikon getIcon(Notification.Level level) {
     return switch (level) {
       // TODO
-        case Debug -> MODEL_ICON;
-        case Info -> MODEL_ICON;
-        case Warning -> MODEL_ICON;
-        case Error -> MODEL_ICON;
-        case SystemError -> MODEL_ICON;
+      case Debug -> MODEL_ICON;
+      case Info -> MODEL_ICON;
+      case Warning -> MODEL_ICON;
+      case Error -> MODEL_ICON;
+      case SystemError -> MODEL_ICON;
     };
   }
 
-    public static Ikon getIcon(KlabAsset.KnowledgeClass knowledgeClass) {
+  public static Ikon getIcon(KlabAsset.KnowledgeClass knowledgeClass) {
     return switch (knowledgeClass) {
       case CONCEPT -> CONCEPT_DEFINITION_ICON;
       case OBSERVABLE -> CONCEPT_DEFINITION_ICON;
@@ -145,6 +146,7 @@ public enum Theme {
       case WORLDVIEW -> WORLDVIEW_ICON;
       case WORKSPACE -> WORKSPACE_ICON;
       case CONCEPT_STATEMENT -> CONCEPT_DEFINITION_ICON;
+      case OBSERVATION -> OBSERVATION_ICON;
     };
   }
 
