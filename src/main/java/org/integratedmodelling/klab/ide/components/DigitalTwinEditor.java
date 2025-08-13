@@ -49,7 +49,7 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
     this.contextScope = contextScope;
     this.runtimeService = runtimeService;
     if (contextScope.getDigitalTwin() instanceof ClientDigitalTwin clientDigitalTwin) {
-      this.knowledgeGraph = (ClientKnowledgeGraph) clientDigitalTwin.getKnowledgeGraph();
+      this.knowledgeGraph = clientDigitalTwin.getKnowledgeGraph();
     }
     this.context = RuntimeAsset.CONTEXT_ASSET;
     this.root = defineTree(this.context);
