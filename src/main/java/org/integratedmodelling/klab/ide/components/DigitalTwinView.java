@@ -66,9 +66,7 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, ContextSco
     List<ContextInfo> ret = new ArrayList<>();
     for (var rService : getServices()) {
       for (var workspace : rService.getSessionInfo(KlabIDEController.modeler().user())) {
-        for (var context : workspace.getContexts()) {
-          ret.addAll(workspace.getContexts());
-        }
+        ret.addAll(workspace.getContexts());
       }
     }
     return ret;
