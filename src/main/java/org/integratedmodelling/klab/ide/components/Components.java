@@ -847,15 +847,19 @@ public class Components {
 
       final Map<String, KlabService> serviceMap = new HashMap<>();
       services.forEach(
-          service ->
-              serviceMap.put(service.serviceName() + " [" + service.getUrl() + "]", service));
+          service -> {
+            if (service != null) {
+              serviceMap.put(service.serviceName() + " [" + service.getUrl() + "]", service);
+            }
+          });
+
 
       // Convert service to display string
       serviceSelector.setConverter(
           new StringConverter<KlabService>() {
             @Override
             public String toString(KlabService service) {
-              return service.serviceName() + " [" + service.getUrl() + "]";
+              return service != null ? service.serviceName() + " [" + service.getUrl() + "]" : "[no service available]";
             }
 
             @Override
