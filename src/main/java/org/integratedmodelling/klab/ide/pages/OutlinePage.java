@@ -120,14 +120,14 @@ public abstract class OutlinePage extends StackPane implements Page {
         return lastHeading != null ? lastHeading.getText() : null;
     }
 
-    protected void addPageHeader() {
-        var pageHeader = new PageHeader(this);
-        userContent.getChildren().add(pageHeader);
-    }
+//    protected void addPageHeader() {
+//        var pageHeader = new PageHeader(this);
+//        userContent.getChildren().add(pageHeader);
+//    }
 
-    protected void addNode(Node node) {
-        userContent.getChildren().add(node);
-    }
+//    protected void addNode(Node node) {
+//        userContent.getChildren().add(node);
+//    }
 
     protected void addFormattedText(String text) {
         addFormattedText(text, false);
