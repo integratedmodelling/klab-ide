@@ -3,17 +3,21 @@ package org.integratedmodelling.klab.ide.components;
 import atlantafx.base.theme.Styles;
 import atlantafx.base.theme.Tweaks;
 import java.util.*;
+import java.util.function.Consumer;
+
+import com.google.common.net.MediaType;
 import javafx.application.Platform;
 import javafx.scene.Node;
-import javafx.scene.control.TreeCell;
-import javafx.scene.control.TreeItem;
-import javafx.scene.control.TreeView;
+import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientDigitalTwin;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
+import org.integratedmodelling.klab.api.collections.Pair;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
+import org.integratedmodelling.klab.api.knowledge.KlabAsset;
+import org.integratedmodelling.klab.api.knowledge.SemanticType;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedule;
 import org.integratedmodelling.klab.api.provenance.Activity;
@@ -85,6 +89,8 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
   @Override
   protected void onDoubleClickItemSelection(RuntimeAsset value) {}
 
+  private ContextMenu activeContextMenu;
+
   @Override
   protected TreeView<RuntimeAsset> createContentTree() {
 
@@ -94,45 +100,74 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
     treeView.getStyleClass().addAll(Tweaks.EDGE_TO_EDGE, Styles.DENSE);
     treeView.setShowRoot(false);
     treeView.setPrefWidth(340);
+    // FIXME the context menu remains on the scene until clicked or escaped, and moves around within
+    // the tree
     treeView.setOnContextMenuRequested(
         event -> {
           TreeItem<RuntimeAsset> item = treeView.getSelectionModel().getSelectedItem();
-          if (item != null) {
-            var contextMenu = new javafx.scene.control.ContextMenu();
-            switch (item.getValue()) {
-              //                  case NavigableProject project -> {
-              //                    var lockUnlock =
-              //                            new javafx.scene.control.MenuItem(project.isLocked() ?
-              // "Unlock" : "Lock");
-              //                    lockUnlock.setOnAction(
-              //                            e -> {
-              //                              if (runtimeService instanceof ResourcesService.Admin
-              // admin) {
-              //                                if (project.isLocked()) {
-              //                                  admin.unlockProject(project.getUrn(),
-              // KlabIDEController.modeler().user());
-              //                                  project.setLocked(false);
-              //                                } else {
-              //                                  admin.lockProject(project.getUrn(),
-              // KlabIDEController.modeler().user());
-              //                                  project.setLocked(true);
-              //                                }
-              //                              }
-              //                            });
-              //                    contextMenu.getItems().add(lockUnlock);
-              //                  }
-              //                  case KlabDocument<?> document -> {
-              //                    var openEdit = new javafx.scene.control.MenuItem("Open");
-              //                    openEdit.setOnAction(e -> edit(item.getValue()));
-              //                    contextMenu.getItems().add(openEdit);
-              //                  }
-              default -> {}
+          if (item != null && item.getValue() != null && isContextMenuShown(item.getValue())) {
+            if (activeContextMenu != null) {
+              activeContextMenu.hide();
             }
-            contextMenu.show(treeView, event.getScreenX(), event.getScreenY());
+            activeContextMenu = new ContextMenu();
+            List<Pair<String, Consumer<RuntimeAsset>>> entries =
+                getContextMenuEntries(item.getValue());
+            for (Pair<String, Consumer<RuntimeAsset>> entry : entries) {
+              MenuItem menuItem = new MenuItem(entry.getFirst());
+              menuItem.setOnAction(e -> entry.getSecond().accept(item.getValue()));
+              activeContextMenu.getItems().add(menuItem);
+            }
+            activeContextMenu.show(treeView, event.getScreenX(), event.getScreenY());
           }
         });
 
     return treeView;
+  }
+
+  protected boolean isContextMenuShown(RuntimeAsset asset) {
+    return asset instanceof Observation observation;
+  }
+
+  protected List<Pair<String, Consumer<RuntimeAsset>>> getContextMenuEntries(RuntimeAsset asset) {
+
+    var ret = new ArrayList<Pair<String, Consumer<RuntimeAsset>>>();
+    ret.add(Pair.of("Open detailed view", this::showDetails));
+
+    if (asset instanceof Observation observation) {
+      if (observation.getObservable().is(SemanticType.QUALITY)) {
+        ret.add(Pair.of("Export to filesystem", this::exportToFilesystem));
+      } else if (observation.getObservable().is(SemanticType.SUBJECT)) {
+        ret.add(Pair.of("Set as context", this::setAsContext));
+      }
+    }
+    return ret;
+  }
+
+  void showDetails(RuntimeAsset asset) {
+    if (asset instanceof Observation observation) {
+      var runtime = contextScope.getService(RuntimeService.class);
+      try (var htmlStream =
+          runtime.exportAsset(
+              observation.getUrn(),
+              KlabAsset.KnowledgeClass.OBSERVATION,
+              MediaType.HTML_UTF_8.toString(),
+              contextScope)) {
+        Logging.INSTANCE.info("Exporting observation to HTML");
+      } catch (Exception e) {
+        Logging.INSTANCE.error("Failed to export observation to HTML", e);
+      }
+    }
+  }
+
+  void exportToFilesystem(RuntimeAsset observation) {}
+
+  void setAsContext(RuntimeAsset observation) {}
+
+  private void initializeContextMenu() {
+    setOnMouseClicked(
+        event -> {
+          if (event.isSecondaryButtonDown()) {}
+        });
   }
 
   @Override
