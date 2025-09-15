@@ -4,6 +4,8 @@ import atlantafx.base.theme.Styles;
 import com.google.common.collect.EvictingQueue;
 import com.google.common.collect.Queues;
 import java.awt.*;
+import java.io.InputStream;
+import java.net.URL;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
@@ -12,6 +14,8 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+
+import com.google.common.net.MediaType;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
@@ -33,11 +37,13 @@ import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.configuration.Setting;
 import org.integratedmodelling.klab.api.digitaltwin.DigitalTwin;
+import org.integratedmodelling.klab.api.digitaltwin.Scheduler;
 import org.integratedmodelling.klab.api.engine.Engine;
 import org.integratedmodelling.klab.api.engine.distribution.Distribution;
 import org.integratedmodelling.klab.api.engine.distribution.Product;
 import org.integratedmodelling.klab.api.exceptions.KlabInternalErrorException;
 import org.integratedmodelling.klab.api.identities.UserIdentity;
+import org.integratedmodelling.klab.api.knowledge.Artifact;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.api.scope.UserScope;
@@ -51,6 +57,7 @@ import org.integratedmodelling.klab.api.view.modeler.views.RuntimeView;
 import org.integratedmodelling.klab.api.view.modeler.views.ServicesView;
 import org.integratedmodelling.klab.api.view.modeler.views.controllers.RuntimeViewController;
 import org.integratedmodelling.klab.api.view.modeler.views.controllers.ServicesViewController;
+import org.integratedmodelling.klab.api.view.modeler.visualization.Visualization;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.integratedmodelling.klab.ide.components.*;
 import org.integratedmodelling.klab.ide.model.DigitalTwinPeer;
@@ -113,8 +120,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
   @FXML NotebookView notebook;
   @FXML Pane mainArea;
   @FXML Pane inspectorArea;
-  @FXML
-  ImageView logo;
+  @FXML ImageView logo;
 
   private Button toggleRightSideButton;
   private final AtomicBoolean notificationsVisible = new AtomicBoolean(false);
@@ -319,13 +325,13 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
 
     downloadButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.toggle(Components.Type.Distribution); 
+          notebook.toggle(Components.Type.Distribution);
           selectView(View.NOTEBOOK);
         });
     logo.setOnMouseClicked(
         mouseEvent -> {
           notebook.toggle(Components.Type.About);
-//          selectView(View.NOTEBOOK);
+          //          selectView(View.NOTEBOOK);
         });
     profileButton.setOnMouseClicked(
         mouseEvent -> {
@@ -357,8 +363,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
           notebook.toggle(Components.Type.ServiceInfo, KlabService.Type.RUNTIME);
           selectView(View.NOTEBOOK);
         });
-    
-    
 
     for (var key : viewButtons.keySet()) {
       viewButtons.get(key).setOnMouseClicked(mouseEvent -> selectView(key));
@@ -993,5 +997,15 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
             button.setTooltip(ttp);
           });
     }
+  }
+
+  @Visualization(
+      geometry = "S2",
+      artifactTypes = Artifact.Type.OBSERVATION,
+      provides = "text/html",
+      requires = "image/tiff")
+  public InputStream visualizeRasterAsHtml(
+      URL tiffUrl, ContextScope scope, Scheduler.Event locator) {
+    return null;
   }
 }
