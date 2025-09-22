@@ -1006,6 +1006,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
       requires = "image/tiff")
   public InputStream visualizeRasterAsHtml(
       URL tiffUrl, ContextScope scope, Scheduler.Event locator) {
+    // TODO retrieve and use a template from parameters or a default, insert the URL in there
     return null;
   }
 }

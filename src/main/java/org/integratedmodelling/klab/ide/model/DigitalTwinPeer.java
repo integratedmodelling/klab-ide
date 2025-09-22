@@ -61,16 +61,16 @@ public class DigitalTwinPeer {
     // TODO process state internally and send more specific messages to the viewers
 
     switch (message.getMessageType()) {
-      case KnowledgeGraphCommitted -> {
-        //        var graph = message.getPayload(GraphModel.KnowledgeGraph.class);
-        executor.execute(() -> viewers.forEach(v -> v.knowledgeGraphModified()));
-      }
-      case ContextualizationAborted, ContextualizationSuccessful, ContextualizationStarted -> {
-        // TODO insert object, define aspect
-        //        if (message.getMessageType() == Message.MessageType.ContextualizationStarted) {
-        //          knowledgeGraphView.setFocalAsset(message.getPayload(Observation.class));
-        //        }
-      }
+//      case KnowledgeGraphCommitted -> {
+//        //        var graph = message.getPayload(GraphModel.KnowledgeGraph.class);
+//        executor.execute(() -> viewers.forEach(v -> v.knowledgeGraphModified()));
+//      }
+//      case ContextualizationAborted, ContextualizationSuccessful, ContextualizationStarted -> {
+//        // TODO insert object, define aspect
+//        //        if (message.getMessageType() == Message.MessageType.ContextualizationStarted) {
+//        //          knowledgeGraphView.setFocalAsset(message.getPayload(Observation.class));
+//        //        }
+//      }
       // FIXME sketchy logics
       case ObservationSubmissionAborted -> {}
       case ObservationSubmissionStarted -> {}

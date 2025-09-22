@@ -89,15 +89,6 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
   @Override
   public void knowledgeGraphModified() {}
 
-  //  @Override
-  //  public void activityFinished(Activity activity) {}
-  //
-  //  @Override
-  //  public void activityStarted(Activity activity) {}
-  //
-  //  @Override
-  //  public void knowledgeGraphCommitted(GraphModel.KnowledgeGraph graph) {}
-  //
   @Override
   public void scheduleModified(Schedule schedule) {}
 

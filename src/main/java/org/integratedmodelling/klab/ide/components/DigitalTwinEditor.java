@@ -73,16 +73,6 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
     Platform.runLater(() -> this.view.removeDigitalTwin(contextScope));
   }
 
-  //  @Override
-  //  public void activityFinished(Activity payload) {
-  //    activities.computeIfAbsent(payload.getTransientId(), id -> payload);
-  //  }
-  //
-  //  @Override
-  //  public void activityStarted(Activity payload) {
-  //    activities.computeIfAbsent(payload.getTransientId(), id -> payload);
-  //  }
-
   @Override
   protected void onSingleClickItemSelection(RuntimeAsset value) {}
 
@@ -144,22 +134,21 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
   }
 
   void showDetails(RuntimeAsset asset) {
-    if (asset instanceof Observation observation) {
-      var runtime = contextScope.getService(RuntimeService.class);
-      try (var htmlStream =
-          runtime.exportAsset(
-              observation.getUrn(),
-              KlabAsset.KnowledgeClass.OBSERVATION,
-              MediaType.HTML_UTF_8.toString(),
-              contextScope)) {
-        Logging.INSTANCE.info("Exporting observation to HTML");
+    if (asset instanceof KlabAsset klabAsset) {
+      try (var stream =
+          KlabIDEController.modeler().visualize(klabAsset, null, "text/html", Map.of())) {
+        Logging.INSTANCE.info("Visualizing asset: " + asset);
+        if (stream != null) {}
+
       } catch (Exception e) {
-        Logging.INSTANCE.error("Failed to export observation to HTML", e);
+        Logging.INSTANCE.error("Failed to visualize asset", e);
       }
     }
   }
 
-  void exportToFilesystem(RuntimeAsset observation) {}
+  void exportToFilesystem(RuntimeAsset observation) {
+    Logging.INSTANCE.info("Exporting observation to filesystem: " + observation);
+  }
 
   void setAsContext(RuntimeAsset observation) {}
 
