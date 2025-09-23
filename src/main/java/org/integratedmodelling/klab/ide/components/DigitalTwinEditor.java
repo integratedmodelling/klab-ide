@@ -42,7 +42,7 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
   private KnowledgeGraphTree treeView;
   private RuntimeAsset context;
   private KnowledgeGraphView knowledgeGraphView;
-  private TreeItem<RuntimeAsset> root;
+  private KnowledgeGraphTree.AssetTreeItem root;
   private final ContextScope contextScope;
 
   public DigitalTwinEditor(
@@ -181,8 +181,8 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
    * @param asset
    * @return
    */
-  private TreeItem<RuntimeAsset> defineTree(RuntimeAsset asset) {
-    var ret = new TreeItem<>(asset);
+  private KnowledgeGraphTree.AssetTreeItem defineTree(RuntimeAsset asset) {
+    var ret = new KnowledgeGraphTree.AssetTreeItem(asset, contextScope);
     for (var child : children(asset)) {
       ret.getChildren().add(defineTree(child));
     }
@@ -232,7 +232,7 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
 
           try {
             treeView.getRoot().getChildren().clear();
-            TreeItem<RuntimeAsset> newRoot = defineTree(RuntimeAsset.CONTEXT_ASSET);
+            var newRoot = defineTree(RuntimeAsset.CONTEXT_ASSET);
             treeView.setRoot(root = newRoot);
 
             // Restore selection if possible
