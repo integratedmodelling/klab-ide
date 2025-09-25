@@ -42,7 +42,6 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
   private KnowledgeGraphTree treeView;
   private RuntimeAsset context;
   private KnowledgeGraphView knowledgeGraphView;
-  private KnowledgeGraphTree.AssetTreeItem root;
   private final ContextScope contextScope;
 
   public DigitalTwinEditor(
@@ -56,7 +55,6 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
       this.knowledgeGraph = clientDigitalTwin.getKnowledgeGraph();
     }
     this.context = RuntimeAsset.CONTEXT_ASSET;
-    this.root = defineTree(this.context);
     this.view = digitalTwinView;
   }
 
@@ -84,7 +82,7 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
   @Override
   protected TreeView<RuntimeAsset> createContentTree() {
 
-    treeView = new KnowledgeGraphTree(this.root);
+    treeView = new KnowledgeGraphTree(this.context, contextScope);
     controller.register(treeView);
     treeView.setCellFactory(p -> new AssetTreeCell());
     treeView.getStyleClass().addAll(Tweaks.EDGE_TO_EDGE, Styles.DENSE);
@@ -110,7 +108,6 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
             activeContextMenu.show(treeView, event.getScreenX(), event.getScreenY());
           }
         });
-
     return treeView;
   }
 
@@ -170,25 +167,6 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
     return List.of();
   }
 
-  /**
-   * Tree behavior:
-   *
-   * <p>on explicit observation submission received: add it in ctx with clock icon on resolved tree
-   * received:
-   *
-   * <p>on submission failed: on submission finished: check if empty;
-   *
-   * @param asset
-   * @return
-   */
-  private KnowledgeGraphTree.AssetTreeItem defineTree(RuntimeAsset asset) {
-    var ret = new KnowledgeGraphTree.AssetTreeItem(asset, contextScope);
-    for (var child : children(asset)) {
-      ret.getChildren().add(defineTree(child));
-    }
-    return ret;
-  }
-
   @Override
   protected void configureDigitalTwinWidget(DigitalTwinControlPanel digitalTwinMinified) {
     super.configureDigitalTwinWidget(digitalTwinMinified);
@@ -200,19 +178,6 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
     if (asset == context) {
       return this.knowledgeGraphView =
           new KnowledgeGraphView(this.controller.scope(), this.knowledgeGraph, this);
-    }
-    return null;
-  }
-
-  private TreeItem<RuntimeAsset> findTreeItemById(TreeItem<RuntimeAsset> current, long id) {
-    if (current.getValue().getId() == id) {
-      return current;
-    }
-    for (TreeItem<RuntimeAsset> child : current.getChildren()) {
-      TreeItem<RuntimeAsset> result = findTreeItemById(child, id);
-      if (result != null) {
-        return result;
-      }
     }
     return null;
   }
@@ -231,14 +196,9 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
           treeView.setDisable(true);
 
           try {
-            treeView.getRoot().getChildren().clear();
-            var newRoot = defineTree(RuntimeAsset.CONTEXT_ASSET);
-            treeView.setRoot(root = newRoot);
-
             // Restore selection if possible
             if (selectedItem != null) {
-              TreeItem<RuntimeAsset> newSelectedItem =
-                  findTreeItemById(newRoot, selectedItem.getValue().getId());
+              var newSelectedItem = treeView.findItemById(selectedItem.getValue().getId());
               if (newSelectedItem != null) {
                 treeView.getSelectionModel().select(newSelectedItem);
               }
@@ -271,7 +231,7 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
   public void selectAsset(RuntimeAsset asset) {
     // TODO we can link the action to the selection and stop here.
     Logging.INSTANCE.info("Selecting asset: " + asset);
-    var item = findTreeItemById(root, asset.getId());
+    var item = treeView.findItemById(asset.getId());
     Platform.runLater(
         () -> {
           treeView.getSelectionModel().select(item);

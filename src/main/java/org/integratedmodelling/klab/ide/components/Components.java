@@ -161,7 +161,7 @@ public class Components {
       for (var developer :
           List.of(
               "Ferdinando Villa, always",
-              "Enrico Girotto, hopefully",
+              "Enrico Girotto, tentatively",
               "Andrea Antonello, maybe",
               "Iñigo Cobian, eventually",
               "Arnab Moitra, tangentially")) {
@@ -853,13 +853,14 @@ public class Components {
             }
           });
 
-
       // Convert service to display string
       serviceSelector.setConverter(
           new StringConverter<KlabService>() {
             @Override
             public String toString(KlabService service) {
-              return service != null ? service.serviceName() + " [" + service.getUrl() + "]" : "[no service available]";
+              return service != null
+                  ? service.serviceName() + " [" + service.getUrl() + "]"
+                  : "[no service available]";
             }
 
             @Override

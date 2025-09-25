@@ -133,12 +133,12 @@ public class DigitalTwinPeer {
               });
     }
 
-    // TODO load any existing state into the new viewer
-    digitalTwinEditor.knowledgeGraphModified();
-    digitalTwinEditor.activitiesModified(activityGraph);
-    if (schedule != null) {
-      digitalTwinEditor.scheduleModified(schedule);
-    }
+//    // TODO load any existing state into the new viewer
+//    digitalTwinEditor.knowledgeGraphModified();
+//    digitalTwinEditor.activitiesModified(activityGraph);
+//    if (schedule != null) {
+//      digitalTwinEditor.scheduleModified(schedule);
+//    }
   }
 
   public void executeTask(Runnable task) {

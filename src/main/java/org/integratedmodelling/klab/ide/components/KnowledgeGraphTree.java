@@ -1,12 +1,16 @@
 package org.integratedmodelling.klab.ide.components;
 
+import java.util.HashSet;
+import java.util.Set;
 import javafx.application.Platform;
-import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 import javafx.scene.text.Text;
+import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
+import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
+import org.integratedmodelling.klab.api.exceptions.KlabIllegalStateException;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedule;
 import org.integratedmodelling.klab.api.provenance.Activity;
@@ -18,62 +22,65 @@ import org.jgrapht.graph.DefaultEdge;
 public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements DigitalTwinViewer {
 
   private AssetTreeItem previousBoldItem;
+  private ClientKnowledgeGraph clientKnowledgeGraph;
+  private AssetTreeItem root;
 
-  public static class AssetTreeItem extends TreeItem<RuntimeAsset> {
-    // We cache whether the File is a leaf or not. A File is a leaf if
-    // it is not a directory and does not have any files contained within
-    // it. We cache this as isLeaf() is called often, and doing the
-    // actual check on File is expensive.
-    private boolean isLeaf;
+  public TreeItem<RuntimeAsset> findItemById(long id) {
+    return findItemById(root, id);
+  }
 
-    // We do the children and leaf testing only once, and then set these
-    // booleans to false so that we do not check again during this
-    // run. A more complete implementation may need to handle more
-    // dynamic file system situations (such as where a folder has files
-    // added after the TreeView is shown). Again, this is left as an
-    // exercise for the reader.
-    private boolean isFirstTimeChildren = true;
-    private boolean isFirstTimeLeaf = true;
-    private ContextScope contextScope;
-
-    public AssetTreeItem(RuntimeAsset asset, ContextScope contextScope) {
-      super(asset);
-      this.contextScope = contextScope;
+  public TreeItem<RuntimeAsset> findItemById(TreeItem<RuntimeAsset> current, long id) {
+    if (current.getValue().getId() == id) {
+      return current;
     }
-
-    @Override
-    public ObservableList<TreeItem<RuntimeAsset>> getChildren() {
-      if (isFirstTimeChildren) {
-        isFirstTimeChildren = false;
-        // First getChildren() call, so we actually go off and
-        // determine the children of the File contained in this TreeItem.
-        super.getChildren().setAll(buildChildren(this));
+    for (TreeItem<RuntimeAsset> child : current.getChildren()) {
+      TreeItem<RuntimeAsset> result = findItemById(child, id);
+      if (result != null) {
+        return result;
       }
-      return super.getChildren();
+    }
+    return null;
+  }
+
+  private class AssetTreeItem extends TreeItem<RuntimeAsset> {
+
+    public AssetTreeItem(RuntimeAsset asset) {
+      super(asset);
     }
 
     @Override
     public boolean isLeaf() {
-      if (isFirstTimeLeaf) {
-        isFirstTimeLeaf = false;
-        RuntimeAsset f = (RuntimeAsset) getValue();
-        isLeaf = f.getChildrenCount() == 0;
-      }
-
-      return isLeaf;
+      var asset = getValue();
+      return asset == null
+          || (asset instanceof Observation && asset.getChildrenCount() == 0)
+          || (!(asset
+                  instanceof Observation) // TODO eventually this should be correct for all assets
+              && clientKnowledgeGraph.outgoing(asset, GraphModel.Relationship.HAS_CHILD).isEmpty());
     }
 
-    private ObservableList<TreeItem<RuntimeAsset>> buildChildren(TreeItem<RuntimeAsset> treeItem) {
-      RuntimeAsset asset = treeItem.getValue();
-      if (asset != null && asset.getChildrenCount() > 0) {
-        ObservableList<TreeItem<RuntimeAsset>> children = FXCollections.observableArrayList();
-        for (var child : contextScope.getChildrenOf(asset)) {
-          children.add(new AssetTreeItem(child, contextScope));
+    private ObservableList<TreeItem<RuntimeAsset>> children;
+
+    @Override
+    public ObservableList<TreeItem<RuntimeAsset>> getChildren() {
+      if (children == null) {
+        children = super.getChildren();
+      }
+
+      RuntimeAsset asset = getValue();
+      if (asset != null && (!(asset instanceof Observation) || asset.getChildrenCount() > 0)) {
+        Set<Long> selectedIds =
+            new HashSet<>(
+                children.stream().map(TreeItem::getValue).map(RuntimeAsset::getId).toList());
+        var ch = clientKnowledgeGraph.getChildAssets(asset);
+        for (var child : ch) {
+          if (selectedIds.contains(child.getId())) {
+            continue;
+          }
+          children.add(new AssetTreeItem(child));
         }
         return children;
       }
-
-      return FXCollections.emptyObservableList();
+      return children;
     }
   }
 
@@ -81,8 +88,15 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
     super();
   }
 
-  public KnowledgeGraphTree(AssetTreeItem runtimeAssetTreeItem) {
-    super(runtimeAssetTreeItem);
+  public KnowledgeGraphTree(RuntimeAsset rootAsset, ContextScope contextScope) {
+    super();
+    var kg = contextScope.getDigitalTwin().getKnowledgeGraph();
+    if (kg instanceof ClientKnowledgeGraph clientKnowledgeGraph) {
+      this.clientKnowledgeGraph = clientKnowledgeGraph;
+    } else {
+      throw new KlabIllegalStateException("Knowledge graph must be a client knowledge graph");
+    }
+    setRoot(new AssetTreeItem(rootAsset));
   }
 
   @Override
