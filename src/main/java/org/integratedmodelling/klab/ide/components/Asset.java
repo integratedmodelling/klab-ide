@@ -29,12 +29,22 @@ public class Asset implements RuntimeAsset {
     return delegate.getId();
   }
 
-    @Override
-    public long getTransientId() {
-        return delegate.getTransientId();
-    }
+  @Override
+  public long getTransientId() {
+    return delegate.getTransientId();
+  }
 
-    public RuntimeAsset.Type classify() {
+  @Override
+  public int getChildrenCount() {
+    return delegate.getChildrenCount();
+  }
+
+  @Override
+  public long getParentTransientId() {
+    return delegate.getParentTransientId();
+  }
+
+  public RuntimeAsset.Type classify() {
     return delegate.classify();
   }
 
@@ -55,7 +65,7 @@ public class Asset implements RuntimeAsset {
           case ACTIVITY -> null;
           case PLAN -> null;
           case AGENT -> null;
-//          case ARTIFACT -> null;
+          //          case ARTIFACT -> null;
           case DATA -> null;
           case LINK -> null;
         };
@@ -69,7 +79,7 @@ public class Asset implements RuntimeAsset {
           case ACTIVITY -> null;
           case PLAN -> null;
           case AGENT -> null;
-//          case ARTIFACT -> null;
+          //          case ARTIFACT -> null;
           case DATA -> null;
           case LINK -> null;
         };
