@@ -69,6 +69,7 @@ public abstract class EditorPage<A, T> extends BorderPane {
               event -> {
                 // painful
                 TreeItem<?> item = tree.getSelectionModel().getSelectedItem();
+                if (item == null) return;
                 if (isClickTimelinePlaying) {
                   // when clicking the second time before the time line finishes
                   isClickTimelinePlaying = false;

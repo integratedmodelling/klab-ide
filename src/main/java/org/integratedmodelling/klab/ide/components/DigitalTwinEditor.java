@@ -133,7 +133,8 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
   void showDetails(RuntimeAsset asset) {
     if (asset instanceof KlabAsset klabAsset) {
       try (var stream =
-          KlabIDEController.modeler().visualize(klabAsset, null, "text/html", Map.of())) {
+          KlabIDEController.modeler()
+              .visualize(klabAsset, null, "text/html", contextScope, Map.of())) {
         Logging.INSTANCE.info("Visualizing asset: " + asset);
         if (stream != null) {}
 
