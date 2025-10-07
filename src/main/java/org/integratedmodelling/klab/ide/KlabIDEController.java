@@ -698,6 +698,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
 
       String serviceName = serviceType.name().toLowerCase();
       var provision = status.getServicesProvision().get(serviceType);
+      if (provision == null) { // at init
+        provision = Engine.Status.ServiceProvision.INOPERATIVE;
+      }
       var button =
           switch (serviceType) {
             case REASONER -> reasonerButton;
