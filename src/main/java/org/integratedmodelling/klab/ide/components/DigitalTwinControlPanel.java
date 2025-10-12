@@ -12,6 +12,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.paint.Color;
+import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.exceptions.KlabInternalErrorException;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
@@ -331,6 +332,15 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
           for (Activity activity : rootActivities) {
             treeTableView.getRoot().getChildren().add(makeItem(activity, activityChildren));
           }
+          // Refresh all columns to ensure proper cell rendering - otherwise the columns that were
+          // previously visible won't change.
+          treeTableView
+              .getColumns()
+              .forEach(
+                  column -> {
+                    column.setVisible(false);
+                    column.setVisible(true);
+                  });
         });
   }
 

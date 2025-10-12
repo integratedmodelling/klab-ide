@@ -233,10 +233,12 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
     // TODO we can link the action to the selection and stop here.
     Logging.INSTANCE.info("Selecting asset: " + asset);
     var item = treeView.findItemById(asset.getId());
-    Platform.runLater(
-        () -> {
-          treeView.getSelectionModel().select(item);
-        });
+    if (item != null) {
+      Platform.runLater(
+          () -> {
+            treeView.getSelectionModel().select(item);
+          });
+    }
   }
 
   private static final class AssetTreeCell extends TreeCell<RuntimeAsset> {

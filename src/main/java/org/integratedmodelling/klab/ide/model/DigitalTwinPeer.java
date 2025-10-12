@@ -61,17 +61,20 @@ public class DigitalTwinPeer {
     // TODO process state internally and send more specific messages to the viewers
 
     switch (message.getMessageType()) {
-//      case KnowledgeGraphCommitted -> {
-//        //        var graph = message.getPayload(GraphModel.KnowledgeGraph.class);
-//        executor.execute(() -> viewers.forEach(v -> v.knowledgeGraphModified()));
-//      }
-//      case ContextualizationAborted, ContextualizationSuccessful, ContextualizationStarted -> {
-//        // TODO insert object, define aspect
-//        //        if (message.getMessageType() == Message.MessageType.ContextualizationStarted) {
-//        //          knowledgeGraphView.setFocalAsset(message.getPayload(Observation.class));
-//        //        }
-//      }
-      // FIXME sketchy logics
+      //      case KnowledgeGraphCommitted -> {
+      //        //        var graph = message.getPayload(GraphModel.KnowledgeGraph.class);
+      //        executor.execute(() -> viewers.forEach(v -> v.knowledgeGraphModified()));
+      //      }
+      //      case ContextualizationAborted, ContextualizationSuccessful, ContextualizationStarted
+      // -> {
+      //        // TODO insert object, define aspect
+      //        //        if (message.getMessageType() ==
+      // Message.MessageType.ContextualizationStarted) {
+      //        //          knowledgeGraphView.setFocalAsset(message.getPayload(Observation.class));
+      //        //        }
+      //      }
+      // FIXME sketchy logics. The following 3 should be removed and only the actual future should
+      // be used.
       case ObservationSubmissionAborted -> {}
       case ObservationSubmissionStarted -> {}
       case ObservationSubmissionFinished -> {
@@ -80,7 +83,7 @@ public class DigitalTwinPeer {
       }
       case ActivityFinished -> {
         var activity = message.getPayload(Activity.class);
-        // TODO update the existing activity in the graph
+        // update the existing activity in the graph
         var existingActivity = activities.get(activity.getTransientId());
         if (existingActivity instanceof ActivityImpl impl) {
           impl.setEnd(activity.getEnd());
@@ -90,14 +93,15 @@ public class DigitalTwinPeer {
       }
       case ActivityStarted -> {
         var activity = message.getPayload(Activity.class);
-        activities.put(activity.getTransientId(), activity);
-        activityGraph.addVertex(activity);
-        var parentActivity =
-            activity.getMetadata().get(ActivityImpl.PARENT_ACTIVITY_TRANSIENT_ID_KEY, -1L);
-        if (parentActivity > 0) {
-          var activityParent = activities.get(parentActivity);
-          if (activityParent != null) {
-            activityGraph.addEdge(activityParent, activity);
+        if (!activities.containsKey(activity.getTransientId())) { // shouldn't be needed
+          activities.put(activity.getTransientId(), activity);
+          activityGraph.addVertex(activity);
+          var parentActivity = activity.getParentTransientId();
+          if (parentActivity > 0) {
+            var activityParent = activities.get(parentActivity);
+            if (activityParent != null) {
+              activityGraph.addEdge(activityParent, activity);
+            }
           }
         }
         executor.execute(() -> viewers.forEach(v -> v.activitiesModified(activityGraph)));
@@ -133,12 +137,12 @@ public class DigitalTwinPeer {
               });
     }
 
-//    // TODO load any existing state into the new viewer
-//    digitalTwinEditor.knowledgeGraphModified();
-//    digitalTwinEditor.activitiesModified(activityGraph);
-//    if (schedule != null) {
-//      digitalTwinEditor.scheduleModified(schedule);
-//    }
+    //    // TODO load any existing state into the new viewer
+    //    digitalTwinEditor.knowledgeGraphModified();
+    //    digitalTwinEditor.activitiesModified(activityGraph);
+    //    if (schedule != null) {
+    //      digitalTwinEditor.scheduleModified(schedule);
+    //    }
   }
 
   public void executeTask(Runnable task) {
