@@ -1,9 +1,6 @@
 package org.integratedmodelling.klab.ide.model;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -21,6 +18,7 @@ import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedul
 import org.integratedmodelling.klab.api.provenance.Activity;
 import org.integratedmodelling.klab.api.provenance.impl.ActivityImpl;
 import org.integratedmodelling.klab.api.scope.ContextScope;
+import org.integratedmodelling.klab.api.services.RuntimeService;
 import org.integratedmodelling.klab.api.services.runtime.Message;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.jgrapht.Graph;
@@ -79,6 +77,15 @@ public class DigitalTwinPeer {
       case ObservationSubmissionStarted -> {}
       case ObservationSubmissionFinished -> {
         var observation = message.getPayload(Observation.class);
+        var panzanella = scope
+            .getDigitalTwin()
+            .getKnowledgeGraph()
+            .subgraph(
+                observation.getId(),
+                2,
+                List.of(),
+                EnumSet.of(RuntimeAsset.Type.CONTEXT, RuntimeAsset.Type.OBSERVATION),
+                scope);
         executor.execute(() -> viewers.forEach(v -> v.submissionFinished(observation)));
       }
       case ActivityFinished -> {
