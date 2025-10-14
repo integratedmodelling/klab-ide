@@ -59,33 +59,22 @@ public class DigitalTwinPeer {
     // TODO process state internally and send more specific messages to the viewers
 
     switch (message.getMessageType()) {
-      //      case KnowledgeGraphCommitted -> {
-      //        //        var graph = message.getPayload(GraphModel.KnowledgeGraph.class);
-      //        executor.execute(() -> viewers.forEach(v -> v.knowledgeGraphModified()));
-      //      }
-      //      case ContextualizationAborted, ContextualizationSuccessful, ContextualizationStarted
-      // -> {
-      //        // TODO insert object, define aspect
-      //        //        if (message.getMessageType() ==
-      // Message.MessageType.ContextualizationStarted) {
-      //        //          knowledgeGraphView.setFocalAsset(message.getPayload(Observation.class));
-      //        //        }
-      //      }
-      // FIXME sketchy logics. The following 3 should be removed and only the actual future should
-      // be used.
       case ObservationSubmissionAborted -> {}
       case ObservationSubmissionStarted -> {}
       case ObservationSubmissionFinished -> {
         var observation = message.getPayload(Observation.class);
-        var panzanella = scope
-            .getDigitalTwin()
-            .getKnowledgeGraph()
-            .subgraph(
-                observation.getId(),
-                2,
-                List.of(),
-                EnumSet.of(RuntimeAsset.Type.CONTEXT, RuntimeAsset.Type.OBSERVATION),
-                scope);
+        // TODO move this where it belongs (in the graph view, using its settings)
+        var panzanella =
+            scope
+                .getDigitalTwin()
+                .getKnowledgeGraph()
+                .subgraph(
+                    observation.getId(),
+                    2,
+                    List.of(),
+                    EnumSet.of(RuntimeAsset.Type.CONTEXT, RuntimeAsset.Type.OBSERVATION),
+                    EnumSet.of(GraphModel.Relationship.HAS_CHILD),
+                    scope);
         executor.execute(() -> viewers.forEach(v -> v.submissionFinished(observation)));
       }
       case ActivityFinished -> {
