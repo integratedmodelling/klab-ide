@@ -283,22 +283,22 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
       Set<Asset> cache) {
 
     for (GraphModel.Relationship relationship : relationships) {
-      for (var targetEdge : knowledgeGraph.getGraph().outgoingEdgesOf(asset.getId())) {
-        if (this.relationships.contains(targetEdge.relationship)) {
-          var target =
-              knowledgeGraph.get(
-                  knowledgeGraph.getGraph().getEdgeTarget(targetEdge), scope, RuntimeAsset.class);
-          var targetAsset = new Asset(target);
-          if (!cache.contains(targetAsset)) {
-            graph.insertVertex(targetAsset);
-            cache.add(targetAsset);
-          }
-          graph.insertEdge(asset, targetAsset, targetEdge);
-          if (depth > 1) {
-            fillGraph(graph, targetAsset, depth - 1, cache);
-          }
-        }
-      }
+//      for (var targetEdge : knowledgeGraph.getGraph().outgoingEdgesOf(asset.getId())) {
+//        if (this.relationships.contains(targetEdge.relationship)) {
+//          var target =
+//              knowledgeGraph.get(
+//                  knowledgeGraph.getGraph().getEdgeTarget(targetEdge), scope, RuntimeAsset.class);
+//          var targetAsset = new Asset(target);
+//          if (!cache.contains(targetAsset)) {
+//            graph.insertVertex(targetAsset);
+//            cache.add(targetAsset);
+//          }
+//          graph.insertEdge(asset, targetAsset, targetEdge);
+//          if (depth > 1) {
+//            fillGraph(graph, targetAsset, depth - 1, cache);
+//          }
+//        }
+//      }
     }
   }
 
