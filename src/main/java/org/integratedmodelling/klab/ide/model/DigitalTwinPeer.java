@@ -59,22 +59,10 @@ public class DigitalTwinPeer {
     // TODO process state internally and send more specific messages to the viewers
 
     switch (message.getMessageType()) {
-      case ObservationSubmissionAborted -> {}
-      case ObservationSubmissionStarted -> {}
+//      case ObservationSubmissionAborted -> {}
+//      case ObservationSubmissionStarted -> {}
       case ObservationSubmissionFinished -> {
         var observation = message.getPayload(Observation.class);
-        // TODO move this where it belongs (in the graph view, using its settings)
-        var panzanella =
-            scope
-                .getDigitalTwin()
-                .getKnowledgeGraph()
-                .subgraph(
-                    observation.getId(),
-                    2,
-                    List.of(),
-                    EnumSet.of(RuntimeAsset.Type.CONTEXT, RuntimeAsset.Type.OBSERVATION),
-                    EnumSet.of(GraphModel.Relationship.HAS_CHILD),
-                    scope);
         executor.execute(() -> viewers.forEach(v -> v.submissionFinished(observation)));
       }
       case ActivityFinished -> {

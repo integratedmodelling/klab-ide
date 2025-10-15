@@ -285,7 +285,9 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     for (GraphModel.Relationship relationship : relationships) {
       for (var targetEdge : knowledgeGraph.getGraph().outgoingEdgesOf(asset.getId())) {
         if (this.relationships.contains(targetEdge.relationship)) {
-          var target = knowledgeGraph.getAsset(knowledgeGraph.getGraph().getEdgeTarget(targetEdge));
+          var target =
+              knowledgeGraph.get(
+                  knowledgeGraph.getGraph().getEdgeTarget(targetEdge), scope, RuntimeAsset.class);
           var targetAsset = new Asset(target);
           if (!cache.contains(targetAsset)) {
             graph.insertVertex(targetAsset);
@@ -307,7 +309,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
       return;
     }
 
-    var focus = knowledgeGraph.getAsset(asset.getId());
+    var focus = knowledgeGraph.get(asset.getId(), scope, RuntimeAsset.class);
     clear();
     var cache = new HashSet<Asset>();
     var focusAsset = new Asset(focus);
