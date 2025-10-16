@@ -1,6 +1,7 @@
 package org.integratedmodelling.klab.ide.components;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import javafx.application.Platform;
 import javafx.collections.ObservableList;
@@ -172,4 +173,7 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
 
   @Override
   public void activitiesModified(Graph<Activity, DefaultEdge> activityGraph) {}
+
+  @Override
+  public void focusObservations(List<Long> ids) {}
 }

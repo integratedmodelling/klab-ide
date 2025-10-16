@@ -4,7 +4,9 @@ import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
+import javafx.collections.ObservableList;
 import javafx.scene.Node;
 import javafx.scene.layout.Pane;
 import org.integratedmodelling.common.logging.Logging;
@@ -20,6 +22,7 @@ import org.integratedmodelling.klab.api.provenance.impl.ActivityImpl;
 import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.api.services.RuntimeService;
 import org.integratedmodelling.klab.api.services.runtime.Message;
+import org.integratedmodelling.klab.api.utils.Utils;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultDirectedGraph;
@@ -42,6 +45,7 @@ public class DigitalTwinPeer {
       new DefaultDirectedGraph<>(DefaultEdge.class);
   private HashMap<Long, Activity> activities = new HashMap<>();
   private Schedule schedule;
+  private final AtomicReference<List<Long>> focalObservations = new AtomicReference<>();
 
   public DigitalTwinPeer(ContextScope scope) {
     this.scope = scope;
@@ -59,11 +63,15 @@ public class DigitalTwinPeer {
     // TODO process state internally and send more specific messages to the viewers
 
     switch (message.getMessageType()) {
-//      case ObservationSubmissionAborted -> {}
-//      case ObservationSubmissionStarted -> {}
+      //      case ObservationSubmissionAborted -> {}
+      //      case ObservationSubmissionStarted -> {}
       case ObservationSubmissionFinished -> {
         var observation = message.getPayload(Observation.class);
         executor.execute(() -> viewers.forEach(v -> v.submissionFinished(observation)));
+      }
+      case ObservationsInFocus -> {
+        var ids = message.getPayload(String.class);
+        this.focus(Utils.Data.parseList(ids, Long.class, ","));
       }
       case ActivityFinished -> {
         var activity = message.getPayload(Activity.class);
@@ -141,6 +149,11 @@ public class DigitalTwinPeer {
     // TODO reset view to the passed scope!
     Logging.INSTANCE.info(
         "ZIO CAN RESET THE VIEWER TO THE SCOPE: " + contextScope.getName() + " !");
+  }
+
+  public void focus(List<Long> ids) {
+    this.focalObservations.set(ids);
+    executor.execute(() -> viewers.forEach(v -> v.focusObservations(ids)));
   }
 
   public void focus(RuntimeAsset asset) {

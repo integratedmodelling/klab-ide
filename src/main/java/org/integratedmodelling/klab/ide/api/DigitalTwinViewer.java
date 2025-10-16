@@ -7,6 +7,8 @@ import org.integratedmodelling.klab.api.provenance.Activity;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultEdge;
 
+import java.util.List;
+
 public interface DigitalTwinViewer {
 
   void submissionStarted(Observation observation);
@@ -31,9 +33,18 @@ public interface DigitalTwinViewer {
    * not related to the provenance graph structure (it must be reconstructed from the metadata if
    * restored from the knowledge graph).
    *
-   * TODO to use: collect the root observations, sort by start or end, display as needed.
+   * <p>TODO to use: collect the root observations, sort by start or end, display as needed.
    *
    * @param activityGraph
    */
   void activitiesModified(Graph<Activity, DefaultEdge> activityGraph);
+
+  /**
+   * Communicate the IDs of all observations to be focused on from a recent successful commit to the
+   * knowledge graph. Any observation beyond the first is unlinked to the submitted observation, so
+   * it should be added to the graph for visibility.
+   *
+   * @param ids
+   */
+  void focusObservations(List<Long> ids);
 }

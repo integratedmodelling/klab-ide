@@ -160,6 +160,9 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
   @Override
   public void activitiesModified(Graph<Activity, DefaultEdge> activityGraph) {}
 
+  @Override
+  public void focusObservations(List<Long> ids) {}
+
   private List<RuntimeAsset> children(RuntimeAsset asset) {
     if (controller.scope().getDigitalTwin().getKnowledgeGraph()
         instanceof ClientKnowledgeGraph clientKnowledgeGraph) {
@@ -177,8 +180,11 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
   @Override
   protected Node createEditor(RuntimeAsset asset) {
     if (asset == context) {
-      return this.knowledgeGraphView =
-          new KnowledgeGraphView(this.controller.scope(), this.knowledgeGraph, this);
+      var ret =
+          this.knowledgeGraphView =
+              new KnowledgeGraphView(this.controller.scope(), this.knowledgeGraph, this);
+      KlabIDEController.instance().requireDigitalTwinPeer(contextScope).register(ret);
+      return ret;
     }
     return null;
   }

@@ -344,7 +344,12 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
         });
   }
 
-  private TreeItem<Activity> makeItem(
+    @Override
+    public void focusObservations(List<Long> ids) {
+
+    }
+
+    private TreeItem<Activity> makeItem(
       Activity activity, Map<Activity, List<Activity>> activityChildren) {
     TreeItem<Activity> ret = new TreeItem<>(activity);
     List<Activity> children = activityChildren.get(activity);

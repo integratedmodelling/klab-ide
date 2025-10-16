@@ -6,9 +6,8 @@ import com.brunomnsilva.smartgraph.graph.DigraphEdgeList;
 import com.brunomnsilva.smartgraph.graph.Graph;
 import com.brunomnsilva.smartgraph.graphview.SmartGraphPanel;
 import com.brunomnsilva.smartgraph.graphview.SmartRandomPlacementStrategy;
-import java.util.EnumSet;
-import java.util.HashSet;
-import java.util.Set;
+
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import javafx.application.Platform;
 import javafx.scene.control.Button;
@@ -36,8 +35,10 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   private final DigitalTwinEditor editor;
   private boolean autoLayout = true;
   private SmartGraphPanel<RuntimeAsset, ClientKnowledgeGraph.Relationship> graphView;
-  private int depth = 3;
-  private Set<GraphModel.Relationship> relationships =
+  private int depth = 2;
+  private Set<RuntimeAsset.Type> visibleTypes =
+      EnumSet.of(RuntimeAsset.Type.OBSERVATION, RuntimeAsset.Type.CONTEXT);
+  private Set<GraphModel.Relationship> visibleRelationships =
       EnumSet.of(GraphModel.Relationship.HAS_CHILD);
   private RuntimeAsset focalAsset = null;
   private volatile boolean initialized = false;
@@ -282,23 +283,24 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
       int depth,
       Set<Asset> cache) {
 
-    for (GraphModel.Relationship relationship : relationships) {
-//      for (var targetEdge : knowledgeGraph.getGraph().outgoingEdgesOf(asset.getId())) {
-//        if (this.relationships.contains(targetEdge.relationship)) {
-//          var target =
-//              knowledgeGraph.get(
-//                  knowledgeGraph.getGraph().getEdgeTarget(targetEdge), scope, RuntimeAsset.class);
-//          var targetAsset = new Asset(target);
-//          if (!cache.contains(targetAsset)) {
-//            graph.insertVertex(targetAsset);
-//            cache.add(targetAsset);
-//          }
-//          graph.insertEdge(asset, targetAsset, targetEdge);
-//          if (depth > 1) {
-//            fillGraph(graph, targetAsset, depth - 1, cache);
-//          }
-//        }
-//      }
+    for (GraphModel.Relationship relationship : visibleRelationships) {
+      //      for (var targetEdge : knowledgeGraph.getGraph().outgoingEdgesOf(asset.getId())) {
+      //        if (this.relationships.contains(targetEdge.relationship)) {
+      //          var target =
+      //              knowledgeGraph.get(
+      //                  knowledgeGraph.getGraph().getEdgeTarget(targetEdge), scope,
+      // RuntimeAsset.class);
+      //          var targetAsset = new Asset(target);
+      //          if (!cache.contains(targetAsset)) {
+      //            graph.insertVertex(targetAsset);
+      //            cache.add(targetAsset);
+      //          }
+      //          graph.insertEdge(asset, targetAsset, targetEdge);
+      //          if (depth > 1) {
+      //            fillGraph(graph, targetAsset, depth - 1, cache);
+      //          }
+      //        }
+      //      }
     }
   }
 
@@ -340,7 +342,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
 
   @Override
   public void submissionFinished(Observation observation) {
-    setFocalAsset(observation);
+    //    setFocalAsset(observation);
   }
 
   @Override
@@ -354,6 +356,25 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
 
   @Override
   public void activitiesModified(org.jgrapht.Graph<Activity, DefaultEdge> activityGraph) {}
+
+  @Override
+  public void focusObservations(List<Long> ids) {
+    if (ids.isEmpty()) {
+      ids.add(RuntimeAsset.CONTEXT_ASSET.getId());
+    }
+    var assets = ids.stream().map(id -> knowledgeGraph.get(id, scope, Observation.class)).toList();
+    List<RuntimeAsset> remainder =
+        assets.size() > 1
+            ? new ArrayList<RuntimeAsset>(assets.subList(1, assets.size()))
+            : new ArrayList<RuntimeAsset>();
+
+    var graph =
+        knowledgeGraph.getSubgraph(
+            assets.getFirst(), depth, visibleTypes, visibleRelationships, remainder);
+    if (graph != null) {
+//      updateGraphSafely(graph, assets.getFirst());
+    }
+  }
 
   @Override
   public void scheduleModified(Schedule schedule) {
