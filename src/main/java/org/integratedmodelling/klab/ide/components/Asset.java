@@ -30,6 +30,11 @@ public class Asset implements RuntimeAsset {
   }
 
   @Override
+  public long getParentId() {
+    return delegate.getParentId();
+  }
+
+  @Override
   public long getTransientId() {
     return delegate.getTransientId();
   }
