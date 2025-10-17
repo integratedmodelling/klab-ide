@@ -45,7 +45,8 @@ public class DigitalTwinPeer {
       new DefaultDirectedGraph<>(DefaultEdge.class);
   private HashMap<Long, Activity> activities = new HashMap<>();
   private Schedule schedule;
-  private final AtomicReference<List<Long>> focalObservations = new AtomicReference<>();
+  private final AtomicReference<List<Long>> focalObservations =
+      new AtomicReference<>(List.of(RuntimeAsset.CONTEXT_ASSET.getId()));
 
   public DigitalTwinPeer(ContextScope scope) {
     this.scope = scope;
@@ -114,7 +115,7 @@ public class DigitalTwinPeer {
    *
    * @param digitalTwinEditor
    */
-  public void register(DigitalTwinViewer digitalTwinEditor) {
+  public List<Long> register(DigitalTwinViewer digitalTwinEditor) {
     this.viewers.add(digitalTwinEditor);
     if (digitalTwinEditor instanceof Node pane) {
       // unregister self and the knowledge tree on destruction
@@ -135,6 +136,7 @@ public class DigitalTwinPeer {
     //    if (schedule != null) {
     //      digitalTwinEditor.scheduleModified(schedule);
     //    }
+    return focalObservations.get();
   }
 
   public void executeTask(Runnable task) {

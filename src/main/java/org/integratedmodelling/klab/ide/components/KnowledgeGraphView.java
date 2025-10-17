@@ -15,6 +15,7 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
+import org.integratedmodelling.klab.api.data.KnowledgeGraph;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
@@ -40,12 +41,15 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
       EnumSet.of(RuntimeAsset.Type.OBSERVATION, RuntimeAsset.Type.CONTEXT);
   private Set<GraphModel.Relationship> visibleRelationships =
       EnumSet.of(GraphModel.Relationship.HAS_CHILD);
+
+  private final List<Long> focalAssets;
   private RuntimeAsset focalAsset = null;
+  // Queue to store pending updates until the graph is ready
+  private RuntimeAsset pendingFocalAsset = null;
+
   private volatile boolean initialized = false;
   private volatile boolean graphViewReady = false;
   private Timeline timeline;
-  // Queue to store pending updates until the graph is ready
-  private RuntimeAsset pendingFocalAsset = null;
 
   public KnowledgeGraphView(
       ContextScope scope, ClientKnowledgeGraph knowledgeGraph, DigitalTwinEditor editor) {
@@ -145,7 +149,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
               }
             });
 
-    KlabIDEController.instance().requireDigitalTwinPeer(scope).register(this);
+    this.focalAssets = KlabIDEController.instance().requireDigitalTwinPeer(scope).register(this);
   }
 
   private void initializeGraphView() {
@@ -178,7 +182,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
 
       // Create default start and end times (current time and 1 hour later)
       long currentTimeMs = System.currentTimeMillis();
-      long oneHourLaterMs = currentTimeMs + (3600000 * 2); // 2 hour in milliseconds
+      long oneHourLaterMs = currentTimeMs + (3600000 * 2); // 2 hours in milliseconds
       // Create the timeline component
       timeline = new Timeline(currentTimeMs, oneHourLaterMs, TimeUnit.MINUTES, 1);
       this.setBottom(timeline);
@@ -284,22 +288,23 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
       Set<Asset> cache) {
 
     for (GraphModel.Relationship relationship : visibleRelationships) {
-      //      for (var targetEdge : knowledgeGraph.getGraph().outgoingEdgesOf(asset.getId())) {
-      //        if (this.relationships.contains(targetEdge.relationship)) {
-      //          var target =
-      //              knowledgeGraph.get(
-      //                  knowledgeGraph.getGraph().getEdgeTarget(targetEdge), scope,
-      // RuntimeAsset.class);
-      //          var targetAsset = new Asset(target);
-      //          if (!cache.contains(targetAsset)) {
-      //            graph.insertVertex(targetAsset);
-      //            cache.add(targetAsset);
-      //          }
-      //          graph.insertEdge(asset, targetAsset, targetEdge);
-      //          if (depth > 1) {
-      //            fillGraph(graph, targetAsset, depth - 1, cache);
-      //          }
-      //        }
+      for (var targetEdge :
+          knowledgeGraph.getLinks(
+              asset,
+              GraphModel.Relationship.Direction.OUTGOING,
+              scope,
+              visibleRelationships.toArray(GraphModel.Relationship[]::new))) {
+        //        if (this.relationships.contains(targetEdge.relationship)) {
+        var targetAsset = new Asset(targetEdge.target());
+        if (!cache.contains(targetAsset)) {
+          graph.insertVertex(targetAsset);
+          cache.add(targetAsset);
+        }
+        graph.insertEdge(asset, targetAsset, new ClientKnowledgeGraph.Relationship(targetEdge));
+        if (depth > 1) {
+          fillGraph(graph, targetAsset, depth - 1, cache);
+        }
+      }
       //      }
     }
   }
@@ -307,11 +312,12 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   public void updateGraph(
       Graph<RuntimeAsset, ClientKnowledgeGraph.Relationship> graph, RuntimeAsset asset) {
     if (!initialized || !graphViewReady || graphView == null) {
+
       Logging.INSTANCE.warn("Attempted to update graph before initialization");
       return;
     }
 
-    var focus = knowledgeGraph.get(asset.getId(), scope, RuntimeAsset.class);
+    var focus = knowledgeGraph.getAsset(asset.getId(), scope, RuntimeAsset.class);
     clear();
     var cache = new HashSet<Asset>();
     var focusAsset = new Asset(focus);
@@ -362,7 +368,8 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     if (ids.isEmpty()) {
       ids.add(RuntimeAsset.CONTEXT_ASSET.getId());
     }
-    var assets = ids.stream().map(id -> knowledgeGraph.get(id, scope, Observation.class)).toList();
+    var assets =
+        ids.stream().map(id -> knowledgeGraph.getAsset(id, scope, Observation.class)).toList();
     List<RuntimeAsset> remainder =
         assets.size() > 1
             ? new ArrayList<RuntimeAsset>(assets.subList(1, assets.size()))
@@ -372,9 +379,12 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
         knowledgeGraph.getSubgraph(
             assets.getFirst(), depth, visibleTypes, visibleRelationships, remainder);
     if (graph != null) {
-//      updateGraphSafely(graph, assets.getFirst());
+//      updateGraphSafely(adaptGraph(graph), assets.getFirst());
     }
   }
+
+//  private Graph<RuntimeAsset, ClientKnowledgeGraph.Relationship> adaptGraph(
+//     ) {}
 
   @Override
   public void scheduleModified(Schedule schedule) {
