@@ -1,5 +1,6 @@
 package org.integratedmodelling.klab.ide.api;
 
+import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedule;
@@ -46,5 +47,5 @@ public interface DigitalTwinViewer {
    *
    * @param ids
    */
-  void focusObservations(List<Long> ids);
+  void focusObservations(List<RuntimeAsset> ids);
 }

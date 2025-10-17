@@ -14,6 +14,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.paint.Color;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.utils.Utils;
+import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.exceptions.KlabInternalErrorException;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedule;
@@ -344,12 +345,10 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
         });
   }
 
-    @Override
-    public void focusObservations(List<Long> ids) {
+  @Override
+  public void focusObservations(List<RuntimeAsset> ids) {}
 
-    }
-
-    private TreeItem<Activity> makeItem(
+  private TreeItem<Activity> makeItem(
       Activity activity, Map<Activity, List<Activity>> activityChildren) {
     TreeItem<Activity> ret = new TreeItem<>(activity);
     List<Activity> children = activityChildren.get(activity);

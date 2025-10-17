@@ -34,7 +34,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   private final ClientKnowledgeGraph knowledgeGraph;
   private final ContextScope scope;
   private final DigitalTwinEditor editor;
-  private boolean autoLayout = true;
+  private boolean autoLayout = false;
   private SmartGraphPanel<RuntimeAsset, ClientKnowledgeGraph.Relationship> graphView;
   private int depth = 2;
   private Set<RuntimeAsset.Type> visibleTypes =
@@ -42,10 +42,9 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   private Set<GraphModel.Relationship> visibleRelationships =
       EnumSet.of(GraphModel.Relationship.HAS_CHILD);
 
-  private final List<Long> focalAssets;
-  private RuntimeAsset focalAsset = null;
+  private Set<RuntimeAsset> focalAssets = new LinkedHashSet<>();
   // Queue to store pending updates until the graph is ready
-  private RuntimeAsset pendingFocalAsset = null;
+  private Set<RuntimeAsset> pendingFocalAssets = null;
 
   private volatile boolean initialized = false;
   private volatile boolean graphViewReady = false;
@@ -57,7 +56,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     this.scope = scope;
     this.knowledgeGraph = knowledgeGraph;
     this.editor = editor;
-    this.focalAsset = RuntimeAsset.CONTEXT_ASSET;
+    this.focalAssets.add(RuntimeAsset.CONTEXT_ASSET);
 
     HBox controls = new HBox(2);
     controls.getStyleClass().add(Styles.SMALL);
@@ -95,17 +94,18 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
 
     homeButton.setOnAction(
         event -> {
-          focalAsset = RuntimeAsset.CONTEXT_ASSET;
+          focalAssets.clear();
+          focalAssets.add(RuntimeAsset.CONTEXT_ASSET);
           if (isGraphViewReady()) {
-            updateGraphSafely(graphView.getModel(), focalAsset);
+            updateGraphSafely(focalAssets);
           }
         });
     minusButton.setOnAction(
         event -> {
           if (depth > 1) {
             depth--;
-            if (isGraphViewReady() && focalAsset != null) {
-              updateGraphSafely(graphView.getModel(), focalAsset);
+            if (isGraphViewReady() && !focalAssets.isEmpty()) {
+              updateGraphSafely(focalAssets);
             }
           }
         });
@@ -113,8 +113,8 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
         event -> {
           if (depth < 5) {
             depth++;
-            if (isGraphViewReady() && focalAsset != null) {
-              updateGraphSafely(graphView.getModel(), focalAsset);
+            if (isGraphViewReady() && !focalAssets.isEmpty()) {
+              updateGraphSafely(focalAssets);
             }
           }
         });
@@ -122,7 +122,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
         event -> {
           if (depth < 5) {
             depth++;
-            if (isGraphViewReady() && focalAsset != null) {
+            if (isGraphViewReady() && !focalAssets.isEmpty()) {
               autoLayout = !autoLayout;
               graphView.setAutomaticLayout(autoLayout);
             }
@@ -139,6 +139,8 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     HBox.setHgrow(spinnerBox, javafx.scene.layout.Priority.ALWAYS);
     controls.getChildren().addAll(spinnerBox, switchesBox);
     this.setTop(controls);
+    this.focalAssets.addAll(
+        KlabIDEController.instance().requireDigitalTwinPeer(scope).register(this));
 
     this.sceneProperty()
         .addListener(
@@ -148,8 +150,6 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
                 Platform.runLater(() -> initializeGraphView());
               }
             });
-
-    this.focalAssets = KlabIDEController.instance().requireDigitalTwinPeer(scope).register(this);
   }
 
   private void initializeGraphView() {
@@ -198,12 +198,12 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
                 this.graphViewReady = true;
 
                 // Process any pending focal asset update
-                if (pendingFocalAsset != null) {
-                  updateGraph(graphView.getModel(), pendingFocalAsset);
-                  focalAsset = pendingFocalAsset;
-                  pendingFocalAsset = null;
-                } else if (focalAsset != null) {
-                  updateGraph(graphView.getModel(), focalAsset);
+                if (pendingFocalAssets != null) {
+                  updateGraph(pendingFocalAssets);
+                  focalAssets = pendingFocalAssets;
+                  pendingFocalAssets = null;
+                } else if (!focalAssets.isEmpty()) {
+                  updateGraph(focalAssets);
                 }
               } else {
                 // Still not ready, try again
@@ -225,12 +225,12 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
                         this.setGraphViewReady(true);
 
                         // Process any pending focal asset update
-                        if (pendingFocalAsset != null) {
-                          updateGraph(graphView.getModel(), pendingFocalAsset);
-                          focalAsset = pendingFocalAsset;
-                          pendingFocalAsset = null;
-                        } else if (focalAsset != null) {
-                          updateGraph(graphView.getModel(), focalAsset);
+                        if (pendingFocalAssets != null) {
+                          updateGraph(pendingFocalAssets);
+                          focalAssets = pendingFocalAssets;
+                          pendingFocalAssets = null;
+                        } else if (focalAssets != null) {
+                          updateGraph(focalAssets);
                         }
                       } catch (IllegalStateException ex) {
                         Logging.INSTANCE.error("Failed to initialize graph view after retry", ex);
@@ -245,31 +245,31 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     }
   }
 
-  public void setFocalAsset(RuntimeAsset asset) {
+  public void setFocalAsset(Set<RuntimeAsset> assets) {
     // Always run on JavaFX Application Thread for thread safety
     if (Platform.isFxApplicationThread()) {
-      setFocalAssetInternal(asset);
+      setFocalAssetInternal(assets);
     } else {
-      Platform.runLater(() -> setFocalAssetInternal(asset));
+      Platform.runLater(() -> setFocalAssetInternal(assets));
     }
   }
 
-  private void setFocalAssetInternal(RuntimeAsset asset) {
+  private void setFocalAssetInternal(Set<RuntimeAsset> asset) {
     if (initialized && graphViewReady && graphView != null) {
-      focalAsset = asset;
+      focalAssets.clear();
+      focalAssets.addAll(asset);
       try {
-        //        knowledgeGraph.focusAsset(asset, depth);
-        updateGraph(graphView.getModel(), asset);
+        updateGraph(asset);
         graphView.update();
       } catch (IllegalStateException e) {
         Logging.INSTANCE.warn(
             "Graph update failed, graph view may not be ready: " + e.getMessage());
         // Store the asset for later processing
-        pendingFocalAsset = asset;
+        pendingFocalAssets = asset;
       }
     } else {
       // Store the asset for later processing when the graph is ready
-      pendingFocalAsset = asset;
+      pendingFocalAssets = asset;
     }
   }
 
@@ -281,57 +281,75 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     }
   }
 
-  private void fillGraph(
-      Graph<RuntimeAsset, ClientKnowledgeGraph.Relationship> graph,
-      Asset asset,
-      int depth,
-      Set<Asset> cache) {
+  //  private void fillGraph(Asset asset, int depth, Set<Asset> cache) {
+  //
+  //    for (GraphModel.Relationship relationship : visibleRelationships) {
+  //      for (var targetEdge :
+  //          knowledgeGraph.getLinks(
+  //              asset,
+  //              GraphModel.Relationship.Direction.OUTGOING,
+  //              scope,
+  //              visibleRelationships.toArray(GraphModel.Relationship[]::new))) {
+  //        var targetAsset = new Asset(targetEdge.target());
+  //        if (!cache.contains(targetAsset)) {
+  //          graphView.getModel().insertVertex(targetAsset);
+  //          cache.add(targetAsset);
+  //        }
+  //        graphView
+  //            .getModel()
+  //            .insertEdge(asset, targetAsset, new ClientKnowledgeGraph.Relationship(targetEdge));
+  //        if (depth > 1) {
+  //          fillGraph(targetAsset, depth - 1, cache);
+  //        }
+  //      }
+  //    }
+  //  }
 
-    for (GraphModel.Relationship relationship : visibleRelationships) {
-      for (var targetEdge :
-          knowledgeGraph.getLinks(
-              asset,
-              GraphModel.Relationship.Direction.OUTGOING,
-              scope,
-              visibleRelationships.toArray(GraphModel.Relationship[]::new))) {
-        //        if (this.relationships.contains(targetEdge.relationship)) {
-        var targetAsset = new Asset(targetEdge.target());
-        if (!cache.contains(targetAsset)) {
-          graph.insertVertex(targetAsset);
-          cache.add(targetAsset);
-        }
-        graph.insertEdge(asset, targetAsset, new ClientKnowledgeGraph.Relationship(targetEdge));
-        if (depth > 1) {
-          fillGraph(graph, targetAsset, depth - 1, cache);
-        }
-      }
-      //      }
-    }
-  }
+  public void updateGraph(Collection<RuntimeAsset> focalAssets) {
 
-  public void updateGraph(
-      Graph<RuntimeAsset, ClientKnowledgeGraph.Relationship> graph, RuntimeAsset asset) {
     if (!initialized || !graphViewReady || graphView == null) {
-
       Logging.INSTANCE.warn("Attempted to update graph before initialization");
       return;
     }
 
-    var focus = knowledgeGraph.getAsset(asset.getId(), scope, RuntimeAsset.class);
     clear();
-    var cache = new HashSet<Asset>();
-    var focusAsset = new Asset(focus);
-    cache.add(focusAsset);
-    this.autoLayout = true;
-    graph.insertVertex(focusAsset);
-    fillGraph(this.graphView.getModel(), focusAsset, depth, cache);
 
+    if (focalAssets.isEmpty()) {
+      focalAssets.add(RuntimeAsset.CONTEXT_ASSET);
+    }
+
+    List<RuntimeAsset> remainder = new ArrayList<>();
+    int i = 0;
+    RuntimeAsset focalAsset = null;
+    for (RuntimeAsset asset : focalAssets) {
+      if (i == 0) {
+        focalAsset = asset;
+      } else {
+        remainder.add(asset);
+      }
+      i++;
+    }
+    var graph =
+        knowledgeGraph.getSubgraph(
+            focalAsset, depth, visibleTypes, visibleRelationships, remainder);
+
+    var cache = new HashMap<Long, Asset>();
+    if (graph != null) {
+      for (var vertex : graph.vertexSet()) {
+        var asset = new Asset(vertex);
+        cache.put(vertex.getId(), asset);
+        graphView.getModel().insertVertex(asset);
+      }
+      for (var edge : graph.edgeSet()) {
+        graphView.getModel().insertEdge(cache.get(edge.sourceId), cache.get(edge.targetId), edge);
+      }
+    }
     try {
       this.graphView.update();
       Platform.runLater(
           () -> {
             timeline.drawTimeline();
-            for (var graphAsset : cache) {
+            for (var graphAsset : cache.values()) {
               graphAsset.setStyle(this.graphView);
             }
           });
@@ -364,27 +382,12 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   public void activitiesModified(org.jgrapht.Graph<Activity, DefaultEdge> activityGraph) {}
 
   @Override
-  public void focusObservations(List<Long> ids) {
-    if (ids.isEmpty()) {
-      ids.add(RuntimeAsset.CONTEXT_ASSET.getId());
-    }
-    var assets =
-        ids.stream().map(id -> knowledgeGraph.getAsset(id, scope, Observation.class)).toList();
-    List<RuntimeAsset> remainder =
-        assets.size() > 1
-            ? new ArrayList<RuntimeAsset>(assets.subList(1, assets.size()))
-            : new ArrayList<RuntimeAsset>();
-
-    var graph =
-        knowledgeGraph.getSubgraph(
-            assets.getFirst(), depth, visibleTypes, visibleRelationships, remainder);
-    if (graph != null) {
-//      updateGraphSafely(adaptGraph(graph), assets.getFirst());
-    }
+  public void focusObservations(List<RuntimeAsset> assets) {
+    updateGraphSafely(assets);
   }
 
-//  private Graph<RuntimeAsset, ClientKnowledgeGraph.Relationship> adaptGraph(
-//     ) {}
+  //  private Graph<RuntimeAsset, ClientKnowledgeGraph.Relationship> adaptGraph(
+  //     ) {}
 
   @Override
   public void scheduleModified(Schedule schedule) {
@@ -413,12 +416,11 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   }
 
   // Safely update the graph on the JavaFX application thread
-  private void updateGraphSafely(
-      Graph<RuntimeAsset, ClientKnowledgeGraph.Relationship> graph, RuntimeAsset asset) {
+  private void updateGraphSafely(Collection<RuntimeAsset> asset) {
     if (Platform.isFxApplicationThread()) {
-      updateGraph(graph, asset);
+      updateGraph(asset);
     } else {
-      Platform.runLater(() -> updateGraph(graph, asset));
+      Platform.runLater(() -> updateGraph(asset));
     }
   }
 }

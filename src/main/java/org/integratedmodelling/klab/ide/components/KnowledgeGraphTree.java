@@ -175,5 +175,5 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
   public void activitiesModified(Graph<Activity, DefaultEdge> activityGraph) {}
 
   @Override
-  public void focusObservations(List<Long> ids) {}
+  public void focusObservations(List<RuntimeAsset> ids) {}
 }

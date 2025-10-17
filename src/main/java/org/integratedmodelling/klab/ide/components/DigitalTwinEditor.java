@@ -161,7 +161,7 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
   public void activitiesModified(Graph<Activity, DefaultEdge> activityGraph) {}
 
   @Override
-  public void focusObservations(List<Long> ids) {}
+  public void focusObservations(List<RuntimeAsset> ids) {}
 
   private List<RuntimeAsset> children(RuntimeAsset asset) {
     if (controller.scope().getDigitalTwin().getKnowledgeGraph()

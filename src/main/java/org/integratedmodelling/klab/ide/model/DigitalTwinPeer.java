@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import javafx.collections.ObservableList;
 import javafx.scene.Node;
 import javafx.scene.layout.Pane;
+import org.integratedmodelling.cli.Test;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientDigitalTwin;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
@@ -45,8 +46,8 @@ public class DigitalTwinPeer {
       new DefaultDirectedGraph<>(DefaultEdge.class);
   private HashMap<Long, Activity> activities = new HashMap<>();
   private Schedule schedule;
-  private final AtomicReference<List<Long>> focalObservations =
-      new AtomicReference<>(List.of(RuntimeAsset.CONTEXT_ASSET.getId()));
+  private final AtomicReference<List<RuntimeAsset>> focalObservations =
+      new AtomicReference<>(List.of(RuntimeAsset.CONTEXT_ASSET));
 
   public DigitalTwinPeer(ContextScope scope) {
     this.scope = scope;
@@ -72,7 +73,16 @@ public class DigitalTwinPeer {
       }
       case ObservationsInFocus -> {
         var ids = message.getPayload(String.class);
-        this.focus(Utils.Data.parseList(ids, Long.class, ","));
+        var observations =
+            Utils.Data.parseList(ids, Long.class, ",").stream()
+                .map(
+                    id ->
+                        scope
+                            .getDigitalTwin()
+                            .getKnowledgeGraph()
+                            .getAsset(id, scope, RuntimeAsset.class))
+                .toList();
+        this.focus(observations);
       }
       case ActivityFinished -> {
         var activity = message.getPayload(Activity.class);
@@ -115,7 +125,7 @@ public class DigitalTwinPeer {
    *
    * @param digitalTwinEditor
    */
-  public List<Long> register(DigitalTwinViewer digitalTwinEditor) {
+  public List<RuntimeAsset> register(DigitalTwinViewer digitalTwinEditor) {
     this.viewers.add(digitalTwinEditor);
     if (digitalTwinEditor instanceof Node pane) {
       // unregister self and the knowledge tree on destruction
@@ -153,7 +163,7 @@ public class DigitalTwinPeer {
         "ZIO CAN RESET THE VIEWER TO THE SCOPE: " + contextScope.getName() + " !");
   }
 
-  public void focus(List<Long> ids) {
+  public void focus(List<RuntimeAsset> ids) {
     this.focalObservations.set(ids);
     executor.execute(() -> viewers.forEach(v -> v.focusObservations(ids)));
   }
