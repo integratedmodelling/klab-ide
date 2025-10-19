@@ -42,9 +42,9 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   private Set<GraphModel.Relationship> visibleRelationships =
       EnumSet.of(GraphModel.Relationship.HAS_CHILD);
 
-  private Set<RuntimeAsset> focalAssets = new LinkedHashSet<>();
+  private List<RuntimeAsset> focalAssets = new ArrayList<>();
   // Queue to store pending updates until the graph is ready
-  private Set<RuntimeAsset> pendingFocalAssets = null;
+  private List<RuntimeAsset> pendingFocalAssets = null;
 
   private volatile boolean initialized = false;
   private volatile boolean graphViewReady = false;
@@ -56,7 +56,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     this.scope = scope;
     this.knowledgeGraph = knowledgeGraph;
     this.editor = editor;
-    this.focalAssets.add(RuntimeAsset.CONTEXT_ASSET);
+    //    this.focalAssets.add(RuntimeAsset.CONTEXT_ASSET);
 
     HBox controls = new HBox(2);
     controls.getStyleClass().add(Styles.SMALL);
@@ -245,33 +245,33 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     }
   }
 
-  public void setFocalAsset(Set<RuntimeAsset> assets) {
-    // Always run on JavaFX Application Thread for thread safety
-    if (Platform.isFxApplicationThread()) {
-      setFocalAssetInternal(assets);
-    } else {
-      Platform.runLater(() -> setFocalAssetInternal(assets));
-    }
-  }
+  //  public void setFocalAsset(List<RuntimeAsset> assets) {
+  //    // Always run on JavaFX Application Thread for thread safety
+  //    if (Platform.isFxApplicationThread()) {
+  //      setFocalAssetInternal(assets);
+  //    } else {
+  //      Platform.runLater(() -> setFocalAssetInternal(assets));
+  //    }
+  //  }
 
-  private void setFocalAssetInternal(Set<RuntimeAsset> asset) {
-    if (initialized && graphViewReady && graphView != null) {
-      focalAssets.clear();
-      focalAssets.addAll(asset);
-      try {
-        updateGraph(asset);
-        graphView.update();
-      } catch (IllegalStateException e) {
-        Logging.INSTANCE.warn(
-            "Graph update failed, graph view may not be ready: " + e.getMessage());
-        // Store the asset for later processing
-        pendingFocalAssets = asset;
-      }
-    } else {
-      // Store the asset for later processing when the graph is ready
-      pendingFocalAssets = asset;
-    }
-  }
+  //  private void setFocalAssetInternal(List<RuntimeAsset> asset) {
+  //    if (initialized && graphViewReady && graphView != null) {
+  //      focalAssets.clear();
+  //      focalAssets.addAll(asset);
+  //      try {
+  //        updateGraph(asset);
+  //        graphView.update();
+  //      } catch (IllegalStateException e) {
+  //        Logging.INSTANCE.warn(
+  //            "Graph update failed, graph view may not be ready: " + e.getMessage());
+  //        // Store the asset for later processing
+  //        pendingFocalAssets = asset;
+  //      }
+  //    } else {
+  //      // Store the asset for later processing when the graph is ready
+  //      pendingFocalAssets = asset;
+  //    }
+  //  }
 
   public void clear() {
     if (graphView != null && graphView.getModel() != null) {
@@ -305,7 +305,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   //    }
   //  }
 
-  public void updateGraph(Collection<RuntimeAsset> focalAssets) {
+  public void updateGraph(List<RuntimeAsset> focalAssets) {
 
     if (!initialized || !graphViewReady || graphView == null) {
       Logging.INSTANCE.warn("Attempted to update graph before initialization");
@@ -318,20 +318,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
       focalAssets.add(RuntimeAsset.CONTEXT_ASSET);
     }
 
-    List<RuntimeAsset> remainder = new ArrayList<>();
-    int i = 0;
-    RuntimeAsset focalAsset = null;
-    for (RuntimeAsset asset : focalAssets) {
-      if (i == 0) {
-        focalAsset = asset;
-      } else {
-        remainder.add(asset);
-      }
-      i++;
-    }
-    var graph =
-        knowledgeGraph.getSubgraph(
-            focalAsset, depth, visibleTypes, visibleRelationships, remainder);
+    var graph = knowledgeGraph.getSubgraph(focalAssets, depth, visibleTypes, visibleRelationships);
 
     var cache = new HashMap<Long, Asset>();
     if (graph != null) {
@@ -416,7 +403,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   }
 
   // Safely update the graph on the JavaFX application thread
-  private void updateGraphSafely(Collection<RuntimeAsset> asset) {
+  private void updateGraphSafely(List<RuntimeAsset> asset) {
     if (Platform.isFxApplicationThread()) {
       updateGraph(asset);
     } else {
