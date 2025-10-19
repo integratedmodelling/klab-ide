@@ -281,30 +281,6 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     }
   }
 
-  //  private void fillGraph(Asset asset, int depth, Set<Asset> cache) {
-  //
-  //    for (GraphModel.Relationship relationship : visibleRelationships) {
-  //      for (var targetEdge :
-  //          knowledgeGraph.getLinks(
-  //              asset,
-  //              GraphModel.Relationship.Direction.OUTGOING,
-  //              scope,
-  //              visibleRelationships.toArray(GraphModel.Relationship[]::new))) {
-  //        var targetAsset = new Asset(targetEdge.target());
-  //        if (!cache.contains(targetAsset)) {
-  //          graphView.getModel().insertVertex(targetAsset);
-  //          cache.add(targetAsset);
-  //        }
-  //        graphView
-  //            .getModel()
-  //            .insertEdge(asset, targetAsset, new ClientKnowledgeGraph.Relationship(targetEdge));
-  //        if (depth > 1) {
-  //          fillGraph(targetAsset, depth - 1, cache);
-  //        }
-  //      }
-  //    }
-  //  }
-
   public void updateGraph(List<RuntimeAsset> focalAssets) {
 
     if (!initialized || !graphViewReady || graphView == null) {
