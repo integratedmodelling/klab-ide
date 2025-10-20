@@ -43,6 +43,9 @@ import java.util.Map;
  * <p>IDEA: top menu has DT choice (MenuButton) + DT switch to main view button (->) + Observer
  * label + Observer choice (MenuButton)
  *
+ * TODO add view types and toggles in menu bar. Use DT icon for the full view. Link info/warn/error from
+ *  local service to activities.
+ *
  * <p>Center area shows context in some way and has spinner for current observation (ideally on top
  * of context). If no context show the "drop here" arrow, same size spinner if computing. Errors and
  * info message should be just small buttons getting colored; click should show the list as an
@@ -63,6 +66,15 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     ERROR,
     RECEIVING,
     INFO
+  }
+
+  public enum View {
+      ACTIVITIES,
+      OBSERVATIONS,
+      SCHEDULE,
+      KNOWLEDGE_GRAPH,
+      LOGS,
+      IDLE;
   }
 
   private Pane dropZone;

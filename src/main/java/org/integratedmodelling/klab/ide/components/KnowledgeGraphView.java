@@ -37,8 +37,6 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   private boolean autoLayout = false;
   private SmartGraphPanel<RuntimeAsset, ClientKnowledgeGraph.Relationship> graphView;
   private int depth = 2;
-  private Set<RuntimeAsset.Type> visibleTypes =
-      EnumSet.of(RuntimeAsset.Type.OBSERVATION, RuntimeAsset.Type.CONTEXT);
   private Set<GraphModel.Relationship> visibleRelationships =
       EnumSet.of(GraphModel.Relationship.HAS_CHILD);
 
@@ -66,18 +64,16 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     switchesBox.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
     switchesBox.getStyleClass().add(Styles.SMALL);
 
-    ToggleSwitch switch1 = new ToggleSwitch("Children");
-    ToggleSwitch switch2 = new ToggleSwitch("Affected");
-    ToggleSwitch switch3 = new ToggleSwitch("Data");
-    ToggleSwitch switch4 = new ToggleSwitch("Activities");
-    ToggleSwitch switch5 = new ToggleSwitch("Actuators");
+    // TODO use toggle buttons with icons
+    ToggleSwitch affectedSwitch = new ToggleSwitch("Affected");
+    ToggleSwitch dataSwitch = new ToggleSwitch("Data");
+    ToggleSwitch activitiesSwitch = new ToggleSwitch("Activities");
+    ToggleSwitch actuatorsSwitch = new ToggleSwitch("Actuators");
 
-    switch1.setSelected(true);
-    switch1.getStyleClass().addAll(Styles.SMALL, Styles.TEXT_SMALL);
-    switch2.getStyleClass().addAll(Styles.SMALL, Styles.TEXT_SMALL);
-    switch3.getStyleClass().addAll(Styles.SMALL, Styles.TEXT_SMALL);
-    switch4.getStyleClass().addAll(Styles.SMALL, Styles.TEXT_SMALL);
-    switch5.getStyleClass().addAll(Styles.SMALL, Styles.TEXT_SMALL);
+    affectedSwitch.getStyleClass().addAll(Styles.SMALL, Styles.TEXT_SMALL);
+    dataSwitch.getStyleClass().addAll(Styles.SMALL, Styles.TEXT_SMALL);
+    activitiesSwitch.getStyleClass().addAll(Styles.SMALL, Styles.TEXT_SMALL);
+    actuatorsSwitch.getStyleClass().addAll(Styles.SMALL, Styles.TEXT_SMALL);
 
     Button homeButton = new Button();
     homeButton.setGraphic(new FontIcon(Material2AL.HOME));
@@ -128,13 +124,12 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
             }
           }
         });
-    switch1.selectedProperty().addListener((obs, old, val) -> {});
-    switch2.selectedProperty().addListener((obs, old, val) -> {});
-    switch3.selectedProperty().addListener((obs, old, val) -> {});
-    switch4.selectedProperty().addListener((obs, old, val) -> {});
-    switch5.selectedProperty().addListener((obs, old, val) -> {});
+    affectedSwitch.selectedProperty().addListener((obs, old, val) -> {});
+    dataSwitch.selectedProperty().addListener((obs, old, val) -> {});
+    activitiesSwitch.selectedProperty().addListener((obs, old, val) -> {});
+    actuatorsSwitch.selectedProperty().addListener((obs, old, val) -> {});
 
-    switchesBox.getChildren().addAll(switch1, switch2, switch3, switch4, switch5);
+    switchesBox.getChildren().addAll(affectedSwitch, dataSwitch, activitiesSwitch, actuatorsSwitch);
     HBox spinnerBox = new HBox(homeButton, minusButton, plusButton, redrawButton);
     HBox.setHgrow(spinnerBox, javafx.scene.layout.Priority.ALWAYS);
     controls.getChildren().addAll(spinnerBox, switchesBox);
@@ -294,7 +289,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
       focalAssets.add(RuntimeAsset.CONTEXT_ASSET);
     }
 
-    var graph = knowledgeGraph.getSubgraph(focalAssets, depth, visibleTypes, visibleRelationships);
+    var graph = knowledgeGraph.getSubgraph(focalAssets, depth, visibleRelationships);
 
     var cache = new HashMap<Long, Asset>();
     if (graph != null) {
