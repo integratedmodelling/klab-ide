@@ -286,26 +286,6 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   @Override
   public void setObserver(Observation observation) {}
 
-  //  @Override
-  //  public void activityFinished(Activity activity) {
-  //    Platform.runLater(
-  //        () -> {
-  //          TreeItem<Activity> existing = findTreeItemByTransientId(activity.getTransientId());
-  //          if (existing != null) {
-  //            existing.setValue(activity);
-  //          }
-  //        });
-  //  }
-  //
-  //  @Override
-  //  public void activityStarted(Activity activity) {
-  //    Platform.runLater(
-  //        () -> {
-  //          TreeItem<Activity> item = new TreeItem<>(activity);
-  //          treeTableView.getRoot().getChildren().add(item);
-  //        });
-  //  }
-
   private TreeItem<Activity> findTreeItemByTransientId(long transientId) {
     if (treeTableView.getRoot() == null) return null;
     for (TreeItem<Activity> item : treeTableView.getRoot().getChildren()) {
