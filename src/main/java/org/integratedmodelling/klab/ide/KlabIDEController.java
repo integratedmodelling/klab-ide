@@ -1006,7 +1006,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
       geometry = "S2",
       artifactTypes = Artifact.Type.OBSERVATION,
       provides = "text/html",
-      requires = "image/tiff")
+      requires = "image/tiff;application=geotiff")
   public InputStream visualizeRasterAsHtml(
       URL tiffUrl, ContextScope scope, Scheduler.Event locator) {
     // TODO retrieve and use a template from parameters or a default, insert the URL in there

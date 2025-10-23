@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GeoTIFF Viewer</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="" />
+  <style>
+    html, body, #map {
+      height: 100%;
+      width: 100%;
+      margin: 0;
+      padding: 0;
+    }
+    /* Keep controls small and unobtrusive */
+    .leaflet-control-layers {
+      font-size: 12px;
+      max-height: 240px;
+      overflow: auto;
+    }
+    .coords-overlay {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      background: rgba(255, 255, 255, 0.85);
+      color: #222;
+      padding: 4px 8px;
+      border-radius: 4px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+      font: 12px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      z-index: 1000;
+      pointer-events: none; /* don’t block map interactions */
+    }
+    .value-tip {
+      position: absolute;
+      top: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.65);
+      color: #fff;
+      padding: 6px 10px;
+      border-radius: 4px;
+      font: 12px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      z-index: 1000;
+      pointer-events: none;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="coords" class="coords-overlay">Lat: –, Lon: –</div>
+  <div id="valueTip" class="value-tip"></div>
+
+  <!-- Leaflet core -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-o9N1j7kGStb6fGja1WkC9J1S4C2Fp2bVQ+6GZ8wGZ1A=" crossorigin=""></script>
+
+  <!-- Dependencies to read and render GeoTIFFs -->
+  <script src="https://unpkg.com/geotiff@2.0.7/dist-browser/geotiff.min.js"></script>
+  <script src="https://unpkg.com/plotty@0.5.0/dist/plotty.min.js"></script>
+  <script src="https://unpkg.com/leaflet.geotiff@2.0.3/dist/leaflet-geotiff.min.js"></script>
+  <script src="https://unpkg.com/leaflet.geotiff@2.0.3/dist/leaflet-geotiff.plotty.min.js"></script>
+
+  <script>
+    // Set the URL of the GeoTIFF here. This can be replaced programmatically by the host application if needed.
+    // Example: const GEOTIFF_URL = 'https://download.osgeo.org/geotiff/samples/usgs/o41078a1.tif';
+    const GEOTIFF_URL = 'REPLACE_WITH_YOUR_GEOTIFF_URL';
+
+    // Base layers
+    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    });
+    const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19,
+      attribution: 'Imagery &copy; Esri'
+    });
+    const stamenToner = L.tileLayer('https://stamen-tiles.a.ssl.fastly.net/toner/{z}/{x}/{y}.png', {
+      maxZoom: 20,
+      attribution: 'Map tiles by Stamen Design, CC BY 3.0 — Map data &copy; OpenStreetMap'
+    });
+    const cartoVoyager = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      maxZoom: 20,
+      attribution: '&copy; OpenStreetMap &copy; CARTO'
+    });
+
+    // Initialize map
+    const map = L.map('map', {
+      center: [0, 0],
+      zoom: 2,
+      layers: [osm],
+      worldCopyJump: true
+    });
+
+    // Layer control (unobtrusive)
+    const baseLayers = {
+      'OpenStreetMap': osm,
+      'Esri World Imagery': esri,
+      'Stamen Toner': stamenToner,
+      'Carto Voyager': cartoVoyager
+    };
+    L.control.layers(baseLayers, {}, { position: 'topright', collapsed: true }).addTo(map);
+
+    // Live coordinates overlay
+    const coordsEl = document.getElementById('coords');
+    function fmt(n) { return Number(n).toFixed(5); }
+    map.on('mousemove', (e) => {
+      coordsEl.textContent = `Lat: ${fmt(e.latlng.lat)}, Lon: ${fmt(e.latlng.lng)}`;
+    });
+
+    // Small helper to show click value at top center temporarily
+    const valueTip = document.getElementById('valueTip');
+    let valueTipTimer = null;
+    function showValueTip(text) {
+      valueTip.textContent = text;
+      valueTip.style.display = 'block';
+      if (valueTipTimer) clearTimeout(valueTipTimer);
+      valueTipTimer = setTimeout(() => valueTip.style.display = 'none', 3000);
+    }
+
+    // Create GeoTIFF layer with Plotty renderer for better visualization
+    // Note: Depending on data type, you may want to adjust band, noData, colorScale, etc.
+    let geoTiffLayer = null;
+    if (GEOTIFF_URL && GEOTIFF_URL !== 'REPLACE_WITH_YOUR_GEOTIFF_URL') {
+      try {
+        geoTiffLayer = new L.LeafletGeotiff(GEOTIFF_URL, {
+          band: 0,                 // first band
+          renderer: new L.LeafletGeotiff.Plotty({
+            colorScale: 'viridis', // pleasant default
+            clampLow: false,
+            clampHigh: false,
+            displayMin: undefined, // auto
+            displayMax: undefined  // auto
+          }),
+          opacity: 0.85,
+          name: 'GeoTIFF'
+        });
+        geoTiffLayer.addTo(map);
+
+        // Fit to raster bounds when available
+        geoTiffLayer.on('load', () => {
+          if (geoTiffLayer.getBounds) {
+            const b = geoTiffLayer.getBounds();
+            if (b && b.isValid && b.isValid()) {
+              map.fitBounds(b, { padding: [10, 10] });
+            }
+          }
+        });
+      } catch (e) {
+        console.error('Failed to create GeoTIFF layer', e);
+      }
+    }
+
+    // Click to read value from the raster (if available); fall back to showing lat/lon
+    map.on('click', async (e) => {
+      const lat = e.latlng.lat;
+      const lon = e.latlng.lng;
+      if (geoTiffLayer && typeof geoTiffLayer.getValueAtLatLng === 'function') {
+        try {
+          const v = await geoTiffLayer.getValueAtLatLng(lat, lon);
+          if (v !== undefined && v !== null && !Number.isNaN(v)) {
+            L.popup()
+              .setLatLng(e.latlng)
+              .setContent(`Value: ${v}`)
+              .openOn(map);
+            showValueTip(`Value at ${fmt(lat)}, ${fmt(lon)}: ${v}`);
+            return;
+          }
+        } catch (err) {
+          console.warn('Value retrieval failed:', err);
+        }
+      }
+      // Fallback
+      L.popup().setLatLng(e.latlng).setContent(`Lat: ${fmt(lat)}, Lon: ${fmt(lon)}`).openOn(map);
+      showValueTip(`Lat: ${fmt(lat)}, Lon: ${fmt(lon)}`);
+    });
+  </script>
+</body>
+</html>

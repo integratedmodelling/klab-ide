@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shapefile Viewer</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="" />
+  <style>
+    html, body, #map {
+      height: 100%;
+      width: 100%;
+      margin: 0;
+      padding: 0;
+    }
+    /* Keep controls small and unobtrusive */
+    .leaflet-control-layers {
+      font-size: 12px;
+      max-height: 240px;
+      overflow: auto;
+    }
+    .coords-overlay {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      background: rgba(255, 255, 255, 0.85);
+      color: #222;
+      padding: 4px 8px;
+      border-radius: 4px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+      font: 12px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      z-index: 1000;
+      pointer-events: none; /* don’t block map interactions */
+    }
+    .value-tip {
+      position: absolute;
+      top: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.65);
+      color: #fff;
+      padding: 6px 10px;
+      border-radius: 4px;
+      font: 12px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      z-index: 1000;
+      pointer-events: none;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="coords" class="coords-overlay">Lat: –, Lon: –</div>
+  <div id="valueTip" class="value-tip"></div>
+
+  <!-- Leaflet core -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-o9N1j7kGStb6fGja1WkC9J1S4C2Fp2bVQ+6GZ8wGZ1A=" crossorigin=""></script>
+  <!-- Shapefile parser (reads .zip with .shp/.shx/.dbf[/prj]) -->
+  <script src="https://unpkg.com/shpjs@3.7.4/dist/shp.min.js"></script>
+
+  <script>
+    // Set the URL of the Shapefile (typically a .zip containing .shp, .dbf, .shx, and optionally .prj)
+    // Example: const SHAPEFILE_URL = 'https://example.com/data/your_shapefile.zip';
+    const SHAPEFILE_URL = 'REPLACE_WITH_YOUR_SHAPEFILE_URL';
+
+    // Base layers
+    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    });
+    const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19,
+      attribution: 'Imagery &copy; Esri'
+    });
+    const stamenToner = L.tileLayer('https://stamen-tiles.a.ssl.fastly.net/toner/{z}/{x}/{y}.png', {
+      maxZoom: 20,
+      attribution: 'Map tiles by Stamen Design, CC BY 3.0 — Map data &copy; OpenStreetMap'
+    });
+    const cartoVoyager = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      maxZoom: 20,
+      attribution: '&copy; OpenStreetMap &copy; CARTO'
+    });
+
+    // Initialize map
+    const map = L.map('map', {
+      center: [0, 0],
+      zoom: 2,
+      layers: [osm],
+      worldCopyJump: true
+    });
+
+    // Layer control (unobtrusive)
+    const baseLayers = {
+      'OpenStreetMap': osm,
+      'Esri World Imagery': esri,
+      'Stamen Toner': stamenToner,
+      'Carto Voyager': cartoVoyager
+    };
+    L.control.layers(baseLayers, {}, { position: 'topright', collapsed: true }).addTo(map);
+
+    // Live coordinates overlay
+    const coordsEl = document.getElementById('coords');
+    function fmt(n) { return Number(n).toFixed(5); }
+    map.on('mousemove', (e) => {
+      coordsEl.textContent = `Lat: ${fmt(e.latlng.lat)}, Lon: ${fmt(e.latlng.lng)}`;
+    });
+
+    // Small helper to show feature info at top center temporarily
+    const valueTip = document.getElementById('valueTip');
+    let valueTipTimer = null;
+    function showValueTip(text) {
+      valueTip.textContent = text;
+      valueTip.style.display = 'block';
+      if (valueTipTimer) clearTimeout(valueTipTimer);
+      valueTipTimer = setTimeout(() => valueTip.style.display = 'none', 3000);
+    }
+
+    // Styling helpers for vector layers
+    function styleForFeature(feature) {
+      const geomType = feature && feature.geometry ? feature.geometry.type : '';
+      if (geomType.includes('Polygon')) {
+        return { color: '#3388ff', weight: 2, fillColor: '#3388ff', fillOpacity: 0.3 };
+      }
+      if (geomType.includes('Line')) {
+        return { color: '#e67e22', weight: 3 };
+      }
+      return { color: '#d35400', weight: 2 };
+    }
+
+    function pointToLayer(feature, latlng) {
+      return L.circleMarker(latlng, {
+        radius: 6,
+        color: '#d35400',
+        weight: 2,
+        fillColor: '#f39c12',
+        fillOpacity: 0.8
+      });
+    }
+
+    function propertiesToHtml(props) {
+      if (!props || typeof props !== 'object') return '<em>No attributes</em>';
+      const keys = Object.keys(props);
+      if (keys.length === 0) return '<em>No attributes</em>';
+      const max = Math.min(keys.length, 15);
+      let html = '<table style="border-collapse:collapse;font-size:12px">';
+      for (let i = 0; i < max; i++) {
+        const k = keys[i];
+        const v = props[k];
+        html += `<tr><td style="padding:2px 6px;color:#666">${k}</td><td style="padding:2px 6px"><strong>${v}</strong></td></tr>`;
+      }
+      if (keys.length > max) {
+        html += `<tr><td colspan="2" style="padding:2px 6px;color:#999">(+${keys.length - max} more)</td></tr>`;
+      }
+      html += '</table>';
+      return html;
+    }
+
+    function shortDescriptor(props) {
+      if (!props) return 'Feature';
+      // Prefer common name-like fields
+      const candidates = ['name', 'Name', 'NAME', 'title', 'Title', 'id', 'ID'];
+      for (const c of candidates) {
+        if (props[c] !== undefined && props[c] !== null && String(props[c]).trim() !== '') {
+          return String(props[c]);
+        }
+      }
+      // Fallback to first property
+      const keys = Object.keys(props);
+      return keys.length ? `${keys[0]}: ${props[keys[0]]}` : 'Feature';
+    }
+
+    let vectorLayer = null;
+
+    async function loadShapefile(url) {
+      if (!url || url === 'REPLACE_WITH_YOUR_SHAPEFILE_URL') {
+        console.warn('Set SHAPEFILE_URL to a reachable .zip containing the shapefile.');
+        return;
+      }
+      try {
+        const geojson = await shp(url);
+        // shp.js can return a FeatureCollection or an object with multiple layers. Normalize to GeoJSON.
+        const gj = geojson && geojson.type ? geojson : { type: 'FeatureCollection', features: [] };
+
+        vectorLayer = L.geoJSON(gj, {
+          style: styleForFeature,
+          pointToLayer,
+          onEachFeature: (feature, layer) => {
+            const props = feature && feature.properties ? feature.properties : {};
+            layer.on('click', (e) => {
+              const latlng = e.latlng || layer.getBounds?.getCenter?.() || null;
+              const html = propertiesToHtml(props);
+              if (latlng) {
+                L.popup().setLatLng(latlng).setContent(html).openOn(map);
+              }
+              showValueTip(shortDescriptor(props));
+            });
+          }
+        }).addTo(map);
+
+        // Fit to the vector bounds when available
+        try {
+          const b = vectorLayer.getBounds?.();
+          if (b && b.isValid && b.isValid()) {
+            map.fitBounds(b, { padding: [10, 10] });
+          }
+        } catch (ignored) {}
+      } catch (e) {
+        console.error('Failed to load shapefile:', e);
+      }
+    }
+
+    // Kick off load
+    loadShapefile(SHAPEFILE_URL);
+  </script>
+</body>
+</html>
