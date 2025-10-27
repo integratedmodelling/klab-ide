@@ -1,5 +1,5 @@
 .graph {
-    -fx-background-color: #F4FFFB;
+    -fx-background-color: #FFFFFF;
 }
 
 .vertex {
@@ -54,21 +54,21 @@
 }
 
 .qualityVertex {
-    -fx-stroke-width: 1;
+    -fx-stroke-width: 0;
     -fx-stroke: green;
     -fx-stroke-type: inside; /* you should keep this if using arrows */
     -fx-fill: #9fda32;
 }
 
 .subjectVertex {
-    -fx-stroke-width: 1;
+    -fx-stroke-width: 0;
     -fx-stroke: rgb(165, 85, 42);
     -fx-stroke-type: inside; /* you should keep this if using arrows */
     -fx-fill: rgb(214, 143, 104);
 }
 
 .pluralSubjectVertex {
-    -fx-stroke-width: 5;
+    -fx-stroke-width: 2;
     -fx-stroke: rgb(165, 85, 42);
     -fx-stroke-type: inside; /* you should keep this if using arrows */
     -fx-fill: rgb(214, 143, 104);

@@ -1003,12 +1003,23 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
   }
 
   @Visualization(
-      geometry = "S2",
+      geometry = "S2", // means all other dims have size 1
       artifactTypes = Artifact.Type.OBSERVATION,
       provides = "text/html",
       requires = "image/tiff;application=geotiff")
   public InputStream visualizeRasterAsHtml(
       URL tiffUrl, ContextScope scope, Scheduler.Event locator) {
+    // TODO retrieve and use a template from parameters or a default, insert the URL in there
+    return null;
+  }
+
+  @Visualization(
+      geometry = "T1S2", // means both T and S has size > 1
+      artifactTypes = Artifact.Type.OBSERVATION,
+      provides = "text/html",
+      requires = "image/tiff;application=geotiff")
+  public InputStream visualizeRastersAsHtml(
+      List<URL> tiffUrls, ContextScope scope, Scheduler.Event locator) {
     // TODO retrieve and use a template from parameters or a default, insert the URL in there
     return null;
   }
