@@ -29,6 +29,7 @@ module org.integratedmodelling.klab.ide {
     requires klab.cli;
     requires org.kordamp.ikonli.materialdesign;
     requires javafx.controls;
+    requires org.eclipse.xtext.util;
 
     opens org.integratedmodelling.klab.ide to javafx.fxml;
     opens org.integratedmodelling.klab.ide.components to javafx.fxml;

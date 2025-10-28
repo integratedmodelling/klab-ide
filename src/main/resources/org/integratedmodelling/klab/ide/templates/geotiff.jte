@@ -1,5 +1,5 @@
-@import org.integratedmodelling.klab.api.view.modeler.visualization.VisualizationData
-@param VisualizationData data
+@import java.net.URL
+@param String url
 
 <!DOCTYPE html>
 <html>
@@ -32,7 +32,7 @@
         attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }).addTo(map)
 
-    var url_to_geotiff_file = "@{data.url}"
+    var url_to_geotiff_file = "${url}"
 
     fetch(url_to_geotiff_file)
         .then(res => res.arrayBuffer())

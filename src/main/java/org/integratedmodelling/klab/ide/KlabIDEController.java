@@ -14,8 +14,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-
-import com.google.common.net.MediaType;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
@@ -33,11 +31,11 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
+import org.eclipse.xtext.util.StringInputStream;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.configuration.Setting;
 import org.integratedmodelling.klab.api.digitaltwin.DigitalTwin;
-import org.integratedmodelling.klab.api.digitaltwin.Scheduler;
 import org.integratedmodelling.klab.api.engine.Engine;
 import org.integratedmodelling.klab.api.engine.distribution.Distribution;
 import org.integratedmodelling.klab.api.engine.distribution.Product;
@@ -1007,20 +1005,21 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
       artifactTypes = Artifact.Type.OBSERVATION,
       provides = "text/html",
       requires = "image/tiff;application=geotiff")
-  public InputStream visualizeRasterAsHtml(
-      URL tiffUrl, ContextScope scope, Scheduler.Event locator) {
-    // TODO retrieve and use a template from parameters or a default, insert the URL in there
-    return null;
+  public InputStream visualizeRasterAsHtml(URL tiffUrl) {
+
+    var templateUrl = this.getClass().getResource("templates/geotiff.jte");
+    var html = Utils.Templates.renderJTEHtml(templateUrl, Map.of("url", tiffUrl.toExternalForm()));
+    return new StringInputStream(html);
   }
 
-  @Visualization(
-      geometry = "T1S2", // means both T and S has size > 1
-      artifactTypes = Artifact.Type.OBSERVATION,
-      provides = "text/html",
-      requires = "image/tiff;application=geotiff")
-  public InputStream visualizeRastersAsHtml(
-      List<URL> tiffUrls, ContextScope scope, Scheduler.Event locator) {
-    // TODO retrieve and use a template from parameters or a default, insert the URL in there
-    return null;
-  }
+  //  @Visualization(
+  //      geometry = "T1S2", // means both T and S has size > 1
+  //      artifactTypes = Artifact.Type.OBSERVATION,
+  //      provides = "text/html",
+  //      requires = "image/tiff;application=geotiff")
+  //  public InputStream visualizeRastersAsHtml(
+  //      List<URL> tiffUrls, ContextScope scope, Scheduler.Event locator) {
+  //    // TODO retrieve and use a template from parameters or a default, insert the URL in there
+  //    return null;
+  //  }
 }

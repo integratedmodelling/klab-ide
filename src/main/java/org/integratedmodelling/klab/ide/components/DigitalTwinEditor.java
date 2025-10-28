@@ -106,6 +106,7 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
               activeContextMenu.getItems().add(menuItem);
             }
             activeContextMenu.show(treeView, event.getScreenX(), event.getScreenY());
+            event.consume();
           }
         });
     return treeView;
@@ -135,8 +136,9 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
       try (var stream =
           KlabIDEController.modeler()
               .visualize(klabAsset, null, "text/html", contextScope, Map.of())) {
-        Logging.INSTANCE.info("Visualizing asset: " + asset);
-        if (stream != null) {}
+        if (stream != null) {
+          Logging.INSTANCE.info("Visualizing asset: " + asset);
+        }
 
       } catch (Exception e) {
         Logging.INSTANCE.error("Failed to visualize asset", e);
