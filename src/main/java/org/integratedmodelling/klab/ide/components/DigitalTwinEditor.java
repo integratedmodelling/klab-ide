@@ -2,6 +2,8 @@ package org.integratedmodelling.klab.ide.components;
 
 import atlantafx.base.theme.Styles;
 import atlantafx.base.theme.Tweaks;
+
+import java.io.File;
 import java.util.*;
 import java.util.function.Consumer;
 
@@ -133,17 +135,14 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
 
   void showDetails(RuntimeAsset asset) {
     if (asset instanceof KlabAsset klabAsset) {
-      try (var stream =
+      var stream =
           KlabIDEController.modeler()
-              .visualize(klabAsset, null, "text/html", contextScope, Map.of())) {
-        if (stream != null) {
-          Logging.INSTANCE.info("Visualizing asset: " + asset);
-        }
-
-      } catch (Exception e) {
-        Logging.INSTANCE.error("Failed to visualize asset", e);
+              .visualize(klabAsset, null, "text/html", contextScope, Map.of(), File.class);
+      if (stream != null) {
+        Logging.INSTANCE.info("Visualizing asset: " + asset);
       }
     }
+    // TODO load this into a browser-based viewer
   }
 
   void exportToFilesystem(RuntimeAsset observation) {

@@ -43,8 +43,15 @@ import java.util.Map;
  * <p>IDEA: top menu has DT choice (MenuButton) + DT switch to main view button (->) + Observer
  * label + Observer choice (MenuButton)
  *
- * TODO add view types and toggles in menu bar. Use DT icon for the full view. Link info/warn/error from
- *  local service to activities.
+ * <p>TODO add view types and toggles in menu bar. Use DT icon for the full view. Link
+ * info/warn/error from local service to activities.
+ *
+ * <p>Upper bar: switch between activities, knowledge graph, schedule, observers + Current context
+ * or "Root"; on right, log toggle (for activities or other) and stats (time in existence etc. in
+ * tooltip)
+ *
+ * <p>Below bar: DT icon to switch to full view + DT name and current observer; on right, connected
+ * scopes and delete button
  *
  * <p>Center area shows context in some way and has spinner for current observation (ideally on top
  * of context). If no context show the "drop here" arrow, same size spinner if computing. Errors and
@@ -69,12 +76,12 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   }
 
   public enum View {
-      ACTIVITIES,
-      OBSERVATIONS,
-      SCHEDULE,
-      KNOWLEDGE_GRAPH,
-      LOGS,
-      IDLE;
+    ACTIVITIES,
+    OBSERVATIONS,
+    SCHEDULE,
+    KNOWLEDGE_GRAPH,
+    LOGS,
+    IDLE;
   }
 
   private Pane dropZone;

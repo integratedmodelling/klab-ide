@@ -4,6 +4,7 @@ import atlantafx.base.theme.Styles;
 import com.google.common.collect.EvictingQueue;
 import com.google.common.collect.Queues;
 import java.awt.*;
+import java.io.File;
 import java.io.InputStream;
 import java.net.URL;
 import java.time.ZonedDateTime;
@@ -1005,11 +1006,20 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
       artifactTypes = Artifact.Type.OBSERVATION,
       provides = "text/html",
       requires = "image/tiff;application=geotiff")
-  public InputStream visualizeRasterAsHtml(URL tiffUrl) {
+  public File visualizeRasterAsHtml(File tiffFile) {
 
     var templateUrl = this.getClass().getResource("templates/geotiff.jte");
-    var html = Utils.Templates.renderJTEHtml(templateUrl, Map.of("url", tiffUrl.toExternalForm()));
-    return new StringInputStream(html);
+    var html =
+        Utils.Templates.renderJTEHtml(
+                // TODO may need to use local URL once this is served locally
+            templateUrl, Map.of("url", Utils.Files.getFileName(tiffFile)));
+    // make file in same directory. Still needs a web server to overcome CORS
+    // FIXME get or start fileserver, copy both in proper dir, then return URL which must be
+    // supported in visualize()
+    // use NanoHTTPD-webserver or something like it. May need to use a local URL instead of the filename
+    File output = new File(tiffFile.getParentFile() + File.separator + "geotiff.html");
+    Utils.Files.writeStringToFile(html, output);
+    return output;
   }
 
   //  @Visualization(
