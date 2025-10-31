@@ -1,4 +1,3 @@
-@import java.net.URL
 @param String url
 
 <!DOCTYPE html>
@@ -6,11 +5,11 @@
 <head>
     <style>
         #map {
-            height: 600px;
+            height: 900px;
             width: auto;
         }
     </style>
-    <script src="/scripts/snippet-javascript-console.min.js?v=2"></script>
+<%--    <script src="/scripts/snippet-javascript-console.min.js?v=2"></script>--%>
 </head>
 <body>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"

@@ -1006,20 +1006,18 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
       artifactTypes = Artifact.Type.OBSERVATION,
       provides = "text/html",
       requires = "image/tiff;application=geotiff")
-  public File visualizeRasterAsHtml(File tiffFile) {
+  public URL visualizeRasterAsHtml(File tiffFile, Observation observation) {
 
     var templateUrl = this.getClass().getResource("templates/geotiff.jte");
     var html =
         Utils.Templates.renderJTEHtml(
-                // TODO may need to use local URL once this is served locally
             templateUrl, Map.of("url", Utils.Files.getFileName(tiffFile)));
-    // make file in same directory. Still needs a web server to overcome CORS
-    // FIXME get or start fileserver, copy both in proper dir, then return URL which must be
-    // supported in visualize()
-    // use NanoHTTPD-webserver or something like it. May need to use a local URL instead of the filename
-    File output = new File(tiffFile.getParentFile() + File.separator + "geotiff.html");
+    File output =
+        new File(
+            tiffFile.getParentFile() + File.separator + "geotiff_" + observation.getId() + ".html");
+
     Utils.Files.writeStringToFile(html, output);
-    return output;
+    return modeler().publishLocally(output, "ziocan", tiffFile);
   }
 
   //  @Visualization(

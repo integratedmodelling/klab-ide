@@ -4,6 +4,7 @@ import atlantafx.base.theme.Styles;
 import atlantafx.base.theme.Tweaks;
 
 import java.io.File;
+import java.net.URL;
 import java.util.*;
 import java.util.function.Consumer;
 
@@ -135,11 +136,11 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
 
   void showDetails(RuntimeAsset asset) {
     if (asset instanceof KlabAsset klabAsset) {
-      var stream =
+      var url =
           KlabIDEController.modeler()
-              .visualize(klabAsset, null, "text/html", contextScope, Map.of(), File.class);
-      if (stream != null) {
-        Logging.INSTANCE.info("Visualizing asset: " + asset);
+              .visualize(klabAsset, null, "text/html", contextScope, Map.of(), URL.class);
+      if (url != null) {
+        Logging.INSTANCE.info("Visualizing asset: " + asset + " at " + url);
       }
     }
     // TODO load this into a browser-based viewer
