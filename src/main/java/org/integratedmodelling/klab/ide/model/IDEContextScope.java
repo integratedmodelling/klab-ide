@@ -1,0 +1,475 @@
+package org.integratedmodelling.klab.ide.model;
+
+import org.integratedmodelling.common.services.client.scope.ClientContextScope;
+import org.integratedmodelling.klab.api.collections.Parameters;
+import org.integratedmodelling.klab.api.data.Data;
+import org.integratedmodelling.klab.api.data.RuntimeAsset;
+import org.integratedmodelling.klab.api.digitaltwin.DigitalTwin;
+import org.integratedmodelling.klab.api.identities.Identity;
+import org.integratedmodelling.klab.api.identities.UserIdentity;
+import org.integratedmodelling.klab.api.knowledge.Observable;
+import org.integratedmodelling.klab.api.knowledge.observation.Observation;
+import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedule;
+import org.integratedmodelling.klab.api.lang.kactors.KActorsBehavior;
+import org.integratedmodelling.klab.api.provenance.Activity;
+import org.integratedmodelling.klab.api.provenance.Provenance;
+import org.integratedmodelling.klab.api.provenance.impl.ActivityImpl;
+import org.integratedmodelling.klab.api.scope.ContextScope;
+import org.integratedmodelling.klab.api.scope.Scope;
+import org.integratedmodelling.klab.api.scope.SessionScope;
+import org.integratedmodelling.klab.api.services.KlabService;
+import org.integratedmodelling.klab.api.services.RuntimeService;
+import org.integratedmodelling.klab.api.services.resolver.ResolutionConstraint;
+import org.integratedmodelling.klab.api.services.runtime.Channel;
+import org.integratedmodelling.klab.api.services.runtime.Dataflow;
+import org.integratedmodelling.klab.api.services.runtime.Message;
+import org.integratedmodelling.klab.api.services.runtime.Report;
+import org.integratedmodelling.klab.api.utils.Utils;
+import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
+import org.jgrapht.Graph;
+import org.jgrapht.graph.DefaultDirectedGraph;
+import org.jgrapht.graph.DefaultEdge;
+
+import java.io.Serializable;
+import java.net.URL;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.Predicate;
+
+/**
+ * Future delegate with UI features to substitute IDEContextScope. All derivations return the
+ * derived context but also inform any views of the changes. Listeners are installed to build
+ * notifications and closing removes all views.
+ */
+public class IDEContextScope implements ContextScope {
+
+  private ClientContextScope delegate;
+  private final Set<DigitalTwinViewer> viewers = Collections.synchronizedSet(new HashSet<>());
+  private final ExecutorService executor = Executors.newSingleThreadExecutor();
+
+  private Graph<Activity, DefaultEdge> activityGraph =
+      new DefaultDirectedGraph<>(DefaultEdge.class);
+  private HashMap<Long, Activity> activities = new HashMap<>();
+  private Schedule schedule;
+  private final AtomicReference<List<RuntimeAsset>> focalObservations =
+      new AtomicReference<>(List.of(RuntimeAsset.CONTEXT_ASSET));
+
+  public IDEContextScope(ClientContextScope delegate) {
+    this.delegate = delegate;
+    delegate
+        .getDigitalTwin()
+        .addEventConsumer(message -> executor.execute(() -> processEvent(message)));
+  }
+
+  private void processEvent(Message message) {
+
+    switch (message.getMessageType()) {
+      //      case ObservationSubmissionAborted -> {}
+      //      case ObservationSubmissionStarted -> {}
+      case ObservationSubmissionFinished -> {
+        var observation = message.getPayload(Observation.class);
+        executor.execute(() -> viewers.forEach(v -> v.submissionFinished(observation)));
+      }
+      case ObservationsInFocus -> {
+        var ids = message.getPayload(String.class);
+        var observations =
+            Utils.Data.parseList(ids, Long.class, ",").stream()
+                .map(
+                    id ->
+                        delegate
+                            .getDigitalTwin()
+                            .getKnowledgeGraph()
+                            .getAsset(id, delegate, RuntimeAsset.class))
+                .toList();
+        this.setFocus(observations);
+      }
+      case ActivityFinished -> {
+        var activity = message.getPayload(Activity.class);
+        // update the existing activity in the graph
+        var existingActivity = activities.get(activity.getTransientId());
+        if (existingActivity instanceof ActivityImpl impl) {
+          impl.setEnd(activity.getEnd());
+          impl.setOutcome(activity.getOutcome());
+        }
+        executor.execute(() -> viewers.forEach(v -> v.activitiesModified(activityGraph)));
+      }
+      case ActivityStarted -> {
+        var activity = message.getPayload(Activity.class);
+        if (!activities.containsKey(activity.getTransientId())) { // shouldn't be needed
+          activities.put(activity.getTransientId(), activity);
+          activityGraph.addVertex(activity);
+          var parentActivity = activity.getParentTransientId();
+          if (parentActivity > 0) {
+            var activityParent = activities.get(parentActivity);
+            if (activityParent != null) {
+              activityGraph.addEdge(activityParent, activity);
+            }
+          }
+        }
+        executor.execute(() -> viewers.forEach(v -> v.activitiesModified(activityGraph)));
+      }
+      case ScheduleModified -> {
+        this.schedule = message.getPayload(Schedule.class);
+        executor.execute(() -> viewers.forEach(v -> v.scheduleModified(schedule)));
+      }
+    }
+  }
+
+  public void setFocus(List<RuntimeAsset> ids) {
+    this.focalObservations.set(ids);
+    executor.execute(() -> viewers.forEach(v -> v.focusObservations(ids)));
+  }
+
+  @Override
+  public String getId() {
+    return delegate.getId();
+  }
+
+  @Override
+  public String getHostServiceId() {
+    return delegate.getHostServiceId();
+  }
+
+  @Override
+  public KActorsBehavior.Ref getAgent() {
+    return delegate.getAgent();
+  }
+
+  @Override
+  public <T extends Serializable> T ask(Class<T> resultClass, Object... messageArgs) {
+    return delegate.ask(resultClass, messageArgs);
+  }
+
+  @Override
+  public List<ContextScope> getActiveContexts() {
+    return delegate.getActiveContexts();
+  }
+
+  @Override
+  public ContextScope createContext(DigitalTwin.Configuration configuration) {
+    return delegate.createContext(configuration);
+  }
+
+  @Override
+  public Scope getParentScope() {
+    return delegate.getParentScope();
+  }
+
+  @Override
+  public <T extends Scope> T getParentScope(Type type, Class<T> scopeClass) {
+    return delegate.getParentScope(type, scopeClass);
+  }
+
+  @Override
+  public Parameters<String> getData() {
+    return delegate.getData();
+  }
+
+  @Override
+  public <T extends KlabService> T getService(Class<T> serviceClass, Predicate<T>... selectors) {
+    return delegate.getService(serviceClass, selectors);
+  }
+
+  @Override
+  public <T extends KlabService> Collection<T> getServices(Class<T> serviceClass) {
+    return delegate.getServices(serviceClass);
+  }
+
+  @Override
+  public Type getType() {
+    return delegate.getType();
+  }
+
+  @Override
+  public Status getStatus() {
+    return delegate.getStatus();
+  }
+
+  @Override
+  public void setStatus(Status status) {
+    delegate.setStatus(status);
+  }
+
+  @Override
+  public void setData(String key, Object value) {
+    delegate.setData(key, value);
+  }
+
+  @Override
+  public UserIdentity getUser() {
+    return delegate.getUser();
+  }
+
+  @Override
+  public ContextScope connect(URL digitalTwinURL) {
+    return delegate.connect(digitalTwinURL);
+  }
+
+  @Override
+  public ContextScope connect(DigitalTwin.Configuration configuration) {
+    return delegate.connect(configuration);
+  }
+
+  @Override
+  public List<SessionScope> getActiveSessions() {
+    return delegate.getActiveSessions();
+  }
+
+  @Override
+  public SessionScope getUserSession(RuntimeService hostService) {
+    return delegate.getUserSession(hostService);
+  }
+
+  @Override
+  public SessionScope run(String behaviorName, RuntimeService hostService) {
+    return delegate.run(behaviorName, hostService);
+  }
+
+  @Override
+  public URL getUrl() {
+    return delegate.getUrl();
+  }
+
+  @Override
+  public DigitalTwin.Transaction getCurrentTransaction() {
+    return null;
+  }
+
+  @Override
+  public Observation getObserver() {
+    return null;
+  }
+
+  @Override
+  public List<Observation> getObservations() {
+    return List.of();
+  }
+
+  @Override
+  public Observation getObservation(Observation observation) {
+    return null;
+  }
+
+  @Override
+  public <T extends Observation> Collection<T> getPerspectives(Observable observable) {
+    return List.of();
+  }
+
+  @Override
+  public Observation getObserverOf(Observation observation) {
+    return null;
+  }
+
+  @Override
+  public Data getData(Observation... observations) {
+    return null;
+  }
+
+  @Override
+  public Collection<Observation> getRootObservations() {
+    return List.of();
+  }
+
+  @Override
+  public Observation getContextObservation() {
+    return null;
+  }
+
+  @Override
+  public ContextScope withObserver(Observation observer) {
+    return null;
+  }
+
+  @Override
+  public ContextScope within(Observation contextObservation) {
+    return null;
+  }
+
+  @Override
+  public ContextScope between(Observation source, Observation target) {
+    return null;
+  }
+
+  @Override
+  public DigitalTwin getDigitalTwin() {
+    return null;
+  }
+
+  @Override
+  public ContextScope connect(ContextScope remoteContext) {
+    return null;
+  }
+
+  @Override
+  public CompletableFuture<Observation> submit(Observation observation) {
+    return null;
+  }
+
+  @Override
+  public Provenance getProvenance() {
+    return null;
+  }
+
+  @Override
+  public Provenance getProvenanceOf(Observation observation) {
+    return null;
+  }
+
+  @Override
+  public Report getReport() {
+    return null;
+  }
+
+  @Override
+  public Dataflow getDataflow() {
+    return null;
+  }
+
+  @Override
+  public ContextScope getRootContextScope() {
+    return null;
+  }
+
+  @Override
+  public RuntimeAsset getParentOf(RuntimeAsset asset) {
+    return null;
+  }
+
+  @Override
+  public Collection<RuntimeAsset> getChildrenOf(RuntimeAsset asset) {
+    return List.of();
+  }
+
+  @Override
+  public Collection<RuntimeAsset> getOutgoingRelationshipsOf(RuntimeAsset asset) {
+    return List.of();
+  }
+
+  @Override
+  public Collection<RuntimeAsset> getIncomingRelationshipsOf(RuntimeAsset asset) {
+    return List.of();
+  }
+
+  @Override
+  public ContextScope withResolutionConstraints(ResolutionConstraint... resolutionConstraints) {
+    return null;
+  }
+
+  @Override
+  public List<ResolutionConstraint> getResolutionConstraints() {
+    return List.of();
+  }
+
+  @Override
+  public Data.ShardingStrategy getShardingStrategy(Observation observation) {
+    return null;
+  }
+
+  @Override
+  public <T> T getConstraint(ResolutionConstraint.Type type, Class<T> resultClass) {
+    return null;
+  }
+
+  @Override
+  public <T> T getConstraint(ResolutionConstraint.Type type, T defaultValue) {
+    return null;
+  }
+
+  @Override
+  public <T> List<T> getConstraints(ResolutionConstraint.Type type, Class<T> resultClass) {
+    return List.of();
+  }
+
+  @Override
+  public DigitalTwin.Configuration getConfiguration() {
+    return null;
+  }
+
+  @Override
+  public String getName() {
+    return delegate.getName();
+  }
+
+  @Override
+  public boolean isInterrupted() {
+    return delegate.isInterrupted();
+  }
+
+  @Override
+  public boolean hasErrors() {
+    return false;
+  }
+
+  @Override
+  public Identity getIdentity() {
+    return null;
+  }
+
+  @Override
+  public String getDispatchId() {
+    return "";
+  }
+
+  @Override
+  public void info(Object... info) {}
+
+  @Override
+  public void warn(Object... o) {}
+
+  @Override
+  public void error(Object... o) {}
+
+  @Override
+  public void debug(Object... o) {}
+
+  @Override
+  public void event(Message message) {}
+
+  @Override
+  public void ui(Message message) {}
+
+  @Override
+  public String onMessage(BiConsumer<Channel, Message> consumer, Message.Queue... queues) {
+    return "";
+  }
+
+  @Override
+  public void unregisterMessageListener(String listenerId) {}
+
+  @Override
+  public Message send(Object... message) {
+    return null;
+  }
+
+  @Override
+  public void close() {}
+
+  @Override
+  public void interrupt() {
+    delegate.interrupt();
+  }
+
+  @Override
+  public boolean hasMessaging() {
+    return false;
+  }
+
+  @Override
+  public boolean isConnected() {
+    return false;
+  }
+
+  @Override
+  public boolean isSender() {
+    return false;
+  }
+
+  @Override
+  public boolean isReceiver() {
+    return false;
+  }
+}

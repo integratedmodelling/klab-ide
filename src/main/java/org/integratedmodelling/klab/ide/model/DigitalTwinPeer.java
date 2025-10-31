@@ -30,8 +30,9 @@ import org.jgrapht.graph.DefaultDirectedGraph;
 import org.jgrapht.graph.DefaultEdge;
 
 /**
- * We register context scopes with the IDE and use this class to manage all {@link
- * org.integratedmodelling.klab.ide.api.DigitalTwinViewer} objects linked to it.
+ * We register context scopes with the IDE and use this class to keep state for a digital twin + the
+ * user's current choices about it; all {@link
+ * org.integratedmodelling.klab.ide.api.DigitalTwinViewer} objects linked to it are managed here.
  *
  * <p>TODO this must store state and propagate to all newly registered widgets on registration. TODO
  * the event processing must be atomically synchronized with the registration
