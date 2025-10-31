@@ -1,5 +1,6 @@
 package org.integratedmodelling.klab.ide.model;
 
+import org.integratedmodelling.common.services.client.digitaltwin.ClientDigitalTwin;
 import org.integratedmodelling.common.services.client.scope.ClientContextScope;
 import org.integratedmodelling.klab.api.collections.Parameters;
 import org.integratedmodelling.klab.api.data.Data;
@@ -236,157 +237,157 @@ public class IDEContextScope implements ContextScope {
 
   @Override
   public DigitalTwin.Transaction getCurrentTransaction() {
-    return null;
+    return delegate.getCurrentTransaction();
   }
 
   @Override
   public Observation getObserver() {
-    return null;
+    return delegate.getObserver();
   }
 
   @Override
   public List<Observation> getObservations() {
-    return List.of();
+    return delegate.getObservations();
   }
 
   @Override
   public Observation getObservation(Observation observation) {
-    return null;
+    return delegate.getObservation(observation);
   }
 
   @Override
   public <T extends Observation> Collection<T> getPerspectives(Observable observable) {
-    return List.of();
+    return delegate.getPerspectives(observable);
   }
 
   @Override
   public Observation getObserverOf(Observation observation) {
-    return null;
+    return delegate.getObserverOf(observation);
   }
 
   @Override
   public Data getData(Observation... observations) {
-    return null;
+    return delegate.getData(observations);
   }
 
   @Override
   public Collection<Observation> getRootObservations() {
-    return List.of();
+    return delegate.getRootObservations();
   }
 
   @Override
   public Observation getContextObservation() {
-    return null;
+    return delegate.getContextObservation();
   }
 
   @Override
   public ContextScope withObserver(Observation observer) {
-    return null;
+    return delegate.withObserver(observer);
   }
 
   @Override
   public ContextScope within(Observation contextObservation) {
-    return null;
+    return delegate.within(contextObservation);
   }
 
   @Override
   public ContextScope between(Observation source, Observation target) {
-    return null;
+    return delegate.between(source, target);
   }
 
   @Override
-  public DigitalTwin getDigitalTwin() {
-    return null;
+  public ClientDigitalTwin getDigitalTwin() {
+    return delegate.getDigitalTwin();
   }
 
   @Override
   public ContextScope connect(ContextScope remoteContext) {
-    return null;
+    return delegate.connect(remoteContext);
   }
 
   @Override
   public CompletableFuture<Observation> submit(Observation observation) {
-    return null;
+    return delegate.submit(observation);
   }
 
   @Override
   public Provenance getProvenance() {
-    return null;
+    return delegate.getProvenance();
   }
 
   @Override
   public Provenance getProvenanceOf(Observation observation) {
-    return null;
+    return delegate.getProvenanceOf(observation);
   }
 
   @Override
   public Report getReport() {
-    return null;
+    return delegate.getReport();
   }
 
   @Override
   public Dataflow getDataflow() {
-    return null;
+    return delegate.getDataflow();
   }
 
   @Override
   public ContextScope getRootContextScope() {
-    return null;
+    return delegate.getRootContextScope();
   }
 
   @Override
   public RuntimeAsset getParentOf(RuntimeAsset asset) {
-    return null;
+    return delegate.getParentOf(asset);
   }
 
   @Override
   public Collection<RuntimeAsset> getChildrenOf(RuntimeAsset asset) {
-    return List.of();
+    return delegate.getChildrenOf(asset);
   }
 
   @Override
   public Collection<RuntimeAsset> getOutgoingRelationshipsOf(RuntimeAsset asset) {
-    return List.of();
+    return delegate.getOutgoingRelationshipsOf(asset);
   }
 
   @Override
   public Collection<RuntimeAsset> getIncomingRelationshipsOf(RuntimeAsset asset) {
-    return List.of();
+    return delegate.getIncomingRelationshipsOf(asset);
   }
 
   @Override
   public ContextScope withResolutionConstraints(ResolutionConstraint... resolutionConstraints) {
-    return null;
+    return delegate.withResolutionConstraints(resolutionConstraints);
   }
 
   @Override
   public List<ResolutionConstraint> getResolutionConstraints() {
-    return List.of();
+    return delegate.getResolutionConstraints();
   }
 
   @Override
   public Data.ShardingStrategy getShardingStrategy(Observation observation) {
-    return null;
+    return delegate.getShardingStrategy(observation);
   }
 
   @Override
   public <T> T getConstraint(ResolutionConstraint.Type type, Class<T> resultClass) {
-    return null;
+    return delegate.getConstraint(type, resultClass);
   }
 
   @Override
   public <T> T getConstraint(ResolutionConstraint.Type type, T defaultValue) {
-    return null;
+    return delegate.getConstraint(type, defaultValue);
   }
 
   @Override
   public <T> List<T> getConstraints(ResolutionConstraint.Type type, Class<T> resultClass) {
-    return List.of();
+    return delegate.getConstraints(type, resultClass);
   }
 
   @Override
   public DigitalTwin.Configuration getConfiguration() {
-    return null;
+    return delegate.getConfiguration();
   }
 
   @Override
@@ -401,52 +402,69 @@ public class IDEContextScope implements ContextScope {
 
   @Override
   public boolean hasErrors() {
-    return false;
+    return delegate.hasErrors();
   }
 
   @Override
   public Identity getIdentity() {
-    return null;
+    return delegate.getIdentity();
   }
 
   @Override
   public String getDispatchId() {
-    return "";
+    return delegate.getDispatchId();
   }
 
   @Override
-  public void info(Object... info) {}
+  public void info(Object... info) {
+    delegate.info(info);
+  }
 
   @Override
-  public void warn(Object... o) {}
+  public void warn(Object... o) {
+    delegate.warn(o);
+  }
 
   @Override
-  public void error(Object... o) {}
+  public void error(Object... o) {
+    delegate.error(o);
+  }
 
   @Override
-  public void debug(Object... o) {}
+  public void debug(Object... o) {
+    delegate.debug(o);
+  }
 
   @Override
-  public void event(Message message) {}
+  public void event(Message message) {
+    delegate.event(message);
+  }
 
   @Override
-  public void ui(Message message) {}
+  public void ui(Message message) {
+    delegate.ui(message);
+  }
 
   @Override
   public String onMessage(BiConsumer<Channel, Message> consumer, Message.Queue... queues) {
-    return "";
+    return delegate.onMessage(consumer, queues);
   }
 
   @Override
-  public void unregisterMessageListener(String listenerId) {}
+  public void unregisterMessageListener(String listenerId) {
+    delegate.unregisterMessageListener(listenerId);
+  }
 
   @Override
   public Message send(Object... message) {
-    return null;
+    return delegate.send(message);
   }
 
   @Override
-  public void close() {}
+  public void close() {
+    // TODO remove listeners, send close message to UIs
+    delegate.close();
+  }
 
   @Override
   public void interrupt() {
@@ -455,21 +473,21 @@ public class IDEContextScope implements ContextScope {
 
   @Override
   public boolean hasMessaging() {
-    return false;
+    return delegate.hasMessaging();
   }
 
   @Override
   public boolean isConnected() {
-    return false;
+    return delegate.isConnected();
   }
 
   @Override
   public boolean isSender() {
-    return false;
+    return delegate.isSender();
   }
 
   @Override
   public boolean isReceiver() {
-    return false;
+    return delegate.isReceiver();
   }
 }
