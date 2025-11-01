@@ -5,18 +5,17 @@ import atlantafx.base.theme.Tweaks;
 
 import java.util.*;
 
-import eu.mihosoft.monacofx.MonacoFX;
 import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.input.*;
 import javafx.scene.input.ClipboardContent;
+import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.klab.api.data.RepositoryState;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.organization.ProjectStorage;
 import org.integratedmodelling.klab.api.lang.kim.KlabDocument;
 import org.integratedmodelling.klab.api.lang.kim.KlabStatement;
-import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.api.services.ResourcesService;
 import org.integratedmodelling.klab.api.services.resources.ResourceInfo;
 import org.integratedmodelling.klab.api.services.resources.ResourceSet;
@@ -31,6 +30,7 @@ import org.integratedmodelling.klab.modeler.model.NavigableKimConceptStatement;
 import org.integratedmodelling.klab.modeler.model.NavigableKimModel;
 import org.integratedmodelling.klab.modeler.model.NavigableProject;
 import org.integratedmodelling.klab.modeler.model.NavigableWorkspace;
+import org.integratedmodelling.klabeditor.MonacoEditorView;
 
 public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAsset> {
 
@@ -275,52 +275,17 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   protected Node createEditor(NavigableAsset asset) {
     if (asset instanceof KlabDocument<?> document) {
 
-      var ret = new MonacoFX();
-      ret.getEditor().getDocument().setText(document.getSourceCode());
-      ret.onKeyPressedProperty()
-          .setValue(
-              event -> {
-                if (event.isControlDown() && event.getCode() == KeyCode.S) {
-                  Thread.ofVirtual()
-                      .start(() -> saveDocument(ret.getEditor().getDocument().getText(), asset));
-                }
-              });
-
-      // agh this must detect the language for the document and set the non-existing language
-      // support
-      ret.getEditor().setCurrentLanguage("java");
-      ret.getEditor().setCurrentTheme(Theme.CURRENT_THEME.isDark() ? "vs-dark" : "vs");
-
+      var ret =
+          new MonacoEditorView(content -> Platform.runLater(() -> saveDocument(content, asset)));
+      ret.loadEditor(
+          document.getSourceCode(), "java", Theme.CURRENT_THEME.isDark() ? "vs-dark" : "vs");
       return ret;
-
-      // FIXME going back to the original MonacoFX because the listeners in it actually work. This
-      //  version won't update the text property when editing as js->java listeners are broken.
-      //
-      //      return new MonacoEditor(
-      //          editor -> {
-      //            editor
-      //                .onKeyPressedProperty()
-      //                .setValue(
-      //                    event -> {
-      //                      if (event.isControlDown() && event.getCode() == KeyCode.S) {
-      //                        Thread.ofVirtual().start(() -> saveDocument(editor, asset));
-      //                      }
-      //                    });
-      //            editor.getEditor().setCurrentTheme(Theme.CURRENT_THEME.isDark() ? "vs-dark" :
-      // "vs");
-      //            var project = asset.parent(NavigableProject.class);
-      //            if (project != null && !project.isLocked()) {
-      //              editor.getEditor().getViewController().readOnly(true);
-      //            }
-      //            editor.getEditor().getDocument().setText(document.getSourceCode());
-      //            // TODO language stuff
-      //            editor.getEditor().setCurrentLanguage("java"); // right
-      //          });
     }
     return null;
   }
 
   private void saveDocument(String text, NavigableAsset asset) {
+    Logging.INSTANCE.info("Save document requested: " + asset.getUrn());
     if (service instanceof ResourcesService.Admin admin
         && asset instanceof KlabDocument<?> document) {
       //      var text = editor.getEditor().getDocument().getText();
