@@ -31,6 +31,7 @@ module org.integratedmodelling.klab.ide {
     requires javafx.controls;
     requires org.eclipse.xtext.util;
     requires org.integratedmodelling.klabeditor;
+    requires javafx.media;
 
     opens org.integratedmodelling.klab.ide to javafx.fxml;
     opens org.integratedmodelling.klab.ide.components to javafx.fxml;

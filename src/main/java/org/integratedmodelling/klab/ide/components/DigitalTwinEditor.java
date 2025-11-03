@@ -13,6 +13,8 @@ import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
+import javafx.scene.media.MediaView;
+import javafx.scene.web.WebView;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientDigitalTwin;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
@@ -26,6 +28,8 @@ import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedul
 import org.integratedmodelling.klab.api.provenance.Activity;
 import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.api.services.RuntimeService;
+import org.integratedmodelling.klab.api.services.runtime.Notification;
+import org.integratedmodelling.klab.ide.KlabIDEApplication;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
@@ -36,6 +40,8 @@ import org.jgrapht.graph.DefaultEdge;
 
 public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
     implements DigitalTwinViewer {
+
+  private static final String UI_VISUALIZATION_URL = "klab.ui.visualization.url";
 
   private final DigitalTwinPeer controller;
   private final RuntimeService runtimeService;
@@ -140,10 +146,10 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
           KlabIDEController.modeler()
               .visualize(klabAsset, null, "text/html", contextScope, Map.of(), URL.class);
       if (url != null) {
-        Logging.INSTANCE.info("Visualizing asset: " + asset + " at " + url);
+        klabAsset.getMetadata().put(UI_VISUALIZATION_URL, url);
+        edit(asset);
       }
     }
-    // TODO load this into a browser-based viewer
   }
 
   void exportToFilesystem(RuntimeAsset observation) {
@@ -187,6 +193,15 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
               new KnowledgeGraphView(this.controller.scope(), this.knowledgeGraph, this);
       KlabIDEController.instance().requireDigitalTwinPeer(contextScope).register(ret);
       return ret;
+    } else if (asset instanceof Observation observation) {
+      var url = observation.getMetadata().get(UI_VISUALIZATION_URL, URL.class);
+      if (url != null) {
+        return new AssetViewer(observation, url.toString());
+      } else {
+        KlabIDEController.instance()
+            .handleNotification(
+                Notification.warning("No visualization metadata in asset " + observation));
+      }
     }
     return null;
   }

@@ -108,6 +108,7 @@ public enum Theme {
   public static final Ikon EDIT_ICON = Material2AL.EDIT;
   public static final Ikon COLLAPSE_ICON = Evaicons.COLLAPSE;
   public static final Ikon EXPAND_ICON = Evaicons.EXPAND;
+  public static final Ikon OPEN_IN_BROWSER = Material2MZ.OPEN_IN_BROWSER;
 
   // services
   public static final Ikon LOCAL_SERVICE_ICON = Material2AL.DONUT_SMALL;

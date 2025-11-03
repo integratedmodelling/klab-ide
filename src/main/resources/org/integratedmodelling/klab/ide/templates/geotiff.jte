@@ -5,11 +5,11 @@
 <head>
     <style>
         #map {
-            height: 900px;
-            width: auto;
+            height: 700px;
+            width: 700px;
         }
     </style>
-<%--    <script src="/scripts/snippet-javascript-console.min.js?v=2"></script>--%>
+    <%--    <script src="/scripts/snippet-javascript-console.min.js?v=2"></script>--%>
 </head>
 <body>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
