@@ -6,7 +6,7 @@
     <style>
         #map {
             height: 700px;
-            width: 700px;
+            width: auto;
         }
     </style>
     <%--    <script src="/scripts/snippet-javascript-console.min.js?v=2"></script>--%>
@@ -45,9 +45,9 @@
 
                 const layer = new GeoRasterLayer({
                     georaster: georaster,
-                    opacity: 0.6,
+                    opacity: 0.7,
                     pixelValuesToColorFn: vals => vals[0] <= 0 ? null : '#' + rainbow.colourAt(Math.round(vals[0])),
-                    resolution: 512 // optional parameter for adjusting display resolution
+                    resolution: 64 // optional parameter for adjusting display resolution
                 }).addTo(map)
 
                 map.fitBounds(layer.getBounds())
