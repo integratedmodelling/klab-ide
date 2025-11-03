@@ -81,6 +81,7 @@ public enum Theme {
   public static Ikon MODEL_ICON = Material2MZ.WORK_OUTLINE;
   public static Ikon CONCEPT_DEFINITION_ICON = Material2MZ.WORK_OUTLINE;
   public static Ikon OBSERVATION_ICON = Material2MZ.WORK_OUTLINE;
+  public static Ikon ACTIVITY_ICON = Evaicons.ACTIVITY;
   public static Ikon DEFINITION_ICON = Material2MZ.WORK_OUTLINE;
   public static Ikon BEHAVIOR_ICON = Material2MZ.WORK_OUTLINE;
   public static Ikon FOLDER_ICON = Material2AL.FOLDER_OPEN;
