@@ -55,7 +55,7 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
   public DigitalTwinEditor(
       ContextScope contextScope, RuntimeService runtimeService, DigitalTwinView digitalTwinView) {
     super(contextScope);
-    this.contextScope = KlabIDEController.instance().requireDigitalTwinPeer(contextScope);
+    this.contextScope = KlabIDEController.instance().requireDigitalTwinPeer(contextScope, this);
     this.runtimeService = runtimeService;
     if (contextScope.getDigitalTwin() instanceof ClientDigitalTwin clientDigitalTwin) {
       this.knowledgeGraph = clientDigitalTwin.getKnowledgeGraph();
@@ -89,7 +89,7 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
   protected TreeView<RuntimeAsset> createContentTree() {
 
     treeView = new KnowledgeGraphTree(this.context, contextScope);
-//    controller.register(treeView);
+    //    controller.register(treeView);
     treeView.setCellFactory(p -> new AssetTreeCell());
     treeView.getStyleClass().addAll(Tweaks.EDGE_TO_EDGE, Styles.DENSE);
     treeView.setShowRoot(false);
@@ -178,7 +178,8 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
   @Override
   protected void configureDigitalTwinWidget(DigitalTwinControlPanel digitalTwinMinified) {
     super.configureDigitalTwinWidget(digitalTwinMinified);
-//    KlabIDEController.instance().requireDigitalTwinPeer(contextScope).register(digitalTwinMinified);
+    //
+    // KlabIDEController.instance().requireDigitalTwinPeer(contextScope).register(digitalTwinMinified);
   }
 
   @Override
@@ -187,7 +188,7 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
       var ret =
           this.knowledgeGraphView =
               new KnowledgeGraphView(this.contextScope, this.knowledgeGraph, this);
-//      KlabIDEController.instance().requireDigitalTwinPeer(contextScope).register(ret);
+      //      KlabIDEController.instance().requireDigitalTwinPeer(contextScope).register(ret);
       return ret;
     } else if (asset instanceof Observation observation) {
       var url = observation.getMetadata().get(UI_VISUALIZATION_URL, URL.class);

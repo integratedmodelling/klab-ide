@@ -257,7 +257,8 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
     if (session != null) {
       var context = session.createContext(configuration);
       if (context instanceof ClientContextScope clientContextScope) {
-        showDigitalTwin(KlabIDEController.instance().requireDigitalTwinPeer(clientContextScope));
+        showDigitalTwin(
+            KlabIDEController.instance().requireDigitalTwinPeer(clientContextScope, null));
       }
     }
   }
@@ -265,13 +266,14 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
   public DigitalTwinEditor showDigitalTwin(ContextScope scope) {
     DigitalTwinEditor ret = null;
     hideBrowser();
-    var contextScope = KlabIDEController.instance().requireDigitalTwinPeer(scope);
+    var contextScope = KlabIDEController.instance().requireDigitalTwinPeer(scope, null);
     KlabIDEController.instance().setFocalScope(contextScope);
     if (openEditors.containsKey(scope.getId())) {
       ret = openEditors.get(scope.getId());
       ret.requestFocus(); // FIXME must remember the tabs and select(tab) - in both cases
     } else {
-      ret = new DigitalTwinEditor(contextScope, contextScope.getService(RuntimeService.class), this);
+      ret =
+          new DigitalTwinEditor(contextScope, contextScope.getService(RuntimeService.class), this);
       openEditors.put(scope.getId(), ret);
       addEditor(ret, scope.getName(), new FontIcon(Theme.DIGITAL_TWINS_ICON));
       ret.edit(ret.getRootAsset());

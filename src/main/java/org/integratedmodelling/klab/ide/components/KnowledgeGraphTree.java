@@ -93,7 +93,7 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
 
   public KnowledgeGraphTree(RuntimeAsset rootAsset, ContextScope contextScope) {
     super();
-    this.scope = KlabIDEController.instance().requireDigitalTwinPeer(contextScope);
+    this.scope = KlabIDEController.instance().requireDigitalTwinPeer(contextScope, this);
     this.clientKnowledgeGraph = this.scope.getDigitalTwin().getKnowledgeGraph();
     setRoot(new AssetTreeItem(rootAsset));
   }

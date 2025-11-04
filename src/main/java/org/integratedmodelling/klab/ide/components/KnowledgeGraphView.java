@@ -52,7 +52,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   public KnowledgeGraphView(
       ContextScope contextScope, ClientKnowledgeGraph knowledgeGraph, DigitalTwinEditor editor) {
 
-    this.scope = KlabIDEController.instance().requireDigitalTwinPeer(contextScope);
+    this.scope = KlabIDEController.instance().requireDigitalTwinPeer(contextScope, this);
     this.knowledgeGraph = knowledgeGraph;
     this.editor = editor;
 
@@ -144,8 +144,8 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
             if (asset instanceof Asset wrapper) {
               asset = wrapper.getDelegate();
             }
-            this.editor.selectAsset(asset);
-            KlabIDEController.instance().requireDigitalTwinPeer(this.scope).setFocalAssets();
+//            this.editor.selectAsset(asset);
+            this.scope.setFocalAssets(asset);
           });
 
       graphView.setEdgeDoubleClickAction(

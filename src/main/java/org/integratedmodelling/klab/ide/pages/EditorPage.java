@@ -230,7 +230,7 @@ public abstract class EditorPage<A, T> extends BorderPane {
     if (!result.isEmpty() && result.get().getButtonData() == ButtonBar.ButtonData.YES) {
       // TODO IT - start at the peer, which deletes the scope. All DT CPs
       //  emptied and minified or moved to previous in stack, then all editors closed
-      KlabIDEController.instance().requireDigitalTwinPeer(scope).close();
+      KlabIDEController.instance().requireDigitalTwinPeer(scope, null).close();
     }
   }
 }

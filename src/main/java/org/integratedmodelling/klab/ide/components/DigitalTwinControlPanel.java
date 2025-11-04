@@ -258,7 +258,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     if (this.scope != null) {
       KlabIDEController.instance().unregisterDigitalTwinViewer(this.scope, this);
     }
-    this.scope = KlabIDEController.instance().requireDigitalTwinPeer(scope);
+    this.scope = KlabIDEController.instance().requireDigitalTwinPeer(scope, this);
     // TODO define the full interface and bind the controller
   }
 

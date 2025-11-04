@@ -151,15 +151,29 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
     return focalScope;
   }
 
-  public IDEContextScope requireDigitalTwinPeer(ContextScope scope) {
+  /**
+   * Request a scope peer, creating one if needed. This is called by {@link DigitalTwinViewer}s,
+   * which pass themselves to get registered for event propagation.
+   *
+   * @param scope
+   * @param viewer
+   * @return
+   */
+  public IDEContextScope requireDigitalTwinPeer(ContextScope scope, DigitalTwinViewer viewer) {
+    IDEContextScope ret = null;
     if (scope instanceof IDEContextScope ideContextScope) {
-      return ideContextScope;
+      ret = ideContextScope;
+    } else if (scope instanceof ClientContextScope clientContextScope) {
+      ret =
+          digitalTwinPeerMap.computeIfAbsent(
+              scope.getId(), id -> new IDEContextScope(clientContextScope));
+    } else {
+      throw new IllegalArgumentException("Only ClientContextScope is supported.");
     }
-    if (scope instanceof ClientContextScope clientContextScope) {
-      return digitalTwinPeerMap.computeIfAbsent(
-          scope.getId(), id -> new IDEContextScope(clientContextScope));
+    if (viewer != null) {
+      ret.addViewer(viewer);
     }
-    throw new IllegalArgumentException("Only ClientContextScope is supported.");
+    return ret;
   }
 
   public void unregisterDigitalTwinViewer(IDEContextScope scope, DigitalTwinViewer viewer) {

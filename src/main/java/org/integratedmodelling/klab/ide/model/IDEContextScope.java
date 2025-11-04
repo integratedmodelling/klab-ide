@@ -72,14 +72,18 @@ public class IDEContextScope implements ContextScope {
     viewers.remove(viewer);
   }
 
+  public void addViewer(DigitalTwinViewer viewer) {
+    this.viewers.add(viewer);
+  }
+
   public List<RuntimeAsset> getFocalAssets() {
     return focalAssets;
   }
 
-  public void setFocalAssets(RuntimeAsset.ContextAsset... contextAssets) {
+  public void setFocalAssets(RuntimeAsset... assets) {
     focalAssets.clear();
-    if (contextAssets != null) {
-      focalAssets.addAll(Arrays.asList(contextAssets));
+    if (assets != null) {
+      focalAssets.addAll(Arrays.asList(assets));
     }
     for (var view : viewers) {
       view.focusObservations(focalAssets);
