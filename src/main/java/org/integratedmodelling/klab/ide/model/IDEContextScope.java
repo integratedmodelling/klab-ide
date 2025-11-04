@@ -1,5 +1,14 @@
 package org.integratedmodelling.klab.ide.model;
 
+import java.io.Serializable;
+import java.net.URL;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientDigitalTwin;
 import org.integratedmodelling.common.services.client.scope.ClientContextScope;
 import org.integratedmodelling.klab.api.collections.Parameters;
@@ -27,19 +36,10 @@ import org.integratedmodelling.klab.api.services.runtime.Message;
 import org.integratedmodelling.klab.api.services.runtime.Report;
 import org.integratedmodelling.klab.api.utils.Utils;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
+import org.integratedmodelling.klab.ide.components.DigitalTwinControlPanel;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultDirectedGraph;
 import org.jgrapht.graph.DefaultEdge;
-
-import java.io.Serializable;
-import java.net.URL;
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
-import java.util.function.Predicate;
 
 /**
  * Future delegate with UI features to substitute IDEContextScope. All derivations return the
@@ -58,12 +58,45 @@ public class IDEContextScope implements ContextScope {
   private Schedule schedule;
   private final AtomicReference<List<RuntimeAsset>> focalObservations =
       new AtomicReference<>(List.of(RuntimeAsset.CONTEXT_ASSET));
+  private List<RuntimeAsset> focalAssets = Collections.synchronizedList(new ArrayList<>());
+  private int graphDepth = 2;
 
   public IDEContextScope(ClientContextScope delegate) {
     this.delegate = delegate;
     delegate
         .getDigitalTwin()
         .addEventConsumer(message -> executor.execute(() -> processEvent(message)));
+  }
+
+  public void removeViewer(DigitalTwinViewer viewer) {
+    viewers.remove(viewer);
+  }
+
+  public List<RuntimeAsset> getFocalAssets() {
+    return focalAssets;
+  }
+
+  public void setFocalAssets(RuntimeAsset.ContextAsset... contextAssets) {
+    focalAssets.clear();
+    if (contextAssets != null) {
+      focalAssets.addAll(Arrays.asList(contextAssets));
+    }
+    for (var view : viewers) {
+      view.focusObservations(focalAssets);
+    }
+  }
+
+  public int getGraphDepth() {
+    return this.graphDepth;
+  }
+
+  public void setGraphDepth(int newDepth) {
+    if (newDepth >= 1 && newDepth <= 5) {
+      this.graphDepth = newDepth;
+      for (var view : viewers) {
+        view.focusObservations(focalAssets);
+      }
+    }
   }
 
   private void processEvent(Message message) {
@@ -282,17 +315,33 @@ public class IDEContextScope implements ContextScope {
 
   @Override
   public ContextScope withObserver(Observation observer) {
-    return delegate.withObserver(observer);
+    this.delegate =
+        (ClientContextScope)
+            (observer == null ? delegate.getRootContextScope() : delegate.withObserver(observer));
+    for (var view : viewers) {
+      view.setObserver(observer);
+    }
+    return this.delegate;
   }
 
   @Override
   public ContextScope within(Observation contextObservation) {
-    return delegate.within(contextObservation);
+    this.delegate =
+        (ClientContextScope)
+            (contextObservation == null
+                ? delegate.getRootContextScope()
+                : delegate.within(contextObservation));
+    for (var view : viewers) {
+      view.setContext(contextObservation);
+    }
+    return this.delegate;
   }
 
   @Override
   public ContextScope between(Observation source, Observation target) {
-    return delegate.between(source, target);
+    this.delegate = (ClientContextScope) delegate.between(source, target);
+    // TODO ??
+    return this.delegate;
   }
 
   @Override
@@ -489,5 +538,13 @@ public class IDEContextScope implements ContextScope {
   @Override
   public boolean isReceiver() {
     return delegate.isReceiver();
+  }
+
+  public void setFocused(boolean b) {
+    for (var view : viewers) {
+      if (view instanceof DigitalTwinControlPanel panel) {
+        panel.setScope(this);
+      }
+    }
   }
 }

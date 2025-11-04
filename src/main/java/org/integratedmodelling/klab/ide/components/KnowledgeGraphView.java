@@ -24,6 +24,7 @@ import org.integratedmodelling.klab.api.provenance.Activity;
 import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
+import org.integratedmodelling.klab.ide.model.IDEContextScope;
 import org.jgrapht.graph.DefaultEdge;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
@@ -32,7 +33,7 @@ import org.kordamp.ikonli.material2.Material2MZ;
 public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer {
 
   private final ClientKnowledgeGraph knowledgeGraph;
-  private final ContextScope scope;
+  private final IDEContextScope scope;
   private final DigitalTwinEditor editor;
   private boolean autoLayout = false;
   private SmartGraphPanel<RuntimeAsset, ClientKnowledgeGraph.Relationship> graphView;
@@ -40,7 +41,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   private Set<GraphModel.Relationship> visibleRelationships =
       EnumSet.of(GraphModel.Relationship.HAS_CHILD);
 
-  private List<RuntimeAsset> focalAssets = new ArrayList<>();
+  //  private List<RuntimeAsset> focalAssets = new ArrayList<>();
   // Queue to store pending updates until the graph is ready
   private List<RuntimeAsset> pendingFocalAssets = null;
 
@@ -49,12 +50,11 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   private Timeline timeline;
 
   public KnowledgeGraphView(
-      ContextScope scope, ClientKnowledgeGraph knowledgeGraph, DigitalTwinEditor editor) {
+      ContextScope contextScope, ClientKnowledgeGraph knowledgeGraph, DigitalTwinEditor editor) {
 
-    this.scope = scope;
+    this.scope = KlabIDEController.instance().requireDigitalTwinPeer(contextScope);
     this.knowledgeGraph = knowledgeGraph;
     this.editor = editor;
-    //    this.focalAssets.add(RuntimeAsset.CONTEXT_ASSET);
 
     HBox controls = new HBox(2);
     controls.getStyleClass().add(Styles.SMALL);
@@ -90,38 +90,21 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
 
     homeButton.setOnAction(
         event -> {
-          focalAssets.clear();
-          focalAssets.add(RuntimeAsset.CONTEXT_ASSET);
-          if (isGraphViewReady()) {
-            updateGraphSafely(focalAssets);
-          }
+          scope.setFocalAssets(RuntimeAsset.CONTEXT_ASSET);
         });
     minusButton.setOnAction(
         event -> {
-          if (depth > 1) {
-            depth--;
-            if (isGraphViewReady() && !focalAssets.isEmpty()) {
-              updateGraphSafely(focalAssets);
-            }
-          }
+          scope.setGraphDepth(scope.getGraphDepth() - 1);
         });
     plusButton.setOnAction(
         event -> {
-          if (depth < 5) {
-            depth++;
-            if (isGraphViewReady() && !focalAssets.isEmpty()) {
-              updateGraphSafely(focalAssets);
-            }
-          }
+          scope.setGraphDepth(scope.getGraphDepth() + 1);
         });
     redrawButton.setOnAction(
         event -> {
-          if (depth < 5) {
-            depth++;
-            if (isGraphViewReady() && !focalAssets.isEmpty()) {
-              autoLayout = !autoLayout;
-              graphView.setAutomaticLayout(autoLayout);
-            }
+          if (isGraphViewReady()) {
+            autoLayout = !autoLayout;
+            graphView.setAutomaticLayout(autoLayout);
           }
         });
     affectedSwitch.selectedProperty().addListener((obs, old, val) -> {});
@@ -134,8 +117,6 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     HBox.setHgrow(spinnerBox, javafx.scene.layout.Priority.ALWAYS);
     controls.getChildren().addAll(spinnerBox, switchesBox);
     this.setTop(controls);
-    this.focalAssets.addAll(
-        KlabIDEController.instance().requireDigitalTwinPeer(scope).register(this));
 
     this.sceneProperty()
         .addListener(
@@ -164,7 +145,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
               asset = wrapper.getDelegate();
             }
             this.editor.selectAsset(asset);
-            KlabIDEController.instance().requireDigitalTwinPeer(this.scope).focus(asset);
+            KlabIDEController.instance().requireDigitalTwinPeer(this.scope).setFocalAssets();
           });
 
       graphView.setEdgeDoubleClickAction(
@@ -187,6 +168,8 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
       Platform.runLater(
           () -> {
             try {
+              var focalAssets = scope.getFocalAssets();
+
               if (graphView.getParent() != null && graphView.getScene() != null) {
                 graphView.init();
                 this.initialized = true;
@@ -210,6 +193,8 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
               // If still not ready, try again after another layout pass
               Platform.runLater(
                   () -> {
+                    var focalAssets = scope.getFocalAssets();
+
                     if (graphView.getWidth() > 0
                         && graphView.getHeight() > 0
                         && graphView.getParent() != null
@@ -341,11 +326,8 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
 
   @Override
   public void focusObservations(List<RuntimeAsset> assets) {
-    updateGraphSafely(assets);
+    updateGraphSafely();
   }
-
-  //  private Graph<RuntimeAsset, ClientKnowledgeGraph.Relationship> adaptGraph(
-  //     ) {}
 
   @Override
   public void scheduleModified(Schedule schedule) {
@@ -374,11 +356,11 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   }
 
   // Safely update the graph on the JavaFX application thread
-  private void updateGraphSafely(List<RuntimeAsset> asset) {
+  private void updateGraphSafely() {
     if (Platform.isFxApplicationThread()) {
-      updateGraph(asset);
+      updateGraph(scope.getFocalAssets());
     } else {
-      Platform.runLater(() -> updateGraph(asset));
+      Platform.runLater(() -> updateGraph(scope.getFocalAssets()));
     }
   }
 }

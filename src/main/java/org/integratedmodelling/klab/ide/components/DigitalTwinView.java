@@ -10,6 +10,7 @@ import javafx.scene.Parent;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import org.integratedmodelling.common.logging.Logging;
+import org.integratedmodelling.common.services.client.scope.ClientContextScope;
 import org.integratedmodelling.klab.api.authentication.CRUDOperation;
 import org.integratedmodelling.klab.api.authentication.ResourcePrivileges;
 import org.integratedmodelling.klab.api.digitaltwin.DigitalTwin;
@@ -21,11 +22,12 @@ import org.integratedmodelling.klab.api.services.runtime.objects.ContextInfo;
 import org.integratedmodelling.klab.api.utils.Utils;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
+import org.integratedmodelling.klab.ide.model.IDEContextScope;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
 
-public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, ContextScope> {
+public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContextScope> {
 
   //  private final Map<String, ContextScope> digitalTwins = new HashMap<>();
   private final Map<String, DigitalTwinEditor> openEditors = new HashMap<>();
@@ -73,13 +75,13 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, ContextSco
   }
 
   @Override
-  protected void assetEditorSelected(ContextScope asset) {
+  protected void assetEditorSelected(IDEContextScope asset) {
     Logging.INSTANCE.info("SELECTED " + asset);
-    KlabIDEController.setCurrentContext(asset);
+    KlabIDEController.instance().setFocalScope(asset);
   }
 
   @Override
-  protected void assetEditorClosed(ContextScope asset) {
+  protected void assetEditorClosed(IDEContextScope asset) {
     Logging.INSTANCE.info("CLOSED " + asset);
     if (openEditors.containsKey(asset.getId())) {
       removeEditor(openEditors.get(asset.getId()));
@@ -254,8 +256,8 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, ContextSco
     var session = KlabIDEController.modeler().user().getUserSession(runtimeService);
     if (session != null) {
       var context = session.createContext(configuration);
-      if (context != null) {
-        showDigitalTwin(context);
+      if (context instanceof ClientContextScope clientContextScope) {
+        showDigitalTwin(KlabIDEController.instance().requireDigitalTwinPeer(clientContextScope));
       }
     }
   }
@@ -263,12 +265,13 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, ContextSco
   public DigitalTwinEditor showDigitalTwin(ContextScope scope) {
     DigitalTwinEditor ret = null;
     hideBrowser();
-    KlabIDEController.setCurrentContext(scope);
+    var contextScope = KlabIDEController.instance().requireDigitalTwinPeer(scope);
+    KlabIDEController.instance().setFocalScope(contextScope);
     if (openEditors.containsKey(scope.getId())) {
       ret = openEditors.get(scope.getId());
       ret.requestFocus(); // FIXME must remember the tabs and select(tab) - in both cases
     } else {
-      ret = new DigitalTwinEditor(scope, scope.getService(RuntimeService.class), this);
+      ret = new DigitalTwinEditor(contextScope, contextScope.getService(RuntimeService.class), this);
       openEditors.put(scope.getId(), ret);
       addEditor(ret, scope.getName(), new FontIcon(Theme.DIGITAL_TWINS_ICON));
       ret.edit(ret.getRootAsset());

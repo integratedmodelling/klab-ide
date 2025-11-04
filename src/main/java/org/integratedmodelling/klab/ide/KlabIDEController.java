@@ -34,6 +34,7 @@ import javafx.stage.StageStyle;
 import javafx.util.Duration;
 import org.eclipse.xtext.util.StringInputStream;
 import org.integratedmodelling.common.logging.Logging;
+import org.integratedmodelling.common.services.client.scope.ClientContextScope;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.configuration.Setting;
 import org.integratedmodelling.klab.api.digitaltwin.DigitalTwin;
@@ -59,7 +60,7 @@ import org.integratedmodelling.klab.api.view.modeler.views.controllers.ServicesV
 import org.integratedmodelling.klab.api.view.modeler.visualization.Visualization;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.integratedmodelling.klab.ide.components.*;
-import org.integratedmodelling.klab.ide.model.DigitalTwinPeer;
+import org.integratedmodelling.klab.ide.model.IDEContextScope;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 import org.integratedmodelling.klab.ide.utils.NodeUtils;
 import org.integratedmodelling.klab.modeler.ModelerImpl;
@@ -77,7 +78,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
   private boolean inspectorIsOn;
   private Set<View> neverSeen = EnumSet.of(View.RESOURCES, View.WORKSPACES, View.DIGITAL_TWINS);
   private static KlabIDEController _this;
-  private Map<String, DigitalTwinPeer> digitalTwinPeerMap = new HashMap<>();
+  private Map<String, IDEContextScope> digitalTwinPeerMap = new HashMap<>();
   private AtomicReference<Engine.Status> engineStatus = new AtomicReference<>();
   private Label infoLabel;
   private Label errorLabel;
@@ -87,6 +88,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
   private AtomicInteger errorCount = new AtomicInteger(0);
   private AtomicInteger warningCount = new AtomicInteger(0);
   private PauseTransition currentPause;
+  private IDEContextScope focalScope;
 
   /** The "circled" (current) view in the main area. */
   public enum View {
@@ -140,22 +142,45 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
     _this = this;
   }
 
-  public DigitalTwinPeer requireDigitalTwinPeer(ContextScope scope) {
-    return digitalTwinPeerMap.computeIfAbsent(scope.getId(), id -> new DigitalTwinPeer(scope));
+  public void setFocalScope(IDEContextScope focalScope) {
+    this.focalScope = focalScope;
+    focalScope.setFocused(true);
   }
 
-  public static void setCurrentContext(ContextScope scope) {
-    modeler().setCurrentContext(scope);
-    for (var peer : _this.digitalTwinPeerMap.values()) {
-      peer.focus(scope);
+  public IDEContextScope getFocalScope() {
+    return focalScope;
+  }
+
+  public IDEContextScope requireDigitalTwinPeer(ContextScope scope) {
+    if (scope instanceof IDEContextScope ideContextScope) {
+      return ideContextScope;
+    }
+    if (scope instanceof ClientContextScope clientContextScope) {
+      return digitalTwinPeerMap.computeIfAbsent(
+          scope.getId(), id -> new IDEContextScope(clientContextScope));
+    }
+    throw new IllegalArgumentException("Only ClientContextScope is supported.");
+  }
+
+  public void unregisterDigitalTwinViewer(IDEContextScope scope, DigitalTwinViewer viewer) {
+    var peer = digitalTwinPeerMap.get(scope.getId());
+    if (peer != null) {
+      peer.removeViewer(viewer);
     }
   }
 
-  public DigitalTwinPeer getDigitalTwinPeer(String id) {
+  //  public static void setCurrentContext(ContextScope scope) {
+  //    modeler().setCurrentContext(scope);
+  //    for (var peer : _this.digitalTwinPeerMap.values()) {
+  //      peer.focus(scope);
+  //    }
+  //  }
+
+  public IDEContextScope getDigitalTwinPeer(String id) {
     return digitalTwinPeerMap.get(id);
   }
 
-  public void setDigitalTwinPeer(String id, DigitalTwinPeer peer) {
+  public void setDigitalTwinPeer(String id, IDEContextScope peer) {
     digitalTwinPeerMap.put(id, peer);
   }
 

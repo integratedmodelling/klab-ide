@@ -13,6 +13,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import devtoolsfx.gui.GUI;
+import javafx.application.HostServices;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleObjectProperty;
@@ -669,10 +671,21 @@ public class Components {
             new SettingsPage(settingPage) {
               @Override
               protected void onChangedSetting(Setting setting, Object newValue) {
-                KlabIDEController.modeler()
-                    .engine()
-                    .getSettings()
-                    .set(setting, Utils.Data.parseAsType(newValue.toString(), setting.valueClass));
+                if (setting == Setting.LAUNCH_DEBUG_GUI) {
+                  Platform.runLater(
+                      () -> {
+                        GUI.openToolStage(
+                            KlabIDEApplication.primaryStage(),
+                            KlabIDEApplication.instance().getHostServices(),
+                            "DevToolsFX");
+                      });
+                } else {
+                  KlabIDEController.modeler()
+                      .engine()
+                      .getSettings()
+                      .set(
+                          setting, Utils.Data.parseAsType(newValue.toString(), setting.valueClass));
+                }
               }
             });
         tabPane.getTabs().add(tab);
@@ -956,8 +969,8 @@ public class Components {
           e -> {
             var peer = KlabIDEController.instance().getDigitalTwinPeer(digitalTwin.getId());
             if (peer != null) {
-              peer.closeScope();
-              deleteAction.accept(peer.scope());
+              peer.close();
+              deleteAction.accept(peer);
             } else {
               var scope =
                   KlabIDEController.modeler().user().connect(digitalTwin.getConfiguration());

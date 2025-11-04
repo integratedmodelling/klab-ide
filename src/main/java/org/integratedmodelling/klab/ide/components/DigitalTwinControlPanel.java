@@ -23,7 +23,7 @@ import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
-import org.integratedmodelling.klab.ide.model.DigitalTwinPeer;
+import org.integratedmodelling.klab.ide.model.IDEContextScope;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultEdge;
@@ -65,7 +65,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   private final ProgressIndicator progressIndicator;
   private final Label statusLabel;
-  private ContextScope scope;
+  private IDEContextScope scope;
 
   public enum Status {
     IDLE,
@@ -87,8 +87,6 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   private Pane dropZone;
   private Status status = Status.IDLE;
   private TreeTableView<Activity> treeTableView;
-  /* controller is bound after the first observation is made */
-  private DigitalTwinPeer controller;
 
   // otherwise?
 
@@ -258,21 +256,13 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   public void setScope(ContextScope scope) {
 
     if (this.scope != null) {
-      throw new KlabInternalErrorException("SCOPE CAN ONLY BE BOUND ONCE IN A DT WIDGET");
+      KlabIDEController.instance().unregisterDigitalTwinViewer(this.scope, this);
     }
-    Platform.runLater(
-        () -> {
-          //          ComboBox<String> scenarioBox =
-          //              (ComboBox<String>) ((HBox) getBottom()).getChildren().get(1);
-          //          scenarioBox.getItems().clear();
-        });
-    this.scope = scope;
-    this.controller = KlabIDEController.instance().requireDigitalTwinPeer(scope);
-    this.controller.register(this);
+    this.scope = KlabIDEController.instance().requireDigitalTwinPeer(scope);
     // TODO define the full interface and bind the controller
   }
 
-  public ContextScope getScope() {
+  public IDEContextScope getScope() {
     return this.scope;
   }
 
@@ -308,6 +298,9 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   @Override
   public void activitiesModified(Graph<Activity, DefaultEdge> activityGraph) {
+
+    Logging.INSTANCE.info("DIO CAROGNA ACTIVITIES");
+
     // Create defensive copies of the data to avoid ConcurrentModificationException
     var vertices = new ArrayList<>(activityGraph.vertexSet());
     var rootActivities =

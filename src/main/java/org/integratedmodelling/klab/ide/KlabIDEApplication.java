@@ -22,12 +22,13 @@ public class KlabIDEApplication extends Application {
 
   private Thread lspThread;
   private boolean inspectorShown;
-//  private NotificationManager notificationManager;
+  private static Stage primaryStage;
 
   @Override
   public void start(Stage stage) throws IOException {
 
     instance = this;
+    primaryStage = stage;
 
     // Add icons to the stage
     //    stage
@@ -71,10 +72,14 @@ public class KlabIDEApplication extends Application {
           System.exit(0);
         });
     stage.setScene(scene);
-//    // Initialize the notification manager
-//    this.notificationManager = new NotificationManager(scene);
+    //    // Initialize the notification manager
+    //    this.notificationManager = new NotificationManager(scene);
 
     stage.show();
+  }
+
+  public static Stage primaryStage() {
+    return primaryStage;
   }
 
   public static KlabIDEApplication instance() {

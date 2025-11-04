@@ -33,7 +33,7 @@ import org.integratedmodelling.klab.ide.KlabIDEApplication;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
-import org.integratedmodelling.klab.ide.model.DigitalTwinPeer;
+import org.integratedmodelling.klab.ide.model.IDEContextScope;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultEdge;
@@ -43,7 +43,6 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
 
   private static final String UI_VISUALIZATION_URL = "klab.ui.visualization.url";
 
-  private final DigitalTwinPeer controller;
   private final RuntimeService runtimeService;
   private final DigitalTwinView view;
   private ClientKnowledgeGraph knowledgeGraph;
@@ -51,14 +50,12 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
   private KnowledgeGraphTree treeView;
   private RuntimeAsset context;
   private KnowledgeGraphView knowledgeGraphView;
-  private final ContextScope contextScope;
+  private final IDEContextScope contextScope;
 
   public DigitalTwinEditor(
       ContextScope contextScope, RuntimeService runtimeService, DigitalTwinView digitalTwinView) {
     super(contextScope);
-    this.controller = KlabIDEController.instance().requireDigitalTwinPeer(contextScope);
-    this.controller.register(this);
-    this.contextScope = contextScope;
+    this.contextScope = KlabIDEController.instance().requireDigitalTwinPeer(contextScope);
     this.runtimeService = runtimeService;
     if (contextScope.getDigitalTwin() instanceof ClientDigitalTwin clientDigitalTwin) {
       this.knowledgeGraph = clientDigitalTwin.getKnowledgeGraph();
@@ -92,7 +89,7 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
   protected TreeView<RuntimeAsset> createContentTree() {
 
     treeView = new KnowledgeGraphTree(this.context, contextScope);
-    controller.register(treeView);
+//    controller.register(treeView);
     treeView.setCellFactory(p -> new AssetTreeCell());
     treeView.getStyleClass().addAll(Tweaks.EDGE_TO_EDGE, Styles.DENSE);
     treeView.setShowRoot(false);
@@ -172,17 +169,16 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
   public void focusObservations(List<RuntimeAsset> ids) {}
 
   private List<RuntimeAsset> children(RuntimeAsset asset) {
-    if (controller.scope().getDigitalTwin().getKnowledgeGraph()
-        instanceof ClientKnowledgeGraph clientKnowledgeGraph) {
-      return clientKnowledgeGraph.outgoing(asset, GraphModel.Relationship.HAS_CHILD);
-    }
-    return List.of();
+    return contextScope
+        .getDigitalTwin()
+        .getKnowledgeGraph()
+        .outgoing(asset, GraphModel.Relationship.HAS_CHILD);
   }
 
   @Override
   protected void configureDigitalTwinWidget(DigitalTwinControlPanel digitalTwinMinified) {
     super.configureDigitalTwinWidget(digitalTwinMinified);
-    KlabIDEController.instance().requireDigitalTwinPeer(contextScope).register(digitalTwinMinified);
+//    KlabIDEController.instance().requireDigitalTwinPeer(contextScope).register(digitalTwinMinified);
   }
 
   @Override
@@ -190,8 +186,8 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
     if (asset == context) {
       var ret =
           this.knowledgeGraphView =
-              new KnowledgeGraphView(this.controller.scope(), this.knowledgeGraph, this);
-      KlabIDEController.instance().requireDigitalTwinPeer(contextScope).register(ret);
+              new KnowledgeGraphView(this.contextScope, this.knowledgeGraph, this);
+//      KlabIDEController.instance().requireDigitalTwinPeer(contextScope).register(ret);
       return ret;
     } else if (asset instanceof Observation observation) {
       var url = observation.getMetadata().get(UI_VISUALIZATION_URL, URL.class);
