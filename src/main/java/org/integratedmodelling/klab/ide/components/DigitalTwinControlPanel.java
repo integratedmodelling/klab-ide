@@ -38,7 +38,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Controlled by the DT peer installed in the main IDE controller.
+ * Controlled by the DT peer installed in the main IDE controller. Differently from other DT views,
+ * this one exists independently of any DT and is installed in all main views; the DT can be
+ * swapped. All other views are dedicated to an individual DT, so the handling must be customized.
  *
  * <p>IDEA: top menu has DT choice (MenuButton) + DT switch to main view button (->) + Observer
  * label + Observer choice (MenuButton)
@@ -227,6 +229,11 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     setBottom(scenarioBar);
   }
 
+  private void loadScope(IDEContextScope scope) {
+    this.scope = scope;
+    // TODO!
+  }
+
   private String activityDescription(Activity value) {
     // TODO
     return Utils.Strings.abbreviate(
@@ -258,8 +265,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     if (this.scope != null) {
       KlabIDEController.instance().unregisterDigitalTwinViewer(this.scope, this);
     }
-    this.scope = KlabIDEController.instance().requireDigitalTwinPeer(scope, this);
-    // TODO define the full interface and bind the controller
+    loadScope(KlabIDEController.instance().requireDigitalTwinPeer(scope, this));
   }
 
   public IDEContextScope getScope() {
