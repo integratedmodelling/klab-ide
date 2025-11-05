@@ -251,7 +251,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   private void loadScope(IDEContextScope scope) {
     // TODO obviously this isn't right
-    this.digitalTwinSwitcher.getItems().clear();
+    this.digitalTwinSwitcher.setText(scope.getName());
     this.digitalTwinSwitcher.getItems().add(new MenuItem(scope.getName()));
     this.scope = scope;
   }
