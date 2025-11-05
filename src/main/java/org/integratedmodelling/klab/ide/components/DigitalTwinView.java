@@ -267,7 +267,6 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
     DigitalTwinEditor ret = null;
     hideBrowser();
     var contextScope = KlabIDEController.instance().requireDigitalTwinPeer(scope, null);
-    KlabIDEController.instance().setFocalScope(contextScope);
     if (openEditors.containsKey(scope.getId())) {
       ret = openEditors.get(scope.getId());
       ret.requestFocus(); // FIXME must remember the tabs and select(tab) - in both cases
@@ -278,6 +277,7 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
       addEditor(ret, scope.getName(), new FontIcon(Theme.DIGITAL_TWINS_ICON));
       ret.edit(ret.getRootAsset());
     }
+    KlabIDEController.instance().setFocalScope(contextScope);
     return ret;
   }
 

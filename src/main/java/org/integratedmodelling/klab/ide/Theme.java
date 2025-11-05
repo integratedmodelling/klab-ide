@@ -26,6 +26,7 @@ import org.kordamp.ikonli.fontawesome5.FontAwesomeSolid;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
 import org.kordamp.ikonli.materialdesign.MaterialDesign;
+import org.kordamp.ikonli.unicons.UniconsLine;
 
 public enum Theme {
   LIGHT_DEFAULT(false),
@@ -81,6 +82,8 @@ public enum Theme {
   public static Ikon MODEL_ICON = Material2MZ.WORK_OUTLINE;
   public static Ikon CONCEPT_DEFINITION_ICON = Material2MZ.WORK_OUTLINE;
   public static Ikon OBSERVATION_ICON = Material2MZ.WORK_OUTLINE;
+  public static Ikon OBSERVER_ICON = UniconsLine.HEAD_SIDE;
+  public static Ikon LOGS_ICON = Evaicons.FILE_TEXT_OUTLINE;
   public static Ikon ACTIVITY_ICON = Evaicons.ACTIVITY;
   public static Ikon DEFINITION_ICON = Material2MZ.WORK_OUTLINE;
   public static Ikon BEHAVIOR_ICON = Material2MZ.WORK_OUTLINE;
@@ -92,6 +95,7 @@ public enum Theme {
   public static Ikon STRATEGY_DOCUMENT_ICON = Material2MZ.WORK_OUTLINE;
   public static Ikon STRATEGY_ICON = Material2MZ.WORK_OUTLINE;
   public static Ikon WORKSPACE_ICON = Material2AL.APPS;
+  public static Ikon SCENARIO_ICON = UniconsLine.SCENERY;
   public static Ikon UNKNOWN_ICON = Material2AL.BUILD_CIRCLE;
   public static Ikon KNOWLEDGE_GRAPH_ICON = BootstrapIcons.DIAGRAM_3;
   // views

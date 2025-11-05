@@ -151,7 +151,6 @@ public abstract class EditorPage<A, T> extends BorderPane {
       Platform.runLater(
           () -> {
             NodeUtils.toggleVisibility(digitalTwinControlPanel, true);
-            //            digitalTwinMinified.setStatus(DigitalTwinControlPanel.Status.RECEIVING);
             NodeUtils.toggleVisibility(
                 digitalTwinControlPanel.getParent().getChildrenUnmodifiable().get(1), false);
           });

@@ -9,6 +9,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
+
+import javafx.application.Platform;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientDigitalTwin;
 import org.integratedmodelling.common.services.client.scope.ClientContextScope;
 import org.integratedmodelling.klab.api.collections.Parameters;

@@ -1,10 +1,15 @@
 package org.integratedmodelling.klab.ide.components;
 
+import atlantafx.base.controls.Breadcrumbs;
 import atlantafx.base.theme.Styles;
 import atlantafx.base.theme.Tweaks;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleObjectProperty;
-import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
@@ -12,10 +17,8 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.paint.Color;
-import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
-import org.integratedmodelling.klab.api.exceptions.KlabInternalErrorException;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedule;
 import org.integratedmodelling.klab.api.provenance.Activity;
@@ -29,13 +32,6 @@ import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultEdge;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
-import org.kordamp.ikonli.material2.Material2MZ;
-
-import java.util.Comparator;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Controlled by the DT peer installed in the main IDE controller. Differently from other DT views,
@@ -66,7 +62,10 @@ import java.util.Map;
 public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinViewer {
 
   private final ProgressIndicator progressIndicator;
-  private final Label statusLabel;
+  //  private final Label statusLabel;
+  private final HBox topBar;
+  private final HBox bottomBar;
+  private final MenuButton digitalTwinSwitcher;
   private IDEContextScope scope;
 
   public enum Status {
@@ -89,77 +88,81 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   private Pane dropZone;
   private Status status = Status.IDLE;
   private TreeTableView<Activity> treeTableView;
+  private View currentView = View.IDLE;
 
   // otherwise?
 
   public DigitalTwinControlPanel(int size, EditorPage<?, ?> editorPage) {
+
     super();
+
     setMinHeight(size);
     setMinWidth(size);
 
     // Create top control bar
-    HBox controlBar = new HBox(0);
-    controlBar.setPrefHeight(24);
-    controlBar.setAlignment(Pos.CENTER_LEFT);
-    controlBar.setPadding(new Insets(1));
-    controlBar.setStyle("-fx-background-color: #E0E0E0;");
+    this.topBar = new HBox(0);
+    topBar.setPrefHeight(20);
+    topBar.setAlignment(Pos.CENTER_LEFT);
+    //    topBar.setPadding(new Insets(1));
+    topBar.setStyle("-fx-background-color: #E0E0E0;");
 
-    //    // Target selection menu
-    //    MenuButton targetMenu = new MenuButton();
-    //    targetMenu.setGraphic(new FontIcon(Material2AL.CENTER_FOCUS_STRONG));
-    //    //    targetMenu.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
-    Button swapButton = new Button();
-    swapButton.setGraphic(new FontIcon(Material2MZ.SWAP_HORIZONTAL_CIRCLE));
-    swapButton.setOnAction(
-        e -> {
-          if (getScope() != null) {
-            KlabIDEController.instance()
-                .getView(KlabIDEController.View.DIGITAL_TWINS, DigitalTwinView.class)
-                .showDigitalTwin(getScope());
-            KlabIDEController.instance().selectView(KlabIDEController.View.DIGITAL_TWINS);
-          }
-        });
-    swapButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
-
-    Button resetButton = new Button();
-    resetButton.setGraphic(new FontIcon(Material2AL.DELETE_FOREVER));
+    Button resetButton =
+        new Button("", new IconLabel(Material2AL.DELETE_FOREVER, 16, Color.DARKGRAY));
     resetButton.setOnAction(e -> editorPage.deleteScope(scope));
-    resetButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
 
     // Status label
-    this.statusLabel = new Label("No target selected");
-    HBox.setHgrow(statusLabel, Priority.ALWAYS);
-    statusLabel.setMaxWidth(Double.MAX_VALUE);
+    //    this.statusLabel = new Label("No target selected");
 
-    Button observerMenu = new Button();
-    observerMenu.setGraphic(new FontIcon(Material2MZ.REMOVE_RED_EYE));
-    observerMenu.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
+    var activitiesButton = new Button("", new IconLabel(Theme.ACTIVITY_ICON, 14, Color.DARKGRAY));
+    var observationButton =
+        new Button("", new IconLabel(Theme.OBSERVATION_ICON, 14, Color.DARKGRAY));
+    var observerButton = new Button("", new IconLabel(Theme.OBSERVER_ICON, 14, Color.DARKGRAY));
+    var scenarioButton = new Button("", new IconLabel(Theme.SCENARIO_ICON, 14, Color.DARKGRAY));
 
-    // Progress indicator
-    this.progressIndicator = new ProgressIndicator(0d);
-    progressIndicator.setPrefSize(24, 24);
-    progressIndicator.setMaxSize(24, 24);
-    progressIndicator.setMinSize(24, 24);
-    //    progressIndicator.setProgress(1);
+    activitiesButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
+    observationButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
+    observerButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
+    scenarioButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
+    resetButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
 
-    controlBar
+    Breadcrumbs.BreadCrumbItem<String> root = Breadcrumbs.buildTreeModel(new String[] {});
+
+    var crumbs = new Breadcrumbs<>(root);
+    crumbs.setDividerFactory(
+        item -> {
+          if (item == null) {
+            return new Label("", new FontIcon(Material2AL.HOME));
+          }
+          return !item.isLast() ? new Label("", new FontIcon(Material2AL.CHEVRON_RIGHT)) : null;
+        });
+    //    crumbs.setSelectedCrumb(getTreeItemByIndex(root, 2));
+    HBox.setHgrow(crumbs, Priority.ALWAYS);
+    crumbs.setMaxWidth(Double.MAX_VALUE);
+
+    this.progressIndicator = new ProgressIndicator(1d);
+    progressIndicator.setPrefSize(14, 14);
+    progressIndicator.setMaxSize(14, 14);
+    progressIndicator.setMinSize(14, 14);
+//    progressIndicator.setProgress(1);
+
+    topBar
         .getChildren()
-        .addAll(swapButton, resetButton, statusLabel, observerMenu, progressIndicator);
-    setTop(controlBar);
+        .addAll(
+            activitiesButton,
+            observationButton,
+            scenarioButton,
+            observerButton,
+            crumbs,
+            progressIndicator,
+            resetButton);
+
+    setTop(topBar);
 
     treeTableView = new TreeTableView<>();
     treeTableView.setMinSize(220, 220);
     treeTableView.setColumnResizePolicy(TreeTableView.UNCONSTRAINED_RESIZE_POLICY);
     treeTableView.getStyleClass().addAll(Styles.DENSE, Tweaks.EDGE_TO_EDGE, Tweaks.NO_HEADER);
     treeTableView.setShowRoot(false);
-
-    //    TreeTableColumn<Activity, IconLabel> typeColumn = new TreeTableColumn<>("Type");
-    //    typeColumn.setPrefWidth(52);
-    //    typeColumn.setCellValueFactory(
-    //        param -> {
-    //          var icon = new IconLabel(FontAwesomeSolid.CIRCLE, 16, Color.GREEN);
-    //          return new SimpleObjectProperty<>(icon);
-    //        });
 
     TreeTableColumn<Activity, String> descriptionColumn = new TreeTableColumn<>("Description");
     descriptionColumn.prefWidthProperty().bind(treeTableView.widthProperty().subtract(32));
@@ -201,23 +204,32 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     setCenter(treeTableView);
 
     // Create bottom control bar for scenarios
-    HBox scenarioBar = new HBox(10);
-    scenarioBar.setPadding(new Insets(5));
-    scenarioBar.setStyle("-fx-background-color: #E0E0E0;");
+    this.bottomBar = new HBox(10);
+    //    bottomBar.setPadding(new Insets(5));
+    bottomBar.setPrefHeight(20);
+    bottomBar.setStyle("-fx-background-color: #E0E0E0;");
 
-    //    // Scenario selection menu
-    //    MenuButton scenarioMenu = new MenuButton();
-    //    scenarioMenu.setGraphic(new FontIcon(Material2AL.LIBRARY_BOOKS));
+    Button swapButton = new Button();
+    swapButton.setGraphic(new FontIcon(Theme.DIGITAL_TWINS_ICON));
+    swapButton.setOnAction(
+        e -> {
+          if (getScope() != null) {
+            KlabIDEController.instance()
+                .getView(KlabIDEController.View.DIGITAL_TWINS, DigitalTwinView.class)
+                .showDigitalTwin(getScope());
+            KlabIDEController.instance().selectView(KlabIDEController.View.DIGITAL_TWINS);
+          }
+        });
+    swapButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
 
-    // Scenario selection combobox
-    ComboBox<String> scenarioComboBox = new ComboBox<>();
-    scenarioComboBox.setPromptText("Select scenario");
-    HBox.setHgrow(scenarioComboBox, Priority.ALWAYS);
+    this.digitalTwinSwitcher = new MenuButton();
+    this.digitalTwinSwitcher.getStyleClass().addAll(Styles.FLAT);
+    HBox.setHgrow(digitalTwinSwitcher, Priority.ALWAYS);
     //
     //    // Current scenario label
     //    Label currentScenarioLabel = new Label("No scenario selected");
-    HBox.setHgrow(scenarioComboBox, Priority.ALWAYS);
-    scenarioComboBox.setMaxWidth(Double.MAX_VALUE);
+    HBox.setHgrow(digitalTwinSwitcher, Priority.ALWAYS);
+    digitalTwinSwitcher.setMaxWidth(Double.MAX_VALUE);
 
     // Function buttons
     Button collapseButton = new Button();
@@ -225,13 +237,20 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     collapseButton.setOnAction(e -> editorPage.hideDigitalTwinControlPanel());
     collapseButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
 
-    scenarioBar.getChildren().addAll(scenarioComboBox, collapseButton);
-    setBottom(scenarioBar);
+    bottomBar.getChildren().addAll(swapButton, digitalTwinSwitcher, collapseButton);
+    setBottom(bottomBar);
+
+    if (KlabIDEController.instance().getFocalScope() != null) {
+      setScope(KlabIDEController.instance().getFocalScope());
+    }
+  }
+
+  HBox setControlBar() {
+    return (HBox) getTop();
   }
 
   private void loadScope(IDEContextScope scope) {
     this.scope = scope;
-    // TODO!
   }
 
   private String activityDescription(Activity value) {
@@ -283,7 +302,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   @Override
   public void setContext(Observation observation) {
-    Theme.setLabel(this.statusLabel, observation);
+    //          Theme.setLabel(this.statusLabel, observation);
   }
 
   @Override
@@ -304,8 +323,6 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   @Override
   public void activitiesModified(Graph<Activity, DefaultEdge> activityGraph) {
-
-    Logging.INSTANCE.info("DIO CAROGNA ACTIVITIES");
 
     // Create defensive copies of the data to avoid ConcurrentModificationException
     var vertices = new ArrayList<>(activityGraph.vertexSet());
