@@ -143,7 +143,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     progressIndicator.setPrefSize(14, 14);
     progressIndicator.setMaxSize(14, 14);
     progressIndicator.setMinSize(14, 14);
-//    progressIndicator.setProgress(1);
+    //    progressIndicator.setProgress(1);
 
     topBar
         .getChildren()
@@ -250,6 +250,9 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   }
 
   private void loadScope(IDEContextScope scope) {
+    // TODO obviously this isn't right
+    this.digitalTwinSwitcher.getItems().clear();
+    this.digitalTwinSwitcher.getItems().add(new MenuItem(scope.getName()));
     this.scope = scope;
   }
 
