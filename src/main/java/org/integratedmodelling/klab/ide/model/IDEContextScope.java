@@ -84,9 +84,9 @@ public class IDEContextScope implements ContextScope {
   }
 
   public void setFocalAssets(RuntimeAsset... assets) {
-    focalObservations.get().clear();
+    focalObservations.set(List.of());
     if (assets != null) {
-      focalObservations.get().addAll(Arrays.asList(assets));
+      focalObservations.set(Arrays.asList(assets));
     }
     for (var view : viewers) {
       view.focusObservations(focalObservations.get());

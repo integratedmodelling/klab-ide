@@ -27,8 +27,6 @@ import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.integratedmodelling.klab.ide.model.IDEContextScope;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
-import org.jgrapht.Graph;
-import org.jgrapht.graph.DefaultEdge;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
 
@@ -65,6 +63,11 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   private final HBox topBar;
   private final HBox bottomBar;
   private final MenuButton digitalTwinSwitcher;
+  private final Button resetButton;
+  private final Button activitiesButton;
+  private final Button scenarioButton;
+  private final Button observationButton;
+  private final Button observerButton;
   private IDEContextScope scope;
 
   public enum Status {
@@ -105,18 +108,18 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     //    topBar.setPadding(new Insets(1));
     topBar.setStyle("-fx-background-color: #E0E0E0;");
 
-    Button resetButton =
-        new Button("", new IconLabel(Material2AL.DELETE_FOREVER, 16, Color.DARKGRAY));
-    resetButton.setOnAction(e -> editorPage.deleteScope(scope));
-
     // Status label
     //    this.statusLabel = new Label("No target selected");
 
-    var activitiesButton = new Button("", new IconLabel(Theme.ACTIVITY_ICON, 14, Color.DARKGRAY));
-    var observationButton =
+    this.activitiesButton = new Button("", new IconLabel(Theme.ACTIVITY_ICON, 14, Color.DARKGRAY));
+    this.observationButton =
         new Button("", new IconLabel(Theme.OBSERVATION_ICON, 14, Color.DARKGRAY));
-    var observerButton = new Button("", new IconLabel(Theme.OBSERVER_ICON, 14, Color.DARKGRAY));
-    var scenarioButton = new Button("", new IconLabel(Theme.SCENARIO_ICON, 14, Color.DARKGRAY));
+    this.observerButton = new Button("", new IconLabel(Theme.OBSERVER_ICON, 14, Color.DARKGRAY));
+    this.scenarioButton = new Button("", new IconLabel(Theme.SCENARIO_ICON, 14, Color.DARKGRAY));
+    this.resetButton =
+        new Button("", new IconLabel(Material2AL.DELETE_FOREVER, 16, Color.DARKGRAY));
+
+    resetButton.setOnAction(e -> editorPage.deleteScope(scope));
 
     activitiesButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
     observationButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
@@ -138,11 +141,10 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     HBox.setHgrow(crumbs, Priority.ALWAYS);
     crumbs.setMaxWidth(Double.MAX_VALUE);
 
-    this.progressIndicator = new ProgressIndicator(1d);
+    this.progressIndicator = new ProgressIndicator(0);
     progressIndicator.setPrefSize(14, 14);
     progressIndicator.setMaxSize(14, 14);
     progressIndicator.setMinSize(14, 14);
-    //    progressIndicator.setProgress(1);
 
     topBar
         .getChildren()
@@ -195,16 +197,10 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     dropZone.setMaxSize(220, 220);
     dropZone.setStyle(
         "-fx-background-color: #F5F5F5; -fx-border-color: grey; -fx-border-width: 5; -fx-border-style: dashed; -fx-border-radius: 10;");
-    //    Label dropLabel = new Label("Drop an observable here");
-    //    dropLabel.setTextFill(Color.GREY);
-    //    dropZone.getChildren().add(dropLabel);
-    //    dropLabel.setLayoutX((220 - dropLabel.prefWidth(-1)) / 2);
-    //    dropLabel.setLayoutY((220 - dropLabel.prefHeight(-1)) / 2);
     setCenter(activityTree);
 
     // Create bottom control bar for scenarios
     this.bottomBar = new HBox(10);
-    //    bottomBar.setPadding(new Insets(5));
     bottomBar.setPrefHeight(20);
     bottomBar.setStyle("-fx-background-color: #E0E0E0;");
 
@@ -268,7 +264,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
         () -> {
           switch (status) {
             case IDLE -> {
-              progressIndicator.setProgress(0d);
+              progressIndicator.setProgress(0);
               setMainView();
             }
             case RECEIVING -> {
@@ -276,22 +272,41 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
             }
             case COMPUTING -> {
               setMainView();
-              progressIndicator.setProgress(-1d);
+              progressIndicator.setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
             }
           }
         });
   }
 
   private void setMainView() {
-    switch (currentView) {
-      case ACTIVITIES -> {
-        setCenter(activityTree);
+
+    this.activitiesButton.setGraphic(
+        new IconLabel(Theme.ACTIVITY_ICON, 14, scope == null ? Color.DARKGRAY : Color.BLACK));
+    this.observationButton.setGraphic(
+        new IconLabel(Theme.OBSERVATION_ICON, 14, scope == null ? Color.DARKGRAY : Color.BLACK));
+    this.observerButton.setGraphic(
+        new IconLabel(Theme.OBSERVER_ICON, 14, scope == null ? Color.DARKGRAY : Color.BLACK));
+    this.scenarioButton.setGraphic(
+        new IconLabel(Theme.SCENARIO_ICON, 14, scope == null ? Color.DARKGRAY : Color.BLACK));
+    this.resetButton.setGraphic(
+        new IconLabel(
+            Material2AL.DELETE_FOREVER, 16, scope == null ? Color.DARKGRAY : Color.BLACK));
+
+    if (scope != null) {
+      switch (currentView) {
+        case ACTIVITIES -> {
+          this.activitiesButton.setGraphic(new IconLabel(Theme.ACTIVITY_ICON, 14, Color.DARKGREEN));
+          setCenter(activityTree);
+        }
+        case OBSERVATIONS -> {
+          this.observationButton.setGraphic(
+              new IconLabel(Theme.OBSERVATION_ICON, 14, Color.DARKGRAY));
+        }
+        case SCHEDULE -> {}
+        case KNOWLEDGE_GRAPH -> {}
+        case LOGS -> {}
+        case IDLE -> {}
       }
-      case OBSERVATIONS -> {}
-      case SCHEDULE -> {}
-      case KNOWLEDGE_GRAPH -> {}
-      case LOGS -> {}
-      case IDLE -> {}
     }
   }
 
