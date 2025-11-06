@@ -109,21 +109,24 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
 
   @Override
   public void setContext(Observation observation) {
-    var item = findTreeItemById((AssetTreeItem) getRoot(), observation.getId());
-    Platform.runLater(
-        () -> {
-          if (previousBoldItem != null) {
-            // Ensure the previous item has a graphic before styling
-            ensureGraphicExists(previousBoldItem);
-            previousBoldItem.graphicProperty().get().setStyle("-fx-font-weight: normal");
-          }
-          if (item != null) {
-            // Ensure the current item has a graphic before styling
-            ensureGraphicExists(item);
-            item.graphicProperty().get().setStyle("-fx-font-weight: bold");
-            previousBoldItem = item;
-          }
-        });
+    scope.within(observation);
+    if (observation != null) {
+      var item = findTreeItemById((AssetTreeItem) getRoot(), observation.getId());
+      Platform.runLater(
+          () -> {
+            if (previousBoldItem != null) {
+              // Ensure the previous item has a graphic before styling
+              ensureGraphicExists(previousBoldItem);
+              previousBoldItem.graphicProperty().get().setStyle("-fx-font-weight: normal");
+            }
+            if (item != null) {
+              // Ensure the current item has a graphic before styling
+              ensureGraphicExists(item);
+              item.graphicProperty().get().setStyle("-fx-font-weight: bold");
+              previousBoldItem = item;
+            }
+          });
+    }
   }
 
   /**

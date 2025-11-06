@@ -288,6 +288,8 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
   public void close() {
     knowledgeGraphView.close();
     treeView.close();
+    digitalTwinControlPanel.close();
+    view.removeDigitalTwin(contextScope);
     super.close();
   }
 }

@@ -922,6 +922,10 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
     }
   }
 
+  public void unregisterDigitalTwin(IDEContextScope ideContextScope) {
+    digitalTwinPeerMap.remove(ideContextScope.getId());
+  }
+
   /**
    * Retrieve any viewers for the passed DT, also managing the DT widget, if any is open.
    *

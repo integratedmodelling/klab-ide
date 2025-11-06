@@ -167,7 +167,7 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
     grid.add(workspaceTitle, 1, 0);
     grid.add(new FontIcon(Theme.EDIT_ICON), 0, 1);
     grid.add(description, 1, 1);
-    GridPane.setFillWidth(serviceSelector, true);
+    GridPane.setFillWidth(serviceSelector, Boolean.TRUE);
     grid.getColumnConstraints().add(new ColumnConstraints());
     grid.getColumnConstraints()
         .add(new ColumnConstraints(200, 200, Double.MAX_VALUE, Priority.ALWAYS, HPos.LEFT, true));

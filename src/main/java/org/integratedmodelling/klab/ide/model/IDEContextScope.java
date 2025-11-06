@@ -37,6 +37,7 @@ import org.integratedmodelling.klab.api.services.runtime.Dataflow;
 import org.integratedmodelling.klab.api.services.runtime.Message;
 import org.integratedmodelling.klab.api.services.runtime.Report;
 import org.integratedmodelling.klab.api.utils.Utils;
+import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.integratedmodelling.klab.ide.components.DigitalTwinControlPanel;
 import org.jgrapht.Graph;
@@ -348,7 +349,7 @@ public class IDEContextScope implements ContextScope {
     return this.delegate;
   }
 
-  @Override
+    @Override
   public ContextScope between(Observation source, Observation target) {
     this.delegate = (ClientContextScope) delegate.between(source, target);
     // TODO ??
@@ -527,6 +528,7 @@ public class IDEContextScope implements ContextScope {
     for (var view : list) {
       view.close();
     }
+    KlabIDEController.instance().unregisterDigitalTwin(this);
     delegate.close();
   }
 
@@ -554,4 +556,5 @@ public class IDEContextScope implements ContextScope {
   public boolean isReceiver() {
     return delegate.isReceiver();
   }
+
 }

@@ -17,6 +17,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.paint.Color;
+import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
@@ -220,9 +221,6 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     this.digitalTwinSwitcher = new MenuButton();
     this.digitalTwinSwitcher.getStyleClass().addAll(Styles.FLAT);
     HBox.setHgrow(digitalTwinSwitcher, Priority.ALWAYS);
-    //
-    //    // Current scenario label
-    //    Label currentScenarioLabel = new Label("No scenario selected");
     HBox.setHgrow(digitalTwinSwitcher, Priority.ALWAYS);
     digitalTwinSwitcher.setMaxWidth(Double.MAX_VALUE);
 
@@ -338,6 +336,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   @Override
   public void setContext(Observation observation) {
+    Logging.INSTANCE.info("ZIO TAFANO Context changed to " + observation);
     //          Theme.setLabel(this.statusLabel, observation);
   }
 
