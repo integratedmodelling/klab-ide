@@ -22,7 +22,6 @@ import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedule;
 import org.integratedmodelling.klab.api.provenance.Activity;
-import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
@@ -87,8 +86,8 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   private Pane dropZone;
   private Status status = Status.IDLE;
-  private TreeTableView<Activity> treeTableView;
-  private View currentView = View.IDLE;
+  private TreeTableView<Activity> activityTree;
+  private View currentView = View.ACTIVITIES;
 
   // otherwise?
 
@@ -158,14 +157,14 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
     setTop(topBar);
 
-    treeTableView = new TreeTableView<>();
-    treeTableView.setMinSize(220, 220);
-    treeTableView.setColumnResizePolicy(TreeTableView.UNCONSTRAINED_RESIZE_POLICY);
-    treeTableView.getStyleClass().addAll(Styles.DENSE, Tweaks.EDGE_TO_EDGE, Tweaks.NO_HEADER);
-    treeTableView.setShowRoot(false);
+    activityTree = new TreeTableView<>();
+    activityTree.setMinSize(220, 220);
+    activityTree.setColumnResizePolicy(TreeTableView.UNCONSTRAINED_RESIZE_POLICY);
+    activityTree.getStyleClass().addAll(Styles.DENSE, Tweaks.EDGE_TO_EDGE, Tweaks.NO_HEADER);
+    activityTree.setShowRoot(false);
 
     TreeTableColumn<Activity, String> descriptionColumn = new TreeTableColumn<>("Description");
-    descriptionColumn.prefWidthProperty().bind(treeTableView.widthProperty().subtract(32));
+    descriptionColumn.prefWidthProperty().bind(activityTree.widthProperty().subtract(32));
     descriptionColumn.setCellValueFactory(
         param -> new SimpleObjectProperty<>(activityDescription(param.getValue().getValue())));
 
@@ -187,9 +186,9 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
           return new SimpleObjectProperty<>(icon);
         });
 
-    treeTableView.getColumns().setAll(/*typeColumn,*/ descriptionColumn, statusColumn);
-    treeTableView.setRoot(new TreeItem<>());
-    treeTableView.setShowRoot(false);
+    activityTree.getColumns().setAll(/*typeColumn,*/ descriptionColumn, statusColumn);
+    activityTree.setRoot(new TreeItem<>());
+    activityTree.setShowRoot(false);
 
     dropZone = new Pane();
     dropZone.setMinSize(220, 220);
@@ -201,7 +200,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     //    dropZone.getChildren().add(dropLabel);
     //    dropLabel.setLayoutX((220 - dropLabel.prefWidth(-1)) / 2);
     //    dropLabel.setLayoutY((220 - dropLabel.prefHeight(-1)) / 2);
-    setCenter(treeTableView);
+    setCenter(activityTree);
 
     // Create bottom control bar for scenarios
     this.bottomBar = new HBox(10);
@@ -251,6 +250,10 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     this.digitalTwinSwitcher.getItems().add(new MenuItem(scope.getName()));
     this.scope = scope;
     scope.addViewer(this);
+    if (!scope.getActivityGraph().vertexSet().isEmpty()) {
+      activitiesModified();
+    }
+    Platform.runLater(() -> setMainView());
   }
 
   private String activityDescription(Activity value) {
@@ -266,17 +269,30 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
           switch (status) {
             case IDLE -> {
               progressIndicator.setProgress(0d);
-              setCenter(treeTableView);
+              setMainView();
             }
             case RECEIVING -> {
               setCenter(dropZone);
             }
             case COMPUTING -> {
-              setCenter(treeTableView);
+              setMainView();
               progressIndicator.setProgress(-1d);
             }
           }
         });
+  }
+
+  private void setMainView() {
+    switch (currentView) {
+      case ACTIVITIES -> {
+        setCenter(activityTree);
+      }
+      case OBSERVATIONS -> {}
+      case SCHEDULE -> {}
+      case KNOWLEDGE_GRAPH -> {}
+      case LOGS -> {}
+      case IDLE -> {}
+    }
   }
 
   @Override
@@ -313,27 +329,27 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   @Override
   public void setObserver(Observation observation) {}
 
-  private TreeItem<Activity> findTreeItemByTransientId(long transientId) {
-    if (treeTableView.getRoot() == null) return null;
-    for (TreeItem<Activity> item : treeTableView.getRoot().getChildren()) {
-      if (item.getValue().getTransientId() == transientId) {
-        return item;
-      }
-    }
-    return null;
-  }
+  //  private TreeItem<Activity> findTreeItemByTransientId(long transientId) {
+  //    if (activityTree.getRoot() == null) return null;
+  //    for (TreeItem<Activity> item : activityTree.getRoot().getChildren()) {
+  //      if (item.getValue().getTransientId() == transientId) {
+  //        return item;
+  //      }
+  //    }
+  //    return null;
+  //  }
 
   @Override
   public void knowledgeGraphModified() {}
 
   @Override
-  public void activitiesModified(Graph<Activity, DefaultEdge> activityGraph) {
+  public void activitiesModified() {
 
     // Create defensive copies of the data to avoid ConcurrentModificationException
-    var vertices = new ArrayList<>(activityGraph.vertexSet());
+    var vertices = new ArrayList<>(scope.getActivityGraph().vertexSet());
     var rootActivities =
         vertices.stream()
-            .filter(activity -> activityGraph.incomingEdgesOf(activity).isEmpty())
+            .filter(activity -> scope.getActivityGraph().incomingEdgesOf(activity).isEmpty())
             .sorted(Comparator.comparingLong(Activity::getStart))
             .toList();
 
@@ -341,21 +357,21 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     var activityChildren = new HashMap<Activity, List<Activity>>();
     for (Activity activity : vertices) {
       var children =
-          activityGraph.outgoingEdgesOf(activity).stream()
-              .map(activityGraph::getEdgeTarget)
+          scope.getActivityGraph().outgoingEdgesOf(activity).stream()
+              .map(scope.getActivityGraph()::getEdgeTarget)
               .toList();
       activityChildren.put(activity, children);
     }
 
     Platform.runLater(
         () -> {
-          treeTableView.getRoot().getChildren().clear();
+          activityTree.getRoot().getChildren().clear();
           for (Activity activity : rootActivities) {
-            treeTableView.getRoot().getChildren().add(makeItem(activity, activityChildren));
+            activityTree.getRoot().getChildren().add(makeItem(activity, activityChildren));
           }
           // Refresh all columns to ensure proper cell rendering - otherwise the columns that were
           // previously visible won't change.
-          treeTableView
+          activityTree
               .getColumns()
               .forEach(
                   column -> {

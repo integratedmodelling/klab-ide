@@ -313,7 +313,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   public void knowledgeGraphModified() {}
 
   @Override
-  public void activitiesModified(org.jgrapht.Graph<Activity, DefaultEdge> activityGraph) {}
+  public void activitiesModified() {}
 
   @Override
   public void focusObservations(List<RuntimeAsset> assets) {

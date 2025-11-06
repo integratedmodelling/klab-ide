@@ -160,7 +160,7 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
   }
 
   @Override
-  public void activitiesModified(Graph<Activity, DefaultEdge> activityGraph) {}
+  public void activitiesModified() {}
 
   @Override
   public void focusObservations(List<RuntimeAsset> ids) {}

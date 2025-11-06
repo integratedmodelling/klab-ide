@@ -35,16 +35,12 @@ public interface DigitalTwinViewer extends DigitalTwinReactor {
   void cleanup();
 
   /**
-   * The graph will contain all the activities seen during contextualization, arranged
+   * The IDE scope will contain all the activities seen during contextualization, arranged
    * hierarchically. The hierarchy is based on transient information collected during resolution,
    * not related to the provenance graph structure (it must be reconstructed from the metadata if
    * restored from the knowledge graph).
-   *
-   * <p>TODO to use: collect the root observations, sort by start or end, display as needed.
-   *
-   * @param activityGraph
    */
-  void activitiesModified(Graph<Activity, DefaultEdge> activityGraph);
+  void activitiesModified();
 
   /**
    * Communicate the IDs of all observations to be focused on from a recent successful commit to the

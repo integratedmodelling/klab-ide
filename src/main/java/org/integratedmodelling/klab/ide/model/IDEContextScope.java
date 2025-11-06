@@ -61,7 +61,7 @@ public class IDEContextScope implements ContextScope {
   private Schedule schedule;
   private final AtomicReference<List<RuntimeAsset>> focalObservations =
       new AtomicReference<>(List.of(RuntimeAsset.CONTEXT_ASSET));
-  private List<RuntimeAsset> focalAssets = Collections.synchronizedList(new ArrayList<>());
+  //  private List<RuntimeAsset> focalAssets = Collections.synchronizedList(new ArrayList<>());
   private int graphDepth = 2;
 
   public IDEContextScope(ClientContextScope delegate) {
@@ -80,16 +80,16 @@ public class IDEContextScope implements ContextScope {
   }
 
   public List<RuntimeAsset> getFocalAssets() {
-    return focalAssets;
+    return focalObservations.get();
   }
 
   public void setFocalAssets(RuntimeAsset... assets) {
-    focalAssets.clear();
+    focalObservations.get().clear();
     if (assets != null) {
-      focalAssets.addAll(Arrays.asList(assets));
+      focalObservations.get().addAll(Arrays.asList(assets));
     }
     for (var view : viewers) {
-      view.focusObservations(focalAssets);
+      view.focusObservations(focalObservations.get());
     }
   }
 
@@ -101,7 +101,7 @@ public class IDEContextScope implements ContextScope {
     if (newDepth >= 1 && newDepth <= 5) {
       this.graphDepth = newDepth;
       for (var view : viewers) {
-        view.focusObservations(focalAssets);
+        view.focusObservations(focalObservations.get());
       }
     }
   }
@@ -136,7 +136,7 @@ public class IDEContextScope implements ContextScope {
           impl.setEnd(activity.getEnd());
           impl.setOutcome(activity.getOutcome());
         }
-        executor.execute(() -> viewers.forEach(v -> v.activitiesModified(activityGraph)));
+        executor.execute(() -> viewers.forEach(v -> v.activitiesModified()));
       }
       case ActivityStarted -> {
         var activity = message.getPayload(Activity.class);
@@ -151,13 +151,17 @@ public class IDEContextScope implements ContextScope {
             }
           }
         }
-        executor.execute(() -> viewers.forEach(v -> v.activitiesModified(activityGraph)));
+        executor.execute(() -> viewers.forEach(v -> v.activitiesModified()));
       }
       case ScheduleModified -> {
         this.schedule = message.getPayload(Schedule.class);
         executor.execute(() -> viewers.forEach(v -> v.scheduleModified(schedule)));
       }
     }
+  }
+
+  public Graph<Activity, DefaultEdge> getActivityGraph() {
+    return activityGraph;
   }
 
   public void setFocus(List<RuntimeAsset> ids) {
