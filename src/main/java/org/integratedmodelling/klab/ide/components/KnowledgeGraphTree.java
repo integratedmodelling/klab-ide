@@ -174,4 +174,14 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
 
   @Override
   public void focusObservations(List<RuntimeAsset> ids) {}
+
+  @Override
+  public void setDigitalTwin(IDEContextScope scope, boolean focus) {
+    scope.addViewer(this);
+  }
+
+  @Override
+  public void close() {
+    scope.removeViewer(this);
+  }
 }

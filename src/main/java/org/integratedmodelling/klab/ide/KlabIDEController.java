@@ -12,6 +12,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -58,10 +59,12 @@ import org.integratedmodelling.klab.api.view.modeler.views.ServicesView;
 import org.integratedmodelling.klab.api.view.modeler.views.controllers.RuntimeViewController;
 import org.integratedmodelling.klab.api.view.modeler.views.controllers.ServicesViewController;
 import org.integratedmodelling.klab.api.view.modeler.visualization.Visualization;
+import org.integratedmodelling.klab.ide.api.DigitalTwinReactor;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.integratedmodelling.klab.ide.components.*;
 import org.integratedmodelling.klab.ide.model.IDEContextScope;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
+import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.integratedmodelling.klab.ide.utils.NodeUtils;
 import org.integratedmodelling.klab.modeler.ModelerImpl;
 import org.kordamp.ikonli.Ikon;
@@ -79,6 +82,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
   private Set<View> neverSeen = EnumSet.of(View.RESOURCES, View.WORKSPACES, View.DIGITAL_TWINS);
   private static KlabIDEController _this;
   private Map<String, IDEContextScope> digitalTwinPeerMap = new HashMap<>();
+  private Queue<DigitalTwinReactor> digitalTwinReactors = new ConcurrentLinkedQueue<>();
   private AtomicReference<Engine.Status> engineStatus = new AtomicReference<>();
   private Label infoLabel;
   private Label errorLabel;
@@ -142,13 +146,37 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
     _this = this;
   }
 
-  public void setFocalScope(IDEContextScope focalScope) {
+  public void setFocalScope(IDEContextScope focalScope, boolean isLocal) {
     this.focalScope = focalScope;
-    focalScope.setFocused(true);
+    synchronized (this.digitalTwinReactors) {
+      for (var reactor : this.digitalTwinReactors) {
+        reactor.setDigitalTwin(focalScope, isLocal);
+      }
+    }
   }
 
   public IDEContextScope getFocalScope() {
     return focalScope;
+  }
+
+  /**
+   * These are the persistent reactor views, such as editors. They remove themselves and manage
+   * their sub-viewers directly through IDEContextScope.
+   *
+   * @param reactor
+   */
+  public void registerDigitalTwinReactor(DigitalTwinReactor reactor) {
+    this.digitalTwinReactors.add(reactor);
+  }
+
+  /**
+   * These are the persistent reactor views, such as editors. They remove themselves and manage
+   * their sub-viewers directly through IDEContextScope.
+   *
+   * @param reactor
+   */
+  public void unregisterDigitalTwinReactor(DigitalTwinReactor reactor) {
+    this.digitalTwinReactors.remove(reactor);
   }
 
   /**
@@ -176,17 +204,10 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
     return ret;
   }
 
-  public void unregisterDigitalTwinViewer(IDEContextScope scope, DigitalTwinViewer viewer) {
-    var peer = digitalTwinPeerMap.get(scope.getId());
-    if (peer != null) {
-      peer.removeViewer(viewer);
-    }
-  }
-
-  //  public static void setCurrentContext(ContextScope scope) {
-  //    modeler().setCurrentContext(scope);
-  //    for (var peer : _this.digitalTwinPeerMap.values()) {
-  //      peer.focus(scope);
+  //  public void unregisterDigitalTwinViewer(IDEContextScope scope, DigitalTwinViewer viewer) {
+  //    var peer = digitalTwinPeerMap.get(scope.getId());
+  //    if (peer != null) {
+  //      peer.removeViewer(viewer);
   //    }
   //  }
 
@@ -883,7 +904,8 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
 
   @Override
   public void notifyNewDigitalTwin(ContextScope scope, RuntimeService service) {
-    requireDigitalTwinPeer(scope, null);
+    var peer = requireDigitalTwinPeer(scope, null);
+    setFocalScope(peer, Utils.URLs.isLocalHost(scope.getUrl()));
   }
 
   @Override

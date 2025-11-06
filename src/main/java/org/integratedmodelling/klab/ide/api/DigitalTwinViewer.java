@@ -5,12 +5,18 @@ import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedule;
 import org.integratedmodelling.klab.api.provenance.Activity;
+import org.integratedmodelling.klab.ide.model.IDEContextScope;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultEdge;
 
 import java.util.List;
 
-public interface DigitalTwinViewer {
+/**
+ * A digital twin viewer is dedicated to a single digital twin and gets informed of any event that
+ * comes from it. In a viewer, the {@link #setDigitalTwin(IDEContextScope, boolean)} method should
+ * be called only once at construction, normally by a DigitalTwinReactor that owns it.
+ */
+public interface DigitalTwinViewer extends DigitalTwinReactor {
 
   void submissionStarted(Observation observation);
 

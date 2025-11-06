@@ -239,10 +239,6 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
     bottomBar.getChildren().addAll(swapButton, digitalTwinSwitcher, collapseButton);
     setBottom(bottomBar);
-
-    if (KlabIDEController.instance().getFocalScope() != null) {
-      setScope(KlabIDEController.instance().getFocalScope());
-    }
   }
 
   HBox setControlBar() {
@@ -254,6 +250,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     this.digitalTwinSwitcher.setText(scope.getName());
     this.digitalTwinSwitcher.getItems().add(new MenuItem(scope.getName()));
     this.scope = scope;
+    scope.addViewer(this);
   }
 
   private String activityDescription(Activity value) {
@@ -282,12 +279,17 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
         });
   }
 
-  public void setScope(ContextScope scope) {
+  @Override
+  public void setDigitalTwin(IDEContextScope scope, boolean focus) {
+    close();
+    loadScope(scope);
+  }
 
+  @Override
+  public void close() {
     if (this.scope != null) {
-      KlabIDEController.instance().unregisterDigitalTwinViewer(this.scope, this);
+      scope.removeViewer(this);
     }
-    loadScope(KlabIDEController.instance().requireDigitalTwinPeer(scope, this));
   }
 
   public IDEContextScope getScope() {

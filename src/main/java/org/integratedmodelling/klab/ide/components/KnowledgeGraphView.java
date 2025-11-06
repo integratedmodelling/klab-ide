@@ -117,15 +117,6 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     HBox.setHgrow(spinnerBox, javafx.scene.layout.Priority.ALWAYS);
     controls.getChildren().addAll(spinnerBox, switchesBox);
     this.setTop(controls);
-
-    this.sceneProperty()
-        .addListener(
-            (observable, oldScene, newScene) -> {
-              if (!initialized && newScene != null) {
-                // Delay initialization until the next pulse to ensure proper layout
-                Platform.runLater(() -> initializeGraphView());
-              }
-            });
   }
 
   private void initializeGraphView() {
@@ -144,7 +135,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
             if (asset instanceof Asset wrapper) {
               asset = wrapper.getDelegate();
             }
-//            this.editor.selectAsset(asset);
+            //            this.editor.selectAsset(asset);
             this.scope.setFocalAssets(asset);
           });
 
@@ -362,5 +353,26 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     } else {
       Platform.runLater(() -> updateGraph(scope.getFocalAssets()));
     }
+  }
+
+  @Override
+  public void setDigitalTwin(IDEContextScope scope, boolean inFocus) {
+    scope.addViewer(this);
+    this.sceneProperty()
+        .addListener(
+            (observable, oldScene, newScene) -> {
+              if (!initialized && newScene != null) {
+                // Delay initialization until the next pulse to ensure proper layout
+                Platform.runLater(
+                    () -> {
+                      initializeGraphView();
+                    });
+              }
+            });
+  }
+
+  @Override
+  public void close() {
+    scope.removeViewer(this);
   }
 }

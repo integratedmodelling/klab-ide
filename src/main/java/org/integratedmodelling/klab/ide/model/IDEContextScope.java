@@ -51,6 +51,7 @@ import org.jgrapht.graph.DefaultEdge;
 public class IDEContextScope implements ContextScope {
 
   private ClientContextScope delegate;
+  // the scope keeps a list of all the viewers dedicated to it.
   private final Set<DigitalTwinViewer> viewers = Collections.synchronizedSet(new HashSet<>());
   private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
@@ -518,6 +519,10 @@ public class IDEContextScope implements ContextScope {
   @Override
   public void close() {
     // TODO remove listeners, send close message to UIs
+    var list = new ArrayList<>(viewers);
+    for (var view : list) {
+      view.close();
+    }
     delegate.close();
   }
 
@@ -544,13 +549,5 @@ public class IDEContextScope implements ContextScope {
   @Override
   public boolean isReceiver() {
     return delegate.isReceiver();
-  }
-
-  public void setFocused(boolean b) {
-    for (var view : viewers) {
-      if (view instanceof DigitalTwinControlPanel panel) {
-        panel.setScope(this);
-      }
-    }
   }
 }

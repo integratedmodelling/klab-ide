@@ -2,19 +2,13 @@ package org.integratedmodelling.klab.ide.components;
 
 import atlantafx.base.theme.Styles;
 import atlantafx.base.theme.Tweaks;
-
-import java.io.File;
 import java.net.URL;
 import java.util.*;
 import java.util.function.Consumer;
-
-import com.google.common.net.MediaType;
 import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
-import javafx.scene.media.MediaView;
-import javafx.scene.web.WebView;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientDigitalTwin;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
@@ -29,7 +23,6 @@ import org.integratedmodelling.klab.api.provenance.Activity;
 import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.api.services.RuntimeService;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
-import org.integratedmodelling.klab.ide.KlabIDEApplication;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
@@ -53,15 +46,18 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
   private final IDEContextScope contextScope;
 
   public DigitalTwinEditor(
-      ContextScope contextScope, RuntimeService runtimeService, DigitalTwinView digitalTwinView) {
+      IDEContextScope contextScope,
+      RuntimeService runtimeService,
+      DigitalTwinView digitalTwinView) {
     super(contextScope);
-    this.contextScope = KlabIDEController.instance().requireDigitalTwinPeer(contextScope, this);
+    this.contextScope = contextScope;
     this.runtimeService = runtimeService;
     if (contextScope.getDigitalTwin() instanceof ClientDigitalTwin clientDigitalTwin) {
       this.knowledgeGraph = clientDigitalTwin.getKnowledgeGraph();
     }
     this.context = RuntimeAsset.CONTEXT_ASSET;
     this.view = digitalTwinView;
+    setDigitalTwin(contextScope, true);
   }
 
   @Override
@@ -115,6 +111,7 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
             event.consume();
           }
         });
+    this.knowledgeGraphView.setDigitalTwin(contextScope, true);
     return treeView;
   }
 
@@ -177,9 +174,7 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
 
   @Override
   protected void configureDigitalTwinWidget(DigitalTwinControlPanel digitalTwinMinified) {
-    super.configureDigitalTwinWidget(digitalTwinMinified);
-    //
-    // KlabIDEController.instance().requireDigitalTwinPeer(contextScope).register(digitalTwinMinified);
+    digitalTwinMinified.setDigitalTwin(contextScope, true);
   }
 
   @Override
@@ -282,5 +277,17 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
         }
       }
     }
+  }
+
+  @Override
+  public void setDigitalTwin(IDEContextScope scope, boolean focus) {
+    //    this.digitalTwinControlPanel.setDigitalTwin(scope, focus);
+  }
+
+  @Override
+  public void close() {
+    knowledgeGraphView.close();
+    treeView.close();
+    super.close();
   }
 }

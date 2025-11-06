@@ -12,6 +12,9 @@ import javafx.geometry.Pos;
 import javafx.scene.layout.*;
 import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.ide.KlabIDEController;
+import org.integratedmodelling.klab.ide.api.DigitalTwinReactor;
+import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
+import org.integratedmodelling.klab.ide.model.IDEContextScope;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
 import javafx.util.Duration;
@@ -28,7 +31,7 @@ import java.util.Map;
  * @param <A> the overall asset being edited
  * @param <T> the individual assets we create editors for
  */
-public abstract class EditorPage<A, T> extends BorderPane {
+public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwinReactor {
 
   private final BorderPane browsingArea;
   private final TabPane editorTabs;
@@ -43,6 +46,7 @@ public abstract class EditorPage<A, T> extends BorderPane {
   private HBox toggleBar;
   private A currentAsset;
   private boolean isContentShown = false;
+  private Label digitalTwinLabel;
 
   public EditorPage(A asset) {
     this.currentAsset = asset;
@@ -56,10 +60,13 @@ public abstract class EditorPage<A, T> extends BorderPane {
     splitPane.setDividerPositions(0.7);
     this.setCenter(splitPane);
 
+    KlabIDEController.instance().registerDigitalTwinReactor(this);
+
     clickTimeline.getKeyFrames().add(clickKeyFrame);
   }
 
-  protected void configureDigitalTwinWidget(DigitalTwinControlPanel digitalTwinMinified) {}
+  protected void configureDigitalTwinWidget(DigitalTwinControlPanel digitalTwinMinified) {
+  }
 
   protected void showContent() {
     Platform.runLater(
@@ -119,12 +126,12 @@ public abstract class EditorPage<A, T> extends BorderPane {
                     NodeUtils.toggleVisibility(toggleBar, false);
                   });
           arrowIcon.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
-          var toggleLabel = new Label("Digital Twin Control");
-          toggleLabel.setAlignment(Pos.CENTER_LEFT);
-          toggleLabel.setStyle("-fx-font-size: 14;");
-          toggleLabel.setMaxWidth(Double.MAX_VALUE);
-          HBox.setHgrow(toggleLabel, Priority.ALWAYS);
-          toggleBar.getChildren().addAll(toggleLabel, arrowIcon);
+          this.digitalTwinLabel = new Label("Digital Twin Control");
+          digitalTwinLabel.setAlignment(Pos.CENTER_LEFT);
+          digitalTwinLabel.setStyle("-fx-font-size: 14;");
+          digitalTwinLabel.setMaxWidth(Double.MAX_VALUE);
+          HBox.setHgrow(digitalTwinLabel, Priority.ALWAYS);
+          toggleBar.getChildren().addAll(digitalTwinLabel, arrowIcon);
           toggleBar.setMaxWidth(Double.MAX_VALUE);
           toggleBar.setOnMouseClicked(
               e -> {
@@ -144,9 +151,10 @@ public abstract class EditorPage<A, T> extends BorderPane {
 
           browsingArea.setCenter(container);
         });
-  }
+    }
 
-  public void showDigitalTwinControlPanel() {
+
+    public void showDigitalTwinControlPanel() {
     if (!digitalTwinControlPanel.isVisible()) {
       Platform.runLater(
           () -> {
@@ -201,6 +209,15 @@ public abstract class EditorPage<A, T> extends BorderPane {
    */
   protected abstract void onSingleClickItemSelection(T value);
 
+  @Override
+  public void setDigitalTwin(IDEContextScope contextScope, boolean focus) {
+    // TODO should have a switcher if not dedicated.
+    if (focus) {
+      digitalTwinControlPanel.setDigitalTwin(contextScope, focus);
+      digitalTwinLabel.setText(contextScope == null ? "" : contextScope.getName());
+    }
+  }
+
   /**
    * Handle a double click in the browse tree. Note: runs inside the platform UI thread
    *
@@ -231,5 +248,11 @@ public abstract class EditorPage<A, T> extends BorderPane {
       //  emptied and minified or moved to previous in stack, then all editors closed
       KlabIDEController.instance().requireDigitalTwinPeer(scope, null).close();
     }
+  }
+
+  @Override
+  public void close() {
+    digitalTwinControlPanel.close();
+    KlabIDEController.instance().unregisterDigitalTwinReactor(this);
   }
 }
