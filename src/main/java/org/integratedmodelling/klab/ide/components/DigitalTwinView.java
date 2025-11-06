@@ -78,7 +78,7 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
   protected void assetEditorSelected(IDEContextScope asset) {
     Logging.INSTANCE.info("SELECTED " + asset);
     if (KlabIDEController.instance().getFocalScope() != asset) {
-//      KlabIDEController.instance().setFocalScope(asset);
+      //      KlabIDEController.instance().setFocalScope(asset);
     }
   }
 
@@ -279,7 +279,10 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
       addEditor(ret, scope.getName(), new FontIcon(Theme.DIGITAL_TWINS_ICON));
       ret.edit(ret.getRootAsset());
     }
-    //    KlabIDEController.instance().setFocalScope(contextScope);
+    KlabIDEController.instance()
+        .setFocalScope(
+            KlabIDEController.instance().requireDigitalTwinPeer(scope, null),
+            Utils.URLs.isLocalHost(scope.getUrl()));
     return ret;
   }
 
