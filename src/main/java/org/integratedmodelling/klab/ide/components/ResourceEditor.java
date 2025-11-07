@@ -1,6 +1,5 @@
 package org.integratedmodelling.klab.ide.components;
 
-import atlantafx.base.controls.Card;
 import atlantafx.base.theme.Styles;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -12,7 +11,7 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontPosture;
 import javafx.scene.text.FontWeight;
 import org.integratedmodelling.klab.api.knowledge.Resource;
-import org.integratedmodelling.klab.api.services.resources.ResourceInfo;
+import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
@@ -63,6 +62,16 @@ public class ResourceEditor extends EditorPage<Object, Resource> {
   @Override
   protected void onDoubleClickItemSelection(Resource value) {
     // Handle double click selection
+  }
+
+  @Override
+  public boolean isAffectedBy(IDEContextScope scope) {
+    return this.digitalTwinControlPanel != null && this.digitalTwinControlPanel.isAffectedBy(scope);
+  }
+
+  @Override
+  public void closeDigitalTwin(IDEContextScope ideContextScope) {
+    digitalTwinControlPanel.closeDigitalTwin(ideContextScope);
   }
 
   @Override

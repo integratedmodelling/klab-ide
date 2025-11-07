@@ -1,4 +1,4 @@
-package org.integratedmodelling.klab.ide.model;
+package org.integratedmodelling.klab.ide;
 
 import java.io.Serializable;
 import java.net.URL;
@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
-import javafx.application.Platform;
+import org.checkerframework.checker.units.qual.K;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientDigitalTwin;
 import org.integratedmodelling.common.services.client.scope.ClientContextScope;
 import org.integratedmodelling.klab.api.collections.Parameters;
@@ -37,9 +37,7 @@ import org.integratedmodelling.klab.api.services.runtime.Dataflow;
 import org.integratedmodelling.klab.api.services.runtime.Message;
 import org.integratedmodelling.klab.api.services.runtime.Report;
 import org.integratedmodelling.klab.api.utils.Utils;
-import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
-import org.integratedmodelling.klab.ide.components.DigitalTwinControlPanel;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultDirectedGraph;
 import org.jgrapht.graph.DefaultEdge;
@@ -48,6 +46,9 @@ import org.jgrapht.graph.DefaultEdge;
  * Future delegate with UI features to substitute IDEContextScope. All derivations return the
  * derived context but also inform any views of the changes. Listeners are installed to build
  * notifications and closing removes all views.
+ *
+ * <p>TODO the scope must be the single thing sending message to high-level UI components, which in
+ * turn must inform their sub-viewers affected by that scope.
  */
 public class IDEContextScope implements ContextScope {
 
@@ -523,10 +524,11 @@ public class IDEContextScope implements ContextScope {
 
   @Override
   public void close() {
+
     var list = new ArrayList<>(viewers);
-//    for (var view : list) {
-//      view.setDigitalTwin(null, false);
-//    }
+    for (var view : list) {
+      view.close();
+    }
     KlabIDEController.instance().unregisterDigitalTwin(this);
     delegate.close();
   }

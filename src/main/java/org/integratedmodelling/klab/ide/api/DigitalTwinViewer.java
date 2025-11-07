@@ -1,13 +1,9 @@
 package org.integratedmodelling.klab.ide.api;
 
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
-import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedule;
-import org.integratedmodelling.klab.api.provenance.Activity;
-import org.integratedmodelling.klab.ide.model.IDEContextScope;
-import org.jgrapht.Graph;
-import org.jgrapht.graph.DefaultEdge;
+import org.integratedmodelling.klab.ide.IDEContextScope;
 
 import java.util.List;
 

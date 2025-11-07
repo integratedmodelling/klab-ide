@@ -27,7 +27,7 @@ import org.integratedmodelling.klab.api.provenance.Activity;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
-import org.integratedmodelling.klab.ide.model.IDEContextScope;
+import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
@@ -345,6 +345,14 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     }
   }
 
+  @Override
+  public void closeDigitalTwin(IDEContextScope ideContextScope) {
+    this.scope = null;
+    this.digitalTwinSwitcher.setText("");
+    this.status = Status.IDLE;
+    this.setMainView();
+  }
+
   public IDEContextScope getScope() {
     return this.scope;
   }
@@ -432,6 +440,11 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
       }
     }
     return ret;
+  }
+
+  @Override
+  public boolean isAffectedBy(IDEContextScope scope) {
+    return this.scope.getId().equals(scope.getId());
   }
 
   @Override

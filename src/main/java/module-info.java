@@ -21,7 +21,6 @@ module org.integratedmodelling.klab.ide {
     requires org.kordamp.ikonli.evaicons;
     requires com.google.common;
     requires org.jline;
-//    requires eu.mihosoft.monacofx;
     requires com.brunomnsilva.smartgraph;
     requires spring.boot.autoconfigure;
     requires org.jgrapht.core;

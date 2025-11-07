@@ -5,7 +5,6 @@ import com.google.common.collect.EvictingQueue;
 import com.google.common.collect.Queues;
 import java.awt.*;
 import java.io.File;
-import java.io.InputStream;
 import java.net.URL;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -34,7 +33,6 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
-import org.eclipse.xtext.util.StringInputStream;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.services.client.scope.ClientContextScope;
 import org.integratedmodelling.common.utils.Utils;
@@ -73,9 +71,7 @@ import org.integratedmodelling.klab.api.view.modeler.visualization.Visualization
 import org.integratedmodelling.klab.ide.api.DigitalTwinReactor;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.integratedmodelling.klab.ide.components.*;
-import org.integratedmodelling.klab.ide.model.IDEContextScope;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
-import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.integratedmodelling.klab.ide.utils.NodeUtils;
 import org.integratedmodelling.klab.modeler.ModelerImpl;
 import org.kordamp.ikonli.Ikon;
@@ -92,7 +88,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private boolean inspectorIsOn;
   private Set<View> neverSeen = EnumSet.of(View.RESOURCES, View.WORKSPACES, View.DIGITAL_TWINS);
   private static KlabIDEController _this;
-  private Map<String, IDEContextScope> digitalTwinPeerMap = new HashMap<>();
+  private Map<String, IDEContextScope> contextMap = new HashMap<>();
   private Queue<DigitalTwinReactor> digitalTwinReactors = new ConcurrentLinkedQueue<>();
   private AtomicReference<Engine.Status> engineStatus = new AtomicReference<>();
   private Label infoLabel;
@@ -204,7 +200,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
       ret = ideContextScope;
     } else if (scope instanceof ClientContextScope clientContextScope) {
       ret =
-          digitalTwinPeerMap.computeIfAbsent(
+          contextMap.computeIfAbsent(
               scope.getId(), id -> new IDEContextScope(clientContextScope));
     } else {
       throw new IllegalArgumentException("Only ClientContextScope is supported.");
@@ -216,15 +212,15 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   }
 
   public IDEContextScope getDigitalTwinPeer(String id) {
-    return digitalTwinPeerMap.get(id);
+    return contextMap.get(id);
   }
 
   public void setDigitalTwinPeer(String id, IDEContextScope peer) {
-    digitalTwinPeerMap.put(id, peer);
+    contextMap.put(id, peer);
   }
 
   public void removeDigitalTwinPeer(String id) {
-    digitalTwinPeerMap.remove(id);
+    contextMap.remove(id);
   }
 
   public static KlabIDEController instance() {
@@ -926,8 +922,13 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     }
   }
 
-  public void unregisterDigitalTwin(IDEContextScope ideContextScope) {
-    digitalTwinPeerMap.remove(ideContextScope.getId());
+  void unregisterDigitalTwin(IDEContextScope ideContextScope) {
+      for (var viewer : digitalTwinReactors) {
+          if (viewer.isAffectedBy(ideContextScope)) {
+              viewer.closeDigitalTwin(ideContextScope);
+          }
+      }
+    contextMap.remove(ideContextScope.getId());
   }
 
   /**
@@ -1089,16 +1090,16 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     return modeler().publishLocally(output, "ziocan", tiffFile);
   }
 
-  public void removeDigitalTwin(IDEContextScope scope) {
-    if (focalScope != null && focalScope.getId().equals(scope.getId())) {
-      focalScope = null;
-    }
-    digitalTwinView.removeDigitalTwin(scope);
-    scope.close();
-    for (var viewer : getDigitalTwinViewers(scope, null)) {
-      viewer.setDigitalTwin(null, false);
-    }
-  }
+//  public void removeDigitalTwin(IDEContextScope scope) {
+//    if (focalScope != null && focalScope.getId().equals(scope.getId())) {
+//      focalScope = null;
+//    }
+//    digitalTwinView.removeDigitalTwin(scope);
+//    scope.close();
+//    for (var viewer : getDigitalTwinViewers(scope, null)) {
+//      viewer.setDigitalTwin(null, false);
+//    }
+//  }
 
   /* --------------------------------------------------------------------------------------------------
    * Delegate methods

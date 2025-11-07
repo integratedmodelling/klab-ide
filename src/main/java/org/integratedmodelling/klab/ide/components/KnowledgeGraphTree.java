@@ -16,7 +16,7 @@ import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedul
 import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
-import org.integratedmodelling.klab.ide.model.IDEContextScope;
+import org.integratedmodelling.klab.ide.IDEContextScope;
 
 public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements DigitalTwinViewer {
 
@@ -40,6 +40,11 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
       }
     }
     return null;
+  }
+
+  @Override
+  public boolean isAffectedBy(IDEContextScope scope) {
+    return this.scope.getId().equals(scope.getId());
   }
 
   private class AssetTreeItem extends TreeItem<RuntimeAsset> {
@@ -109,7 +114,7 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
     // DO NOT call scope.within(observation) here - it causes infinite recursion
     // The context change should be initiated externally, and this method
     // should only react to the notification
-    
+
     if (observation != null) {
       var item = findTreeItemById((AssetTreeItem) getRoot(), observation.getId());
       Platform.runLater(
@@ -187,4 +192,7 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
   public void close() {
     scope.removeViewer(this);
   }
+
+  @Override
+  public void closeDigitalTwin(IDEContextScope ideContextScope) {}
 }

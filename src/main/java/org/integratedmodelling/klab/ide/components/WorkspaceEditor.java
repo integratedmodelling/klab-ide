@@ -25,6 +25,7 @@ import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableDocumen
 import org.integratedmodelling.klab.ide.KlabIDEApplication;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
+import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.integratedmodelling.klab.modeler.model.NavigableKimConceptStatement;
 import org.integratedmodelling.klab.modeler.model.NavigableKimModel;
@@ -99,7 +100,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                     e -> {
                       if (service instanceof ResourcesService.Admin admin) {
                         if (project.isLocked()) {
-                          admin.unlockProject(project.getUrn(), KlabIDEController.instance().user());
+                          admin.unlockProject(
+                              project.getUrn(), KlabIDEController.instance().user());
                           project.setLocked(false);
                         } else {
                           admin.lockProject(project.getUrn(), KlabIDEController.instance().user());
@@ -151,9 +153,9 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   private void handleAssetDrop(NavigableAsset value) {
     digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.COMPUTING);
-//    if (digitalTwinControlPanel.getScope() == null) {
-//      digitalTwinControlPanel.setDigitalTwin(KlabIDEController.modeler().requireContext());
-//    }
+    //    if (digitalTwinControlPanel.getScope() == null) {
+    //      digitalTwinControlPanel.setDigitalTwin(KlabIDEController.modeler().requireContext());
+    //    }
     KlabIDEController.instance()
         .observe(value, /* TODO check drop params */ false)
         .exceptionally(
@@ -418,6 +420,16 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     if (KlabIDEApplication.instance().isInspectorShown()) {
       KlabIDEController.instance().getInspector().inspect(value);
     }
+  }
+
+  @Override
+  public boolean isAffectedBy(IDEContextScope scope) {
+    return this.digitalTwinControlPanel.isAffectedBy(scope);
+  }
+
+  @Override
+  public void closeDigitalTwin(IDEContextScope ideContextScope) {
+    digitalTwinControlPanel.closeDigitalTwin(ideContextScope);
   }
 
   @Override

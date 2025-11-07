@@ -19,17 +19,14 @@ import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.SemanticType;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedule;
-import org.integratedmodelling.klab.api.provenance.Activity;
 import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.api.services.RuntimeService;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
-import org.integratedmodelling.klab.ide.model.IDEContextScope;
+import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
-import org.jgrapht.Graph;
-import org.jgrapht.graph.DefaultEdge;
 
 public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
     implements DigitalTwinViewer {
@@ -282,16 +279,28 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
   }
 
   @Override
+  public boolean isAffectedBy(IDEContextScope scope) {
+    return this.contextScope.getId().equals(scope.getId());
+  }
+
+  @Override
   public void setDigitalTwin(IDEContextScope scope, boolean focus) {
+
     //    this.digitalTwinControlPanel.setDigitalTwin(scope, focus);
   }
 
   @Override
-  public void close() {
-    knowledgeGraphView.close();
-    treeView.close();
-    digitalTwinControlPanel.close();
-    view.removeDigitalTwin(contextScope);
-    super.close();
+  public void close() {}
+
+  @Override
+  public void closeDigitalTwin(IDEContextScope ideContextScope) {
+    Platform.runLater(
+        () -> {
+          knowledgeGraphView.close();
+          treeView.close();
+          digitalTwinControlPanel.close();
+          view.removeDigitalTwin(contextScope);
+          super.close();
+        });
   }
 }

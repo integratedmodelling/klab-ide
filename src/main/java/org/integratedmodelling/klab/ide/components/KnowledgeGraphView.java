@@ -20,7 +20,7 @@ import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedul
 import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
-import org.integratedmodelling.klab.ide.model.IDEContextScope;
+import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
@@ -111,6 +111,11 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     HBox.setHgrow(spinnerBox, javafx.scene.layout.Priority.ALWAYS);
     controls.getChildren().addAll(spinnerBox, switchesBox);
     this.setTop(controls);
+  }
+
+  @Override
+  public boolean isAffectedBy(IDEContextScope scope) {
+    return this.scope.getId().equals(scope.getId());
   }
 
   private void initializeGraphView() {
@@ -370,4 +375,9 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   public void close() {
     scope.removeViewer(this);
   }
+
+    @Override
+    public void closeDigitalTwin(IDEContextScope ideContextScope) {
+
+    }
 }
