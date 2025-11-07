@@ -200,8 +200,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
       ret = ideContextScope;
     } else if (scope instanceof ClientContextScope clientContextScope) {
       ret =
-          contextMap.computeIfAbsent(
-              scope.getId(), id -> new IDEContextScope(clientContextScope));
+          contextMap.computeIfAbsent(scope.getId(), id -> new IDEContextScope(clientContextScope));
     } else {
       throw new IllegalArgumentException("Only ClientContextScope is supported.");
     }
@@ -923,11 +922,15 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   }
 
   void unregisterDigitalTwin(IDEContextScope ideContextScope) {
-      for (var viewer : digitalTwinReactors) {
-          if (viewer.isAffectedBy(ideContextScope)) {
-              viewer.closeDigitalTwin(ideContextScope);
-          }
+    if (focalScope != null && focalScope.getId().equals(ideContextScope.getId())) {
+      focalScope = null;
+      modeler().setCurrentContext(null);
+    }
+    for (var viewer : digitalTwinReactors) {
+      if (viewer.isAffectedBy(ideContextScope)) {
+        viewer.closeDigitalTwin(ideContextScope);
       }
+    }
     contextMap.remove(ideContextScope.getId());
   }
 
@@ -1090,16 +1093,16 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     return modeler().publishLocally(output, "ziocan", tiffFile);
   }
 
-//  public void removeDigitalTwin(IDEContextScope scope) {
-//    if (focalScope != null && focalScope.getId().equals(scope.getId())) {
-//      focalScope = null;
-//    }
-//    digitalTwinView.removeDigitalTwin(scope);
-//    scope.close();
-//    for (var viewer : getDigitalTwinViewers(scope, null)) {
-//      viewer.setDigitalTwin(null, false);
-//    }
-//  }
+  //  public void removeDigitalTwin(IDEContextScope scope) {
+  //    if (focalScope != null && focalScope.getId().equals(scope.getId())) {
+  //      focalScope = null;
+  //    }
+  //    digitalTwinView.removeDigitalTwin(scope);
+  //    scope.close();
+  //    for (var viewer : getDigitalTwinViewers(scope, null)) {
+  //      viewer.setDigitalTwin(null, false);
+  //    }
+  //  }
 
   /* --------------------------------------------------------------------------------------------------
    * Delegate methods

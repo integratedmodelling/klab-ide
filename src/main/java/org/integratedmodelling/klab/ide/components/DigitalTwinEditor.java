@@ -290,17 +290,19 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
   }
 
   @Override
-  public void close() {}
+  public void close() {
+    knowledgeGraphView.close();
+    treeView.close();
+    digitalTwinControlPanel.close();
+    super.close();
+  }
 
   @Override
   public void closeDigitalTwin(IDEContextScope ideContextScope) {
     Platform.runLater(
         () -> {
-          knowledgeGraphView.close();
-          treeView.close();
-          digitalTwinControlPanel.close();
+          close();
           view.removeDigitalTwin(contextScope);
-          super.close();
         });
   }
 }

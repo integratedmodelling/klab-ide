@@ -144,7 +144,7 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
                   .findFirst()
                   .orElse(null);
           if (tab != null) {
-            tab.closableProperty().set(true);
+            tabPane.getTabs().remove(tab);
           }
         });
   }

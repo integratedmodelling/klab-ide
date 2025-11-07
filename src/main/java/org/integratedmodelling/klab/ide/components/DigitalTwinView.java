@@ -287,10 +287,11 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
   }
 
   public void removeDigitalTwin(ContextScope scope) {
-    Logging.INSTANCE.info("SCANCELLAMI PORCO IDDIO DT " + scope.getName());
     hideBrowser();
     if (openEditors.containsKey(scope.getId())) {
-      removeEditor(openEditors.get(scope.getId()));
+      var editor = openEditors.get(scope.getId());
+      editor.close();
+      removeEditor(editor);
     }
   }
 }
