@@ -65,8 +65,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
     clickTimeline.getKeyFrames().add(clickKeyFrame);
   }
 
-  protected void configureDigitalTwinWidget(DigitalTwinControlPanel digitalTwinMinified) {
-  }
+  protected void configureDigitalTwinWidget(DigitalTwinControlPanel digitalTwinMinified) {}
 
   protected void showContent() {
     Platform.runLater(
@@ -151,10 +150,9 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
 
           browsingArea.setCenter(container);
         });
-    }
+  }
 
-
-    public void showDigitalTwinControlPanel() {
+  public void showDigitalTwinControlPanel() {
     if (!digitalTwinControlPanel.isVisible()) {
       Platform.runLater(
           () -> {
@@ -227,15 +225,15 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
 
   protected abstract TreeView<T> createContentTree();
 
-  public void deleteScope(ContextScope scope) {
+  public void deleteScope(IDEContextScope scope) {
 
     var alert = new Alert(Alert.AlertType.WARNING);
     alert.setTitle("Remove digital twin");
     alert.setHeaderText("You are about to remove the digital twin. Please confirm");
     alert.setContentText(
         "Removing this digital twin will also remove all assets, storage and schedule. "
-            + "All data will be deleted permanently. "
-            + "There are currently 0 users connected to this besides yourself.");
+            + "All data will be deleted permanently. " /*
+                                                       + "There are currently 0 users connected to this besides yourself."*/);
 
     ButtonType yesBtn = new ButtonType("Confirm", ButtonBar.ButtonData.YES);
     ButtonType cancelBtn = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
@@ -244,7 +242,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
     alert.initOwner(getScene().getWindow());
     var result = alert.showAndWait();
     if (!result.isEmpty() && result.get().getButtonData() == ButtonBar.ButtonData.YES) {
-      KlabIDEController.instance().requireDigitalTwinPeer(scope, null).close();
+      scope.close();
     }
   }
 

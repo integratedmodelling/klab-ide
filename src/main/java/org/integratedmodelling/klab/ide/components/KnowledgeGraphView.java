@@ -3,10 +3,8 @@ package org.integratedmodelling.klab.ide.components;
 import atlantafx.base.controls.ToggleSwitch;
 import atlantafx.base.theme.Styles;
 import com.brunomnsilva.smartgraph.graph.DigraphEdgeList;
-import com.brunomnsilva.smartgraph.graph.Graph;
 import com.brunomnsilva.smartgraph.graphview.SmartGraphPanel;
 import com.brunomnsilva.smartgraph.graphview.SmartRandomPlacementStrategy;
-
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import javafx.application.Platform;
@@ -15,17 +13,14 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
-import org.integratedmodelling.klab.api.data.KnowledgeGraph;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedule;
-import org.integratedmodelling.klab.api.provenance.Activity;
 import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.integratedmodelling.klab.ide.model.IDEContextScope;
-import org.jgrapht.graph.DefaultEdge;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
@@ -37,7 +32,6 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   private final DigitalTwinEditor editor;
   private boolean autoLayout = false;
   private SmartGraphPanel<RuntimeAsset, ClientKnowledgeGraph.Relationship> graphView;
-  private int depth = 2;
   private Set<GraphModel.Relationship> visibleRelationships =
       EnumSet.of(GraphModel.Relationship.HAS_CHILD);
 
@@ -265,7 +259,8 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
       focalAssets.add(RuntimeAsset.CONTEXT_ASSET);
     }
 
-    var graph = knowledgeGraph.getSubgraph(focalAssets, depth, visibleRelationships);
+    var graph =
+        knowledgeGraph.getSubgraph(focalAssets, scope.getGraphDepth(), visibleRelationships);
 
     var cache = new HashMap<Long, Asset>();
     if (graph != null) {

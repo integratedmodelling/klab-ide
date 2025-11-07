@@ -128,7 +128,7 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
       if (observation.getObservable().is(SemanticType.QUALITY)) {
         ret.add(Pair.of("Export to filesystem", this::exportToFilesystem));
       } else if (observation.getObservable().is(SemanticType.SUBJECT)) {
-        ret.add(Pair.of("Set as context", this::setAsContext));
+        ret.add(Pair.of("Set as context", o -> setAsContext(observation)));
       }
     }
     return ret;
@@ -137,7 +137,7 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
   void showDetails(RuntimeAsset asset) {
     if (asset instanceof KlabAsset klabAsset) {
       var url =
-          KlabIDEController.modeler()
+          KlabIDEController.instance()
               .visualize(klabAsset, null, "text/html", contextScope, Map.of(), URL.class);
       if (url != null) {
         klabAsset.getMetadata().put(UI_VISUALIZATION_URL, url);
@@ -150,7 +150,9 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
     Logging.INSTANCE.info("Exporting observation to filesystem: " + observation);
   }
 
-  void setAsContext(RuntimeAsset observation) {}
+  void setAsContext(Observation observation) {
+    contextScope.within(observation);
+  }
 
   private void initializeContextMenu() {
     setOnMouseClicked(

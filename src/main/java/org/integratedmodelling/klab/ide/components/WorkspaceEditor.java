@@ -44,14 +44,14 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   public WorkspaceEditor(ResourcesService service, ResourceInfo resourceInfo, WorkspaceView view) {
     super(
         new NavigableWorkspace(
-            service.retrieveWorkspace(resourceInfo.getUrn(), KlabIDEController.modeler().user())));
+            service.retrieveWorkspace(resourceInfo.getUrn(), KlabIDEController.instance().user())));
     this.service = service;
     this.view = view;
     this.workspace = getEditedAsset();
     if (service instanceof ResourcesService.Admin admin) {
       // lock all projects that let us
       for (var project : workspace.getProjects()) {
-        if (admin.lockProject(project.getUrn(), KlabIDEController.modeler().user())
+        if (admin.lockProject(project.getUrn(), KlabIDEController.instance().user())
             && project instanceof NavigableProject navigableProject) {
           navigableProject.setLocked(true);
         }
@@ -99,10 +99,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                     e -> {
                       if (service instanceof ResourcesService.Admin admin) {
                         if (project.isLocked()) {
-                          admin.unlockProject(project.getUrn(), KlabIDEController.modeler().user());
+                          admin.unlockProject(project.getUrn(), KlabIDEController.instance().user());
                           project.setLocked(false);
                         } else {
-                          admin.lockProject(project.getUrn(), KlabIDEController.modeler().user());
+                          admin.lockProject(project.getUrn(), KlabIDEController.instance().user());
                           project.setLocked(true);
                         }
                       }
@@ -154,7 +154,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 //    if (digitalTwinControlPanel.getScope() == null) {
 //      digitalTwinControlPanel.setDigitalTwin(KlabIDEController.modeler().requireContext());
 //    }
-    KlabIDEController.modeler()
+    KlabIDEController.instance()
         .observe(value, /* TODO check drop params */ false)
         .exceptionally(
             throwable -> {
@@ -294,7 +294,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
               asset.parent(NavigableProject.class).getUrn(),
               ProjectStorage.ResourceType.classify(document),
               text,
-              KlabIDEController.modeler().user());
+              KlabIDEController.instance().user());
       // FIXME dispatch EACH changeset to the respective workspace editor if one is present in the
       //  parent view
       var workspaceChanges =
@@ -331,7 +331,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       setWaiting(true);
       Platform.runLater(
           () -> {
-            for (var asset : workspace.mergeChanges(changes, KlabIDEController.modeler().user())) {
+            for (var asset : workspace.mergeChanges(changes, KlabIDEController.instance().user())) {
 
               var status =
                   asset

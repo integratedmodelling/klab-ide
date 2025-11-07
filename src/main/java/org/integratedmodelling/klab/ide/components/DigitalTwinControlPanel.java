@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleObjectProperty;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
@@ -69,6 +70,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   private final Button scenarioButton;
   private final Button observationButton;
   private final Button observerButton;
+  private final Breadcrumbs<Observation> contextPath;
   private IDEContextScope scope;
 
   public enum Status {
@@ -128,19 +130,34 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     scenarioButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
     resetButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
 
-    Breadcrumbs.BreadCrumbItem<String> root = Breadcrumbs.buildTreeModel(new String[] {});
+    var contextSelector = new HBox(0);
+    contextSelector.setAlignment(Pos.CENTER);
+    var homeButton = new Button("", new IconLabel(Material2AL.HOME, 14, Color.BLACK));
+    homeButton.setOnAction(e -> scope.within(null));
+    homeButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
 
-    var crumbs = new Breadcrumbs<>(root);
-    crumbs.setDividerFactory(
+    this.contextPath = new Breadcrumbs<>();
+    contextPath.setDividerFactory(
         item -> {
-          if (item == null) {
-            return new Label("", new FontIcon(Material2AL.HOME));
-          }
-          return !item.isLast() ? new Label("", new FontIcon(Material2AL.CHEVRON_RIGHT)) : null;
+          return item != null && !item.isLast() && !item.getChildren().isEmpty()
+              ? new IconLabel(Material2AL.CHEVRON_RIGHT, 12, Color.DARKGRAY)
+              : null;
         });
-    //    crumbs.setSelectedCrumb(getTreeItemByIndex(root, 2));
-    HBox.setHgrow(crumbs, Priority.ALWAYS);
-    crumbs.setMaxWidth(Double.MAX_VALUE);
+    contextPath.setCrumbFactory(
+        observation ->
+            new Hyperlink(observation == null ? "DT Home" : observation.getValue().getName()));
+
+    var contextWrapper = new HBox(0);
+    contextWrapper.setAlignment(Pos.CENTER);
+    HBox.setMargin(contextWrapper, new Insets(3, 0, 3, 0));
+    contextWrapper.setStyle(
+        "-fx-border-color: #CCCCCC; -fx-border-width: 1px; -fx-border-radius: 3px;");
+
+    contextWrapper.getChildren().addAll(homeButton, contextPath);
+    contextSelector.getChildren().addAll(contextWrapper);
+
+    HBox.setHgrow(contextSelector, Priority.ALWAYS);
+    contextSelector.setMaxWidth(Double.MAX_VALUE);
 
     this.progressIndicator = new ProgressIndicator(0);
     progressIndicator.setPrefSize(14, 14);
@@ -154,7 +171,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
             observationButton,
             scenarioButton,
             observerButton,
-            crumbs,
+            contextSelector,
             progressIndicator,
             resetButton);
 
@@ -189,7 +206,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
           return new SimpleObjectProperty<>(icon);
         });
 
-    activityTree.getColumns().setAll(/*typeColumn,*/ descriptionColumn, statusColumn);
+    activityTree.getColumns().setAll(descriptionColumn, statusColumn);
     activityTree.setRoot(new TreeItem<>());
     activityTree.setShowRoot(false);
 
@@ -240,12 +257,17 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   private void loadScope(IDEContextScope scope) {
     // TODO obviously this isn't right
-    this.digitalTwinSwitcher.setText(scope.getName());
-    this.digitalTwinSwitcher.getItems().add(new MenuItem(scope.getName()));
+    this.digitalTwinSwitcher.setText(scope == null ? "" : scope.getName());
+    //    this.digitalTwinSwitcher.getItems().add(new MenuItem(scope.getName()));
     this.scope = scope;
-    scope.addViewer(this);
-    if (!scope.getActivityGraph().vertexSet().isEmpty()) {
-      activitiesModified();
+    if (scope != null) {
+      scope.addViewer(this);
+      if (!scope.getActivityGraph().vertexSet().isEmpty()) {
+        activitiesModified();
+      }
+    }
+    if (scope == null) {
+      Logging.INSTANCE.info("RESETTAMI PUTTANA MADONNA DT " + scope.getName());
     }
     Platform.runLater(() -> setMainView());
   }
@@ -305,6 +327,8 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
         case LOGS -> {}
         case IDLE -> {}
       }
+    } else {
+      setCenter(null);
     }
   }
 
@@ -336,22 +360,22 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   @Override
   public void setContext(Observation observation) {
-    Logging.INSTANCE.info("ZIO TAFANO Context changed to " + observation);
-    //          Theme.setLabel(this.statusLabel, observation);
+    var path = scope.getContextPath();
+    if (path.isEmpty()) {
+      this.contextPath.setSelectedCrumb(null);
+      return;
+    }
+    var root = new Breadcrumbs.BreadCrumbItem<>(path.getFirst());
+    for (int i = 1; i < path.size(); i++) {
+      var child = new Breadcrumbs.BreadCrumbItem<>(path.get(i));
+      root.getChildren().add(child);
+      root = child;
+    }
+    this.contextPath.setSelectedCrumb(root);
   }
 
   @Override
   public void setObserver(Observation observation) {}
-
-  //  private TreeItem<Activity> findTreeItemByTransientId(long transientId) {
-  //    if (activityTree.getRoot() == null) return null;
-  //    for (TreeItem<Activity> item : activityTree.getRoot().getChildren()) {
-  //      if (item.getValue().getTransientId() == transientId) {
-  //        return item;
-  //      }
-  //    }
-  //    return null;
-  //  }
 
   @Override
   public void knowledgeGraphModified() {}

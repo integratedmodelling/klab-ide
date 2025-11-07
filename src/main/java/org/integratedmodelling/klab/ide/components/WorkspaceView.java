@@ -52,7 +52,7 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
 
   public WorkspaceView() {
     this.controller =
-        KlabIDEController.modeler().viewController(ResourcesNavigatorController.class);
+        KlabIDEController.instance().viewController(ResourcesNavigatorController.class);
   }
 
   @Override
@@ -75,7 +75,7 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
   public void reset() {}
 
   public List<ResourcesService> getServices() {
-    return KlabIDEController.modeler().user().getServices(ResourcesService.class).stream()
+    return KlabIDEController.instance().user().getServices(ResourcesService.class).stream()
         /* .filter(
         s ->
             s.capabilities(KlabIDEController.modeler().user())
@@ -93,8 +93,8 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
     List<ResourceInfo> ret = new ArrayList<>();
     for (var rService : getServices()) {
       for (var workspace :
-          rService.capabilities(KlabIDEController.modeler().user()).getWorkspaceNames()) {
-        ret.add(rService.resourceInfo(workspace, KlabIDEController.modeler().user()));
+          rService.capabilities(KlabIDEController.instance().user()).getWorkspaceNames()) {
+        ret.add(rService.resourceInfo(workspace, KlabIDEController.instance().user()));
       }
     }
     return ret;
@@ -129,10 +129,10 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
   private Node createWorkspaceDialog() {
 
     var availableServices =
-        KlabIDEController.modeler().user().getServices(ResourcesService.class).stream()
+        KlabIDEController.instance().user().getServices(ResourcesService.class).stream()
             .filter(
                 s ->
-                    s.capabilities(KlabIDEController.modeler().user())
+                    s.capabilities(KlabIDEController.instance().user())
                         .getPermissions()
                         .contains(CRUDOperation.CREATE))
             .toList();
@@ -202,7 +202,7 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
       if (!admin.createWorkspace(
           workspaceName,
           Metadata.create(Metadata.DC_COMMENT, description),
-          KlabIDEController.modeler().user())) {
+          KlabIDEController.instance().user())) {
         KlabIDEController.instance().alert(Notification.error("Workspace creation failed"));
       }
     }
@@ -217,7 +217,7 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
           .requestFocus(); // FIXME must remember the tabs and select(tab) - in both cases
     } else {
       var service =
-          KlabIDEController.modeler()
+          KlabIDEController.instance()
               .user()
               .getService(
                   ResourcesService.class, s -> resourceInfo.getServiceId().equals(s.serviceId()));

@@ -13,13 +13,10 @@ import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedule;
-import org.integratedmodelling.klab.api.provenance.Activity;
 import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.integratedmodelling.klab.ide.model.IDEContextScope;
-import org.jgrapht.Graph;
-import org.jgrapht.graph.DefaultEdge;
 
 public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements DigitalTwinViewer {
 
@@ -109,7 +106,10 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
 
   @Override
   public void setContext(Observation observation) {
-    scope.within(observation);
+    // DO NOT call scope.within(observation) here - it causes infinite recursion
+    // The context change should be initiated externally, and this method
+    // should only react to the notification
+    
     if (observation != null) {
       var item = findTreeItemById((AssetTreeItem) getRoot(), observation.getId());
       Platform.runLater(

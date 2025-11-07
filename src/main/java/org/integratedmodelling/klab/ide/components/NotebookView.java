@@ -89,8 +89,8 @@ public class NotebookView extends BorderPane implements Page {
           componentType,
           switch (componentType) {
             case Distribution ->
-                new Components.DistributionComponent(KlabIDEController.modeler().getDistribution());
-            case UserInfo -> new Components.User(KlabIDEController.modeler().user());
+                new Components.DistributionComponent(KlabIDEController.instance().getDistribution());
+            case UserInfo -> new Components.User(KlabIDEController.instance().user());
             case ServiceInfo -> new Components.Services();
             case About -> new Components.About();
             case Settings -> new Components.Settings();
@@ -110,8 +110,8 @@ public class NotebookView extends BorderPane implements Page {
           componentType,
           switch (componentType) {
             case Distribution ->
-                new Components.DistributionComponent(KlabIDEController.modeler().getDistribution());
-            case UserInfo -> new Components.User(KlabIDEController.modeler().user());
+                new Components.DistributionComponent(KlabIDEController.instance().getDistribution());
+            case UserInfo -> new Components.User(KlabIDEController.instance().user());
             case ServiceInfo -> new Components.Services();
             case About -> new Components.About();
             case Settings -> new Components.Settings();

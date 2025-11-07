@@ -81,7 +81,7 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
 
                       // Get all ResourceServices,
                       var services =
-                          KlabIDEController.modeler().user().getServices(ResourcesService.class);
+                          KlabIDEController.instance().user().getServices(ResourcesService.class);
 
                       // Query each service for resources matching the search term
                       for (ResourcesService service : services) {
@@ -91,7 +91,7 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
                         results.addAll(
                             service.queryResources(
                                 newValue,
-                                KlabIDEController.modeler().user(),
+                                KlabIDEController.instance().user(),
                                 KlabAsset.KnowledgeClass.RESOURCE));
                       }
 
@@ -158,7 +158,7 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
           .requestFocus(); // FIXME must remember the tabs and select(tab) - in both cases
     } else {
       var service =
-          KlabIDEController.modeler()
+          KlabIDEController.instance()
               .user()
               .getService(
                   ResourcesService.class, s -> resourceInfo.getServiceId().equals(s.serviceId()));
@@ -168,7 +168,7 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
 
       var resource =
           service.retrieveResource(
-              List.of(resourceInfo.getUrn()), KlabIDEController.modeler().user());
+              List.of(resourceInfo.getUrn()), KlabIDEController.instance().user());
 
       var newEditor = new ResourceEditor(resource /*, resourceInfo, this*/);
       openEditors.put(resourceInfo.getUrn(), newEditor);

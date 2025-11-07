@@ -349,7 +349,7 @@ public class IDEContextScope implements ContextScope {
     return this.delegate;
   }
 
-    @Override
+  @Override
   public ContextScope between(Observation source, Observation target) {
     this.delegate = (ClientContextScope) delegate.between(source, target);
     // TODO ??
@@ -523,11 +523,10 @@ public class IDEContextScope implements ContextScope {
 
   @Override
   public void close() {
-    // TODO remove listeners, send close message to UIs
     var list = new ArrayList<>(viewers);
-    for (var view : list) {
-      view.close();
-    }
+//    for (var view : list) {
+//      view.setDigitalTwin(null, false);
+//    }
     KlabIDEController.instance().unregisterDigitalTwin(this);
     delegate.close();
   }
@@ -557,4 +556,24 @@ public class IDEContextScope implements ContextScope {
     return delegate.isReceiver();
   }
 
+  /**
+   * Return the current context path, starting below RuntimeAsset.CONTEXT_ASSET.
+   *
+   * @return
+   */
+  public List<Observation> getContextPath() {
+
+    Set<Long> seen = new HashSet<>();
+    List<Observation> path = new ArrayList<>();
+    ContextScope ctx = delegate;
+    while (ctx != null) {
+      var current = ctx.getContextObservation();
+      if (current != null && seen.add(current.getId())) {
+        path.add(current);
+      }
+      ctx = ctx.getParentScope(Type.CONTEXT, ContextScope.class);
+    }
+    Collections.reverse(path);
+    return path;
+  }
 }

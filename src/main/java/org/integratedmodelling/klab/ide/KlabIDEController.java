@@ -12,6 +12,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -37,23 +38,33 @@ import org.eclipse.xtext.util.StringInputStream;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.services.client.scope.ClientContextScope;
 import org.integratedmodelling.common.utils.Utils;
+import org.integratedmodelling.klab.api.authentication.ExternalAuthenticationCredentials;
 import org.integratedmodelling.klab.api.configuration.Setting;
+import org.integratedmodelling.klab.api.data.RepositoryState;
 import org.integratedmodelling.klab.api.digitaltwin.DigitalTwin;
+import org.integratedmodelling.klab.api.digitaltwin.Scheduler;
 import org.integratedmodelling.klab.api.engine.Engine;
 import org.integratedmodelling.klab.api.engine.distribution.Distribution;
 import org.integratedmodelling.klab.api.engine.distribution.Product;
 import org.integratedmodelling.klab.api.exceptions.KlabInternalErrorException;
 import org.integratedmodelling.klab.api.identities.UserIdentity;
 import org.integratedmodelling.klab.api.knowledge.Artifact;
+import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
+import org.integratedmodelling.klab.api.knowledge.organization.ProjectStorage;
 import org.integratedmodelling.klab.api.scope.ContextScope;
+import org.integratedmodelling.klab.api.scope.Scope;
+import org.integratedmodelling.klab.api.scope.SessionScope;
 import org.integratedmodelling.klab.api.scope.UserScope;
 import org.integratedmodelling.klab.api.services.*;
 import org.integratedmodelling.klab.api.services.resources.ResourceSet;
 import org.integratedmodelling.klab.api.services.runtime.Message;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
-import org.integratedmodelling.klab.api.view.UIView;
+import org.integratedmodelling.klab.api.view.*;
 import org.integratedmodelling.klab.api.view.modeler.Modeler;
+import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableAsset;
+import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableContainer;
+import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableDocument;
 import org.integratedmodelling.klab.api.view.modeler.views.RuntimeView;
 import org.integratedmodelling.klab.api.view.modeler.views.ServicesView;
 import org.integratedmodelling.klab.api.view.modeler.views.controllers.RuntimeViewController;
@@ -73,7 +84,7 @@ import org.kordamp.ikonli.fontawesome5.FontAwesomeSolid;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
 
-public class KlabIDEController implements UIView, ServicesView, RuntimeView {
+public class KlabIDEController implements UIView, ServicesView, RuntimeView, Modeler {
 
   private static Modeler modeler;
   private View currentView;
@@ -204,13 +215,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
     return ret;
   }
 
-  //  public void unregisterDigitalTwinViewer(IDEContextScope scope, DigitalTwinViewer viewer) {
-  //    var peer = digitalTwinPeerMap.get(scope.getId());
-  //    if (peer != null) {
-  //      peer.removeViewer(viewer);
-  //    }
-  //  }
-
   public IDEContextScope getDigitalTwinPeer(String id) {
     return digitalTwinPeerMap.get(id);
   }
@@ -227,7 +231,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
     return _this;
   }
 
-  public static Modeler modeler() {
+  private static Modeler modeler() {
     return modeler;
   }
 
@@ -1085,14 +1089,238 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView {
     return modeler().publishLocally(output, "ziocan", tiffFile);
   }
 
-  //  @Visualization(
-  //      geometry = "T1S2", // means both T and S has size > 1
-  //      artifactTypes = Artifact.Type.OBSERVATION,
-  //      provides = "text/html",
-  //      requires = "image/tiff;application=geotiff")
-  //  public InputStream visualizeRastersAsHtml(
-  //      List<URL> tiffUrls, ContextScope scope, Scheduler.Event locator) {
-  //    // TODO retrieve and use a template from parameters or a default, insert the URL in there
-  //    return null;
-  //  }
+  public void removeDigitalTwin(IDEContextScope scope) {
+    if (focalScope != null && focalScope.getId().equals(scope.getId())) {
+      focalScope = null;
+    }
+    digitalTwinView.removeDigitalTwin(scope);
+    scope.close();
+    for (var viewer : getDigitalTwinViewers(scope, null)) {
+      viewer.setDigitalTwin(null, false);
+    }
+  }
+
+  /* --------------------------------------------------------------------------------------------------
+   * Delegate methods
+   * --------------------------------------------------------------------------------------------------
+   */
+
+  @Override
+  public UserScope authenticate() {
+    return modeler.authenticate();
+  }
+
+  @Override
+  public Distribution.Status getDistributionStatus() {
+    return modeler.getDistributionStatus();
+  }
+
+  @Override
+  public Distribution getDistribution() {
+    return modeler.getDistribution();
+  }
+
+  @Override
+  public void setOption(Option option, Object... payload) {
+    modeler.setOption(option, payload);
+  }
+
+  @Override
+  public CompletableFuture<Observation> observe(Object asset, boolean adding) {
+    return modeler.observe(asset, adding);
+  }
+
+  @Override
+  public <T> T visualize(
+      KlabAsset asset,
+      Scheduler.Event event,
+      String mediaType,
+      ContextScope contextScope,
+      Map<String, Object> visualizationOptions,
+      Class<T> outputType) {
+    return modeler.visualize(
+        asset, event, mediaType, contextScope, visualizationOptions, outputType);
+  }
+
+  @Override
+  public List<SessionScope> getOpenSessions() {
+    return modeler.getOpenSessions();
+  }
+
+  @Override
+  public List<ContextScope> getOpenContexts() {
+    // TODO use focal scopes
+    return modeler.getOpenContexts();
+  }
+
+  @Override
+  public ContextScope requireContext() {
+    return modeler.requireContext();
+  }
+
+  @Override
+  public ContextScope getCurrentContext() {
+    return modeler.getCurrentContext();
+  }
+
+  @Override
+  public Scope getCurrentScope() {
+    return modeler.getCurrentScope();
+  }
+
+  @Override
+  public URL publishLocally(File inputFile, String workspace, File... additionalFiles) {
+    return modeler.publishLocally(inputFile, workspace, additionalFiles);
+  }
+
+  @Override
+  public void setCurrentContext(ContextScope context) {
+    modeler.setCurrentContext(context);
+  }
+
+  @Override
+  public boolean shutdown(boolean shutdownLocalServices) {
+    return modeler.shutdown(shutdownLocalServices);
+  }
+
+  @Override
+  public void importProject(String workspaceName, String projectUrl, boolean overwriteExisting) {
+    modeler.importProject(workspaceName, projectUrl, overwriteExisting);
+  }
+
+  @Override
+  public void deleteProject(String projectUrl) {
+    modeler.deleteProject(projectUrl);
+  }
+
+  @Override
+  public void deleteAsset(NavigableAsset asset) {
+    modeler.deleteAsset(asset);
+  }
+
+  @Override
+  public void manageProject(
+      String projectId, RepositoryState.Operation operation, String... arguments) {
+    modeler.manageProject(projectId, operation, arguments);
+  }
+
+  @Override
+  public void editProperties(String projectId) {
+    modeler.editProperties(projectId);
+  }
+
+  @Override
+  public void createDocument(
+      String newDocumentUrn, String projectName, ProjectStorage.ResourceType documentType) {
+    modeler.createDocument(newDocumentUrn, projectName, documentType);
+  }
+
+  @Override
+  public UIView getUI() {
+    return this;
+  }
+
+  @Override
+  public UserScope user() {
+    return modeler.user();
+  }
+
+  @Override
+  public Engine engine() {
+    return modeler.engine();
+  }
+
+  @Override
+  public void boot() {
+    modeler.boot();
+  }
+
+  @Override
+  public void dispatch(UIReactor sender, UIEvent event, Object... payload) {
+    modeler.dispatch(sender, event, payload);
+  }
+
+  @Override
+  public void registerViewController(Object reactor) {
+    modeler.registerViewController(reactor);
+  }
+
+  @Override
+  public void registerPanelControllerClass(Class<? extends PanelController<?, ?>> cls) {
+    modeler.registerPanelControllerClass(cls);
+  }
+
+  @Override
+  public void closePanel(PanelController<?, ?> controller) {
+    modeler.closePanel(controller);
+  }
+
+  @Override
+  public <T extends ViewController<?>> T viewController(Class<T> controllerClass) {
+    return modeler.viewController(controllerClass);
+  }
+
+  @Override
+  public <P, T extends PanelView<P>> T openPanel(Class<T> panelType, P payload) {
+    return modeler.openPanel(panelType, payload);
+  }
+
+  @Override
+  public <T extends PanelController<?, ?>> Collection<T> getOpenPanels(
+      Class<T> panelControllerClass) {
+    return modeler.getOpenPanels(panelControllerClass);
+  }
+
+  @Override
+  public void unregister(UIReactor reactor) {
+    modeler.unregister(reactor);
+  }
+
+  @Override
+  public void switchWorkbenchService(
+      UIReactor requestingReactor, KlabService.ServiceCapabilities service) {
+    modeler.switchWorkbenchService(requestingReactor, service);
+  }
+
+  @Override
+  public void switchWorkbench(UIReactor requestingReactor, NavigableContainer container) {
+    modeler.switchWorkbench(requestingReactor, container);
+  }
+
+  @Override
+  public void configureWorkbench(
+      UIReactor requestingReactor, NavigableDocument document, boolean shown) {
+    modeler.configureWorkbench(requestingReactor, document, shown);
+  }
+
+  @Override
+  public void storeView(Object... changedElements) {
+    modeler.storeView(changedElements);
+  }
+
+  @Override
+  public <P, T extends PanelController<P, ?>> T getPanelController(
+      P payload, Class<T> panelControllerClass) {
+    return modeler.getPanelController(payload, panelControllerClass);
+  }
+
+  @Override
+  public List<ExternalAuthenticationCredentials.CredentialInfo> getCredentials(
+      KlabService.Type serviceType, String serviceId) {
+    return modeler.getCredentials(serviceType, serviceId);
+  }
+
+  @Override
+  public ExternalAuthenticationCredentials.CredentialInfo setCredentials(
+      String host,
+      ExternalAuthenticationCredentials credentials,
+      KlabService.Type serviceType,
+      String serviceId) {
+    return modeler.setCredentials(host, credentials, serviceType, serviceId);
+  }
+
+  @Override
+  public UIController getController() {
+    return modeler.getController();
+  }
 }

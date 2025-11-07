@@ -50,7 +50,7 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
   public void reset() {}
 
   public List<RuntimeService> getServices() {
-    return KlabIDEController.modeler().user().getServices(RuntimeService.class).stream()
+    return KlabIDEController.instance().user().getServices(RuntimeService.class).stream()
         /* .filter(
         s ->
             s.capabilities(KlabIDEController.modeler().user())
@@ -67,7 +67,7 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
   public List<ContextInfo> getContextList() {
     List<ContextInfo> ret = new ArrayList<>();
     for (var rService : getServices()) {
-      for (var workspace : rService.getSessionInfo(KlabIDEController.modeler().user())) {
+      for (var workspace : rService.getSessionInfo(KlabIDEController.instance().user())) {
         ret.addAll(workspace.getContexts());
       }
     }
@@ -126,10 +126,10 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
   private Node createDigitalTwinDialog() {
 
     var availableServices =
-        KlabIDEController.modeler().user().getServices(RuntimeService.class).stream()
+        KlabIDEController.instance().user().getServices(RuntimeService.class).stream()
             .filter(
                 s ->
-                    s.capabilities(KlabIDEController.modeler().user())
+                    s.capabilities(KlabIDEController.instance().user())
                         .getPermissions()
                         .contains(CRUDOperation.CREATE))
             .toList();
@@ -199,7 +199,7 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
 
     TextField accessField = new TextField();
     accessField.setEditable(false);
-    accessField.setText(ResourcePrivileges.create(KlabIDEController.modeler().user()).toString());
+    accessField.setText(ResourcePrivileges.create(KlabIDEController.instance().user()).toString());
     Button accessChooser = new Button("", new FontIcon(Material2AL.LOCK_OPEN));
     accessChooser.setOnAction(
         e -> {
@@ -255,7 +255,7 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
 
   private void createDigitalTwin(
       DigitalTwin.Configuration configuration, RuntimeService runtimeService) {
-    var session = KlabIDEController.modeler().user().getUserSession(runtimeService);
+    var session = KlabIDEController.instance().user().getUserSession(runtimeService);
     if (session != null) {
       var context = session.createContext(configuration);
       if (context instanceof ClientContextScope clientContextScope) {
@@ -287,7 +287,7 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
   }
 
   public void removeDigitalTwin(ContextScope scope) {
-    DigitalTwinEditor ret = null;
+    Logging.INSTANCE.info("SCANCELLAMI PORCO IDDIO DT " + scope.getName());
     hideBrowser();
     if (openEditors.containsKey(scope.getId())) {
       removeEditor(openEditors.get(scope.getId()));

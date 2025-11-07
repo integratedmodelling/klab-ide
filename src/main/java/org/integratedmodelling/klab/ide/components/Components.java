@@ -534,7 +534,7 @@ public class Components {
             if (data.getValue().valueClass == Boolean.class) {
               ToggleSwitch toggle = new ToggleSwitch();
               toggle.setSelected(
-                  KlabIDEController.modeler()
+                  KlabIDEController.instance()
                       .engine()
                       .getSettings()
                       .get(data.getValue(), Boolean.class));
@@ -546,7 +546,7 @@ public class Components {
             } else if (Integer.class.isAssignableFrom(data.getValue().valueClass)) {
               TextField field = new TextField();
               field.setText(
-                  KlabIDEController.modeler()
+                  KlabIDEController.instance()
                           .engine()
                           .getSettings()
                           .get(data.getValue(), Integer.class)
@@ -593,7 +593,7 @@ public class Components {
                   });
 
               File currentValue =
-                  KlabIDEController.modeler()
+                  KlabIDEController.instance()
                       .engine()
                       .getSettings()
                       .get(data.getValue(), File.class);
@@ -608,7 +608,7 @@ public class Components {
               TextField field = new TextField();
               if (data.getValue().defaultValue != null) {
                 field.setText(
-                    KlabIDEController.modeler()
+                    KlabIDEController.instance()
                         .engine()
                         .getSettings()
                         .get(data.getValue(), Object.class)
@@ -680,7 +680,7 @@ public class Components {
                             "DevToolsFX");
                       });
                 } else {
-                  KlabIDEController.modeler()
+                  KlabIDEController.instance()
                       .engine()
                       .getSettings()
                       .set(
@@ -720,7 +720,7 @@ public class Components {
 
       // add @ serviceName to titl
       var service =
-          KlabIDEController.modeler()
+          KlabIDEController.instance()
               .user()
               .getService(
                   ResourcesService.class, s -> s.serviceId().equals(descriptor.getServiceId()));
@@ -853,7 +853,7 @@ public class Components {
       ComboBox<KlabService> serviceSelector = new ComboBox<>();
       serviceSelector.getStyleClass().add("combo-box-no-border");
       // Populate services of specified type
-      var services = KlabIDEController.modeler().user().getServices(serviceClass);
+      var services = KlabIDEController.instance().user().getServices(serviceClass);
 
       serviceSelector.getItems().addAll(services);
       serviceSelector.setMaxWidth(Double.MAX_VALUE);
@@ -945,7 +945,7 @@ public class Components {
           e -> {
             if (selectAction != null) {
               selectAction.accept(
-                  KlabIDEController.modeler().user().connect(digitalTwin.getConfiguration()));
+                  KlabIDEController.instance().user().connect(digitalTwin.getConfiguration()));
             }
           });
 
@@ -973,7 +973,7 @@ public class Components {
               deleteAction.accept(peer);
             } else {
               var scope =
-                  KlabIDEController.modeler().user().connect(digitalTwin.getConfiguration());
+                  KlabIDEController.instance().user().connect(digitalTwin.getConfiguration());
               if (scope != null) {
                 scope.close();
               }
@@ -1245,7 +1245,7 @@ public class Components {
       ComboBox<String> importSchemaSelector = new ComboBox<>();
       importSchemaSelector.setPromptText("Select Import Schema");
       var importSchemata =
-          service.capabilities(KlabIDEController.modeler().user()).getImportSchemata();
+          service.capabilities(KlabIDEController.instance().user()).getImportSchemata();
       final var schemaKey = new HashMap<String, ResourceTransport.Schema>();
       for (var schemaName : importSchemata.keySet()) {
         for (var schema : importSchemata.get(schemaName)) {
@@ -1356,7 +1356,7 @@ public class Components {
             }
             AtomicBoolean success = new AtomicBoolean(false);
             service
-                .importAsset(schema, asset, Urn.UNDEFINED_URN, KlabIDEController.modeler().user())
+                .importAsset(schema, asset, Urn.UNDEFINED_URN, KlabIDEController.instance().user())
                 .thenAccept(
                     resourceSet -> {
                       // TODO register the new resource, possibly open it
