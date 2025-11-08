@@ -153,11 +153,12 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   private void handleAssetDrop(NavigableAsset value) {
     digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.COMPUTING);
+    var scope = KlabIDEController.instance().requireDefaultContext();
     //    if (digitalTwinControlPanel.getScope() == null) {
-    //      digitalTwinControlPanel.setDigitalTwin(KlabIDEController.modeler().requireContext());
+    digitalTwinControlPanel.setDigitalTwin(scope, true);
     //    }
     KlabIDEController.instance()
-        .observe(value, /* TODO check drop params */ false)
+        .observe(scope, value, /* TODO check drop params */ false)
         .exceptionally(
             throwable -> {
               digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.ERROR);

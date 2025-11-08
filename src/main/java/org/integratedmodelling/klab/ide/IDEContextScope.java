@@ -138,7 +138,7 @@ public class IDEContextScope implements ContextScope {
           impl.setEnd(activity.getEnd());
           impl.setOutcome(activity.getOutcome());
         }
-        executor.execute(() -> viewers.forEach(v -> v.activitiesModified()));
+        executor.execute(() -> viewers.forEach(DigitalTwinViewer::activitiesModified));
       }
       case ActivityStarted -> {
         var activity = message.getPayload(Activity.class);
@@ -153,7 +153,7 @@ public class IDEContextScope implements ContextScope {
             }
           }
         }
-        executor.execute(() -> viewers.forEach(v -> v.activitiesModified()));
+        executor.execute(() -> viewers.forEach(DigitalTwinViewer::activitiesModified));
       }
       case ScheduleModified -> {
         this.schedule = message.getPayload(Schedule.class);

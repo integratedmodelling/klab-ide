@@ -194,7 +194,8 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
    * @param viewer
    * @return
    */
-  public IDEContextScope requireDigitalTwinPeer(ContextScope scope, DigitalTwinViewer viewer) {
+  public synchronized IDEContextScope requireDigitalTwinPeer(
+      ContextScope scope, DigitalTwinViewer viewer) {
     IDEContextScope ret = null;
     if (scope instanceof IDEContextScope ideContextScope) {
       ret = ideContextScope;
@@ -924,7 +925,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   void unregisterDigitalTwin(IDEContextScope ideContextScope) {
     if (focalScope != null && focalScope.getId().equals(ideContextScope.getId())) {
       focalScope = null;
-      modeler().setCurrentContext(null);
+      //      modeler().setCurrentContext(null);
     }
     for (var viewer : digitalTwinReactors) {
       if (viewer.isAffectedBy(ideContextScope)) {
@@ -1114,10 +1115,10 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     return modeler.authenticate();
   }
 
-  @Override
-  public Distribution.Status getDistributionStatus() {
-    return modeler.getDistributionStatus();
-  }
+  //  @Override
+  //  public Distribution.Status getDistributionStatus() {
+  //    return modeler.getDistributionStatus();
+  //  }
 
   @Override
   public Distribution getDistribution() {
@@ -1130,8 +1131,8 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   }
 
   @Override
-  public CompletableFuture<Observation> observe(Object asset, boolean adding) {
-    return modeler.observe(asset, adding);
+  public CompletableFuture<Observation> observe(ContextScope scope, Object asset, boolean adding) {
+    return modeler.observe(scope, asset, adding);
   }
 
   @Override
@@ -1146,10 +1147,10 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         asset, event, mediaType, contextScope, visualizationOptions, outputType);
   }
 
-  @Override
-  public List<SessionScope> getOpenSessions() {
-    return modeler.getOpenSessions();
-  }
+  //  @Override
+  //  public List<SessionScope> getOpenSessions() {
+  //    return modeler.getOpenSessions();
+  //  }
 
   @Override
   public List<ContextScope> getOpenContexts() {
@@ -1158,29 +1159,30 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   }
 
   @Override
-  public ContextScope requireContext() {
-    return modeler.requireContext();
+  public synchronized ContextScope createDefaultContext() {
+    return modeler.createDefaultContext();
   }
 
-  @Override
-  public ContextScope getCurrentContext() {
-    return modeler.getCurrentContext();
-  }
-
-  @Override
-  public Scope getCurrentScope() {
-    return modeler.getCurrentScope();
-  }
+  //
+  //  @Override
+  //  public ContextScope getCurrentContext() {
+  //    return modeler.getCurrentContext();
+  //  }
+  //
+  //  @Override
+  //  public Scope getCurrentScope() {
+  //    return modeler.getCurrentScope();
+  //  }
 
   @Override
   public URL publishLocally(File inputFile, String workspace, File... additionalFiles) {
     return modeler.publishLocally(inputFile, workspace, additionalFiles);
   }
 
-  @Override
-  public void setCurrentContext(ContextScope context) {
-    modeler.setCurrentContext(context);
-  }
+  //  @Override
+  //  public void setCurrentContext(ContextScope context) {
+  //    modeler.setCurrentContext(context);
+  //  }
 
   @Override
   public boolean shutdown(boolean shutdownLocalServices) {
@@ -1321,6 +1323,15 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
       KlabService.Type serviceType,
       String serviceId) {
     return modeler.setCredentials(host, credentials, serviceType, serviceId);
+  }
+
+  public IDEContextScope requireDefaultContext() {
+    if (focalScope == null) {
+      var context = createDefaultContext();
+      focalScope = requireDigitalTwinPeer(context, null);
+    }
+
+    return focalScope;
   }
 
   @Override

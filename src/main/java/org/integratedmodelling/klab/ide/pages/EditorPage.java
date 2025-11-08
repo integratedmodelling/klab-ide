@@ -147,6 +147,10 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
           container.getChildren().addAll(tree, dtContainer);
 
           browsingArea.setCenter(container);
+
+          if (KlabIDEController.instance().getFocalScope() != null) {
+            setDigitalTwin(KlabIDEController.instance().getFocalScope(), true);
+          }
         });
   }
 

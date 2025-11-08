@@ -266,10 +266,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
         activitiesModified();
       }
     }
-    if (scope == null) {
-      Logging.INSTANCE.info("RESETTAMI PUTTANA MADONNA DT " + scope.getName());
-    }
-    Platform.runLater(() -> setMainView());
+    Platform.runLater(this::setMainView);
   }
 
   private String activityDescription(Activity value) {

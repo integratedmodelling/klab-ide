@@ -20,6 +20,7 @@ import org.integratedmodelling.klab.api.knowledge.SemanticType;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedule;
 import org.integratedmodelling.klab.api.scope.ContextScope;
+import org.integratedmodelling.klab.api.scope.Persistence;
 import org.integratedmodelling.klab.api.services.RuntimeService;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.ide.KlabIDEController;
@@ -164,12 +165,12 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
   @Override
   public void focusObservations(List<RuntimeAsset> ids) {}
 
-  private List<RuntimeAsset> children(RuntimeAsset asset) {
-    return contextScope
-        .getDigitalTwin()
-        .getKnowledgeGraph()
-        .outgoing(asset, GraphModel.Relationship.HAS_CHILD);
-  }
+  //  private List<RuntimeAsset> children(RuntimeAsset asset) {
+  //    return contextScope
+  //        .getDigitalTwin()
+  //        .getKnowledgeGraph()
+  //        .outgoing(asset, GraphModel.Relationship.HAS_CHILD);
+  //  }
 
   @Override
   protected void configureDigitalTwinWidget(DigitalTwinControlPanel digitalTwinMinified) {
@@ -291,6 +292,14 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
 
   @Override
   public void close() {
+
+    /** TODO if the scope is ONE_OFF, should alert and remove */
+    if (contextScope.getConfiguration().getPersistence() == Persistence.IDLE_TIMEOUT) {
+      // TODO start timeout counter, add a notification (scope ... will be removed in xxxx if not
+      // used again)
+    }
+    // Removed the circular call that was causing the StackOverflowError
+    // The view.removeDigitalTwin() call is handled by the caller (DigitalTwinView)
     knowledgeGraphView.close();
     treeView.close();
     digitalTwinControlPanel.close();
