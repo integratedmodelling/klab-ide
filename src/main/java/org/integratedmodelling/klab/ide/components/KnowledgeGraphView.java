@@ -24,6 +24,7 @@ import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
+import org.springframework.boot.autoconfigure.thread.Threading;
 
 public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer {
 
@@ -35,7 +36,6 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   private Set<GraphModel.Relationship> visibleRelationships =
       EnumSet.of(GraphModel.Relationship.HAS_CHILD);
 
-  //  private List<RuntimeAsset> focalAssets = new ArrayList<>();
   // Queue to store pending updates until the graph is ready
   private List<RuntimeAsset> pendingFocalAssets = null;
 
@@ -181,6 +181,11 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
               Logging.INSTANCE.warn(
                   "Graph view initialization failed, retrying: " + e.getMessage());
               // If still not ready, try again after another layout pass
+              try {
+                Thread.sleep(300);
+              } catch (InterruptedException ex) {
+                // fock
+              }
               Platform.runLater(
                   () -> {
                     var focalAssets = scope.getFocalAssets();
@@ -214,34 +219,6 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
       Platform.runLater(() -> initializeGraphView());
     }
   }
-
-  //  public void setFocalAsset(List<RuntimeAsset> assets) {
-  //    // Always run on JavaFX Application Thread for thread safety
-  //    if (Platform.isFxApplicationThread()) {
-  //      setFocalAssetInternal(assets);
-  //    } else {
-  //      Platform.runLater(() -> setFocalAssetInternal(assets));
-  //    }
-  //  }
-
-  //  private void setFocalAssetInternal(List<RuntimeAsset> asset) {
-  //    if (initialized && graphViewReady && graphView != null) {
-  //      focalAssets.clear();
-  //      focalAssets.addAll(asset);
-  //      try {
-  //        updateGraph(asset);
-  //        graphView.update();
-  //      } catch (IllegalStateException e) {
-  //        Logging.INSTANCE.warn(
-  //            "Graph update failed, graph view may not be ready: " + e.getMessage());
-  //        // Store the asset for later processing
-  //        pendingFocalAssets = asset;
-  //      }
-  //    } else {
-  //      // Store the asset for later processing when the graph is ready
-  //      pendingFocalAssets = asset;
-  //    }
-  //  }
 
   public void clear() {
     if (graphView != null && graphView.getModel() != null) {
@@ -358,17 +335,21 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   @Override
   public void setDigitalTwin(IDEContextScope scope, boolean inFocus) {
     scope.addViewer(this);
-    this.sceneProperty()
-        .addListener(
-            (observable, oldScene, newScene) -> {
-              if (!initialized && newScene != null) {
-                // Delay initialization until the next pulse to ensure proper layout
-                Platform.runLater(
-                    () -> {
-                      initializeGraphView();
-                    });
-              }
-            });
+    if (this.sceneProperty().get() != null && this.sceneProperty().get().getWindow() != null) {
+      initializeGraphView();
+    } else {
+      this.sceneProperty()
+          .addListener(
+              (observable, oldScene, newScene) -> {
+                if (!initialized && newScene != null) {
+                  // Delay initialization until the next pulse to ensure proper layout.
+                  Platform.runLater(
+                      () -> {
+                        initializeGraphView();
+                      });
+                }
+              });
+    }
   }
 
   @Override
@@ -376,8 +357,6 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     scope.removeViewer(this);
   }
 
-    @Override
-    public void closeDigitalTwin(IDEContextScope ideContextScope) {
-
-    }
+  @Override
+  public void closeDigitalTwin(IDEContextScope ideContextScope) {}
 }
