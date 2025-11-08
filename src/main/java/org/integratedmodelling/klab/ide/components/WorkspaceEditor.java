@@ -154,9 +154,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private void handleAssetDrop(NavigableAsset value) {
     digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.COMPUTING);
     var scope = KlabIDEController.instance().requireDefaultContext();
-    //    if (digitalTwinControlPanel.getScope() == null) {
     digitalTwinControlPanel.setDigitalTwin(scope, true);
-    //    }
     KlabIDEController.instance()
         .observe(scope, value, /* TODO check drop params */ false)
         .exceptionally(
@@ -220,60 +218,6 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     return root;
   }
 
-  //  @Override
-  //  protected Region createMenuArea() {
-  //    var separator = new Separator();
-  //    separator.setPrefHeight(3);
-  //    separator.setPadding(new javafx.geometry.Insets(0, 0, 0, 0));
-  //    var left = new HBox();
-  //    left.setAlignment(Pos.CENTER_LEFT);
-  //    left.setSpacing(2);
-  //    var addButton =
-  //        new Button(
-  //            "",
-  //            new IconLabel(Theme.ADD_PROJECT_ICON, 18,
-  // Theme.CURRENT_THEME.getDefaultTextColor()));
-  //    var importButton =
-  //        new Button(
-  //            "",
-  //            new IconLabel(Theme.IMPORT_ASSET_ICON, 18,
-  // Theme.CURRENT_THEME.getDefaultTextColor()));
-  //    left.getChildren().addAll(addButton, importButton);
-  //    addButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
-  //    importButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
-  //
-  //    var right = new HBox();
-  //    right.setAlignment(Pos.CENTER_RIGHT);
-  //    right.setSpacing(2);
-  //
-  //    var collapseButton =
-  //        new Button(
-  //            "", new IconLabel(Theme.COLLAPSE_ICON, 18,
-  // Theme.CURRENT_THEME.getDefaultTextColor()));
-  //    var expandButton =
-  //        new Button(
-  //            "", new IconLabel(Theme.EXPAND_ICON, 18,
-  // Theme.CURRENT_THEME.getDefaultTextColor()));
-  //    collapseButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
-  //    expandButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
-  //    collapseButton.setOnAction(actionEvent -> root.setExpanded(false));
-  //    expandButton.setOnAction(actionEvent -> root.setExpanded(true));
-  //
-  //    right.getChildren().addAll(collapseButton, expandButton);
-  //
-  //    progressBar = new ProgressBar(0);
-  //    progressBar.setPrefWidth(160);
-  //    progressBar.setPrefHeight(3);
-  //
-  //    var ret = new HBox(4);
-  //    ret.setAlignment(Pos.CENTER);
-  //    ret.setPadding(new javafx.geometry.Insets(5));
-  //    progressBar.setMaxWidth(Double.MAX_VALUE);
-  //    HBox.setHgrow(progressBar, javafx.scene.layout.Priority.ALWAYS);
-  //    ret.getChildren().addAll(left, progressBar, right);
-  //    return new VBox(separator, ret);
-  //  }
-
   @Override
   protected Node createEditor(NavigableAsset asset) {
     if (asset instanceof KlabDocument<?> document) {
@@ -291,7 +235,6 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     Logging.INSTANCE.info("Save document requested: " + asset.getUrn());
     if (service instanceof ResourcesService.Admin admin
         && asset instanceof KlabDocument<?> document) {
-      //      var text = editor.getEditor().getDocument().getText();
       var changes =
           admin.updateDocument(
               asset.parent(NavigableProject.class).getUrn(),

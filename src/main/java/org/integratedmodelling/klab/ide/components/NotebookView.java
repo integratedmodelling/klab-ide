@@ -31,8 +31,7 @@ public class NotebookView extends BorderPane implements Page {
     this.notebook = new Notebook();
     this.setCenter(this.notebook);
     this.inputBox =
-        new InputBox(
-            text -> List.of("Dio", "Dingo", "Discromia", "Dicomarca", "Di Bue e di Vacca"));
+        new InputBox(text -> List.of("Dingo", "Discromia", "Diesel", "Di Bue", "Di Vacca"));
     this.setBottom(inputBox);
     this.setCenter(this.notebook);
 
@@ -89,7 +88,8 @@ public class NotebookView extends BorderPane implements Page {
           componentType,
           switch (componentType) {
             case Distribution ->
-                new Components.DistributionComponent(KlabIDEController.instance().getDistribution());
+                new Components.DistributionComponent(
+                    KlabIDEController.instance().getDistribution());
             case UserInfo -> new Components.User(KlabIDEController.instance().user());
             case ServiceInfo -> new Components.Services();
             case About -> new Components.About();
@@ -110,7 +110,8 @@ public class NotebookView extends BorderPane implements Page {
           componentType,
           switch (componentType) {
             case Distribution ->
-                new Components.DistributionComponent(KlabIDEController.instance().getDistribution());
+                new Components.DistributionComponent(
+                    KlabIDEController.instance().getDistribution());
             case UserInfo -> new Components.User(KlabIDEController.instance().user());
             case ServiceInfo -> new Components.Services();
             case About -> new Components.About();

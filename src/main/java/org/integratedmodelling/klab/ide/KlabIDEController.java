@@ -366,14 +366,10 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     viewButtons.put(View.WORKSPACES, workspacesButton);
     viewButtons.put(View.WORLDVIEW, worldviewButton);
 
-    //    HBox.setHgrow(mainArea, Priority.ALWAYS);
     notificationArea = new VBox();
     notificationArea.setMinWidth(280);
     BorderPane.setMargin(notificationArea, new Insets(0));
-    //    rightSide.setVisible(false);
     notificationArea.setStyle("-fx-background-color: -color-neutral-muted;");
-    //    HBox.setHgrow(mainArea, Priority.ALWAYS);
-    //    BorderPane.setMargin(rightSide, new Insets(0));
 
     inspectorButton.setOnMouseClicked(
         event -> {
@@ -1147,11 +1143,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         asset, event, mediaType, contextScope, visualizationOptions, outputType);
   }
 
-  //  @Override
-  //  public List<SessionScope> getOpenSessions() {
-  //    return modeler.getOpenSessions();
-  //  }
-
   @Override
   public List<ContextScope> getOpenContexts() {
     // TODO use focal scopes
@@ -1163,26 +1154,10 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     return modeler.createDefaultContext();
   }
 
-  //
-  //  @Override
-  //  public ContextScope getCurrentContext() {
-  //    return modeler.getCurrentContext();
-  //  }
-  //
-  //  @Override
-  //  public Scope getCurrentScope() {
-  //    return modeler.getCurrentScope();
-  //  }
-
   @Override
   public URL publishLocally(File inputFile, String workspace, File... additionalFiles) {
     return modeler.publishLocally(inputFile, workspace, additionalFiles);
   }
-
-  //  @Override
-  //  public void setCurrentContext(ContextScope context) {
-  //    modeler.setCurrentContext(context);
-  //  }
 
   @Override
   public boolean shutdown(boolean shutdownLocalServices) {

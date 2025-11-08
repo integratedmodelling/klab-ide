@@ -88,8 +88,8 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
     treeView.getStyleClass().addAll(Tweaks.EDGE_TO_EDGE, Styles.DENSE);
     treeView.setShowRoot(false);
     treeView.setPrefWidth(340);
-    // FIXME the context menu remains on the scene until clicked or escaped, and moves around within
-    // the tree
+    // FIXME the context menu remains on the scene until clicked or escaped, and moves around
+    // FIXME bring this within KnowledgeGraphTree
     treeView.setOnContextMenuRequested(
         event -> {
           TreeItem<RuntimeAsset> item = treeView.getSelectionModel().getSelectedItem();
@@ -165,13 +165,6 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
   @Override
   public void focusObservations(List<RuntimeAsset> ids) {}
 
-  //  private List<RuntimeAsset> children(RuntimeAsset asset) {
-  //    return contextScope
-  //        .getDigitalTwin()
-  //        .getKnowledgeGraph()
-  //        .outgoing(asset, GraphModel.Relationship.HAS_CHILD);
-  //  }
-
   @Override
   protected void configureDigitalTwinWidget(DigitalTwinControlPanel digitalTwinMinified) {
     digitalTwinMinified.setDigitalTwin(contextScope, true);
@@ -183,7 +176,6 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
       var ret =
           this.knowledgeGraphView =
               new KnowledgeGraphView(this.contextScope, this.knowledgeGraph, this);
-      //      KlabIDEController.instance().requireDigitalTwinPeer(contextScope).register(ret);
       return ret;
     } else if (asset instanceof Observation observation) {
       var url = observation.getMetadata().get(UI_VISUALIZATION_URL, URL.class);

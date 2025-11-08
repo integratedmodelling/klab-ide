@@ -95,8 +95,6 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   private TreeTableView<Activity> activityTree;
   private View currentView = View.ACTIVITIES;
 
-  // otherwise?
-
   public DigitalTwinControlPanel(int size, EditorPage<?, ?> editorPage) {
 
     super();
@@ -108,11 +106,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     this.topBar = new HBox(0);
     topBar.setPrefHeight(20);
     topBar.setAlignment(Pos.CENTER_LEFT);
-    //    topBar.setPadding(new Insets(1));
     topBar.setStyle("-fx-background-color: #E0E0E0;");
-
-    // Status label
-    //    this.statusLabel = new Label("No target selected");
 
     this.activitiesButton = new Button("", new IconLabel(Theme.ACTIVITY_ICON, 14, Color.DARKGRAY));
     this.observationButton =
@@ -131,7 +125,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     resetButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
 
     var contextSelector = new HBox(0);
-    contextSelector.setAlignment(Pos.CENTER);
+    contextSelector.setAlignment(Pos.CENTER_LEFT);
     var homeButton = new Button("", new IconLabel(Material2AL.HOME, 14, Color.BLACK));
     homeButton.setOnAction(e -> scope.within(null));
     homeButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
@@ -147,14 +141,11 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
         observation ->
             new Hyperlink(observation == null ? "DT Home" : observation.getValue().getName()));
 
-    var contextWrapper = new HBox(0);
-    contextWrapper.setAlignment(Pos.CENTER);
-    HBox.setMargin(contextWrapper, new Insets(3, 0, 3, 0));
-    contextWrapper.setStyle(
-        "-fx-border-color: #CCCCCC; -fx-border-width: 1px; -fx-border-radius: 3px;");
+    HBox.setMargin(contextSelector, new Insets(5, 5, 5, 5));
+    contextSelector.setStyle(
+        "-fx-border-color: #CCCCCC; -fx-border-width: 2px; -fx-border-radius: 3px;");
 
-    contextWrapper.getChildren().addAll(homeButton, contextPath);
-    contextSelector.getChildren().addAll(contextWrapper);
+    contextSelector.getChildren().addAll(homeButton, contextPath);
 
     HBox.setHgrow(contextSelector, Priority.ALWAYS);
     contextSelector.setMaxWidth(Double.MAX_VALUE);
@@ -238,7 +229,6 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     this.digitalTwinSwitcher = new MenuButton();
     this.digitalTwinSwitcher.getStyleClass().addAll(Styles.FLAT);
     HBox.setHgrow(digitalTwinSwitcher, Priority.ALWAYS);
-    HBox.setHgrow(digitalTwinSwitcher, Priority.ALWAYS);
     digitalTwinSwitcher.setMaxWidth(Double.MAX_VALUE);
 
     // Function buttons
@@ -246,8 +236,11 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     collapseButton.setGraphic(new FontIcon(Material2AL.ARROW_DOWNWARD));
     collapseButton.setOnAction(e -> editorPage.hideDigitalTwinControlPanel());
     collapseButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
-
-    bottomBar.getChildren().addAll(swapButton, digitalTwinSwitcher, collapseButton);
+    if (editorPage instanceof DigitalTwinEditor) {
+      bottomBar.getChildren().addAll(digitalTwinSwitcher, collapseButton);
+    } else {
+      bottomBar.getChildren().addAll(swapButton, digitalTwinSwitcher, collapseButton);
+    }
     setBottom(bottomBar);
   }
 
