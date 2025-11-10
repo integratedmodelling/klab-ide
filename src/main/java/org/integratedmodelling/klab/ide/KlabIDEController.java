@@ -1090,17 +1090,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     return modeler().publishLocally(output, "ziocan", tiffFile);
   }
 
-  //  public void removeDigitalTwin(IDEContextScope scope) {
-  //    if (focalScope != null && focalScope.getId().equals(scope.getId())) {
-  //      focalScope = null;
-  //    }
-  //    digitalTwinView.removeDigitalTwin(scope);
-  //    scope.close();
-  //    for (var viewer : getDigitalTwinViewers(scope, null)) {
-  //      viewer.setDigitalTwin(null, false);
-  //    }
-  //  }
-
   /* --------------------------------------------------------------------------------------------------
    * Delegate methods
    * --------------------------------------------------------------------------------------------------
@@ -1111,19 +1100,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     return modeler.authenticate();
   }
 
-  //  @Override
-  //  public Distribution.Status getDistributionStatus() {
-  //    return modeler.getDistributionStatus();
-  //  }
-
   @Override
   public Distribution getDistribution() {
     return modeler.getDistribution();
-  }
-
-  @Override
-  public void setOption(Option option, Object... payload) {
-    modeler.setOption(option, payload);
   }
 
   @Override
