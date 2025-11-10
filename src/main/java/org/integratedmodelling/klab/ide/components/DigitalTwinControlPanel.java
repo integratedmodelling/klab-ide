@@ -224,7 +224,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
             KlabIDEController.instance().selectView(KlabIDEController.View.DIGITAL_TWINS);
           }
         });
-    swapButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
+    swapButton.getStyleClass().addAll(Styles.FLAT/*, Styles.BUTTON_CIRCLE*/);
 
     this.digitalTwinSwitcher = new MenuButton();
     this.digitalTwinSwitcher.getStyleClass().addAll(Styles.FLAT);
@@ -235,7 +235,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     Button collapseButton = new Button();
     collapseButton.setGraphic(new FontIcon(Material2AL.ARROW_DOWNWARD));
     collapseButton.setOnAction(e -> editorPage.hideDigitalTwinControlPanel());
-    collapseButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
+    collapseButton.getStyleClass().addAll(Styles.FLAT/*, Styles.BUTTON_CIRCLE*/);
     if (editorPage instanceof DigitalTwinEditor) {
       bottomBar.getChildren().addAll(digitalTwinSwitcher, collapseButton);
     } else {

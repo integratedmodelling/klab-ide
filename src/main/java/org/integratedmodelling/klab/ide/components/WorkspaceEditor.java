@@ -207,7 +207,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   private void setWaiting(boolean b) {
-//    Platform.runLater(() -> this.progressBar.progressProperty().setValue(b ? -1d : 0d));
+    //    Platform.runLater(() -> this.progressBar.progressProperty().setValue(b ? -1d : 0d));
   }
 
   private TreeItem<NavigableAsset> defineTree(NavigableAsset asset) {

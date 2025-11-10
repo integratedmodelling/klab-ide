@@ -1107,7 +1107,10 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   @Override
   public CompletableFuture<Observation> observe(ContextScope scope, Object asset, boolean adding) {
-    return modeler.observe(scope, asset, adding);
+    return modeler.observe(
+        scope instanceof IDEContextScope ideContextScope ? ideContextScope.delegate : scope,
+        asset,
+        adding);
   }
 
   @Override

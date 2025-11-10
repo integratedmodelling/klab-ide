@@ -52,7 +52,7 @@ import org.jgrapht.graph.DefaultEdge;
  */
 public class IDEContextScope implements ContextScope {
 
-  private ClientContextScope delegate;
+  ClientContextScope delegate;
   // the scope keeps a list of all the viewers dedicated to it.
   private final Set<DigitalTwinViewer> viewers = Collections.synchronizedSet(new HashSet<>());
   private final ExecutorService executor = Executors.newSingleThreadExecutor();
