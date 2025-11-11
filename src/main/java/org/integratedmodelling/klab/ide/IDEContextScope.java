@@ -339,11 +339,11 @@ public class IDEContextScope implements ContextScope {
 
   @Override
   public ContextScope within(Observation contextObservation) {
-    this.delegate =
-        (ClientContextScope)
-            (contextObservation == null
-                ? delegate.getRootContextScope()
-                : delegate.within(contextObservation));
+    // FIXME for now we keep a single layer of inheritance. This may become a problem or not.
+    this.delegate = (ClientContextScope) delegate.getRootContextScope();
+    if (contextObservation != null) {
+      delegate = (ClientContextScope) delegate.within(contextObservation);
+    }
     for (var view : viewers) {
       view.setContext(contextObservation);
     }

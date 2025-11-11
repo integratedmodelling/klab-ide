@@ -48,11 +48,10 @@ import org.integratedmodelling.klab.api.exceptions.KlabInternalErrorException;
 import org.integratedmodelling.klab.api.identities.UserIdentity;
 import org.integratedmodelling.klab.api.knowledge.Artifact;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
+import org.integratedmodelling.klab.api.knowledge.SemanticType;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.organization.ProjectStorage;
 import org.integratedmodelling.klab.api.scope.ContextScope;
-import org.integratedmodelling.klab.api.scope.Scope;
-import org.integratedmodelling.klab.api.scope.SessionScope;
 import org.integratedmodelling.klab.api.scope.UserScope;
 import org.integratedmodelling.klab.api.services.*;
 import org.integratedmodelling.klab.api.services.resources.ResourceSet;
@@ -1107,10 +1106,36 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   @Override
   public CompletableFuture<Observation> observe(ContextScope scope, Object asset, boolean adding) {
-    return modeler.observe(
-        scope instanceof IDEContextScope ideContextScope ? ideContextScope.delegate : scope,
-        asset,
-        adding);
+    return modeler
+        .observe(
+            scope instanceof IDEContextScope ideContextScope ? ideContextScope.delegate : scope,
+            asset,
+            adding)
+        .exceptionally(
+            t -> {
+              handleNotification(Notification.error("Observation failed: ", t));
+              return Observation.EMPTY_OBSERVATION;
+            })
+        .thenApply(
+            o -> {
+              if (o.isEmpty()) {
+                if (o.getNotifications().isEmpty()) {
+                  handleNotification(
+                      Notification.error(
+                          "Observation of " + o.getObservable().getUrn() + " failed"));
+                }
+                for (var notification : o.getNotifications()) {
+                  handleNotification(notification);
+                }
+              } else if (o.getObservable().is(SemanticType.SUBJECT)
+                  && !o.getObservable().getSemantics().isCollective()
+                  && scope instanceof IDEContextScope) {
+                // set as context to avoid pain
+                scope.within(o);
+              }
+
+              return o;
+            });
   }
 
   @Override
