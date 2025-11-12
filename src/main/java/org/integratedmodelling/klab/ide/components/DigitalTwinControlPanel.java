@@ -114,7 +114,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     this.observerButton = new Button("", new IconLabel(Theme.OBSERVER_ICON, 14, Color.DARKGRAY));
     this.scenarioButton = new Button("", new IconLabel(Theme.SCENARIO_ICON, 14, Color.DARKGRAY));
     this.resetButton =
-        new Button("", new IconLabel(Material2AL.DELETE_FOREVER, 16, Color.DARKGRAY));
+        new Button("", new IconLabel(Material2AL.DELETE_FOREVER, 18, Color.DARKGRAY));
 
     resetButton.setOnAction(e -> editorPage.deleteScope(scope));
 
@@ -300,7 +300,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
         new IconLabel(Theme.SCENARIO_ICON, 14, scope == null ? Color.DARKGRAY : Color.BLACK));
     this.resetButton.setGraphic(
         new IconLabel(
-            Material2AL.DELETE_FOREVER, 16, scope == null ? Color.DARKGRAY : Color.BLACK));
+            Material2AL.DELETE_FOREVER, 18, scope == null ? Color.DARKGRAY : Color.DARKRED));
 
     if (scope != null) {
       switch (currentView) {
@@ -319,6 +319,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
       }
     } else {
       setCenter(null);
+      this.contextPath.setSelectedCrumb(null);
     }
   }
 

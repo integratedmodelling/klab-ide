@@ -3,6 +3,7 @@ package org.integratedmodelling.klab.ide.components;
 import atlantafx.base.controls.ToggleSwitch;
 import atlantafx.base.theme.Styles;
 import com.brunomnsilva.smartgraph.graph.DigraphEdgeList;
+import com.brunomnsilva.smartgraph.graphview.SmartCircularSortedPlacementStrategy;
 import com.brunomnsilva.smartgraph.graphview.SmartGraphPanel;
 import com.brunomnsilva.smartgraph.graphview.SmartRandomPlacementStrategy;
 import java.util.*;
@@ -122,7 +123,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     // Check if the component has valid dimensions before initializing
     if (getWidth() > 0 && getHeight() > 0 && !initialized) {
       Logging.INSTANCE.info("Initializing Knowledge Graph View");
-      var initialPlacement = new SmartRandomPlacementStrategy();
+      var initialPlacement = new SmartCircularSortedPlacementStrategy();
       var graph = new DigraphEdgeList<RuntimeAsset, ClientKnowledgeGraph.Relationship>();
       this.graphView = new SmartGraphPanel<>(graph, initialPlacement);
       this.setCenter(this.graphView);
