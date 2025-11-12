@@ -11,20 +11,25 @@ import org.integratedmodelling.klab.api.branding.Branding;
 import org.integratedmodelling.klab.api.data.RepositoryState;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.exceptions.KlabInternalErrorException;
+import org.integratedmodelling.klab.api.knowledge.Concept;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.SemanticType;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
+import org.integratedmodelling.klab.api.lang.kim.KimModel;
+import org.integratedmodelling.klab.api.lang.kim.KimSymbolDefinition;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableAsset;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableFolder;
 import org.integratedmodelling.klab.ide.components.Asset;
 import org.integratedmodelling.klab.ide.components.IconLabel;
+import org.integratedmodelling.klab.modeler.model.NavigableKimConceptStatement;
 import org.integratedmodelling.klab.modeler.model.NavigableKimNamespace;
 import org.integratedmodelling.klab.modeler.model.NavigableKimOntology;
 import org.integratedmodelling.klab.modeler.model.NavigableProject;
 import org.integratedmodelling.languages.worldview.ConceptDefinition;
 import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.bootstrapicons.BootstrapIcons;
+import org.kordamp.ikonli.carbonicons.CarbonIcons;
 import org.kordamp.ikonli.evaicons.Evaicons;
 import org.kordamp.ikonli.fontawesome5.FontAwesomeRegular;
 import org.kordamp.ikonli.fontawesome5.FontAwesomeSolid;
@@ -111,13 +116,17 @@ public enum Theme {
           Branding.COLOR_RELATIONSHIP_RGB[0],
           Branding.COLOR_RELATIONSHIP_RGB[1],
           Branding.COLOR_RELATIONSHIP_RGB[2]);
-
+  public static final Color DOMAIN_COLOR =
+      Color.rgb(
+          Branding.COLOR_DOMAIN_RGB[0], Branding.COLOR_DOMAIN_RGB[1], Branding.COLOR_DOMAIN_RGB[2]);
+  public static final Color ROLE_COLOR =
+      Color.rgb(Branding.COLOR_ROLE_RGB[0], Branding.COLOR_ROLE_RGB[1], Branding.COLOR_ROLE_RGB[2]);
   // assets
   public static Ikon PROJECT_ICON = Material2MZ.WORK_OUTLINE;
-  public static Ikon ONTOLOGY_ICON = Material2AL.LIGHTBULB;
+  public static Ikon ONTOLOGY_ICON = CarbonIcons.CONCEPT;
   public static Ikon NAMESPACE_ICON = Material2AL.DEVELOPER_BOARD;
   public static Ikon MODEL_ICON = Material2MZ.WORK_OUTLINE;
-  public static Ikon CONCEPT_DEFINITION_ICON = FontAwesomeRegular.CIRCLE;
+  public static Ikon CONCEPT_DEFINITION_ICON = CarbonIcons.IDEA;
   public static Ikon OBSERVATION_ICON = Material2AL.FIBER_MANUAL_RECORD;
   public static Ikon OBSERVER_ICON = UniconsLine.HEAD_SIDE;
   public static Ikon LOGS_ICON = Evaicons.FILE_TEXT_OUTLINE;
@@ -133,8 +142,11 @@ public enum Theme {
   public static Ikon STRATEGY_ICON = Material2MZ.WORK_OUTLINE;
   public static Ikon WORKSPACE_ICON = Material2AL.APPS;
   public static Ikon SCENARIO_ICON = UniconsLine.SCENERY;
-  public static Ikon UNKNOWN_ICON = Material2AL.BUILD_CIRCLE;
+  public static Ikon UNKNOWN_ICON = BootstrapIcons.EXCLAMATION_CIRCLE_FILL;
   public static Ikon KNOWLEDGE_GRAPH_ICON = BootstrapIcons.DIAGRAM_3;
+  public static Ikon INSTANTIATOR_MODEL_ICON = FontAwesomeSolid.COGS;
+  public static Ikon RESOLVER_MODEL_ICON = FontAwesomeSolid.COG;
+
   // views
   public static Ikon RESOURCES_ICON = FontAwesomeSolid.CUBES;
   public static Ikon WORKSPACES_ICON = Material2AL.APPS; // BootstrapIcons.BORDER_ALL;
@@ -228,9 +240,21 @@ public enum Theme {
                 SemanticType.fundamentalType(observation.getObservable().getSemantics().getType());
             yield OBSERVATION_ICON;
           }
-          case ConceptDefinition definition -> {
-            // TODO semantic type
-            yield CONCEPT_DEFINITION_ICON;
+          case NavigableKimConceptStatement definition -> {
+            semanticType = SemanticType.fundamentalType(definition.getType());
+            yield semanticType == SemanticType.NOTHING ? UNKNOWN_ICON : CONCEPT_DEFINITION_ICON;
+          }
+          case KimSymbolDefinition definition -> {
+            // TODO change based on class and, if applicable, define semantics
+            yield OBSERVATION_ICON;
+          }
+          case KimModel model -> {
+            semanticType =
+                SemanticType.fundamentalType(
+                    model.getObservables().get(0).getSemantics().getType());
+            yield model.getObservables().getFirst().getSemantics().isCollective()
+                ? INSTANTIATOR_MODEL_ICON
+                : RESOLVER_MODEL_ICON;
           }
           // TODO all runtime asset first
           case RuntimeAsset ignored -> KNOWLEDGE_GRAPH_ICON;
@@ -258,10 +282,13 @@ public enum Theme {
       case QUALITY -> QUALITY_COLOR;
       case EVENT -> EVENT_COLOR;
       case PROCESS -> PROCESS_COLOR;
-      case TRAIT -> TRAIT_COLOR;
+      case ROLE -> ROLE_COLOR;
+      case IDENTITY, ATTRIBUTE, REALM -> TRAIT_COLOR;
       case CONFIGURATION -> CONFIGURATION_COLOR;
       case RELATIONSHIP -> RELATIONSHIP_COLOR;
-      default -> throw new KlabInternalErrorException("KAKA");
+      case DOMAIN -> DOMAIN_COLOR;
+      case NOTHING -> Color.RED;
+      default -> throw new KlabInternalErrorException("KAKA " + semanticType);
     };
   }
 
