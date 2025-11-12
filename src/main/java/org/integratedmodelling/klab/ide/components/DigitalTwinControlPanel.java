@@ -110,7 +110,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
     this.activitiesButton = new Button("", new IconLabel(Theme.ACTIVITY_ICON, 14, Color.DARKGRAY));
     this.observationButton =
-        new Button("", new IconLabel(Theme.OBSERVATION_ICON, 14, Color.DARKGRAY));
+        new Button("", new IconLabel(Theme.KNOWLEDGE_GRAPH_ICON, 14, Color.DARKGRAY));
     this.observerButton = new Button("", new IconLabel(Theme.OBSERVER_ICON, 14, Color.DARKGRAY));
     this.scenarioButton = new Button("", new IconLabel(Theme.SCENARIO_ICON, 14, Color.DARKGRAY));
     this.resetButton =
@@ -293,7 +293,8 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     this.activitiesButton.setGraphic(
         new IconLabel(Theme.ACTIVITY_ICON, 14, scope == null ? Color.DARKGRAY : Color.BLACK));
     this.observationButton.setGraphic(
-        new IconLabel(Theme.OBSERVATION_ICON, 14, scope == null ? Color.DARKGRAY : Color.BLACK));
+        new IconLabel(
+            Theme.KNOWLEDGE_GRAPH_ICON, 14, scope == null ? Color.DARKGRAY : Color.BLACK));
     this.observerButton.setGraphic(
         new IconLabel(Theme.OBSERVER_ICON, 14, scope == null ? Color.DARKGRAY : Color.BLACK));
     this.scenarioButton.setGraphic(

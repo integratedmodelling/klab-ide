@@ -33,6 +33,7 @@ module org.integratedmodelling.klab.ide {
     requires javafx.media;
     requires devtoolsfx.gui;
     requires org.kordamp.ikonli.unicons;
+    requires org.integratedmodelling.languages.worldview;
 
     opens org.integratedmodelling.klab.ide to javafx.fxml;
     opens org.integratedmodelling.klab.ide.components to javafx.fxml;

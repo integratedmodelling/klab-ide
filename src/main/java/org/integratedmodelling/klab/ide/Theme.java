@@ -7,9 +7,12 @@ import javafx.scene.control.Label;
 import javafx.scene.control.Tooltip;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.Material;
+import org.integratedmodelling.klab.api.branding.Branding;
 import org.integratedmodelling.klab.api.data.RepositoryState;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
+import org.integratedmodelling.klab.api.exceptions.KlabInternalErrorException;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
+import org.integratedmodelling.klab.api.knowledge.SemanticType;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableAsset;
@@ -19,9 +22,11 @@ import org.integratedmodelling.klab.ide.components.IconLabel;
 import org.integratedmodelling.klab.modeler.model.NavigableKimNamespace;
 import org.integratedmodelling.klab.modeler.model.NavigableKimOntology;
 import org.integratedmodelling.klab.modeler.model.NavigableProject;
+import org.integratedmodelling.languages.worldview.ConceptDefinition;
 import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.bootstrapicons.BootstrapIcons;
 import org.kordamp.ikonli.evaicons.Evaicons;
+import org.kordamp.ikonli.fontawesome5.FontAwesomeRegular;
 import org.kordamp.ikonli.fontawesome5.FontAwesomeSolid;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
@@ -75,13 +80,45 @@ public enum Theme {
   public static final Color RESOLVER_COLOR_ACTIVE = Color.web("#cc6600");
   public static final Color RUNTIME_COLOR_ACTIVE = Color.web("#cc0000");
 
+  public static final Color SUBJECT_COLOR =
+      Color.rgb(
+          Branding.COLOR_SUBJECT_RGB[0],
+          Branding.COLOR_SUBJECT_RGB[1],
+          Branding.COLOR_SUBJECT_RGB[2]);
+  public static final Color QUALITY_COLOR =
+      Color.rgb(
+          Branding.COLOR_QUALITY_RGB[0],
+          Branding.COLOR_QUALITY_RGB[1],
+          Branding.COLOR_QUALITY_RGB[2]);
+  public static final Color EVENT_COLOR =
+      Color.rgb(
+          Branding.COLOR_EVENT_RGB[0], Branding.COLOR_EVENT_RGB[1], Branding.COLOR_EVENT_RGB[2]);
+  public static final Color PROCESS_COLOR =
+      Color.rgb(
+          Branding.COLOR_PROCESS_RGB[0],
+          Branding.COLOR_PROCESS_RGB[1],
+          Branding.COLOR_PROCESS_RGB[2]);
+  public static final Color TRAIT_COLOR =
+      Color.rgb(
+          Branding.COLOR_TRAIT_RGB[0], Branding.COLOR_TRAIT_RGB[1], Branding.COLOR_TRAIT_RGB[2]);
+  public static final Color CONFIGURATION_COLOR =
+      Color.rgb(
+          Branding.COLOR_CONFIGURATION_RGB[0],
+          Branding.COLOR_CONFIGURATION_RGB[1],
+          Branding.COLOR_CONFIGURATION_RGB[2]);
+  public static final Color RELATIONSHIP_COLOR =
+      Color.rgb(
+          Branding.COLOR_RELATIONSHIP_RGB[0],
+          Branding.COLOR_RELATIONSHIP_RGB[1],
+          Branding.COLOR_RELATIONSHIP_RGB[2]);
+
   // assets
   public static Ikon PROJECT_ICON = Material2MZ.WORK_OUTLINE;
   public static Ikon ONTOLOGY_ICON = Material2AL.LIGHTBULB;
   public static Ikon NAMESPACE_ICON = Material2AL.DEVELOPER_BOARD;
   public static Ikon MODEL_ICON = Material2MZ.WORK_OUTLINE;
-  public static Ikon CONCEPT_DEFINITION_ICON = Material2MZ.WORK_OUTLINE;
-  public static Ikon OBSERVATION_ICON = Material2MZ.WORK_OUTLINE;
+  public static Ikon CONCEPT_DEFINITION_ICON = FontAwesomeRegular.CIRCLE;
+  public static Ikon OBSERVATION_ICON = Material2AL.FIBER_MANUAL_RECORD;
   public static Ikon OBSERVER_ICON = UniconsLine.HEAD_SIDE;
   public static Ikon LOGS_ICON = Evaicons.FILE_TEXT_OUTLINE;
   public static Ikon ACTIVITY_ICON = Evaicons.ACTIVITY;
@@ -179,12 +216,22 @@ public enum Theme {
               .get(NavigableAsset.REPOSITORY_STATUS_KEY, RepositoryState.Status.class);
     }
 
+    SemanticType semanticType = null;
     var icon =
         switch (asset) {
           case NavigableProject ignored -> PROJECT_ICON;
           case NavigableKimOntology ignored -> ONTOLOGY_ICON;
           case NavigableKimNamespace ignored -> NAMESPACE_ICON;
           case NavigableFolder ignored -> FOLDER_ICON;
+          case Observation observation -> {
+            semanticType =
+                SemanticType.fundamentalType(observation.getObservable().getSemantics().getType());
+            yield OBSERVATION_ICON;
+          }
+          case ConceptDefinition definition -> {
+            // TODO semantic type
+            yield CONCEPT_DEFINITION_ICON;
+          }
           // TODO all runtime asset first
           case RuntimeAsset ignored -> KNOWLEDGE_GRAPH_ICON;
           default -> UNKNOWN_ICON;
@@ -197,7 +244,25 @@ public enum Theme {
     } else if (infoCount > 0) {
       color = Color.BLUE;
     }
+
+    if (semanticType != null) {
+      color = getColorForType(semanticType);
+    }
+
     return new IconLabel(icon, 18, color);
+  }
+
+  private static Color getColorForType(SemanticType semanticType) {
+    return switch (semanticType) {
+      case SUBJECT, AGENT -> SUBJECT_COLOR;
+      case QUALITY -> QUALITY_COLOR;
+      case EVENT -> EVENT_COLOR;
+      case PROCESS -> PROCESS_COLOR;
+      case TRAIT -> TRAIT_COLOR;
+      case CONFIGURATION -> CONFIGURATION_COLOR;
+      case RELATIONSHIP -> RELATIONSHIP_COLOR;
+      default -> throw new KlabInternalErrorException("KAKA");
+    };
   }
 
   public static <T> String getLabel(T asset) {
