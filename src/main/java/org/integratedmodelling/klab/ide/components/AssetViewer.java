@@ -1,6 +1,8 @@
 package org.integratedmodelling.klab.ide.components;
 
 import atlantafx.base.theme.Styles;
+
+import javafx.application.HostServices;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -18,13 +20,13 @@ import javafx.scene.paint.Color;
 import javafx.scene.web.WebEngine;
 import javafx.scene.web.WebView;
 import netscape.javascript.JSObject;
+import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
-import org.kordamp.ikonli.javafx.FontIcon;
-import org.kordamp.ikonli.material2.Material2AL;
+import org.integratedmodelling.klab.ide.utils.AppContext;
 
 import java.awt.Desktop;
 import java.net.URI;
@@ -70,14 +72,7 @@ public class AssetViewer extends BorderPane {
 
     Button worldIcon = new Button();
     worldIcon.setGraphic(new IconLabel(Theme.OPEN_IN_BROWSER, 18, Color.GREEN));
-    worldIcon.setOnAction(
-        e -> {
-          try {
-            Desktop.getDesktop().browse(new URI(url));
-          } catch (Exception ex) {
-            KlabIDEController.instance().handleNotification(Notification.error(ex));
-          }
-        });
+    worldIcon.setOnAction(e -> openInBrowser(url));
     worldIcon.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
 
     header.getChildren().addAll(icon, title, type, spacer, worldIcon);
@@ -105,6 +100,7 @@ public class AssetViewer extends BorderPane {
                           + "console.error = function(message) {javaErr.println(message); };");
             });
     if (url != null && !url.isBlank()) {
+      Logging.INSTANCE.debug("Opening page: "+url);
       engine.load(url);
     }
     webView.setContextMenuEnabled(true);
@@ -191,6 +187,24 @@ public class AssetViewer extends BorderPane {
   public void reload() {
     if (url != null && !url.isBlank()) {
       webView.getEngine().load(url);
+    }
+  }
+
+  private void openInBrowser(String url) {
+    try {
+      HostServices hs = AppContext.getHostServices();
+      if (hs != null) {
+        hs.showDocument(url);
+      } else {
+        // Fallback for Linux/Windows if something went wrong
+        if (System.getProperty("os.name").toLowerCase().contains("linux")) {
+          new ProcessBuilder("xdg-open", url).start();
+        } else {
+          Desktop.getDesktop().browse(new URI(url));
+        }
+      }
+    } catch (Exception ex) {
+      KlabIDEController.instance().handleNotification(Notification.error(ex));
     }
   }
 }

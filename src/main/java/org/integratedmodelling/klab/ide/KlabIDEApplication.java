@@ -11,6 +11,7 @@ import org.eclipse.xtext.ide.server.ServerLauncher;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.ide.notifications.NotificationManager;
+import org.integratedmodelling.klab.ide.utils.AppContext;
 
 public class KlabIDEApplication extends Application {
 
@@ -42,7 +43,7 @@ public class KlabIDEApplication extends Application {
      * TODO choose theme from settings and expose it to components
      */
     Application.setUserAgentStylesheet(Theme.CURRENT_THEME.getStylesheet());
-
+    AppContext.setHostServices(getHostServices());
     /*
      * TODO if local, at this point it should be enough to launch
      *  org.eclipse.xtext.ide.server.ServerLauncher to start the LSP server for all languages on the
