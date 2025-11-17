@@ -43,7 +43,6 @@ public class AssetViewer extends BorderPane {
   private final RuntimeAsset asset;
   private final Supplier<String> url;
 
-  //  private final WebView webView = new WebView();
   private final VBox detailsBox = new VBox(8);
 
   public AssetViewer(RuntimeAsset asset, Supplier<String> url, File file) {
@@ -164,20 +163,6 @@ public class AssetViewer extends BorderPane {
   public RuntimeAsset getAsset() {
     return asset;
   }
-
-//  public String getUrl() {
-//    return url;
-//  }
-
-  //  public WebView getWebView() {
-  //    return webView;
-  //  }
-
-  //  public void reload() {
-  //    if (url != null && !url.isBlank()) {
-  //      //      webView.getEngine().load(url);
-  //    }
-  //  }
 
   private void openInBrowser(String url) {
     try {

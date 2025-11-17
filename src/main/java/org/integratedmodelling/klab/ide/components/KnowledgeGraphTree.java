@@ -8,6 +8,7 @@ import javafx.collections.ObservableList;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 import javafx.scene.text.Text;
+import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
@@ -63,13 +64,13 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
               && clientKnowledgeGraph.outgoing(asset, GraphModel.Relationship.HAS_CHILD).isEmpty());
     }
 
-    private ObservableList<TreeItem<RuntimeAsset>> children;
+    //    private ObservableList<TreeItem<RuntimeAsset>> children;
 
     @Override
     public ObservableList<TreeItem<RuntimeAsset>> getChildren() {
-      if (children == null) {
-        children = super.getChildren();
-      }
+      //      if (children == null) {
+      var children = super.getChildren();
+      //      }
 
       RuntimeAsset asset = getValue();
       if (asset != null && (!(asset instanceof Observation) || asset.getChildrenCount() > 0)) {
@@ -181,7 +182,13 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
   public void activitiesModified() {}
 
   @Override
-  public void focusObservations(List<RuntimeAsset> ids) {}
+  public void focusObservations(List<RuntimeAsset> ids) {
+
+    // reset graph
+    setRoot(new AssetTreeItem(RuntimeAsset.CONTEXT_ASSET));
+
+    // TODO ensure the observations are selected
+  }
 
   @Override
   public void setDigitalTwin(IDEContextScope scope, boolean focus) {
