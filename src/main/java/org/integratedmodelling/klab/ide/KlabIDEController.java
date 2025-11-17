@@ -1086,7 +1086,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
             tiffFile.getParentFile() + File.separator + "geotiff_" + observation.getId() + ".html");
 
     Utils.Files.writeStringToFile(html, output);
-    return modeler().publishLocally(output, "ziocan", tiffFile);
+    return modeler().publishLocally(output, "modeler", tiffFile);
   }
 
   /* --------------------------------------------------------------------------------------------------
@@ -1106,6 +1106,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   @Override
   public CompletableFuture<Observation> observe(ContextScope scope, Object asset, boolean adding) {
+    // call the original after adapting the scope; then notify the UI of whatever happened
     return modeler
         .observe(
             scope instanceof IDEContextScope ideContextScope ? ideContextScope.delegate : scope,

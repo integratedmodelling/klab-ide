@@ -17,9 +17,8 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
-import javafx.scene.web.WebEngine;
-import javafx.scene.web.WebView;
-import netscape.javascript.JSObject;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
@@ -29,7 +28,9 @@ import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.utils.AppContext;
 
 import java.awt.Desktop;
+import java.io.File;
 import java.net.URI;
+import java.util.function.Supplier;
 
 /**
  * AssetViewer is a reusable JavaFX component that visualizes a {@link RuntimeAsset}. It shows a
@@ -40,17 +41,17 @@ import java.net.URI;
 public class AssetViewer extends BorderPane {
 
   private final RuntimeAsset asset;
-  private final String url;
+  private final Supplier<String> url;
 
-  private final WebView webView = new WebView();
+  //  private final WebView webView = new WebView();
   private final VBox detailsBox = new VBox(8);
 
-  public AssetViewer(RuntimeAsset asset, String url) {
+  public AssetViewer(RuntimeAsset asset, Supplier<String> url, File file) {
     this.asset = asset;
     this.url = url;
 
     setTop(createHeader(asset));
-    setCenter(createWebView(url));
+    setCenter(createWebView(file.toURI().toString()));
     setBottom(createDetailsPanel(asset));
   }
 
@@ -72,7 +73,7 @@ public class AssetViewer extends BorderPane {
 
     Button worldIcon = new Button();
     worldIcon.setGraphic(new IconLabel(Theme.OPEN_IN_BROWSER, 18, Color.GREEN));
-    worldIcon.setOnAction(e -> openInBrowser(url));
+    worldIcon.setOnAction(e -> openInBrowser(url.get()));
     worldIcon.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
 
     header.getChildren().addAll(icon, title, type, spacer, worldIcon);
@@ -83,28 +84,16 @@ public class AssetViewer extends BorderPane {
   }
 
   private Node createWebView(String url) {
-    WebEngine engine = webView.getEngine();
-    engine.setJavaScriptEnabled(true);
-    engine
-        .getLoadWorker()
-        .stateProperty()
-        .addListener(
-            (ob, o, n) -> {
-              JSObject window = (JSObject) engine.executeScript("window");
-              window.setMember("javaOut", System.out);
-              window.setMember("javaErr", System.err);
-              webView
-                  .getEngine()
-                  .executeScript(
-                      "console.log = function(message) { javaOut.println(message); };\n"
-                          + "console.error = function(message) {javaErr.println(message); };");
-            });
-    if (url != null && !url.isBlank()) {
-      Logging.INSTANCE.debug("Opening page: "+url);
-      engine.load(url);
+    try {
+      ImageView imageView = new ImageView(new Image(url));
+      imageView.setPreserveRatio(true);
+      imageView.fitWidthProperty().bind(imageView.getImage().widthProperty());
+      imageView.fitHeightProperty().bind(imageView.getImage().heightProperty());
+      return imageView;
+    } catch (Exception e) {
+      Logging.INSTANCE.error("Error loading image: " + url);
+      return new Label("Error loading image");
     }
-    webView.setContextMenuEnabled(true);
-    return webView;
   }
 
   private Node createDetailsPanel(RuntimeAsset asset) {
@@ -176,19 +165,19 @@ public class AssetViewer extends BorderPane {
     return asset;
   }
 
-  public String getUrl() {
-    return url;
-  }
+//  public String getUrl() {
+//    return url;
+//  }
 
-  public WebView getWebView() {
-    return webView;
-  }
+  //  public WebView getWebView() {
+  //    return webView;
+  //  }
 
-  public void reload() {
-    if (url != null && !url.isBlank()) {
-      webView.getEngine().load(url);
-    }
-  }
+  //  public void reload() {
+  //    if (url != null && !url.isBlank()) {
+  //      //      webView.getEngine().load(url);
+  //    }
+  //  }
 
   private void openInBrowser(String url) {
     try {

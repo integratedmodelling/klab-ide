@@ -2,6 +2,8 @@ package org.integratedmodelling.klab.ide.components;
 
 import atlantafx.base.theme.Styles;
 import atlantafx.base.theme.Tweaks;
+
+import java.io.File;
 import java.net.URL;
 import java.util.*;
 import java.util.function.Consumer;
@@ -9,10 +11,13 @@ import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
+import org.apache.commons.io.IOUtils;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientDigitalTwin;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
+import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.collections.Pair;
+import org.integratedmodelling.klab.api.collections.Parameters;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
@@ -32,7 +37,7 @@ import org.integratedmodelling.klab.ide.pages.EditorPage;
 public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
     implements DigitalTwinViewer {
 
-  private static final String UI_VISUALIZATION_URL = "klab.ui.visualization.url";
+  //  private static final String UI_VISUALIZATION_URL = "klab.ui.visualization.url";
 
   private final RuntimeService runtimeService;
   private final DigitalTwinView view;
@@ -134,13 +139,7 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
 
   void showDetails(RuntimeAsset asset) {
     if (asset instanceof KlabAsset klabAsset) {
-      var url =
-          KlabIDEController.instance()
-              .visualize(klabAsset, null, "text/html", contextScope, Map.of(), URL.class);
-      if (url != null) {
-        klabAsset.getMetadata().put(UI_VISUALIZATION_URL, url);
-        edit(asset);
-      }
+      edit(asset);
     }
   }
 
@@ -178,14 +177,26 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
               new KnowledgeGraphView(this.contextScope, this.knowledgeGraph, this);
       return ret;
     } else if (asset instanceof Observation observation) {
-      var url = observation.getMetadata().get(UI_VISUALIZATION_URL, URL.class);
-      if (url != null) {
-        return new AssetViewer(observation, url.toString());
-      } else {
-        KlabIDEController.instance()
-            .handleNotification(
-                Notification.warning("No visualization metadata in asset " + observation));
-      }
+      File imageUrl =
+          Utils.Files.copyInputStreamToTempFile(
+              contextScope
+                  .getService(RuntimeService.class)
+                  .exportAsset(
+                      observation.getUrn(),
+                      KlabAsset.KnowledgeClass.OBSERVATION,
+                      "image/png",
+                      Parameters.create("viewportX", 800, "viewportY", 800),
+                      contextScope),
+              "png");
+      return new AssetViewer(
+          observation,
+          () -> {
+            var url =
+                KlabIDEController.instance()
+                    .visualize(observation, null, "text/html", contextScope, Map.of(), URL.class);
+            return url == null ? null : url.toString();
+          },
+          imageUrl);
     }
     return null;
   }
