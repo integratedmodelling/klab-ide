@@ -6,6 +6,8 @@ import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledg
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.knowledge.SemanticType;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
+import org.integratedmodelling.klab.api.services.runtime.Notification;
+import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 
 /** Painful asset wrapper, needed because SmartGraphFX isn't very flexible. */
@@ -89,10 +91,17 @@ public class Asset implements RuntimeAsset {
           case LINK -> null;
         };
     if (style != null) {
-      graphView.getStylableVertex(this).setStyleClass(style);
-    }
-    if (inlineStyle != null) {
-      graphView.getStylableVertex(this).setStyleInline(inlineStyle);
+      var stylableVertex = graphView.getStylableVertex(this);
+      if (stylableVertex != null) {
+        stylableVertex.setStyleClass(style);
+        if (inlineStyle != null) {
+          stylableVertex.setStyleInline(inlineStyle);
+        }
+      } else
+        KlabIDEController.instance()
+            .handleNotification(
+                Notification.warning(
+                    "Error rendering graph: graph may be partial or inconsistent"));
     }
   }
 

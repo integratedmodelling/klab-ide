@@ -9,6 +9,8 @@ import com.brunomnsilva.smartgraph.graphview.SmartGraphPanel;
 import com.brunomnsilva.smartgraph.graphview.SmartRandomPlacementStrategy;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import javafx.application.Platform;
 import javafx.scene.control.Button;
 import javafx.scene.layout.BorderPane;
@@ -46,6 +48,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   private Timeline timeline;
   // Optional callback invoked when this view is brought back into view/focus
   private Runnable onBroughtIntoView;
+  private AtomicBoolean changePending = new AtomicBoolean(false);
 
   public KnowledgeGraphView(
       ContextScope contextScope, ClientKnowledgeGraph knowledgeGraph, DigitalTwinEditor editor) {
@@ -124,6 +127,14 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
                 invokeBroughtIntoViewCallback();
               }
             });
+
+    onBroughtIntoView =
+        () -> {
+          if (this.changePending.get()) {
+            changePending.set(false);
+            redrawGraph();
+          }
+        };
   }
 
   private void redrawGraph() {
@@ -305,7 +316,11 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
 
   @Override
   public void submissionFinished(Observation observation) {
-    //    setFocalAsset(observation);
+    changePending();
+  }
+
+  private void changePending() {
+    this.changePending.set(true);
   }
 
   @Override
