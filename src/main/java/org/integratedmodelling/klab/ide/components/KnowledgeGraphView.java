@@ -44,6 +44,8 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   private volatile boolean initialized = false;
   private volatile boolean graphViewReady = false;
   private Timeline timeline;
+  // Optional callback invoked when this view is brought back into view/focus
+  private Runnable onBroughtIntoView;
 
   public KnowledgeGraphView(
       ContextScope contextScope, ClientKnowledgeGraph knowledgeGraph, DigitalTwinEditor editor) {
@@ -87,21 +89,21 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     homeButton.setOnAction(
         event -> {
           scope.setFocalAssets(RuntimeAsset.CONTEXT_ASSET);
+          graphView.setAutomaticLayout(true);
         });
     minusButton.setOnAction(
         event -> {
           scope.setGraphDepth(scope.getGraphDepth() - 1);
+          graphView.setAutomaticLayout(true);
         });
     plusButton.setOnAction(
         event -> {
           scope.setGraphDepth(scope.getGraphDepth() + 1);
+          graphView.setAutomaticLayout(true);
         });
     redrawButton.setOnAction(
         event -> {
-          if (isGraphViewReady()) {
-            autoLayout = !autoLayout;
-            graphView.setAutomaticLayout(autoLayout);
-          }
+          redrawGraph();
         });
     affectedSwitch.selectedProperty().addListener((obs, old, val) -> {});
     dataSwitch.selectedProperty().addListener((obs, old, val) -> {});
@@ -113,6 +115,28 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     HBox.setHgrow(spinnerBox, javafx.scene.layout.Priority.ALWAYS);
     controls.getChildren().addAll(spinnerBox, switchesBox);
     this.setTop(controls);
+
+    // Fire callback when this Node becomes visible again
+    this.visibleProperty()
+        .addListener(
+            (obs, wasVisible, isNowVisible) -> {
+              if (isNowVisible) {
+                invokeBroughtIntoViewCallback();
+              }
+            });
+  }
+
+  private void redrawGraph() {
+    if (isGraphViewReady()) {
+      for (int i = 0; i < 1; i++) {
+        //        autoLayout = !autoLayout;
+        updateGraph(scope.getFocalAssets());
+        graphView.setAutomaticLayout(true);
+        //        graphView.setAutomaticLayout(false);
+      }
+    } else {
+      // TODO enqueue event for when graph comes into view
+    }
   }
 
   @Override
@@ -268,6 +292,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
             }
           });
     } catch (IllegalStateException e) {
+      // TODO enqueue event for when graph comes into view
       Logging.INSTANCE.warn("Failed to update graph view: " + e.getMessage());
     }
   }
@@ -335,6 +360,24 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     }
   }
 
+  /**
+   * Set a callback to be invoked when the graph view is brought back into view/focus. The callback
+   * is executed on the JavaFX Application Thread.
+   */
+  public void setOnBroughtIntoView(Runnable callback) {
+    this.onBroughtIntoView = callback;
+  }
+
+  private void invokeBroughtIntoViewCallback() {
+    if (onBroughtIntoView != null) {
+      if (Platform.isFxApplicationThread()) {
+        onBroughtIntoView.run();
+      } else {
+        Platform.runLater(onBroughtIntoView);
+      }
+    }
+  }
+
   @Override
   public void setDigitalTwin(IDEContextScope scope, boolean inFocus) {
     scope.addViewer(this);
@@ -352,6 +395,11 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
                       });
                 }
               });
+    }
+
+    // If this view is being brought into focus, invoke the callback
+    if (inFocus) {
+      invokeBroughtIntoViewCallback();
     }
   }
 
