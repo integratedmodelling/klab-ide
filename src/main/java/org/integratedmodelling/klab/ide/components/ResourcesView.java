@@ -160,8 +160,9 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
       var service =
           KlabIDEController.instance()
               .user()
-              .getService(
-                  ResourcesService.class, s -> resourceInfo.getServiceId().equals(s.serviceId()));
+              .findService(
+                  ResourcesService.class, s -> resourceInfo.getServiceId().equals(s.serviceId()))
+              .orElse(null);
 
       // TODO handle the unlikely case that the service is unavailable. That will throw an exception
       //  from getService

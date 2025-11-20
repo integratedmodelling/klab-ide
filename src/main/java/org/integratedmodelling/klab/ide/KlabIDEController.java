@@ -195,6 +195,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
    */
   public synchronized IDEContextScope requireDigitalTwinPeer(
       ContextScope scope, DigitalTwinViewer viewer) {
+    if (scope == null) {
+      return null;
+    }
     IDEContextScope ret = null;
     if (scope instanceof IDEContextScope ideContextScope) {
       ret = ideContextScope;

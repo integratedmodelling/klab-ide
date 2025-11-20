@@ -722,8 +722,9 @@ public class Components {
       var service =
           KlabIDEController.instance()
               .user()
-              .getService(
-                  ResourcesService.class, s -> s.serviceId().equals(descriptor.getServiceId()));
+              .findService(
+                  ResourcesService.class, s -> s.serviceId().equals(descriptor.getServiceId()))
+              .orElse(null); // TODO  handle
 
       var label = this.descriptor.getUrn();
       if (this.descriptor.getMetadata().containsKey(Metadata.DC_LABEL)) {

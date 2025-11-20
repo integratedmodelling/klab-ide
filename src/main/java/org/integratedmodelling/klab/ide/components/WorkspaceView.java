@@ -219,8 +219,9 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
       var service =
           KlabIDEController.instance()
               .user()
-              .getService(
-                  ResourcesService.class, s -> resourceInfo.getServiceId().equals(s.serviceId()));
+              .findService(
+                  ResourcesService.class, s -> resourceInfo.getServiceId().equals(s.serviceId()))
+              .get();
 
       // TODO handle the unlikely case that the service is unavailable. That will throw an exception
       //  from getService

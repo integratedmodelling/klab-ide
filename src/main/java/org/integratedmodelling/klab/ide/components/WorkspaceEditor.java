@@ -152,8 +152,16 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   private void handleAssetDrop(NavigableAsset value) {
-    digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.COMPUTING);
     var scope = KlabIDEController.instance().requireDefaultContext();
+    if (scope == null) {
+      // This shouldn't happen when the drop action and panel become smarter
+      digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.IDLE);
+      KlabIDEController.instance()
+          .handleNotification(
+              Notification.error("No scope selected and no local runtime service available."));
+      return;
+    }
+    digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.COMPUTING);
     digitalTwinControlPanel.setDigitalTwin(scope, true);
     KlabIDEController.instance()
         .observe(scope, value, /* TODO check drop params */ false)
