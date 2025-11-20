@@ -385,6 +385,8 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
 
   private void invokeBroughtIntoViewCallback() {
     if (onBroughtIntoView != null) {
+      Logging.INSTANCE.info("Graph brought into view");
+
       if (Platform.isFxApplicationThread()) {
         onBroughtIntoView.run();
       } else {
@@ -402,10 +404,12 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
       this.sceneProperty()
           .addListener(
               (observable, oldScene, newScene) -> {
+                Logging.INSTANCE.info("Graph view scene changed: " + newScene);
                 if (!initialized && newScene != null) {
                   // Delay initialization until the next pulse to ensure proper layout.
                   Platform.runLater(
                       () -> {
+                        Logging.INSTANCE.info("Graph view scene visible: " + newScene);
                         initializeGraphView();
                       });
                 }

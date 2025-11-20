@@ -106,7 +106,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     this.topBar = new HBox(0);
     topBar.setPrefHeight(20);
     topBar.setAlignment(Pos.CENTER_LEFT);
-    topBar.setStyle("-fx-background-color: #E0E0E0;");
+    topBar.setStyle("-fx-background-color: -color-neutral-muted;");
 
     this.activitiesButton = new Button("", new IconLabel(Theme.ACTIVITY_ICON, 14, Color.DARKGRAY));
     this.observationButton =
@@ -211,7 +211,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     // Create bottom control bar for scenarios
     this.bottomBar = new HBox(10);
     bottomBar.setPrefHeight(20);
-    bottomBar.setStyle("-fx-background-color: #E0E0E0;");
+    bottomBar.setStyle("-fx-background-color: -color-neutral-muted;");
 
     Button swapButton = new Button();
     swapButton.setGraphic(new FontIcon(Theme.DIGITAL_TWINS_ICON));
