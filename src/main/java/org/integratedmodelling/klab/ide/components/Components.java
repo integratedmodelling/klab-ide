@@ -744,7 +744,9 @@ public class Components {
       var tooltip = label + "\n" + this.descriptor.getUrn();
 
       Label title = new Label(label);
-      title.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
+      title.setStyle(
+          "-fx-font-weight: bold; -fx-font-size: 14px;"
+              + (this.descriptor.isLocal() ? " -fx-text-fill:-color-success-emphasis;" : ""));
       title.setTooltip(new Tooltip(tooltip));
       title.setMaxWidth(180);
 
@@ -916,15 +918,18 @@ public class Components {
     private final Consumer<ContextScope> deleteAction;
     ContextInfo digitalTwin;
     Consumer<ContextScope> selectAction;
+    boolean local;
 
     public DigitalTwin(
         ContextInfo digitalTwin,
         Consumer<ContextScope> selectAction,
-        Consumer<ContextScope> deleteAction) {
+        Consumer<ContextScope> deleteAction,
+        boolean local) {
       super(Type.Object, digitalTwin.getName(), false);
       this.digitalTwin = digitalTwin;
       this.selectAction = selectAction;
       this.deleteAction = deleteAction;
+      this.local = local;
     }
 
     @Override
@@ -936,7 +941,9 @@ public class Components {
       content.setPrefWidth(280);
 
       Label title = new Label(digitalTwin.getName());
-      title.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
+      title.setStyle(
+          "-fx-font-weight: bold; -fx-font-size: 14px;"
+              + (local ? " -fx-text-fill:-color-success-emphasis;" : ""));
       title.setMaxWidth(Double.MAX_VALUE);
 
       Button openButton = new Button();

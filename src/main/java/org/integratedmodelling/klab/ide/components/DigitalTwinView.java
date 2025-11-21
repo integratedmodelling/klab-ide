@@ -109,9 +109,14 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
             components.add(workspaceDialog);
           }
           for (var dt : getContextList()) {
-            // TODO skip the opened ones
+            //  skip the opened ones
+            if (openEditors.containsKey(dt.getId())) {
+              continue;
+            }
+            var isLocal = Utils.URLs.isLocalHost(dt.getConfiguration().getUrl());
             var dtComponent =
-                new Components.DigitalTwin(dt, this::showDigitalTwin, this::removeDigitalTwin);
+                new Components.DigitalTwin(
+                    dt, this::showDigitalTwin, this::removeDigitalTwin, isLocal);
             components.add(dtComponent);
             dtComponent.createContent();
           }
