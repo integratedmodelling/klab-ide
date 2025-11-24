@@ -17,6 +17,7 @@ import org.integratedmodelling.klab.api.collections.Parameters;
 import org.integratedmodelling.klab.api.data.Data;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.digitaltwin.DigitalTwin;
+import org.integratedmodelling.klab.api.identities.Federation;
 import org.integratedmodelling.klab.api.identities.Identity;
 import org.integratedmodelling.klab.api.identities.UserIdentity;
 import org.integratedmodelling.klab.api.knowledge.Observable;
@@ -557,6 +558,11 @@ public class IDEContextScope implements ContextScope {
   @Override
   public boolean isSender() {
     return delegate.isSender();
+  }
+
+  @Override
+  public Federation getFederation() {
+    return delegate.getFederation();
   }
 
   @Override
