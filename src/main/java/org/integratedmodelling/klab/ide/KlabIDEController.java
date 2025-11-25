@@ -159,6 +159,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         reactor.setDigitalTwin(focalScope, isLocal);
       }
     }
+    // TODO here: set DT mini-window in status bar.
   }
 
   public IDEContextScope getFocalScope() {

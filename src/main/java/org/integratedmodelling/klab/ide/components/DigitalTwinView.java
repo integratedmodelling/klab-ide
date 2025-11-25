@@ -77,7 +77,6 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
   @Override
   protected void assetEditorSelected(IDEContextScope asset) {
     if (KlabIDEController.instance().getFocalScope() != asset) {
-      Logging.INSTANCE.info("Selecting scope " + asset);
       KlabIDEController.instance().setFocalScope(asset, Utils.URLs.isLocalHost(asset.getUrl()));
     }
   }

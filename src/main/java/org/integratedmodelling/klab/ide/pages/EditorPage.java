@@ -41,10 +41,10 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
   private Map<T, Tab> assetEditors = new HashMap<>();
   protected DigitalTwinControlPanel digitalTwinControlPanel;
   private TreeView<T> tree;
-  private HBox toggleBar;
+//  private HBox toggleBar;
   private A currentAsset;
-  private boolean isContentShown = false;
-  private Label digitalTwinLabel;
+//  private boolean isContentShown = false;
+//  private Label digitalTwinLabel;
 
   public EditorPage(A asset) {
     this.currentAsset = asset;
@@ -108,41 +108,41 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
               .bind(digitalTwinControlPanel.widthProperty());
           configureDigitalTwinWidget(digitalTwinControlPanel);
 
-          this.toggleBar = new HBox();
-          toggleBar.setStyle("-fx-background-color: -color-neutral-subtle; -fx-padding: 4;");
-          toggleBar.setAlignment(Pos.CENTER_LEFT);
-          toggleBar.setPrefHeight(44);
-
-          var arrowIcon = new Button();
-          arrowIcon.setGraphic(new FontIcon(Material2AL.ARROW_UPWARD));
-          arrowIcon
-              .onActionProperty()
-              .set(
-                  e -> {
-                    showDigitalTwinControlPanel();
-                    NodeUtils.toggleVisibility(toggleBar, false);
-                  });
-          arrowIcon.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
-          this.digitalTwinLabel = new Label("Digital Twin Control");
-          digitalTwinLabel.setAlignment(Pos.CENTER_LEFT);
-          digitalTwinLabel.setStyle("-fx-font-size: 14;");
-          digitalTwinLabel.setMaxWidth(Double.MAX_VALUE);
-          HBox.setHgrow(digitalTwinLabel, Priority.ALWAYS);
-          toggleBar.getChildren().addAll(digitalTwinLabel, arrowIcon);
-          toggleBar.setMaxWidth(Double.MAX_VALUE);
-          toggleBar.setOnMouseClicked(
-              e -> {
-                showDigitalTwinControlPanel();
-                NodeUtils.toggleVisibility(toggleBar, false);
-              });
-          HBox.setHgrow(toggleBar, Priority.ALWAYS);
+//          this.toggleBar = new HBox();
+//          toggleBar.setStyle("-fx-background-color: -color-neutral-subtle; -fx-padding: 4;");
+//          toggleBar.setAlignment(Pos.CENTER_LEFT);
+//          toggleBar.setPrefHeight(44);
+//
+//          var arrowIcon = new Button();
+//          arrowIcon.setGraphic(new FontIcon(Material2AL.ARROW_UPWARD));
+//          arrowIcon
+//              .onActionProperty()
+//              .set(
+//                  e -> {
+//                    showDigitalTwinControlPanel();
+//                    NodeUtils.toggleVisibility(toggleBar, false);
+//                  });
+//          arrowIcon.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
+//          this.digitalTwinLabel = new Label("Digital Twin Control");
+//          digitalTwinLabel.setAlignment(Pos.CENTER_LEFT);
+//          digitalTwinLabel.setStyle("-fx-font-size: 14;");
+//          digitalTwinLabel.setMaxWidth(Double.MAX_VALUE);
+//          HBox.setHgrow(digitalTwinLabel, Priority.ALWAYS);
+//          toggleBar.getChildren().addAll(digitalTwinLabel, arrowIcon);
+//          toggleBar.setMaxWidth(Double.MAX_VALUE);
+//          toggleBar.setOnMouseClicked(
+//              e -> {
+//                showDigitalTwinControlPanel();
+//                NodeUtils.toggleVisibility(toggleBar, false);
+//              });
+//          HBox.setHgrow(toggleBar, Priority.ALWAYS);
 
           showDigitalTwinControlPanel();
           NodeUtils.toggleVisibility(digitalTwinControlPanel, false);
-          NodeUtils.toggleVisibility(toggleBar, true);
+//          NodeUtils.toggleVisibility(toggleBar, true);
 
           var dtContainer = new StackPane();
-          dtContainer.getChildren().addAll(digitalTwinControlPanel, toggleBar);
+          dtContainer.getChildren().addAll(digitalTwinControlPanel/*, toggleBar*/);
 
           container.getChildren().addAll(tree, dtContainer);
 
@@ -170,7 +170,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
       Platform.runLater(
           () -> {
             NodeUtils.toggleVisibility(digitalTwinControlPanel, false);
-            NodeUtils.toggleVisibility(toggleBar, true);
+//            NodeUtils.toggleVisibility(toggleBar, true);
           });
     }
   }
@@ -214,7 +214,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
     // TODO should have a switcher if not dedicated.
     if (focus) {
       digitalTwinControlPanel.setDigitalTwin(contextScope, focus);
-      digitalTwinLabel.setText(contextScope == null ? "" : contextScope.getName());
+//      digitalTwinLabel.setText(contextScope == null ? "" : contextScope.getName());
     }
   }
 
