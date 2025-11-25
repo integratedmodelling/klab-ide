@@ -21,15 +21,13 @@ import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
+import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.image.ImageView;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Pane;
-import javafx.scene.layout.VBox;
+import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
@@ -71,6 +69,7 @@ import org.integratedmodelling.klab.ide.api.DigitalTwinReactor;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.integratedmodelling.klab.ide.components.*;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
+import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.integratedmodelling.klab.ide.utils.NodeUtils;
 import org.integratedmodelling.klab.modeler.ModelerImpl;
 import org.kordamp.ikonli.Ikon;
@@ -94,11 +93,16 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private Label errorLabel;
   private Label warningLabel;
   private Label messageLabel;
+  private Button toggleDigitalTwinButton;
   private AtomicInteger infoCount = new AtomicInteger(0);
   private AtomicInteger errorCount = new AtomicInteger(0);
   private AtomicInteger warningCount = new AtomicInteger(0);
   private PauseTransition currentPause;
   private IDEContextScope focalScope;
+  private HBox digitalTwinBox;
+  private Button digitalTwinButton;
+  private Label digitalTwinLabel;
+  private EditorPage<?, ?> currentEditorPage; // keep this to interact with the DT
 
   /** The "circled" (current) view in the main area. */
   public enum View {
@@ -460,6 +464,22 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     toggleRightSideButton.setGraphic(
         new IconLabel(Material2MZ.NAVIGATE_BEFORE, 24, Theme.CURRENT_THEME.getDefaultTextColor()));
 
+    // This will contain the current DT name and statistics
+    digitalTwinBox = new HBox();
+    digitalTwinBox.setAlignment(Pos.CENTER_LEFT);
+    digitalTwinLabel = new Label("Digital Kan");
+    digitalTwinButton = new Button();
+    digitalTwinButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
+    digitalTwinButton.setGraphic(new IconLabel(FontAwesomeSolid.ARROW_CIRCLE_UP, 14, Color.GREY));
+    digitalTwinButton.setOnAction(e -> toggleDigitalTwinControlPanel());
+    digitalTwinBox
+        .getChildren()
+        .addAll(
+            new Separator(Orientation.VERTICAL),
+            digitalTwinLabel,
+            digitalTwinButton,
+            new Separator(Orientation.VERTICAL));
+
     this.infoLabel =
         new Label(null, new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, Color.BLUE));
     this.errorLabel =
@@ -467,6 +487,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     this.warningLabel =
         new Label(null, new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, Color.ORANGE));
     this.messageLabel = new Label();
+    HBox.setHgrow(messageLabel, Priority.ALWAYS);
     this.warningLabel.setTooltip(new Tooltip("No unread warnings."));
     this.errorLabel.setTooltip(new Tooltip("No unread errors."));
     this.infoLabel.setTooltip(new Tooltip("No unread notifications."));
@@ -475,11 +496,15 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         .getChildren()
         .addAll(
             messageLabel,
-            new Separator(Orientation.VERTICAL),
+            digitalTwinBox,
             infoLabel,
             warningLabel,
             errorLabel,
             toggleRightSideButton);
+  }
+
+  private void toggleDigitalTwinControlPanel() {
+    // TODO
   }
 
   private void handleStartButtonPress() {
