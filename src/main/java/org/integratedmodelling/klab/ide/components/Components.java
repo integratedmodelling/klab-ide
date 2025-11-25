@@ -6,6 +6,7 @@ import atlantafx.base.theme.Styles;
 import atlantafx.base.theme.Tweaks;
 import java.io.File;
 import java.io.IOException;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -45,6 +46,7 @@ import org.integratedmodelling.klab.api.data.Metadata;
 import org.integratedmodelling.klab.api.data.Version;
 import org.integratedmodelling.klab.api.engine.distribution.Distribution;
 import org.integratedmodelling.klab.api.knowledge.Urn;
+import org.integratedmodelling.klab.api.knowledge.observation.scale.time.TimeInstant;
 import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.api.scope.UserScope;
 import org.integratedmodelling.klab.api.services.*;
@@ -925,7 +927,7 @@ public class Components {
         Consumer<ContextScope> selectAction,
         Consumer<ContextScope> deleteAction,
         boolean local) {
-      super(Type.Object, digitalTwin.getName(), false);
+      super(Type.Object, digitalTwin.getConfiguration().getName(), false);
       this.digitalTwin = digitalTwin;
       this.selectAction = selectAction;
       this.deleteAction = deleteAction;
@@ -940,7 +942,7 @@ public class Components {
       VBox.setVgrow(content, Priority.ALWAYS);
       content.setPrefWidth(280);
 
-      Label title = new Label(digitalTwin.getName());
+      Label title = new Label(digitalTwin.getConfiguration().getName());
       title.setStyle(
           "-fx-font-weight: bold; -fx-font-size: 14px;"
               + (local ? " -fx-text-fill:-color-success-emphasis;" : ""));
@@ -975,7 +977,9 @@ public class Components {
       deleteButton.setGraphic(new FontIcon(Material2AL.DELETE_FOREVER));
       deleteButton.setOnAction(
           e -> {
-            var peer = KlabIDEController.instance().getDigitalTwinPeer(digitalTwin.getId());
+            var peer =
+                KlabIDEController.instance()
+                    .getDigitalTwinPeer(digitalTwin.getConfiguration().getId());
             if (peer != null) {
               peer.close();
               deleteAction.accept(peer);
@@ -1003,10 +1007,13 @@ public class Components {
 
       HBox.setHgrow(titleBox, Priority.ALWAYS);
 
-      if (digitalTwin.getUser() != null && digitalTwin.getUser().contains("@")) {
+      if (digitalTwin.getConfiguration().getOwner() != null
+          && digitalTwin.getConfiguration().getOwner().contains("@")) {
         FontIcon federatedIcon = new FontIcon(Material2AL.CLOUD);
         federatedIcon.setStyle("-fx-font-size: 14px;");
-        Tooltip.install(federatedIcon, new Tooltip("Federated user: " + digitalTwin.getUser()));
+        Tooltip.install(
+            federatedIcon,
+            new Tooltip("Federated user: " + digitalTwin.getConfiguration().getOwner()));
         titleBox.getChildren().add(federatedIcon);
       }
 
@@ -1021,12 +1028,12 @@ public class Components {
       Label size =
           new Label(
               String.format(
-                  "ID: %s; Size: %d observations",
-                  Utils.Paths.getLast(digitalTwin.getId(), '.'),
-                  digitalTwin.getObservationCount()));
+                  "Created: %s; Idle: ",
+                  TimeInstant.create(digitalTwin.getCreationTime()),
+                  Utils.Time.formatDuration(Duration.ofMillis(digitalTwin.getIdleTimeMs()))));
       size.setStyle("-fx-font-size: 12px;");
 
-      TextArea description = new TextArea(digitalTwin.getDescription());
+      TextArea description = new TextArea(digitalTwin.getConfiguration().getDescription());
       description.setWrapText(true);
       description.setEditable(false);
       description.setPrefRowCount(3);

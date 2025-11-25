@@ -110,7 +110,7 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
           }
           for (var dt : getContextList()) {
             //  skip the opened ones
-            if (openEditors.containsKey(dt.getId())) {
+            if (openEditors.containsKey(dt.getConfiguration().getId())) {
               continue;
             }
             var isLocal = Utils.URLs.isLocalHost(dt.getConfiguration().getUrl());
