@@ -163,6 +163,10 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         reactor.setDigitalTwin(focalScope, isLocal);
       }
     }
+    digitalTwinLabel.setText(focalScope.getName());
+    digitalTwinButton.setDisable(false);
+    digitalTwinLabel.setTooltip(new Tooltip(focalScope.getName())); // TODO
+    digitalTwinLabel.setStyle("fx-font-weight: bold; -fx-text-fill: -fx-accent-color;");
     // TODO here: set DT mini-window in status bar.
   }
 
@@ -465,17 +469,21 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         new IconLabel(Material2MZ.NAVIGATE_BEFORE, 24, Theme.CURRENT_THEME.getDefaultTextColor()));
 
     // This will contain the current DT name and statistics
-    digitalTwinBox = new HBox();
+    digitalTwinBox = new HBox(2);
     digitalTwinBox.setAlignment(Pos.CENTER_LEFT);
-    digitalTwinLabel = new Label("Digital Kan");
+    digitalTwinLabel = new Label("No digital twin in focus");
+    digitalTwinLabel.setStyle("-fx-font-style: italic");
     digitalTwinButton = new Button();
     digitalTwinButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
+    digitalTwinButton.setTooltip(new Tooltip("Show Digital Twin Control Panel"));
+    digitalTwinButton.setDisable(true);
     digitalTwinButton.setGraphic(new IconLabel(FontAwesomeSolid.ARROW_CIRCLE_UP, 14, Color.GREY));
     digitalTwinButton.setOnAction(e -> toggleDigitalTwinControlPanel());
     digitalTwinBox
         .getChildren()
         .addAll(
             new Separator(Orientation.VERTICAL),
+            new IconLabel(Theme.DIGITAL_TWINS_ICON, 16, Color.GREY),
             digitalTwinLabel,
             digitalTwinButton,
             new Separator(Orientation.VERTICAL));
