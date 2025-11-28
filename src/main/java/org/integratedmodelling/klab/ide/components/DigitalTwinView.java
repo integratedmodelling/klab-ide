@@ -67,9 +67,7 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
   public List<ContextInfo> getContextList() {
     List<ContextInfo> ret = new ArrayList<>();
     for (var rService : getServices()) {
-      for (var workspace : rService.getSessionInfo(KlabIDEController.instance().user())) {
-        ret.addAll(workspace.getContexts());
-      }
+      ret.addAll(rService.getContextInfo(KlabIDEController.instance().user()));
     }
     return ret;
   }

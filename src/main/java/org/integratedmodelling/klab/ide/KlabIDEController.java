@@ -35,6 +35,7 @@ import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.services.client.scope.ClientContextScope;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.authentication.ExternalAuthenticationCredentials;
+import org.integratedmodelling.klab.api.collections.Pair;
 import org.integratedmodelling.klab.api.configuration.Setting;
 import org.integratedmodelling.klab.api.data.RepositoryState;
 import org.integratedmodelling.klab.api.digitaltwin.DigitalTwin;
@@ -103,6 +104,25 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private Button digitalTwinButton;
   private Label digitalTwinLabel;
   private EditorPage<?, ?> currentEditorPage; // keep this to interact with the DT
+  private Pair<EditorPage<?, ?>, DigitalTwinControlPanel> digitalTwinPanelShown =
+      Pair.of(null, null);
+
+  public <T, A> void digitalTwinPanelShown(
+      EditorPage<A, T> atEditorPage, DigitalTwinControlPanel digitalTwinControlPanel) {
+    digitalTwinPanelShown = Pair.of(atEditorPage, digitalTwinControlPanel);
+    digitalTwinButton.setDisable(false);
+    digitalTwinButton.setGraphic(
+        new IconLabel(FontAwesomeSolid.ARROW_CIRCLE_DOWN, 14, Color.DARKGREEN));
+    digitalTwinLabel.setText(digitalTwinControlPanel.getScope().getName());
+  }
+
+  public <T, A> void digitalTwinPanelHidden(
+      EditorPage<A, T> atEditorPage, DigitalTwinControlPanel digitalTwinControlPanel) {
+      digitalTwinButton.setDisable(false);
+      digitalTwinButton.setGraphic(
+              new IconLabel(FontAwesomeSolid.ARROW_CIRCLE_UP, 14, Color.DARKGREEN));
+//      digitalTwinLabel.setText(digitalTwinControlPanel.getScope().getName());
+  }
 
   /** The "circled" (current) view in the main area. */
   public enum View {
