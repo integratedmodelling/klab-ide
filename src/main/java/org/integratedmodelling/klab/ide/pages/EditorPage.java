@@ -61,10 +61,32 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
 
     KlabIDEController.instance().registerDigitalTwinReactor(this);
 
+    sceneProperty()
+        .addListener(
+            (obs, oldScene, newScene) -> {
+              if (newScene != null) {
+                Platform.runLater(() -> onVisualize(true));
+              }
+            });
+
+    focusedProperty()
+        .addListener(
+            (obs, oldFocused, newFocused) -> {
+              if (newFocused) {
+                Platform.runLater(() -> onVisualize(true));
+              }
+            });
+
     clickTimeline.getKeyFrames().add(clickKeyFrame);
   }
 
   protected void configureDigitalTwinWidget(DigitalTwinControlPanel digitalTwinMinified) {}
+
+  /**
+   * Called when this editor page is shown on screen or gains focus (wit true value) or is closed
+   * (with false value)
+   */
+  protected abstract void onVisualize(boolean visibleAfterCall);
 
   protected void showContent() {
     Platform.runLater(

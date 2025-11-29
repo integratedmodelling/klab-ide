@@ -60,7 +60,12 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     }
   }
 
-  @Override
+    @Override
+    protected void onVisualize(boolean visibleAfterCall) {
+        KlabIDEController.instance().setFocalEditor(this, visibleAfterCall);
+    }
+
+    @Override
   protected void configureDigitalTwinWidget(DigitalTwinControlPanel digitalTwinMinified) {
     // TODO contents
     digitalTwinMinified.setOnDragOver(

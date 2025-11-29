@@ -159,6 +159,11 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
   public void focusObservations(List<RuntimeAsset> ids) {}
 
   @Override
+  protected void onVisualize(boolean visibleAfterCall) {
+    KlabIDEController.instance().setFocalEditor(this, visibleAfterCall);
+  }
+
+  @Override
   protected void configureDigitalTwinWidget(DigitalTwinControlPanel digitalTwinMinified) {
     digitalTwinMinified.setDigitalTwin(contextScope, true);
   }

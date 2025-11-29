@@ -90,6 +90,7 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
       if (asset != null) {
         assetEditorClosed((A) asset);
       }
+      editor.onVisualize(false);
     }
   }
 
@@ -99,6 +100,7 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
       if (asset != null) {
         assetEditorSelected((A) asset);
       }
+      editor.onVisualize(true);
     }
   }
 
@@ -136,7 +138,7 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
   }
 
   public void removeEditor(EditorPage<?, ?> node) {
-      Platform.runLater(
+    Platform.runLater(
         () -> {
           Tab tab =
               this.tabPane.getTabs().stream()
