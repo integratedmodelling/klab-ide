@@ -202,6 +202,14 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
     }
   }
 
+  public void toggleDigitalTwinControlPanel() {
+    if (digitalTwinControlPanel.isVisible()) {
+      hideDigitalTwinControlPanel();
+    } else {
+      showDigitalTwinControlPanel();
+    }
+  }
+
   public void edit(T asset) {
     if (!assetEditors.containsKey(asset)) {
       var editor = createEditor(asset);
