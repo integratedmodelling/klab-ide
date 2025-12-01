@@ -185,8 +185,8 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
       Platform.runLater(
           () -> {
             NodeUtils.toggleVisibility(digitalTwinControlPanel, true);
-            NodeUtils.toggleVisibility(
-                digitalTwinControlPanel.getParent().getChildrenUnmodifiable().get(1), false);
+//            NodeUtils.toggleVisibility(
+//                digitalTwinControlPanel.getParent().getChildrenUnmodifiable().get(1), false);
             KlabIDEController.instance().digitalTwinPanelShown(this, digitalTwinControlPanel);
           });
     }

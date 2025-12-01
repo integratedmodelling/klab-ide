@@ -63,8 +63,8 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   private final ProgressIndicator progressIndicator;
   //  private final Label statusLabel;
   private final HBox topBar;
-  private final HBox bottomBar;
-  private final MenuButton digitalTwinSwitcher;
+//  private final HBox bottomBar;
+//  private final MenuButton digitalTwinSwitcher;
   private final Button resetButton;
   private final Button activitiesButton;
   private final Button scenarioButton;
@@ -209,39 +209,39 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     setCenter(activityTree);
 
     // Create bottom control bar for scenarios
-    this.bottomBar = new HBox(10);
-    bottomBar.setPrefHeight(20);
-    bottomBar.setStyle("-fx-background-color: -color-neutral-muted;");
-
-    Button swapButton = new Button();
-    swapButton.setGraphic(new FontIcon(Theme.DIGITAL_TWINS_ICON));
-    swapButton.setOnAction(
-        e -> {
-          if (getScope() != null) {
-            KlabIDEController.instance()
-                .getView(KlabIDEController.View.DIGITAL_TWINS, DigitalTwinView.class)
-                .showDigitalTwin(getScope());
-            KlabIDEController.instance().selectView(KlabIDEController.View.DIGITAL_TWINS);
-          }
-        });
-    swapButton.getStyleClass().addAll(Styles.FLAT /*, Styles.BUTTON_CIRCLE*/);
-
-    this.digitalTwinSwitcher = new MenuButton();
-    this.digitalTwinSwitcher.getStyleClass().addAll(Styles.FLAT);
-    HBox.setHgrow(digitalTwinSwitcher, Priority.ALWAYS);
-    digitalTwinSwitcher.setMaxWidth(Double.MAX_VALUE);
-
-    // Function buttons
-    Button collapseButton = new Button();
-    collapseButton.setGraphic(new FontIcon(Material2AL.ARROW_DOWNWARD));
-    collapseButton.setOnAction(e -> editorPage.hideDigitalTwinControlPanel());
-    collapseButton.getStyleClass().addAll(Styles.FLAT /*, Styles.BUTTON_CIRCLE*/);
-    if (editorPage instanceof DigitalTwinEditor) {
-      bottomBar.getChildren().addAll(digitalTwinSwitcher, collapseButton);
-    } else {
-      bottomBar.getChildren().addAll(swapButton, digitalTwinSwitcher, collapseButton);
-    }
-    setBottom(bottomBar);
+//    this.bottomBar = new HBox(10);
+//    bottomBar.setPrefHeight(20);
+//    bottomBar.setStyle("-fx-background-color: -color-neutral-muted;");
+//
+//    Button swapButton = new Button();
+//    swapButton.setGraphic(new FontIcon(Theme.DIGITAL_TWINS_ICON));
+//    swapButton.setOnAction(
+//        e -> {
+//          if (getScope() != null) {
+//            KlabIDEController.instance()
+//                .getView(KlabIDEController.View.DIGITAL_TWINS, DigitalTwinView.class)
+//                .showDigitalTwin(getScope());
+//            KlabIDEController.instance().selectView(KlabIDEController.View.DIGITAL_TWINS);
+//          }
+//        });
+//    swapButton.getStyleClass().addAll(Styles.FLAT /*, Styles.BUTTON_CIRCLE*/);
+//
+//    this.digitalTwinSwitcher = new MenuButton();
+//    this.digitalTwinSwitcher.getStyleClass().addAll(Styles.FLAT);
+//    HBox.setHgrow(digitalTwinSwitcher, Priority.ALWAYS);
+//    digitalTwinSwitcher.setMaxWidth(Double.MAX_VALUE);
+//
+//    // Function buttons
+//    Button collapseButton = new Button();
+//    collapseButton.setGraphic(new FontIcon(Material2AL.ARROW_DOWNWARD));
+//    collapseButton.setOnAction(e -> editorPage.hideDigitalTwinControlPanel());
+//    collapseButton.getStyleClass().addAll(Styles.FLAT /*, Styles.BUTTON_CIRCLE*/);
+//    if (editorPage instanceof DigitalTwinEditor) {
+//      bottomBar.getChildren().addAll(digitalTwinSwitcher, collapseButton);
+//    } else {
+//      bottomBar.getChildren().addAll(swapButton, digitalTwinSwitcher, collapseButton);
+//    }
+//    setBottom(bottomBar);
   }
 
   HBox setControlBar() {
@@ -250,7 +250,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   private void loadScope(IDEContextScope scope) {
     // TODO obviously this isn't right
-    this.digitalTwinSwitcher.setText(scope == null ? "" : scope.getName());
+//    this.digitalTwinSwitcher.setText(scope == null ? "" : scope.getName());
     //    this.digitalTwinSwitcher.getItems().add(new MenuItem(scope.getName()));
     this.scope = scope;
     if (scope != null) {
@@ -340,7 +340,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   @Override
   public void closeDigitalTwin(IDEContextScope ideContextScope) {
     this.scope = null;
-    this.digitalTwinSwitcher.setText("");
+//    this.digitalTwinSwitcher.setText("");
     this.status = Status.IDLE;
     this.setMainView();
   }
