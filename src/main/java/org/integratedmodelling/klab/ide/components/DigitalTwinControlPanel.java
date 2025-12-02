@@ -63,7 +63,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   private final ProgressIndicator progressIndicator;
   //  private final Label statusLabel;
   private final HBox topBar;
-//  private final HBox bottomBar;
+  private final HBox bottomBar;
 //  private final MenuButton digitalTwinSwitcher;
   private final Button resetButton;
   private final Button activitiesButton;
@@ -209,7 +209,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     setCenter(activityTree);
 
     // Create bottom control bar for scenarios
-//    this.bottomBar = new HBox(10);
+    this.bottomBar = new HBox(10);
 //    bottomBar.setPrefHeight(20);
 //    bottomBar.setStyle("-fx-background-color: -color-neutral-muted;");
 //
@@ -241,12 +241,12 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 //    } else {
 //      bottomBar.getChildren().addAll(swapButton, digitalTwinSwitcher, collapseButton);
 //    }
-//    setBottom(bottomBar);
+    setBottom(bottomBar);
   }
 
-  HBox setControlBar() {
-    return (HBox) getTop();
-  }
+//  HBox setControlBar() {
+//    return (HBox) getTop();
+//  }
 
   private void loadScope(IDEContextScope scope) {
     // TODO obviously this isn't right

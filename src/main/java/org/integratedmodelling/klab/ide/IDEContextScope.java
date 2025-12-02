@@ -99,14 +99,19 @@ public class IDEContextScope implements ContextScope {
     }
   }
 
-  public void setDTPanelOwner(boolean owns, EditorPage<?, ?> editorPage) {
-    ownsDTPanel = owns;
-    if (owns) {
-      Logging.INSTANCE.info(delegate.getName() + " OWNS DT PANEL");
-    } else {
-      Logging.INSTANCE.info(delegate.getName() + " DOES NOT OWN DT PANEL");
-    }
+  @Override
+  public String toString() {
+    return delegate.getName();
   }
+
+//  public void setDTPanelOwner(boolean owns, EditorPage<?, ?> editorPage) {
+//    ownsDTPanel = owns;
+//    if (owns) {
+//      Logging.INSTANCE.info(delegate.getName() + " OWNS DT PANEL");
+//    } else {
+//      Logging.INSTANCE.info(delegate.getName() + " DOES NOT OWN DT PANEL");
+//    }
+//  }
 
   public int getGraphDepth() {
     return this.graphDepth;

@@ -26,6 +26,7 @@ import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuItem;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
@@ -88,7 +89,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private boolean inspectorIsOn;
   private Set<View> neverSeen = EnumSet.of(View.RESOURCES, View.WORKSPACES, View.DIGITAL_TWINS);
   private static KlabIDEController _this;
-  private Map<String, IDEContextScope> contextMap = new HashMap<>();
+  private Map<String, IDEContextScope> contextMap = new LinkedHashMap<>();
   private Queue<DigitalTwinReactor> digitalTwinReactors = new ConcurrentLinkedQueue<>();
   private AtomicReference<Engine.Status> engineStatus = new AtomicReference<>();
   private Label infoLabel;
@@ -103,12 +104,13 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private IDEContextScope focalScope;
   private HBox digitalTwinBox;
   private Button digitalTwinButton;
-  private ComboBox<IDEContextScope> digitalTwinLabel;
+  private Label digitalTwinLabel;
   private EditorPage<?, ?> currentEditorPage; // keep this to interact with the DT
   private Pair<EditorPage<?, ?>, DigitalTwinControlPanel> digitalTwinPanelShown =
       Pair.of(null, null);
   private Button dtResetButton;
   private Button dtSwitchButton;
+  private MenuButton digitalTwinSwitcher;
 
   public <T, A> void digitalTwinPanelShown(
       EditorPage<A, T> atEditorPage, DigitalTwinControlPanel digitalTwinControlPanel) {
@@ -118,7 +120,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     digitalTwinButton.setGraphic(
         new IconLabel(FontAwesomeSolid.ARROW_CIRCLE_DOWN, 14, Color.DARKGREEN));
     dtResetButton.setGraphic(new IconLabel(FontAwesomeSolid.TIMES_CIRCLE, 14, Color.DARKRED));
-    digitalTwinLabel.getSelectionModel().select(digitalTwinControlPanel.getScope());
+    //    digitalTwinLabel.getSelectionModel().select(digitalTwinControlPanel.getScope());
   }
 
   public <T, A> void digitalTwinPanelHidden(
@@ -200,21 +202,43 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         reactor.setDigitalTwin(focalScope, isLocal);
       }
     }
-    digitalTwinLabel.setValue(focalScope);
-    digitalTwinButton.setDisable(focalScope == null);
-    dtResetButton.setDisable(focalScope == null);
-    dtSwitchButton.setDisable(focalScope == null);
-    digitalTwinLabel.setTooltip(
-        new Tooltip(focalScope == null ? "No digital twin" : focalScope.getName())); // TODO
-    digitalTwinLabel.setStyle("fx-font-weight: bold; -fx-text-fill: -fx-accent-color;");
-
-    // TODO here: set DT mini-window in status bar.
     updateDigitalTwinChoices();
   }
 
   private void updateDigitalTwinChoices() {
-    digitalTwinLabel.getItems().clear();
-    digitalTwinLabel.getItems().addAll(contextMap.values());
+
+    Logging.INSTANCE.info(
+        "Setting focal scope to "
+            + (focalScope == null ? "No digital twin" : focalScope.getName()));
+
+    Platform.runLater(
+        () -> {
+          var contexts = new ArrayList<>(contextMap.values());
+          contexts.sort(Comparator.comparing(c -> (focalScope != null && c == focalScope) ? 0 : 1));
+          this.digitalTwinSwitcher.getItems().clear();
+          this.digitalTwinSwitcher
+              .getItems()
+              .addAll(
+                  contexts.stream()
+                      .filter(c -> c != focalScope)
+                      .map(
+                          c -> {
+                            var item = new MenuItem(c.getName());
+                            item.setOnAction(actionEvent -> setFocalScope(c, false));
+                            return item;
+                          })
+                      .toList());
+
+          Logging.INSTANCE.info("Digital twin switcher items: " + digitalTwinSwitcher.getItems());
+
+          digitalTwinLabel.setText(focalScope == null ? "No digital twin" : focalScope.getName());
+          digitalTwinButton.setDisable(focalScope == null);
+          dtResetButton.setDisable(focalScope == null);
+          dtSwitchButton.setDisable(focalScope == null);
+          digitalTwinLabel.setTooltip(
+              new Tooltip(focalScope == null ? "No digital twin" : focalScope.getName())); // TODO
+          digitalTwinLabel.setStyle("fx-font-weight: bold; -fx-text-fill: -fx-accent-color;");
+        });
   }
 
   public IDEContextScope getFocalScope() {
@@ -518,34 +542,13 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     // This will contain the current DT name and statistics
     digitalTwinBox = new HBox(0);
     digitalTwinBox.setAlignment(Pos.CENTER_LEFT);
-    digitalTwinLabel = new ComboBox<>();
-    digitalTwinLabel.setPromptText("No digital twin in focus");
+    digitalTwinLabel = new Label("No digital twin");
     digitalTwinLabel.setStyle("-fx-font-style: italic");
-    digitalTwinLabel.setPrefWidth(200);
-    digitalTwinLabel.setCellFactory(
-        param ->
-            new ListCell<>() {
-              @Override
-              protected void updateItem(IDEContextScope item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? "" : item.getName());
-              }
-            });
-    digitalTwinLabel.setButtonCell(
-        new ListCell<>() {
-          @Override
-          protected void updateItem(IDEContextScope item, boolean empty) {
-            super.updateItem(item, empty);
-            setText(empty || item == null ? "" : item.getName());
-          }
-        });
-    digitalTwinLabel.setOnAction(
-        e -> {
-          var selected = digitalTwinLabel.getValue();
-          if (selected != null) {
-            setFocalScope(selected, Utils.URLs.isLocalHost(selected.getUrl()));
-          }
-        });
+    digitalTwinLabel.setPrefWidth(160);
+
+    this.digitalTwinSwitcher = new MenuButton();
+    this.digitalTwinSwitcher.getStyleClass().addAll(Styles.FLAT);
+
     digitalTwinButton = new Button();
     digitalTwinButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
     digitalTwinButton.setTooltip(new Tooltip("Show Digital Twin Control Panel"));
@@ -582,6 +585,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
             new Separator(Orientation.VERTICAL),
             dtSwitchButton,
             digitalTwinLabel,
+            digitalTwinSwitcher,
             digitalTwinButton,
             dtResetButton,
             new Separator(Orientation.VERTICAL));
@@ -1304,7 +1308,11 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   @Override
   public synchronized ContextScope createDefaultContext() {
-    return modeler.createDefaultContext();
+    var context = modeler.createDefaultContext();
+    var ret = new IDEContextScope((ClientContextScope) context);
+    contextMap.put(ret.getId(), ret);
+    setFocalScope(ret, true);
+    return ret;
   }
 
   @Override
