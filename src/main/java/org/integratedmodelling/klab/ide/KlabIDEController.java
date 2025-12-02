@@ -104,7 +104,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private IDEContextScope focalScope;
   private HBox digitalTwinBox;
   private Button digitalTwinButton;
-  private Label digitalTwinLabel;
+  //  private Label digitalTwinLabel;
   private EditorPage<?, ?> currentEditorPage; // keep this to interact with the DT
   private Pair<EditorPage<?, ?>, DigitalTwinControlPanel> digitalTwinPanelShown =
       Pair.of(null, null);
@@ -229,15 +229,14 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
                           })
                       .toList());
 
-          Logging.INSTANCE.info("Digital twin switcher items: " + digitalTwinSwitcher.getItems());
-
-          digitalTwinLabel.setText(focalScope == null ? "No digital twin" : focalScope.getName());
+          digitalTwinSwitcher.setText(
+              focalScope == null ? "No digital twin" : focalScope.getName());
           digitalTwinButton.setDisable(focalScope == null);
           dtResetButton.setDisable(focalScope == null);
           dtSwitchButton.setDisable(focalScope == null);
-          digitalTwinLabel.setTooltip(
+          digitalTwinSwitcher.setTooltip(
               new Tooltip(focalScope == null ? "No digital twin" : focalScope.getName())); // TODO
-          digitalTwinLabel.setStyle("fx-font-weight: bold; -fx-text-fill: -fx-accent-color;");
+          digitalTwinSwitcher.setStyle("fx-font-weight: bold; -fx-text-fill: -fx-accent-color;");
         });
   }
 
@@ -542,12 +541,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     // This will contain the current DT name and statistics
     digitalTwinBox = new HBox(0);
     digitalTwinBox.setAlignment(Pos.CENTER_LEFT);
-    digitalTwinLabel = new Label("No digital twin");
-    digitalTwinLabel.setStyle("-fx-font-style: italic");
-    digitalTwinLabel.setPrefWidth(160);
-
     this.digitalTwinSwitcher = new MenuButton();
     this.digitalTwinSwitcher.getStyleClass().addAll(Styles.FLAT);
+    digitalTwinSwitcher.setPrefWidth(205);
 
     digitalTwinButton = new Button();
     digitalTwinButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
@@ -584,7 +580,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         .addAll(
             new Separator(Orientation.VERTICAL),
             dtSwitchButton,
-            digitalTwinLabel,
             digitalTwinSwitcher,
             digitalTwinButton,
             dtResetButton,
