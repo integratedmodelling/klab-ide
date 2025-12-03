@@ -196,6 +196,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   }
 
   public void setFocalScope(IDEContextScope focalScope, boolean isLocal) {
+    if (focalScope == null && this.focalScope != null) {
+      // TODO close windows in DT
+    }
     this.focalScope = focalScope;
     synchronized (this.digitalTwinReactors) {
       for (var reactor : this.digitalTwinReactors) {
@@ -401,16 +404,16 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
           case WORLDVIEW -> ontologyView;
         };
 
-    // If it's a browser and it hasn't been seen yet, open the browser
-    if (neverSeen.remove(view) && ui instanceof BrowsablePage<?, ?> browsablePage) {
-      //      browsablePage.showBrowser();
-    }
-
     // switch the main area to the requested view.
     Platform.runLater(
         () -> {
           mainArea.getChildren().remove(0, mainArea.getChildren().size());
           mainArea.getChildren().add(ui);
+          // If it's a browser and it's empty with no tabs open, open the browser
+          if (ui instanceof BrowsablePage<?, ?> browsablePage && browsablePage.isEmpty()) {
+            // FIXME not working - the browser won't show in every view but the UI will hang.
+            //            browsablePage.showBrowser();
+          }
         });
   }
 

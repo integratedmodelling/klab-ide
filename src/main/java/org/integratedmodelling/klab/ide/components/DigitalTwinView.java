@@ -97,8 +97,8 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
   @Override
   protected void defineBrowser(VBox browserComponents) {
 
-    Platform.runLater(
-        () -> {
+//    Platform.runLater(
+//        () -> {
           browserComponents.getChildren().removeAll(components);
           components.clear();
           components.add(makeHeader("Digital Twins", this::addDigitalTwin));
@@ -118,7 +118,7 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
             dtComponent.createContent();
           }
           browserComponents.getChildren().addAll(components);
-        });
+//        });
   }
 
   private void addDigitalTwin() {
