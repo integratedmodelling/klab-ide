@@ -1,6 +1,7 @@
 package org.integratedmodelling.klab.ide;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -10,6 +11,7 @@ import javafx.stage.Stage;
 import org.eclipse.xtext.ide.server.ServerLauncher;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
+import org.integratedmodelling.klab.ide.lsp.KlabLspClient;
 import org.integratedmodelling.klab.ide.notifications.NotificationManager;
 import org.integratedmodelling.klab.ide.utils.AppContext;
 
@@ -21,7 +23,8 @@ public class KlabIDEApplication extends Application {
   private static Scene scene;
   private static KlabIDEApplication instance;
 
-  private Thread lspThread;
+  private static KlabLspClient lspClient;
+
   private boolean inspectorShown;
   private static Stage primaryStage;
 
@@ -50,18 +53,13 @@ public class KlabIDEApplication extends Application {
      *  classpath.
      */
     Logging.INSTANCE.info("Starting language services for k.LAB language editors");
-    this.lspThread =
-        new Thread(
-            () -> {
-              try {
-                ServerLauncher.main(new String[0]);
-              } catch (Throwable t) {
-                Logging.INSTANCE.error(
-                    "Error launching LSP server: language services not available", t);
-              }
-            });
-
-    this.lspThread.start();
+    Path workspaceRoot = Path.of("/home/klab/git/klab-ide"); // or from config
+    lspClient = new KlabLspClient();
+    try {
+        lspClient.start(workspaceRoot);
+    } catch (Exception e) {
+        throw new RuntimeException(e);
+    }
 
     FXMLLoader fxmlLoader = new FXMLLoader(KlabIDEApplication.class.getResource("ide.fxml"));
     scene = new Scene(fxmlLoader.load(), 1480, 1060);
@@ -101,5 +99,17 @@ public class KlabIDEApplication extends Application {
 
   public boolean isInspectorShown() {
     return this.inspectorShown;
+  }
+
+  @Override
+  public void stop() throws Exception {
+    if (lspClient != null) {
+      lspClient.shutdown();
+    }
+    super.stop();
+  }
+
+  public static KlabLspClient getLspClient() {
+    return lspClient;
   }
 }

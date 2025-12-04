@@ -36,6 +36,9 @@ module org.integratedmodelling.klab.ide {
     requires org.integratedmodelling.languages.worldview;
     requires org.kordamp.ikonli.carbonicons;
     requires org.apache.commons.io;
+    requires org.integratedmodelling.languages.kim.ide.org.eclipse.lsp4j;
+    requires org.eclipse.lsp4j.jsonrpc;
+
 
     opens org.integratedmodelling.klab.ide to javafx.fxml;
     opens org.integratedmodelling.klab.ide.components to javafx.fxml;

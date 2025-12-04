@@ -1,0 +1,382 @@
+>> Sending initialize...
+Xtext Language Server is starting.
+Xtext Language Server has been started.
+[Trace - 03:17:46 PM] Received request 'initialize - (1)'
+Params: {
+  "processId": 146020,
+  "rootUri": "file:/home/klab/git/klab-ide/./",
+  "capabilities": {}
+}
+
+
+[Trace - 03:17:46 PM] Sending response 'initialize - (1)'. Processing request took 107ms
+Result: {
+  "capabilities": {
+    "textDocumentSync": 2,
+    "hoverProvider": true,
+    "completionProvider": {
+      "resolveProvider": false,
+      "triggerCharacters": [
+        "."
+      ]
+    },
+    "signatureHelpProvider": {
+      "triggerCharacters": [
+        "(",
+        ","
+      ]
+    },
+    "definitionProvider": true,
+    "referencesProvider": true,
+    "documentHighlightProvider": true,
+    "documentSymbolProvider": true,
+    "workspaceSymbolProvider": true,
+    "codeActionProvider": false,
+    "documentFormattingProvider": true,
+    "documentRangeFormattingProvider": true,
+    "renameProvider": true,
+    "semanticTokensProvider": {
+      "legend": {
+        "tokenTypes": [
+          "namespace",
+          "type",
+          "class",
+          "enum",
+          "interface",
+          "struct",
+          "typeParameter",
+          "parameter",
+          "variable",
+          "property",
+          "enumMember",
+          "event",
+          "function",
+          "method",
+          "macro",
+          "keyword",
+          "modifier",
+          "comment",
+          "string",
+          "number",
+          "regexp",
+          "operator",
+          "decorator"
+        ],
+        "tokenModifiers": [
+          "abstract",
+          "async",
+          "declaration",
+          "defaultLibrary",
+          "definition",
+          "deprecated",
+          "documentation",
+          "modification",
+          "readonly",
+          "static"
+        ]
+      },
+      "range": false,
+      "full": true
+    }
+  }
+}
+
+
+<< Initialize OK. Capabilities = ServerCapabilities [
+  positionEncoding = null
+  textDocumentSync = Either [
+    left = Incremental
+    right = null
+  ]
+  notebookDocumentSync = null
+  hoverProvider = Either [
+    left = true
+    right = null
+  ]
+  completionProvider = CompletionOptions [
+    resolveProvider = false
+    triggerCharacters = ArrayList (
+      "."
+    )
+    allCommitCharacters = null
+    completionItem = null
+    workDoneProgress = null
+  ]
+  signatureHelpProvider = SignatureHelpOptions [
+    triggerCharacters = ArrayList (
+      "(",
+      ","
+    )
+    retriggerCharacters = null
+    workDoneProgress = null
+  ]
+  definitionProvider = Either [
+    left = true
+    right = null
+  ]
+  typeDefinitionProvider = null
+  implementationProvider = null
+  referencesProvider = Either [
+    left = true
+    right = null
+  ]
+  documentHighlightProvider = Either [
+    left = true
+    right = null
+  ]
+  documentSymbolProvider = Either [
+    left = true
+    right = null
+  ]
+  workspaceSymbolProvider = Either [
+    left = true
+    right = null
+  ]
+  codeActionProvider = Either [
+    left = false
+    right = null
+  ]
+  codeLensProvider = null
+  documentFormattingProvider = Either [
+    left = true
+    right = null
+  ]
+  documentRangeFormattingProvider = Either [
+    left = true
+    right = null
+  ]
+  documentOnTypeFormattingProvider = null
+  renameProvider = Either [
+    left = true
+    right = null
+  ]
+  documentLinkProvider = null
+  colorProvider = null
+  foldingRangeProvider = null
+  declarationProvider = null
+  executeCommandProvider = null
+  workspace = null
+  typeHierarchyProvider = null
+  callHierarchyProvider = null
+  selectionRangeProvider = null
+  linkedEditingRangeProvider = null
+  semanticTokensProvider = SemanticTokensWithRegistrationOptions [
+    legend = SemanticTokensLegend [
+      tokenTypes = ArrayList (
+        "namespace",
+        "type",
+        "class",
+        "enum",
+        "interface",
+        "struct",
+        "typeParameter",
+        "parameter",
+        "variable",
+        "property",
+        "enumMember",
+        "event",
+        "function",
+        "method",
+        "macro",
+        "keyword",
+        "modifier",
+        "comment",
+        "string",
+        "number",
+        "regexp",
+        "operator",
+        "decorator"
+      )
+      tokenModifiers = ArrayList (
+        "abstract",
+        "async",
+        "declaration",
+        "defaultLibrary",
+        "definition",
+        "deprecated",
+        "documentation",
+        "modification",
+        "readonly",
+        "static"
+      )
+    ]
+    range = Either [
+      left = false
+      right = null
+    ]
+    full = Either [
+      left = true
+      right = null
+    ]
+    id = null
+    workDoneProgress = null
+    documentSelector = null
+  ]
+  monikerProvider = null
+  inlayHintProvider = null
+  inlineValueProvider = null
+  diagnosticProvider = null
+  experimental = null
+]
+>> didOpen file:///tmp/test.kim
+[Trace - 03:17:46 PM] Received notification 'initialized'
+Params: {}
+
+
+>> completion at 0:3 ...
+[Trace - 03:17:46 PM] Received notification 'textDocument/didOpen'
+Params: {
+  "textDocument": {
+    "uri": "file:///tmp/test.kim",
+    "languageId": "kim",
+    "version": 1,
+    "text": "model testModel {\n    // TODO: your kim code here\n}\n"
+  }
+}
+
+
+[Trace - 03:17:46 PM] Received request 'textDocument/completion - (2)'
+Params: {
+  "textDocument": {
+    "uri": "file:///tmp/test.kim"
+  },
+  "position": {
+    "line": 0,
+    "character": 3
+  }
+}
+
+
+[Trace - 03:17:46 PM] Sending notification 'textDocument/publishDiagnostics'
+Params: {
+  "uri": "file:///tmp/test.kim",
+  "diagnostics": [
+    {
+      "range": {
+        "start": {
+          "line": 0,
+          "character": 0
+        },
+        "end": {
+          "line": 0,
+          "character": 5
+        }
+      },
+      "severity": 1,
+      "code": "org.eclipse.xtext.diagnostics.Diagnostic.Syntax",
+      "message": "no viable alternative at input \u0027model\u0027"
+    },
+    {
+      "range": {
+        "start": {
+          "line": 0,
+          "character": 6
+        },
+        "end": {
+          "line": 0,
+          "character": 15
+        }
+      },
+      "severity": 1,
+      "code": "org.eclipse.xtext.diagnostics.Diagnostic.Syntax",
+      "message": "no viable alternative at input \u0027testModel\u0027"
+    },
+    {
+      "range": {
+        "start": {
+          "line": 2,
+          "character": 1
+        },
+        "end": {
+          "line": 3,
+          "character": 0
+        }
+      },
+      "severity": 1,
+      "code": "org.eclipse.xtext.diagnostics.Diagnostic.Syntax",
+      "message": "mismatched input \u0027\u003cEOF\u003e\u0027 expecting \u0027;\u0027"
+    }
+  ]
+}
+
+
+<< Diagnostics for file:///tmp/test.kim
+   [Error] no viable alternative at input 'model' @Range [
+  start = Position [
+    line = 0
+    character = 0
+  ]
+  end = Position [
+    line = 0
+    character = 5
+  ]
+]
+   [Error] no viable alternative at input 'testModel' @Range [
+  start = Position [
+    line = 0
+    character = 6
+  ]
+  end = Position [
+    line = 0
+    character = 15
+  ]
+]
+   [Error] mismatched input '<EOF>' expecting ';' @Range [
+  start = Position [
+    line = 2
+    character = 1
+  ]
+  end = Position [
+    line = 3
+    character = 0
+  ]
+]
+[Trace - 03:17:46 PM] Sending response 'textDocument/completion - (2)'. Processing request took 181ms
+Result: {
+  "isIncomplete": false,
+  "items": [
+    {
+      "label": "\"docstring\"",
+      "kind": 1,
+      "detail": "STRING",
+      "sortText": "00000",
+      "textEdit": {
+        "range": {
+          "start": {
+            "line": 0,
+            "character": 3
+          },
+          "end": {
+            "line": 0,
+            "character": 3
+          }
+        },
+        "newText": "\"docstring\""
+      }
+    },
+    {
+      "label": ";",
+      "kind": 14,
+      "sortText": "00001",
+      "textEdit": {
+        "range": {
+          "start": {
+            "line": 0,
+            "character": 3
+          },
+          "end": {
+            "line": 0,
+            "character": 3
+          }
+        },
+        "newText": ";"
+      }
+    }
+  ]
+}
+
+
+<< Completion items:
+   - "docstring"   [STRING]
+   - ;
+..waiting for diagnostics (3s) ..
