@@ -1,18 +1,23 @@
 package org.integratedmodelling.klab.ide.lsp;
 
+import org.apache.commons.lang3.SystemProperties;
 import org.eclipse.lsp4j.*;
 import org.eclipse.lsp4j.jsonrpc.Launcher;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.eclipse.lsp4j.services.LanguageClient;
 import org.eclipse.lsp4j.services.LanguageServer;
+import org.integratedmodelling.klab.api.Klab;
 
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.function.Function;
+
+import static org.integratedmodelling.klab.api.configuration.Configuration.KLAB_WORK_DIRECTORY;
 
 public class KlabLspService {
 
@@ -61,7 +66,6 @@ public class KlabLspService {
         InitializeParams params = new InitializeParams();
         params.setCapabilities(new ClientCapabilities());
         params.setRootUri(workspaceRoot.toUri().toString());
-
         server.initialize(params).get(10, TimeUnit.SECONDS);
         server.initialized(new InitializedParams());
 

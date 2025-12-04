@@ -23,8 +23,6 @@ public class KlabIDEApplication extends Application {
   private static Scene scene;
   private static KlabIDEApplication instance;
 
-  private static KlabLspClient lspClient;
-
   private boolean inspectorShown;
   private static Stage primaryStage;
 
@@ -47,19 +45,6 @@ public class KlabIDEApplication extends Application {
      */
     Application.setUserAgentStylesheet(Theme.CURRENT_THEME.getStylesheet());
     AppContext.setHostServices(getHostServices());
-    /*
-     * TODO if local, at this point it should be enough to launch
-     *  org.eclipse.xtext.ide.server.ServerLauncher to start the LSP server for all languages on the
-     *  classpath.
-     */
-    Logging.INSTANCE.info("Starting language services for k.LAB language editors");
-    Path workspaceRoot = Path.of("/home/klab/git/klab-ide"); // or from config
-    lspClient = new KlabLspClient();
-    try {
-        lspClient.start(workspaceRoot);
-    } catch (Exception e) {
-        throw new RuntimeException(e);
-    }
 
     FXMLLoader fxmlLoader = new FXMLLoader(KlabIDEApplication.class.getResource("ide.fxml"));
     scene = new Scene(fxmlLoader.load(), 1480, 1060);
@@ -99,17 +84,5 @@ public class KlabIDEApplication extends Application {
 
   public boolean isInspectorShown() {
     return this.inspectorShown;
-  }
-
-  @Override
-  public void stop() throws Exception {
-    if (lspClient != null) {
-      lspClient.shutdown();
-    }
-    super.stop();
-  }
-
-  public static KlabLspClient getLspClient() {
-    return lspClient;
   }
 }

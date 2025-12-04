@@ -238,9 +238,9 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   @Override
   protected Node createEditor(NavigableAsset asset) {
-    if (asset instanceof KlabDocumentImpl<?> document) {
+    if (asset instanceof KlabDocument<?> document) {
       // 1. LSP init for this workspace
-      Path workspaceRoot = Paths.get("/home/klab/git/klab-ide"); // or your real root
+      Path workspaceRoot = Paths.get("/home/klab/git/klab-ide");
       try {
         KlabLspService.getInstance().startIfNeeded(workspaceRoot);
       } catch (Exception e) {
@@ -259,7 +259,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
       // 3. Compute a stable URI for the LSP document
       //    (for now: use the physical file if available, or a synthetic URI)
-      String uri = "inmemory://klab/" + document.getUrn();
+      String uri = "inmemory://klab/" + document.getUrn() + ".kim";
 
       // 4. Tell LSP that the document is open
       KlabLspService lsp = KlabLspService.getInstance();
@@ -267,8 +267,6 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
       // 5. Hook editor content changes -> LSP didChange
       ret.setChangeListener(newText -> {
-        // update your document model if needed
-        document.setSourceCode(newText);
         // send to LSP
         lsp.changeDocument(uri, newText);
       });

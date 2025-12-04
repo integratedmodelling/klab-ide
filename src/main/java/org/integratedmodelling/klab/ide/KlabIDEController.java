@@ -3,6 +3,7 @@ package org.integratedmodelling.klab.ide;
 import atlantafx.base.theme.Styles;
 import com.google.common.collect.EvictingQueue;
 import com.google.common.collect.Queues;
+
 import java.awt.*;
 import java.io.File;
 import java.net.URL;
