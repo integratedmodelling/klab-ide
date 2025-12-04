@@ -1,4 +1,4 @@
-package org.integratedmodelling.klab.ide.components;
+package org.integratedmodelling.klab.ide.components.generic;
 
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;

@@ -3,7 +3,6 @@ package org.integratedmodelling.klab.ide.pages;
 import atlantafx.base.controls.ModalPane;
 import atlantafx.base.theme.Styles;
 import javafx.application.Platform;
-import javafx.beans.property.SimpleObjectProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Side;
@@ -14,13 +13,11 @@ import javafx.scene.control.TabPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.klab.ide.Theme;
-import org.integratedmodelling.klab.ide.components.IconLabel;
+import org.integratedmodelling.klab.ide.components.generic.IconLabel;
+import org.jline.reader.Editor;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2MZ;
-
-import java.awt.*;
 
 /** The generic browser with a modal index on the left. */
 public abstract class BrowsablePage<T extends Node, A> extends StackPane implements Page {
@@ -124,6 +121,15 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
     alignedButton.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
     addButton.setOnAction(event -> addAction.run());
     return new HBox(workspacesLabel, alignedButton);
+  }
+
+  public void selectEditor(EditorPage<?, ?> node) {
+    for (var tab : tabPane.getTabs()) {
+      if (tab.getContent() == node) {
+        tabPane.getSelectionModel().select(tab);
+        break;
+      }
+    }
   }
 
   public void addEditor(EditorPage<?, ?> node, String title, FontIcon icon) {

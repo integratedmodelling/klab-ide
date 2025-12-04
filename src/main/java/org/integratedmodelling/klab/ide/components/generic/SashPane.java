@@ -1,4 +1,4 @@
-package org.integratedmodelling.klab.ide.contrib;
+package org.integratedmodelling.klab.ide.components.generic;
 
 /*******************************************************************************
  * Copyright (c) 2016 BestSolution.at and others.

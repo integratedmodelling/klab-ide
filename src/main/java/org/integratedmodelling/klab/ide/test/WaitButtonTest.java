@@ -9,7 +9,7 @@ import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
-import org.integratedmodelling.klab.ide.components.WaitButton;
+import org.integratedmodelling.klab.ide.components.generic.WaitButton;
 
 /**
  * A simple test application for the WaitButton component.

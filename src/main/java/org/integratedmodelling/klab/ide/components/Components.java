@@ -15,7 +15,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import devtoolsfx.gui.GUI;
-import javafx.application.HostServices;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleObjectProperty;
@@ -57,6 +56,10 @@ import org.integratedmodelling.klab.api.services.runtime.objects.ContextInfo;
 import org.integratedmodelling.klab.ide.KlabIDEApplication;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
+import org.integratedmodelling.klab.ide.components.generic.AutoScrollPane;
+import org.integratedmodelling.klab.ide.components.generic.IconLabel;
+import org.integratedmodelling.klab.ide.components.generic.UploadBox;
+import org.integratedmodelling.klab.ide.components.generic.WaitButton;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
@@ -120,6 +123,12 @@ public class Components {
       super(Type.About, "About k.LAB", true);
     }
 
+    // TODO integrate these in a collapsable "Credits" box.
+    public static String[] credits = {
+      "Sentinel-2 cloudless - https://s2maps.eu by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2024)"
+      // TODO add whatever
+    };
+
     protected void createContent() {
 
       var card = new Card();
@@ -164,11 +173,11 @@ public class Components {
       List<Node> developers = new ArrayList<>();
       for (var developer :
           List.of(
-              "Ferdinando Villa, always",
-              "Enrico Girotto, tentatively",
-              "Andrea Antonello, maybe",
-              "Iñigo Cobian, eventually",
-              "Arnab Moitra, tangentially")) {
+              "Ferdinando Villa",
+              "Enrico Girotto",
+              "Andrea Antonello",
+              "Iñigo Cobian",
+              "Arnab Moitra")) {
         Label label = new Label(developer);
         label.setAlignment(Pos.CENTER);
         label.setPadding(new Insets(10));

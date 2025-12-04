@@ -8,8 +8,10 @@ import javafx.scene.Parent;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.VBox;
+import org.integratedmodelling.klab.api.Klab;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.Resource;
+import org.integratedmodelling.klab.api.services.Resolver;
 import org.integratedmodelling.klab.api.services.ResourcesService;
 import org.integratedmodelling.klab.api.services.resources.ResourceInfo;
 import org.integratedmodelling.klab.ide.KlabIDEController;
@@ -63,6 +65,23 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
     // Set up search functionality with debouncing
     AtomicReference<Task<List<ResourceInfo>>> currentTask = new AtomicReference<>();
 
+    List<Resource> resolverResources = new ArrayList<>();
+    if (KlabIDEController.instance().getFocalScope() != null) {
+      resolverResources.addAll(
+          KlabIDEController.instance()
+              .getFocalScope()
+              .getService(Resolver.class)
+              .getSubmittedResources(KlabIDEController.instance().getFocalScope()));
+    }
+
+    for (var resource : resolverResources) {
+      resultsBox
+          .getChildren()
+          .add(
+              new Components.Resource(
+                  makeResourceInfo(resource), this::viewResource, null /* TODO */));
+    }
+
     searchBox
         .textProperty()
         .addListener(
@@ -106,7 +125,15 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
                     Platform.runLater(
                         () -> {
                           resultsBox.getChildren().clear();
-
+                          for (var resource : resolverResources) {
+                            resultsBox
+                                .getChildren()
+                                .add(
+                                    new Components.Resource(
+                                        makeResourceInfo(resource),
+                                        this::viewResource,
+                                        null /* TODO */));
+                          }
                           if (results.isEmpty()) {
                             Label noResults = new Label("No resources found");
                             noResults.setStyle("-fx-text-fill: -color-fg-subtle;");
@@ -147,6 +174,19 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
           vBox.getChildren().clear();
           vBox.getChildren().addAll(searchBox, resultsBox);
         });
+  }
+
+  /**
+   * This is only used for the resolver-hosted, scope-specific resources submitted.
+   *
+   * @param resource
+   * @return
+   */
+  private ResourceInfo makeResourceInfo(Resource resource) {
+    var ret = new ResourceInfo();
+    ret.setUrn(resource.getUrn());
+    ret.setServiceId(resource.getServiceId());
+    return ret;
   }
 
   private void viewResource(ResourceInfo resourceInfo) {

@@ -1,4 +1,4 @@
-package org.integratedmodelling.klab.ide.components;
+package org.integratedmodelling.klab.ide.components.generic;
 
 import javafx.scene.control.Label;
 import javafx.scene.paint.Color;

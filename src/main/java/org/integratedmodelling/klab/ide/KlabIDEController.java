@@ -70,13 +70,13 @@ import org.integratedmodelling.klab.api.view.modeler.visualization.Visualization
 import org.integratedmodelling.klab.ide.api.DigitalTwinReactor;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.integratedmodelling.klab.ide.components.*;
+import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.integratedmodelling.klab.ide.utils.NodeUtils;
 import org.integratedmodelling.klab.modeler.ModelerImpl;
 import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.bootstrapicons.BootstrapIcons;
-import org.kordamp.ikonli.carbonicons.CarbonIcons;
 import org.kordamp.ikonli.fontawesome5.FontAwesomeSolid;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
@@ -140,7 +140,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     } else {
       Logging.INSTANCE.info("Removing focal editor for " + editorPage.getEditedAsset());
     }
-    // TODO
+    // TODO set status bar based on whether there is a DT
     this.currentEditorPage = editorPage;
   }
 
@@ -201,6 +201,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
       // TODO close windows in DT
     }
     this.focalScope = focalScope;
+    digitalTwinView.showDigitalTwin(focalScope);
     synchronized (this.digitalTwinReactors) {
       for (var reactor : this.digitalTwinReactors) {
         reactor.setDigitalTwin(focalScope, isLocal);
