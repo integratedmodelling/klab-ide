@@ -61,6 +61,7 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
   @Override
   protected void assetEditorClosed(NavigableWorkspace asset) {
     workspaces.remove(asset.getUrn());
+    openEditors.remove(asset.getUrn());
   }
 
   @Override
@@ -96,7 +97,9 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
     for (var rService : getServices()) {
       for (var workspace :
           rService.capabilities(KlabIDEController.instance().user()).getWorkspaceNames()) {
-        if (workspaces.containsKey(workspace)) continue;
+        if (openEditors.containsKey(workspace)) {
+          continue;
+        }
         ret.add(rService.resourceInfo(workspace, KlabIDEController.instance().user()));
       }
     }
@@ -106,8 +109,6 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
   @Override
   protected void defineBrowser(VBox browserComponents) {
 
-    //    Platform.runLater(
-    //        () -> {
     browserComponents.getChildren().removeAll(components);
     components.clear();
     components.add(makeHeader("Workspaces", this::addWorkspace));
@@ -118,9 +119,6 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
       components.add(new Components.Resource(workspace, this::raiseWorkspace, /* TODO */ null));
     }
     browserComponents.getChildren().addAll(components);
-    //        });
-
-    // TODO if we're empty and we only have one workspace, raise the workspace
   }
 
   private void addWorkspace() {

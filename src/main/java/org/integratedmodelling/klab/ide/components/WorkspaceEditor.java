@@ -235,7 +235,6 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   @Override
   protected Node createEditor(NavigableAsset asset) {
     if (asset instanceof KlabDocument<?> document) {
-
       var ret =
           new MonacoEditorView(content -> Platform.runLater(() -> saveDocument(content, asset)));
       ret.loadEditor(
