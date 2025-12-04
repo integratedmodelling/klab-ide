@@ -60,12 +60,12 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     }
   }
 
-    @Override
-    protected void onVisualize(boolean visibleAfterCall) {
-        KlabIDEController.instance().setFocalEditor(this, visibleAfterCall);
-    }
+  @Override
+  protected void onVisualize(boolean visibleAfterCall) {
+    KlabIDEController.instance().setFocalEditor(this, visibleAfterCall);
+  }
 
-    @Override
+  @Override
   protected void configureDigitalTwinWidget(DigitalTwinControlPanel digitalTwinMinified) {
     // TODO contents
     digitalTwinMinified.setOnDragOver(
@@ -157,6 +157,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   private void handleAssetDrop(NavigableAsset value) {
+
     var scope = KlabIDEController.instance().requireDefaultContext();
     if (scope == null) {
       // This shouldn't happen when the drop action and panel become smarter

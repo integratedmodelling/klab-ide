@@ -130,7 +130,8 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
               .prefHeightProperty()
               .bind(digitalTwinControlPanel.widthProperty());
           configureDigitalTwinWidget(digitalTwinControlPanel);
-          KlabIDEController.instance().digitalTwinPanelHidden(this, digitalTwinControlPanel);
+          //          KlabIDEController.instance().digitalTwinPanelHidden(this,
+          // digitalTwinControlPanel);
 
           //          this.toggleBar = new HBox();
           //          toggleBar.setStyle("-fx-background-color: -color-neutral-subtle; -fx-padding:
@@ -162,8 +163,8 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
           //              });
           //          HBox.setHgrow(toggleBar, Priority.ALWAYS);
 
-          showDigitalTwinControlPanel();
-          NodeUtils.toggleVisibility(digitalTwinControlPanel, false);
+          //          showDigitalTwinControlPanel();
+          //          NodeUtils.toggleVisibility(digitalTwinControlPanel, false);
 
           //          NodeUtils.toggleVisibility(toggleBar, true);
 
@@ -185,8 +186,9 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
       Platform.runLater(
           () -> {
             NodeUtils.toggleVisibility(digitalTwinControlPanel, true);
-//            NodeUtils.toggleVisibility(
-//                digitalTwinControlPanel.getParent().getChildrenUnmodifiable().get(1), false);
+            //            NodeUtils.toggleVisibility(
+            //                digitalTwinControlPanel.getParent().getChildrenUnmodifiable().get(0),
+            // false);
             KlabIDEController.instance().digitalTwinPanelShown(this, digitalTwinControlPanel);
           });
     }
@@ -196,6 +198,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
     if (digitalTwinControlPanel.isVisible()) {
       Platform.runLater(
           () -> {
+            digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.IDLE);
             NodeUtils.toggleVisibility(digitalTwinControlPanel, false);
             KlabIDEController.instance().digitalTwinPanelHidden(this, digitalTwinControlPanel);
           });

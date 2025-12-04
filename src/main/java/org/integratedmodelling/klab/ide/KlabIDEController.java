@@ -127,6 +127,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
       EditorPage<A, T> atEditorPage, DigitalTwinControlPanel digitalTwinControlPanel) {
     digitalTwinButton.setDisable(false);
     dtSwitchButton.setDisable(false);
+    digitalTwinPanelShown = Pair.of(null, null);
     digitalTwinButton.setGraphic(
         new IconLabel(FontAwesomeSolid.ARROW_CIRCLE_UP, 14, Color.DARKGREEN));
     dtResetButton.setGraphic(new IconLabel(FontAwesomeSolid.TIMES_CIRCLE, 14, Color.DARKRED));
