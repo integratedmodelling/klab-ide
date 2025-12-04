@@ -3,6 +3,8 @@ package org.integratedmodelling.klab.ide.components;
 import atlantafx.base.theme.Styles;
 import atlantafx.base.theme.Tweaks;
 
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 
 import javafx.application.Platform;
@@ -10,6 +12,7 @@ import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.input.*;
 import javafx.scene.input.ClipboardContent;
+import org.integratedmodelling.common.lang.kim.KlabDocumentImpl;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.klab.api.data.RepositoryState;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
@@ -26,6 +29,7 @@ import org.integratedmodelling.klab.ide.KlabIDEApplication;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.IDEContextScope;
+import org.integratedmodelling.klab.ide.lsp.KlabLspService;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.integratedmodelling.klab.modeler.model.NavigableKimConceptStatement;
 import org.integratedmodelling.klab.modeler.model.NavigableKimModel;
@@ -228,12 +232,41 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   @Override
   protected Node createEditor(NavigableAsset asset) {
-    if (asset instanceof KlabDocument<?> document) {
+    if (asset instanceof KlabDocumentImpl<?> document) {
+      // 1. LSP init for this workspace
+      Path workspaceRoot = Paths.get("/home/klab/git/klab-ide"); // or your real root
+      try {
+        KlabLspService.getInstance().startIfNeeded(workspaceRoot);
+      } catch (Exception e) {
+        e.printStackTrace();
+      }
 
-      var ret =
-          new MonacoEditorView(content -> Platform.runLater(() -> saveDocument(content, asset)));
-      ret.loadEditor(
-          document.getSourceCode(), "java", Theme.CURRENT_THEME.isDark() ? "vs-dark" : "vs");
+      // 2. Create Monaco editor
+      var ret = new MonacoEditorView(
+              content -> Platform.runLater(() -> saveDocument(content, asset)));
+
+      // Use "kim" as language id for the LSP
+      String languageId = "kim";   // even if Monaco treats it as plain-text for now
+      String theme = Theme.CURRENT_THEME.isDark() ? "vs-dark" : "vs";
+
+      ret.loadEditor(document.getSourceCode(), languageId, theme);
+
+      // 3. Compute a stable URI for the LSP document
+      //    (for now: use the physical file if available, or a synthetic URI)
+      String uri = "inmemory://klab/" + document.getUrn();
+
+      // 4. Tell LSP that the document is open
+      KlabLspService lsp = KlabLspService.getInstance();
+      lsp.openDocument(uri, languageId, document.getSourceCode());
+
+      // 5. Hook editor content changes -> LSP didChange
+      ret.setChangeListener(newText -> {
+        // update your document model if needed
+        document.setSourceCode(newText);
+        // send to LSP
+        lsp.changeDocument(uri, newText);
+      });
+
       return ret;
     }
     return null;
