@@ -20,8 +20,6 @@ import org.integratedmodelling.klab.ide.components.IconLabel;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2MZ;
 
-import java.awt.*;
-
 /** The generic browser with a modal index on the left. */
 public abstract class BrowsablePage<T extends Node, A> extends StackPane implements Page {
 
