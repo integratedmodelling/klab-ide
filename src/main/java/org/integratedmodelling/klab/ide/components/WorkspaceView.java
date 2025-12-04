@@ -59,7 +59,10 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
   protected void assetEditorSelected(NavigableWorkspace asset) {}
 
   @Override
-  protected void assetEditorClosed(NavigableWorkspace asset) {}
+  protected void assetEditorClosed(NavigableWorkspace asset) {
+    workspaces.remove(asset.getUrn());
+    openEditors.remove(asset.getUrn());
+  }
 
   @Override
   public String getName() {
@@ -94,6 +97,9 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
     for (var rService : getServices()) {
       for (var workspace :
           rService.capabilities(KlabIDEController.instance().user()).getWorkspaceNames()) {
+        if (openEditors.containsKey(workspace)) {
+          continue;
+        }
         ret.add(rService.resourceInfo(workspace, KlabIDEController.instance().user()));
       }
     }
@@ -103,22 +109,16 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
   @Override
   protected void defineBrowser(VBox browserComponents) {
 
-    Platform.runLater(
-        () -> {
-          browserComponents.getChildren().removeAll(components);
-          components.clear();
-          components.add(makeHeader("Workspaces", this::addWorkspace));
-          if (workspaceDialog != null) {
-            components.add(workspaceDialog);
-          }
-          for (var workspace : getWorkspaceList()) {
-            components.add(
-                new Components.Resource(workspace, this::raiseWorkspace, /* TODO */ null));
-          }
-          browserComponents.getChildren().addAll(components);
-        });
-
-    // TODO if we're empty and we only have one workspace, raise the workspace
+    browserComponents.getChildren().removeAll(components);
+    components.clear();
+    components.add(makeHeader("Workspaces", this::addWorkspace));
+    if (workspaceDialog != null) {
+      components.add(workspaceDialog);
+    }
+    for (var workspace : getWorkspaceList()) {
+      components.add(new Components.Resource(workspace, this::raiseWorkspace, /* TODO */ null));
+    }
+    browserComponents.getChildren().addAll(components);
   }
 
   private void addWorkspace() {

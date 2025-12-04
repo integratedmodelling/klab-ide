@@ -11,6 +11,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
 import org.checkerframework.checker.units.qual.K;
+import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientDigitalTwin;
 import org.integratedmodelling.common.services.client.scope.ClientContextScope;
 import org.integratedmodelling.klab.api.collections.Parameters;
@@ -39,6 +40,7 @@ import org.integratedmodelling.klab.api.services.runtime.Message;
 import org.integratedmodelling.klab.api.services.runtime.Report;
 import org.integratedmodelling.klab.api.utils.Utils;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
+import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultDirectedGraph;
 import org.jgrapht.graph.DefaultEdge;
@@ -66,6 +68,7 @@ public class IDEContextScope implements ContextScope {
       new AtomicReference<>(List.of(RuntimeAsset.CONTEXT_ASSET));
   //  private List<RuntimeAsset> focalAssets = Collections.synchronizedList(new ArrayList<>());
   private int graphDepth = 2;
+  private boolean ownsDTPanel = false;
 
   public IDEContextScope(ClientContextScope delegate) {
     this.delegate = delegate;
@@ -95,6 +98,20 @@ public class IDEContextScope implements ContextScope {
       view.focusObservations(focalObservations.get());
     }
   }
+
+  @Override
+  public String toString() {
+    return delegate.getName();
+  }
+
+//  public void setDTPanelOwner(boolean owns, EditorPage<?, ?> editorPage) {
+//    ownsDTPanel = owns;
+//    if (owns) {
+//      Logging.INSTANCE.info(delegate.getName() + " OWNS DT PANEL");
+//    } else {
+//      Logging.INSTANCE.info(delegate.getName() + " DOES NOT OWN DT PANEL");
+//    }
+//  }
 
   public int getGraphDepth() {
     return this.graphDepth;

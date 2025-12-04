@@ -2,7 +2,6 @@ package org.integratedmodelling.klab.ide.components;
 
 import atlantafx.base.theme.Styles;
 import atlantafx.base.theme.Tweaks;
-
 import java.io.File;
 import java.net.URL;
 import java.util.*;
@@ -11,7 +10,6 @@ import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
-import org.apache.commons.io.IOUtils;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientDigitalTwin;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
@@ -19,7 +17,6 @@ import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.collections.Pair;
 import org.integratedmodelling.klab.api.collections.Parameters;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
-import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.SemanticType;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
@@ -27,17 +24,14 @@ import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedul
 import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.api.scope.Persistence;
 import org.integratedmodelling.klab.api.services.RuntimeService;
-import org.integratedmodelling.klab.api.services.runtime.Notification;
+import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
-import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 
 public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
     implements DigitalTwinViewer {
-
-  //  private static final String UI_VISUALIZATION_URL = "klab.ui.visualization.url";
 
   private final RuntimeService runtimeService;
   private final DigitalTwinView view;
@@ -163,6 +157,11 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
 
   @Override
   public void focusObservations(List<RuntimeAsset> ids) {}
+
+  @Override
+  protected void onVisualize(boolean visibleAfterCall) {
+    KlabIDEController.instance().setFocalEditor(this, visibleAfterCall);
+  }
 
   @Override
   protected void configureDigitalTwinWidget(DigitalTwinControlPanel digitalTwinMinified) {

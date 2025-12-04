@@ -90,6 +90,7 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
       if (asset != null) {
         assetEditorClosed((A) asset);
       }
+      editor.onVisualize(false);
     }
   }
 
@@ -99,6 +100,7 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
       if (asset != null) {
         assetEditorSelected((A) asset);
       }
+      editor.onVisualize(true);
     }
   }
 
@@ -135,8 +137,12 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
         });
   }
 
+  public boolean isEmpty() {
+    return tabPane.getTabs().size() == 1;
+  }
+
   public void removeEditor(EditorPage<?, ?> node) {
-      Platform.runLater(
+    Platform.runLater(
         () -> {
           Tab tab =
               this.tabPane.getTabs().stream()
@@ -173,13 +179,14 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
       return;
     }
 
-    Platform.runLater(
-        () -> {
-          this.browserArea.getChildren().removeAll();
-          defineBrowser(this.browserArea);
-          modalPane.setAlignment(Pos.TOP_LEFT);
-          modalPane.usePredefinedTransitionFactories(Side.LEFT);
-          modalPane.show(browserArea);
-        });
+    Platform.runLater(this::doShowBrowser);
+  }
+
+  public void doShowBrowser() {
+    this.browserArea.getChildren().removeAll();
+    defineBrowser(this.browserArea);
+    modalPane.setAlignment(Pos.TOP_LEFT);
+    modalPane.usePredefinedTransitionFactories(Side.LEFT);
+    modalPane.show(browserArea);
   }
 }

@@ -67,19 +67,19 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
   public List<ContextInfo> getContextList() {
     List<ContextInfo> ret = new ArrayList<>();
     for (var rService : getServices()) {
-      for (var workspace : rService.getSessionInfo(KlabIDEController.instance().user())) {
-        ret.addAll(workspace.getContexts());
-      }
+      ret.addAll(rService.getContextInfo(KlabIDEController.instance().user()));
     }
     return ret;
   }
 
   @Override
   protected void assetEditorSelected(IDEContextScope asset) {
-    if (KlabIDEController.instance().getFocalScope() != asset) {
-      Logging.INSTANCE.info("Selecting scope " + asset);
-      KlabIDEController.instance().setFocalScope(asset, Utils.URLs.isLocalHost(asset.getUrl()));
+    if (KlabIDEController.instance().getFocalScope() != null
+        && asset != null
+        && KlabIDEController.instance().getFocalScope().getId().equals(asset.getId())) {
+      return;
     }
+    KlabIDEController.instance().setFocalScope(asset, Utils.URLs.isLocalHost(asset.getUrl()));
   }
 
   @Override
@@ -100,28 +100,27 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
   @Override
   protected void defineBrowser(VBox browserComponents) {
 
-    Platform.runLater(
-        () -> {
-          browserComponents.getChildren().removeAll(components);
-          components.clear();
-          components.add(makeHeader("Digital Twins", this::addDigitalTwin));
-          if (workspaceDialog != null) {
-            components.add(workspaceDialog);
-          }
-          for (var dt : getContextList()) {
-            //  skip the opened ones
-            if (openEditors.containsKey(dt.getConfiguration().getId())) {
-              continue;
-            }
-            var isLocal = Utils.URLs.isLocalHost(dt.getConfiguration().getUrl());
-            var dtComponent =
-                new Components.DigitalTwin(
-                    dt, this::showDigitalTwin, this::removeDigitalTwin, isLocal);
-            components.add(dtComponent);
-            dtComponent.createContent();
-          }
-          browserComponents.getChildren().addAll(components);
-        });
+    //    Platform.runLater(
+    //        () -> {
+    browserComponents.getChildren().removeAll(components);
+    components.clear();
+    components.add(makeHeader("Digital Twins", this::addDigitalTwin));
+    if (workspaceDialog != null) {
+      components.add(workspaceDialog);
+    }
+    for (var dt : getContextList()) {
+      //  skip the opened ones
+      if (openEditors.containsKey(dt.getConfiguration().getId())) {
+        continue;
+      }
+      var isLocal = Utils.URLs.isLocalHost(dt.getConfiguration().getUrl());
+      var dtComponent =
+          new Components.DigitalTwin(dt, this::showDigitalTwin, this::removeDigitalTwin, isLocal);
+      components.add(dtComponent);
+      dtComponent.createContent();
+    }
+    browserComponents.getChildren().addAll(components);
+    //        });
   }
 
   private void addDigitalTwin() {

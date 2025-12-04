@@ -21,15 +21,14 @@ import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
+import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuItem;
 import javafx.scene.image.ImageView;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Pane;
-import javafx.scene.layout.VBox;
+import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
@@ -37,6 +36,7 @@ import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.services.client.scope.ClientContextScope;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.authentication.ExternalAuthenticationCredentials;
+import org.integratedmodelling.klab.api.collections.Pair;
 import org.integratedmodelling.klab.api.configuration.Setting;
 import org.integratedmodelling.klab.api.data.RepositoryState;
 import org.integratedmodelling.klab.api.digitaltwin.DigitalTwin;
@@ -71,10 +71,12 @@ import org.integratedmodelling.klab.ide.api.DigitalTwinReactor;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.integratedmodelling.klab.ide.components.*;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
+import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.integratedmodelling.klab.ide.utils.NodeUtils;
 import org.integratedmodelling.klab.modeler.ModelerImpl;
 import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.bootstrapicons.BootstrapIcons;
+import org.kordamp.ikonli.carbonicons.CarbonIcons;
 import org.kordamp.ikonli.fontawesome5.FontAwesomeSolid;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
@@ -87,18 +89,60 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private boolean inspectorIsOn;
   private Set<View> neverSeen = EnumSet.of(View.RESOURCES, View.WORKSPACES, View.DIGITAL_TWINS);
   private static KlabIDEController _this;
-  private Map<String, IDEContextScope> contextMap = new HashMap<>();
+  private Map<String, IDEContextScope> contextMap = new LinkedHashMap<>();
   private Queue<DigitalTwinReactor> digitalTwinReactors = new ConcurrentLinkedQueue<>();
   private AtomicReference<Engine.Status> engineStatus = new AtomicReference<>();
   private Label infoLabel;
   private Label errorLabel;
   private Label warningLabel;
   private Label messageLabel;
+  private Button toggleDigitalTwinButton;
   private AtomicInteger infoCount = new AtomicInteger(0);
   private AtomicInteger errorCount = new AtomicInteger(0);
   private AtomicInteger warningCount = new AtomicInteger(0);
   private PauseTransition currentPause;
   private IDEContextScope focalScope;
+  private HBox digitalTwinBox;
+  private Button digitalTwinButton;
+  //  private Label digitalTwinLabel;
+  private EditorPage<?, ?> currentEditorPage; // keep this to interact with the DT
+  private Pair<EditorPage<?, ?>, DigitalTwinControlPanel> digitalTwinPanelShown =
+      Pair.of(null, null);
+  private Button dtResetButton;
+  private Button dtSwitchButton;
+  private MenuButton digitalTwinSwitcher;
+
+  public <T, A> void digitalTwinPanelShown(
+      EditorPage<A, T> atEditorPage, DigitalTwinControlPanel digitalTwinControlPanel) {
+    digitalTwinPanelShown = Pair.of(atEditorPage, digitalTwinControlPanel);
+    digitalTwinButton.setDisable(false);
+    dtSwitchButton.setDisable(false);
+    digitalTwinButton.setGraphic(
+        new IconLabel(FontAwesomeSolid.ARROW_CIRCLE_DOWN, 14, Color.DARKGREEN));
+    dtResetButton.setGraphic(new IconLabel(FontAwesomeSolid.TIMES_CIRCLE, 14, Color.DARKRED));
+    //    digitalTwinLabel.getSelectionModel().select(digitalTwinControlPanel.getScope());
+  }
+
+  public <T, A> void digitalTwinPanelHidden(
+      EditorPage<A, T> atEditorPage, DigitalTwinControlPanel digitalTwinControlPanel) {
+    digitalTwinButton.setDisable(false);
+    dtSwitchButton.setDisable(false);
+    digitalTwinPanelShown = Pair.of(null, null);
+    digitalTwinButton.setGraphic(
+        new IconLabel(FontAwesomeSolid.ARROW_CIRCLE_UP, 14, Color.DARKGREEN));
+    dtResetButton.setGraphic(new IconLabel(FontAwesomeSolid.TIMES_CIRCLE, 14, Color.DARKRED));
+    //      digitalTwinLabel.setText(digitalTwinControlPanel.getScope().getName());
+  }
+
+  public void setFocalEditor(EditorPage<?, ?> editorPage, boolean visible) {
+    if (visible) {
+      Logging.INSTANCE.info("Setting focal editor to " + editorPage.getEditedAsset());
+    } else {
+      Logging.INSTANCE.info("Removing focal editor for " + editorPage.getEditedAsset());
+    }
+    // TODO
+    this.currentEditorPage = editorPage;
+  }
 
   /** The "circled" (current) view in the main area. */
   public enum View {
@@ -153,12 +197,51 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   }
 
   public void setFocalScope(IDEContextScope focalScope, boolean isLocal) {
+    if (focalScope == null && this.focalScope != null) {
+      // TODO close windows in DT
+    }
     this.focalScope = focalScope;
     synchronized (this.digitalTwinReactors) {
       for (var reactor : this.digitalTwinReactors) {
         reactor.setDigitalTwin(focalScope, isLocal);
       }
     }
+    updateDigitalTwinChoices();
+  }
+
+  private void updateDigitalTwinChoices() {
+
+    Logging.INSTANCE.info(
+        "Setting focal scope to "
+            + (focalScope == null ? "No digital twin" : focalScope.getName()));
+
+    Platform.runLater(
+        () -> {
+          var contexts = new ArrayList<>(contextMap.values());
+          contexts.sort(Comparator.comparing(c -> (focalScope != null && c == focalScope) ? 0 : 1));
+          this.digitalTwinSwitcher.getItems().clear();
+          this.digitalTwinSwitcher
+              .getItems()
+              .addAll(
+                  contexts.stream()
+                      .filter(c -> c != focalScope)
+                      .map(
+                          c -> {
+                            var item = new MenuItem(c.getName());
+                            item.setOnAction(actionEvent -> setFocalScope(c, false));
+                            return item;
+                          })
+                      .toList());
+
+          digitalTwinSwitcher.setText(
+              focalScope == null ? "No digital twin" : focalScope.getName());
+          digitalTwinButton.setDisable(focalScope == null);
+          dtResetButton.setDisable(focalScope == null);
+          dtSwitchButton.setDisable(focalScope == null);
+          digitalTwinSwitcher.setTooltip(
+              new Tooltip(focalScope == null ? "No digital twin" : focalScope.getName())); // TODO
+          digitalTwinSwitcher.setStyle("fx-font-weight: bold; -fx-text-fill: -fx-accent-color;");
+        });
   }
 
   public IDEContextScope getFocalScope() {
@@ -322,16 +405,16 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
           case WORLDVIEW -> ontologyView;
         };
 
-    // If it's a browser and it hasn't been seen yet, open the browser
-    if (neverSeen.remove(view) && ui instanceof BrowsablePage<?, ?> browsablePage) {
-      //      browsablePage.showBrowser();
-    }
-
     // switch the main area to the requested view.
     Platform.runLater(
         () -> {
           mainArea.getChildren().remove(0, mainArea.getChildren().size());
           mainArea.getChildren().add(ui);
+          // If it's a browser and it's empty with no tabs open, open the browser
+          if (ui instanceof BrowsablePage<?, ?> browsablePage && browsablePage.isEmpty()) {
+            // FIXME not working - the browser won't show in every view but the UI will hang.
+            //            browsablePage.showBrowser();
+          }
         });
   }
 
@@ -459,6 +542,53 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     toggleRightSideButton.setGraphic(
         new IconLabel(Material2MZ.NAVIGATE_BEFORE, 24, Theme.CURRENT_THEME.getDefaultTextColor()));
 
+    // This will contain the current DT name and statistics
+    digitalTwinBox = new HBox(0);
+    digitalTwinBox.setAlignment(Pos.CENTER_LEFT);
+    this.digitalTwinSwitcher = new MenuButton();
+    this.digitalTwinSwitcher.getStyleClass().addAll(Styles.FLAT);
+    digitalTwinSwitcher.setPrefWidth(205);
+
+    digitalTwinButton = new Button();
+    digitalTwinButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
+    digitalTwinButton.setTooltip(new Tooltip("Show Digital Twin Control Panel"));
+    digitalTwinButton.setDisable(true);
+    digitalTwinButton.setGraphic(
+        new IconLabel(FontAwesomeSolid.ARROW_CIRCLE_UP, 14, Color.DARKGREEN));
+    digitalTwinButton.setOnAction(e -> toggleDigitalTwinControlPanel());
+
+    dtResetButton = new Button();
+    dtResetButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
+    dtResetButton.setTooltip(new Tooltip("Show Digital Twin Control Panel"));
+    dtResetButton.setDisable(true);
+    dtResetButton.setGraphic(new IconLabel(FontAwesomeSolid.TIMES_CIRCLE, 14, Color.DARKRED));
+    dtResetButton.setOnAction(e -> resetCurrentDigitalTwin());
+
+    dtSwitchButton = new Button();
+    dtSwitchButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
+    dtSwitchButton.setTooltip(new Tooltip("Show Digital Twin Control Panel"));
+    dtSwitchButton.setDisable(true);
+    dtSwitchButton.setGraphic(new IconLabel(Theme.DIGITAL_TWINS_ICON, 16, Color.GREY));
+    dtSwitchButton.setOnAction(
+        e -> {
+          if (getFocalScope() != null) {
+            KlabIDEController.instance()
+                .getView(KlabIDEController.View.DIGITAL_TWINS, DigitalTwinView.class)
+                .showDigitalTwin(getFocalScope());
+            KlabIDEController.instance().selectView(KlabIDEController.View.DIGITAL_TWINS);
+          }
+        });
+
+    digitalTwinBox
+        .getChildren()
+        .addAll(
+            new Separator(Orientation.VERTICAL),
+            dtSwitchButton,
+            digitalTwinSwitcher,
+            digitalTwinButton,
+            dtResetButton,
+            new Separator(Orientation.VERTICAL));
+
     this.infoLabel =
         new Label(null, new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, Color.BLUE));
     this.errorLabel =
@@ -466,6 +596,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     this.warningLabel =
         new Label(null, new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, Color.ORANGE));
     this.messageLabel = new Label();
+    HBox.setHgrow(messageLabel, Priority.ALWAYS);
     this.warningLabel.setTooltip(new Tooltip("No unread warnings."));
     this.errorLabel.setTooltip(new Tooltip("No unread errors."));
     this.infoLabel.setTooltip(new Tooltip("No unread notifications."));
@@ -474,11 +605,25 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         .getChildren()
         .addAll(
             messageLabel,
-            new Separator(Orientation.VERTICAL),
+            digitalTwinBox,
             infoLabel,
             warningLabel,
             errorLabel,
             toggleRightSideButton);
+  }
+
+  private void resetCurrentDigitalTwin() {
+    setFocalScope(null, false);
+    if (currentEditorPage instanceof DigitalTwinEditor editor) {
+      editor.close();
+      currentEditorPage = null;
+    }
+  }
+
+  private void toggleDigitalTwinControlPanel() {
+    if (currentEditorPage != null) {
+      currentEditorPage.toggleDigitalTwinControlPanel();
+    }
   }
 
   private void handleStartButtonPress() {
@@ -1162,7 +1307,11 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   @Override
   public synchronized ContextScope createDefaultContext() {
-    return modeler.createDefaultContext();
+    var context = modeler.createDefaultContext();
+    var ret = new IDEContextScope((ClientContextScope) context);
+    contextMap.put(ret.getId(), ret);
+    setFocalScope(ret, true);
+    return ret;
   }
 
   @Override

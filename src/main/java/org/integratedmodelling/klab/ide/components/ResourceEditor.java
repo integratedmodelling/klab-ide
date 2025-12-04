@@ -10,8 +10,10 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontPosture;
 import javafx.scene.text.FontWeight;
+import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.klab.api.knowledge.Resource;
 import org.integratedmodelling.klab.ide.IDEContextScope;
+import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
@@ -38,6 +40,11 @@ public class ResourceEditor extends EditorPage<Object, Resource> {
   private ComboBox<String> operationsComboBox;
   private Button executeOperationButton;
   private Label geometryDefinitionLabel;
+
+  @Override
+  protected void onVisualize(boolean visibleAfterCall) {
+    KlabIDEController.instance().setFocalEditor(this, visibleAfterCall);
+  }
 
   /**
    * Constructor for the ResourceEditor

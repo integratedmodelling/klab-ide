@@ -1028,7 +1028,7 @@ public class Components {
       Label size =
           new Label(
               String.format(
-                  "Created: %s; Idle: ",
+                  "Created: %s;\nIdle: %s",
                   TimeInstant.create(digitalTwin.getCreationTime()),
                   Utils.Time.formatDuration(Duration.ofMillis(digitalTwin.getIdleTimeMs()))));
       size.setStyle("-fx-font-size: 12px;");
