@@ -35,4 +35,7 @@ public interface DigitalTwinReactor {
    * @param ideContextScope
    */
   void closeDigitalTwin(IDEContextScope ideContextScope);
+
+  /** Called if there is a focal scope and it is being deselected but not closed. */
+  void unsetDigitalTwin(IDEContextScope focalScope);
 }

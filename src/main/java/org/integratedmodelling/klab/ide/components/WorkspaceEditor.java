@@ -452,6 +452,9 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   @Override
+  public void unsetDigitalTwin(IDEContextScope focalScope) {}
+
+  @Override
   protected void onDoubleClickItemSelection(NavigableAsset value) {
     if (value instanceof KlabDocument<?> document) {
       edit(value);

@@ -1,4 +1,4 @@
-package org.integratedmodelling.klab.ide.components;
+package org.integratedmodelling.klab.ide.components.generic;
 
 import javafx.application.Platform;
 import javafx.concurrent.Task;
@@ -15,7 +15,6 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import org.kordamp.ikonli.material2.Material2AL;
-import org.kordamp.ikonli.material2.Material2MZ;
 
 import java.io.File;
 import java.io.FileInputStream;

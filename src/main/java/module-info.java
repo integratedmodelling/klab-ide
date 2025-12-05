@@ -35,6 +35,7 @@ module org.integratedmodelling.klab.ide {
     requires org.integratedmodelling.languages.worldview;
     requires org.kordamp.ikonli.carbonicons;
     requires org.apache.commons.io;
+    requires tyrus.standalone.client;
     requires java.desktop;
     requires org.integratedmodelling.languages.kim.ide;
     requires org.integratedmodelling.languages.kim.ide.org.eclipse.lsp4j;
@@ -51,4 +52,6 @@ module org.integratedmodelling.klab.ide {
 
     opens org.integratedmodelling.klab.ide.api to javafx.fxml;
     opens org.integratedmodelling.klab.ide.test to javafx.fxml;
+    exports org.integratedmodelling.klab.ide.components.generic;
+    opens org.integratedmodelling.klab.ide.components.generic to javafx.fxml;
 }

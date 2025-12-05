@@ -1,4 +1,4 @@
-package org.integratedmodelling.klab.ide.contrib;
+package org.integratedmodelling.klab.ide.components.generic;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -14,7 +14,6 @@ import javafx.scene.control.CustomMenuItem;
 import javafx.scene.control.TextField;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
-import org.integratedmodelling.common.logging.Logging;
 
 /**
  * This class is a TextField which implements an "autocomplete" functionality, based on a supplied

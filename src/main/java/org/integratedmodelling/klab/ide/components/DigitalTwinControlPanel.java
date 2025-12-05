@@ -18,18 +18,16 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.paint.Color;
-import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedule;
 import org.integratedmodelling.klab.api.provenance.Activity;
-import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.integratedmodelling.klab.ide.IDEContextScope;
+import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
-import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
 
 /**
@@ -82,9 +80,11 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   public enum View {
     ACTIVITIES,
     OBSERVATIONS,
-    SCHEDULE,
-    KNOWLEDGE_GRAPH,
-    LOGS,
+    //    SCHEDULE,
+    //    KNOWLEDGE_GRAPH,
+    //    LOGS,
+    OBSERVERS,
+    SCENARIOS,
     IDLE;
   }
 
@@ -121,6 +121,8 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     observerButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
     scenarioButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
     resetButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
+
+    activitiesButton.setOnAction(click -> setView(View.ACTIVITIES));
 
     var contextSelector = new HBox(0);
     contextSelector.setAlignment(Pos.CENTER_LEFT);
@@ -208,49 +210,16 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
     // Create bottom control bar for scenarios
     this.bottomBar = new HBox(10);
-    //    bottomBar.setPrefHeight(20);
-    //    bottomBar.setStyle("-fx-background-color: -color-neutral-muted;");
-    //
-    //    Button swapButton = new Button();
-    //    swapButton.setGraphic(new FontIcon(Theme.DIGITAL_TWINS_ICON));
-    //    swapButton.setOnAction(
-    //        e -> {
-    //          if (getScope() != null) {
-    //            KlabIDEController.instance()
-    //                .getView(KlabIDEController.View.DIGITAL_TWINS, DigitalTwinView.class)
-    //                .showDigitalTwin(getScope());
-    //            KlabIDEController.instance().selectView(KlabIDEController.View.DIGITAL_TWINS);
-    //          }
-    //        });
-    //    swapButton.getStyleClass().addAll(Styles.FLAT /*, Styles.BUTTON_CIRCLE*/);
-    //
-    //    this.digitalTwinSwitcher = new MenuButton();
-    //    this.digitalTwinSwitcher.getStyleClass().addAll(Styles.FLAT);
-    //    HBox.setHgrow(digitalTwinSwitcher, Priority.ALWAYS);
-    //    digitalTwinSwitcher.setMaxWidth(Double.MAX_VALUE);
-    //
-    //    // Function buttons
-    //    Button collapseButton = new Button();
-    //    collapseButton.setGraphic(new FontIcon(Material2AL.ARROW_DOWNWARD));
-    //    collapseButton.setOnAction(e -> editorPage.hideDigitalTwinControlPanel());
-    //    collapseButton.getStyleClass().addAll(Styles.FLAT /*, Styles.BUTTON_CIRCLE*/);
-    //    if (editorPage instanceof DigitalTwinEditor) {
-    //      bottomBar.getChildren().addAll(digitalTwinSwitcher, collapseButton);
-    //    } else {
-    //      bottomBar.getChildren().addAll(swapButton, digitalTwinSwitcher, collapseButton);
-    //    }
     setBottom(bottomBar);
     setVisible(false);
   }
 
-  //  HBox setControlBar() {
-  //    return (HBox) getTop();
-  //  }
+  private void setView(View view) {
+    this.currentView = view;
+    this.setMainView();
+  }
 
   private void loadScope(IDEContextScope scope) {
-    // TODO obviously this isn't right
-    //    this.digitalTwinSwitcher.setText(scope == null ? "" : scope.getName());
-    //    this.digitalTwinSwitcher.getItems().add(new MenuItem(scope.getName()));
     this.scope = scope;
     if (scope != null) {
       scope.addViewer(this);
@@ -290,14 +259,33 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   private void setMainView() {
 
     this.activitiesButton.setGraphic(
-        new IconLabel(Theme.ACTIVITY_ICON, 14, scope == null ? Color.DARKGRAY : Color.BLACK));
+        new IconLabel(
+            Theme.ACTIVITY_ICON,
+            14,
+            scope == null
+                ? Color.DARKGRAY
+                : (currentView == View.ACTIVITIES ? Color.DARKGREEN : Color.BLACK)));
     this.observationButton.setGraphic(
         new IconLabel(
-            Theme.KNOWLEDGE_GRAPH_ICON, 14, scope == null ? Color.DARKGRAY : Color.BLACK));
+            Theme.KNOWLEDGE_GRAPH_ICON,
+            14,
+            scope == null
+                ? Color.DARKGRAY
+                : (currentView == View.OBSERVATIONS ? Color.DARKGREEN : Color.BLACK)));
     this.observerButton.setGraphic(
-        new IconLabel(Theme.OBSERVER_ICON, 14, scope == null ? Color.DARKGRAY : Color.BLACK));
+        new IconLabel(
+            Theme.OBSERVER_ICON,
+            14,
+            scope == null
+                ? Color.DARKGRAY
+                : (currentView == View.OBSERVERS ? Color.DARKGREEN : Color.BLACK)));
     this.scenarioButton.setGraphic(
-        new IconLabel(Theme.SCENARIO_ICON, 14, scope == null ? Color.DARKGRAY : Color.BLACK));
+        new IconLabel(
+            Theme.SCENARIO_ICON,
+            14,
+            scope == null
+                ? Color.DARKGRAY
+                : (currentView == View.SCENARIOS ? Color.DARKGREEN : Color.BLACK)));
     this.resetButton.setGraphic(
         new IconLabel(
             Material2AL.DELETE_FOREVER, 18, scope == null ? Color.DARKGRAY : Color.DARKRED));
@@ -312,9 +300,11 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
           this.observationButton.setGraphic(
               new IconLabel(Theme.OBSERVATION_ICON, 14, Color.DARKGRAY));
         }
-        case SCHEDULE -> {}
-        case KNOWLEDGE_GRAPH -> {}
-        case LOGS -> {}
+        case OBSERVERS -> {}
+        case SCENARIOS -> {}
+        //        case SCHEDULE -> {}
+        //        case KNOWLEDGE_GRAPH -> {}
+        //        case LOGS -> {}
         case IDLE -> {}
       }
     } else {
@@ -338,10 +328,20 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   @Override
   public void closeDigitalTwin(IDEContextScope ideContextScope) {
-    this.scope = null;
-    //    this.digitalTwinSwitcher.setText("");
-    this.status = Status.IDLE;
-    this.setMainView();
+    if (this.scope != null && this.scope.getId().equals(ideContextScope.getId())) {
+      this.scope = null;
+      this.status = Status.IDLE;
+      this.setMainView();
+    }
+  }
+
+  @Override
+  public void unsetDigitalTwin(IDEContextScope focalScope) {
+    if (this.scope != null && this.scope.getId().equals(focalScope.getId())) {
+      this.scope = null;
+      this.status = Status.IDLE;
+      this.setMainView();
+    }
   }
 
   public IDEContextScope getScope() {

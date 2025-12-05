@@ -95,13 +95,19 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
     } else {
       updateBrowser();
     }
+    // select whatever remains in the editor. When closing X with just X in the editor, X for some
+    // reason remains selected, hence the check
+    var nextAsset = getSelectedAsset();
+    if (nextAsset != null && !nextAsset.getId().equals(asset.getId())) {
+      assetEditorSelected(nextAsset);
+    } else {
+      KlabIDEController.instance().setFocalScope(null, false);
+    }
   }
 
   @Override
   protected void defineBrowser(VBox browserComponents) {
 
-    //    Platform.runLater(
-    //        () -> {
     browserComponents.getChildren().removeAll(components);
     components.clear();
     components.add(makeHeader("Digital Twins", this::addDigitalTwin));
@@ -120,7 +126,6 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
       dtComponent.createContent();
     }
     browserComponents.getChildren().addAll(components);
-    //        });
   }
 
   private void addDigitalTwin() {
@@ -270,13 +275,26 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
     }
   }
 
+  public void deselectDigitalTwin(IDEContextScope scope) {
+    if (openEditors.containsKey(scope.getId())) {
+      var editor = openEditors.get(scope.getId());
+      editor.close();
+      removeEditor(editor);
+    }
+  }
+
   public DigitalTwinEditor showDigitalTwin(ContextScope scope) {
+
+    // FIXME need a deselectDigitalTwin, not a null here
+    Logging.INSTANCE.info("Showing scope " + scope);
+
     DigitalTwinEditor ret = null;
     hideBrowser();
     var contextScope = KlabIDEController.instance().requireDigitalTwinPeer(scope, null);
     if (openEditors.containsKey(scope.getId())) {
       ret = openEditors.get(scope.getId());
-      ret.requestFocus(); // FIXME must remember the tabs and select(tab) - in both cases
+      ret.requestFocus();
+      selectEditor(ret);
     } else {
       ret =
           new DigitalTwinEditor(contextScope, contextScope.getService(RuntimeService.class), this);
@@ -284,9 +302,11 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
       addEditor(ret, scope.getName(), new FontIcon(Theme.DIGITAL_TWINS_ICON));
       ret.edit(ret.getRootAsset());
     }
-    var fScope = KlabIDEController.instance().requireDigitalTwinPeer(scope, null);
-    KlabIDEController.instance().setFocalScope(fScope, Utils.URLs.isLocalHost(scope.getUrl()));
-    ret.focusObservations(fScope.getFocalAssets());
+    if (!(scope instanceof IDEContextScope)) {
+      var fScope = KlabIDEController.instance().requireDigitalTwinPeer(scope, null);
+      KlabIDEController.instance().setFocalScope(fScope, Utils.URLs.isLocalHost(scope.getUrl()));
+      ret.focusObservations(fScope.getFocalAssets());
+    }
     return ret;
   }
 

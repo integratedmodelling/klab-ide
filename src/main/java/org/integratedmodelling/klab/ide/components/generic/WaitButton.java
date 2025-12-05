@@ -1,4 +1,4 @@
-package org.integratedmodelling.klab.ide.components;
+package org.integratedmodelling.klab.ide.components.generic;
 
 import atlantafx.base.theme.Styles;
 import javafx.application.Platform;
