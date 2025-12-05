@@ -25,6 +25,13 @@ public class DiagnosticsService {
     public void updateDiagnostics(String uri, List<Diagnostic> diagnostics) {
         byUri.put(uri, diagnostics);
         for (Listener l : listeners) {
+            l.onDiagnosticsChanged(uri, diagnostics);
+        }
+        System.out.println("[DiagnosticsService] updateDiagnostics(uri=" +
+                uri + ", count=" + diagnostics.size() + ")");
+
+        byUri.put(uri, diagnostics);
+        for (Listener l : listeners) {
             try {
                 System.out.println("[DiagnosticsService] notifying listener: " + l);
                 l.onDiagnosticsChanged(uri, diagnostics);

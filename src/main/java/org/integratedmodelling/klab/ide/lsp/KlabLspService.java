@@ -38,10 +38,7 @@ public class KlabLspService {
         if (initialized) return;
 
         // 1. Start Xtext LSP server process
-        serverProcess = new ProcessBuilder("./start-lsp.sh")
-                .directory(workspaceRoot.toFile())
-                .redirectError(ProcessBuilder.Redirect.INHERIT)
-                .start();
+        serverProcess = startServerProcess(workspaceRoot);
 
         InputStream in  = serverProcess.getInputStream();   // server -> client
         OutputStream out = serverProcess.getOutputStream(); // client -> server
@@ -63,7 +60,7 @@ public class KlabLspService {
         InitializeParams params = new InitializeParams();
         params.setCapabilities(new ClientCapabilities());
         params.setRootUri(workspaceRoot.toUri().toString());
-        server.initialize(params).get(10, TimeUnit.SECONDS);
+        server.initialize(params).get(20, TimeUnit.SECONDS);
         server.initialized(new InitializedParams());
 
         initialized = true;
@@ -135,4 +132,34 @@ public class KlabLspService {
         executor.shutdown();
         initialized = false;
     }
+
+    private Process startServerProcess(Path workspaceRoot) throws Exception {
+        // Location of "target/classes" relative to workspaceRoot
+        Path classesDir = workspaceRoot.resolve("target").resolve("classes");
+
+        // Load classpath.txt which the .sh script uses
+        Path cpFile = workspaceRoot.resolve("target").resolve("classpath.txt");
+        String extraCp = java.nio.file.Files.readString(cpFile).trim();
+
+        // Correct classpath separator for OS
+        String sep = System.getProperty("os.name").toLowerCase().contains("win") ? ";" : ":";
+
+        // Build the full classpath (classes + additional entries from classpath.txt)
+        String classpath = classesDir.toString() + sep + extraCp;
+
+        // Build the Java command equivalent to start-lsp.sh
+        ProcessBuilder pb = new ProcessBuilder(
+                "java",
+                "-Dxtext.disable.standalone.setup=true",
+                "-cp",
+                classpath,
+                "org.eclipse.xtext.ide.server.ServerLauncher"
+        );
+
+        pb.directory(workspaceRoot.toFile());
+        pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+
+        return pb.start();
+    }
+
 }

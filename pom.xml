@@ -251,6 +251,11 @@
         </dependency>
         <dependency>
             <groupId>org.eclipse.lsp4j</groupId>
+            <artifactId>org.eclipse.lsp4j</artifactId>
+            <version>0.21.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse.lsp4j</groupId>
             <artifactId>org.eclipse.lsp4j.jsonrpc</artifactId>
             <version>0.21.0</version>
         </dependency>
@@ -312,7 +317,30 @@
                     </execution>
                 </executions>
             </plugin>
-
+            <!-- 1. Generate classpath.txt for the LSP launcher -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.6.1</version>
+                <executions>
+                    <!-- Create classpath.txt containing all runtime JARs -->
+                    <execution>
+                        <id>generate-classpath</id>
+                        <phase>process-classes</phase>
+                        <goals>
+                            <goal>build-classpath</goal>
+                        </goals>
+                        <configuration>
+                            <!-- Where classpath.txt will be written -->
+                            <outputFile>${project.build.directory}/classpath.txt</outputFile>
+                            <!-- Use ':' or ';' automatically depending on OS -->
+                            <pathSeparator>${path.separator}</pathSeparator>
+                            <!-- Include runtime dependencies (LSP server dependencies) -->
+                            <includeScope>runtime</includeScope>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 
