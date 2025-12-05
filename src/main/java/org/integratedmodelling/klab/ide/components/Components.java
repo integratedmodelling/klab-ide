@@ -40,6 +40,7 @@ import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
 import javafx.util.StringConverter;
 import org.integratedmodelling.common.utils.Utils;
+import org.integratedmodelling.klab.api.Klab;
 import org.integratedmodelling.klab.api.configuration.Configuration;
 import org.integratedmodelling.klab.api.configuration.Setting;
 import org.integratedmodelling.klab.api.data.Metadata;
@@ -230,6 +231,7 @@ public class Components {
     private Label statusLabel;
     private GridPane groupIcons;
     private VBox groupArea;
+    private Label federationLabel;
 
     public User(UserScope userScope) {
       super(Type.UserInfo, "User information", false);
@@ -256,11 +258,20 @@ public class Components {
               ? "-fx-text-fill: green; -fx-font-weight: bold;"
               : "-fx-text-fill: red; -fx-font-weight: bold;");
 
+      var federation = Klab.INSTANCE.getFederationData(user.getUser());
+      federationLabel =
+          new Label(federation == null ? "Not federated" : ("Federated in " + federation.getId()));
+
       VBox userInfoArea = new VBox(5);
       userInfoArea.setAlignment(Pos.TOP_LEFT);
       userInfoArea
           .getChildren()
-          .addAll(new HBox(10, icon, usernameLabel), emailLabel, licenseLabel, statusLabel);
+          .addAll(
+              new HBox(10, icon, usernameLabel),
+              emailLabel,
+              licenseLabel,
+              statusLabel,
+              federationLabel);
       HBox.setHgrow(userInfoArea, Priority.ALWAYS);
 
       groupIcons = new GridPane();
