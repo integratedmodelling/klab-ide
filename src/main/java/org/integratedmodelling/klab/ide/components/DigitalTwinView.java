@@ -269,7 +269,8 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
 
   public DigitalTwinEditor showDigitalTwin(ContextScope scope) {
 
-    Logging.INSTANCE.info("DIO PUTO showing scope " + scope);
+    // FIXME need a deselectDigitalTwin, not a null here
+    Logging.INSTANCE.info("Showing scope " + scope);
 
     DigitalTwinEditor ret = null;
     hideBrowser();
