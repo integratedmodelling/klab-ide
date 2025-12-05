@@ -316,4 +316,11 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
           view.removeDigitalTwin(contextScope);
         });
   }
+
+  @Override
+  public void unsetDigitalTwin(IDEContextScope focalScope) {
+    if (this.contextScope.getId().equals(focalScope.getId())) {
+      this.view.removeDigitalTwin(focalScope);
+    }
+  }
 }

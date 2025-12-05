@@ -202,4 +202,7 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
 
   @Override
   public void closeDigitalTwin(IDEContextScope ideContextScope) {}
+
+  @Override
+  public void unsetDigitalTwin(IDEContextScope focalScope) {}
 }

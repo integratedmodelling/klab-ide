@@ -95,6 +95,14 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
     } else {
       updateBrowser();
     }
+    // select whatever remains in the editor. When closing X with just X in the editor, X for some
+    // reason remains selected, hence the check
+    var nextAsset = getSelectedAsset();
+    if (nextAsset != null && !nextAsset.getId().equals(asset.getId())) {
+      assetEditorSelected(nextAsset);
+    } else {
+      KlabIDEController.instance().setFocalScope(null, false);
+    }
   }
 
   @Override
@@ -264,6 +272,14 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
         showDigitalTwin(
             KlabIDEController.instance().requireDigitalTwinPeer(clientContextScope, null));
       }
+    }
+  }
+
+  public void deselectDigitalTwin(IDEContextScope scope) {
+    if (openEditors.containsKey(scope.getId())) {
+      var editor = openEditors.get(scope.getId());
+      editor.close();
+      removeEditor(editor);
     }
   }
 

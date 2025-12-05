@@ -101,6 +101,14 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
     }
   }
 
+  protected A getSelectedAsset() {
+    Tab selectedTab = tabPane.getSelectionModel().getSelectedItem();
+    if (selectedTab != null && selectedTab.getContent() instanceof EditorPage<?, ?> editor) {
+      return (A) editor.getEditedAsset();
+    }
+    return null;
+  }
+
   protected abstract void assetEditorSelected(A asset);
 
   protected abstract void assetEditorClosed(A asset);

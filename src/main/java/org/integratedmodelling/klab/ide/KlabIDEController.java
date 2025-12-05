@@ -198,10 +198,14 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   public void setFocalScope(IDEContextScope focalScope, boolean isLocal) {
     if (focalScope == null && this.focalScope != null) {
-      // TODO close windows in DT
+      digitalTwinView.deselectDigitalTwin(this.focalScope);
+      synchronized (this.digitalTwinReactors) {
+        for (var reactor : this.digitalTwinReactors) {
+          reactor.unsetDigitalTwin(this.focalScope);
+        }
+      }
     }
     this.focalScope = focalScope;
-    digitalTwinView.showDigitalTwin(focalScope);
     synchronized (this.digitalTwinReactors) {
       for (var reactor : this.digitalTwinReactors) {
         reactor.setDigitalTwin(focalScope, isLocal);
@@ -242,6 +246,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
           digitalTwinSwitcher.setTooltip(
               new Tooltip(focalScope == null ? "No digital twin" : focalScope.getName())); // TODO
           digitalTwinSwitcher.setStyle("fx-font-weight: bold; -fx-text-fill: -fx-accent-color;");
+          if (focalScope != null) {
+            digitalTwinView.showDigitalTwin(focalScope);
+          }
         });
   }
 

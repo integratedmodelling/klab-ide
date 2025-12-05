@@ -328,9 +328,20 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   @Override
   public void closeDigitalTwin(IDEContextScope ideContextScope) {
-    this.scope = null;
-    this.status = Status.IDLE;
-    this.setMainView();
+    if (this.scope != null && this.scope.getId().equals(ideContextScope.getId())) {
+      this.scope = null;
+      this.status = Status.IDLE;
+      this.setMainView();
+    }
+  }
+
+  @Override
+  public void unsetDigitalTwin(IDEContextScope focalScope) {
+    if (this.scope != null && this.scope.getId().equals(focalScope.getId())) {
+      this.scope = null;
+      this.status = Status.IDLE;
+      this.setMainView();
+    }
   }
 
   public IDEContextScope getScope() {

@@ -82,6 +82,9 @@ public class ResourceEditor extends EditorPage<Object, Resource> {
   }
 
   @Override
+  public void unsetDigitalTwin(IDEContextScope focalScope) {}
+
+  @Override
   protected Node createEditor(Resource resource) {
     VBox mainContainer = new VBox(10);
     mainContainer.setPadding(new Insets(10));

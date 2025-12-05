@@ -429,4 +429,9 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
 
   @Override
   public void closeDigitalTwin(IDEContextScope ideContextScope) {}
+
+    @Override
+    public void unsetDigitalTwin(IDEContextScope focalScope) {
+
+    }
 }
