@@ -1,16 +1,29 @@
 package org.integratedmodelling.klab.ide.lsp;
 
+
 import org.eclipse.lsp4j.*;
 import org.eclipse.lsp4j.services.LanguageClient;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 class KlabLanguageClient implements LanguageClient {
 
+    private final DiagnosticsService diagnosticsService = DiagnosticsService.getInstance();
+
     @Override
-    public void publishDiagnostics(PublishDiagnosticsParams diagnostics) {
-        // TODO: route to Monaco later (gutter markers, panel, etc.)
-        System.out.println("Diagnostics for " + diagnostics.getUri() + ": " + diagnostics.getDiagnostics());
+    public void publishDiagnostics(PublishDiagnosticsParams diagnosticsParams) {
+
+        String uri = diagnosticsParams.getUri();
+        System.out.println("[LSP] publishDiagnostics for URI = " + uri);
+        System.out.println("[LSP] diagnostics count = " + diagnosticsParams.getDiagnostics().size());
+        diagnosticsParams.getDiagnostics().forEach(d ->
+                System.out.println("  - " + d.getSeverity() + ": " + d.getMessage() +
+                        " @" + d.getRange().getStart())
+        );
+        List<Diagnostic> diagnostics = diagnosticsParams.getDiagnostics();
+
+        diagnosticsService.updateDiagnostics(uri, diagnostics);
     }
 
     @Override

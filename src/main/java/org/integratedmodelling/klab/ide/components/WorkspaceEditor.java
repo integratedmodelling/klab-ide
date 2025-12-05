@@ -12,7 +12,6 @@ import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.input.*;
 import javafx.scene.input.ClipboardContent;
-import org.integratedmodelling.common.lang.kim.KlabDocumentImpl;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.klab.api.data.RepositoryState;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
@@ -29,6 +28,7 @@ import org.integratedmodelling.klab.ide.KlabIDEApplication;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.IDEContextScope;
+import org.integratedmodelling.klab.ide.lsp.DiagnosticsService;
 import org.integratedmodelling.klab.ide.lsp.KlabLspService;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.integratedmodelling.klab.modeler.model.NavigableKimConceptStatement;
@@ -45,6 +45,9 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private TreeItem<NavigableAsset> root;
   private ProgressBar progressBar;
   private TreeView<NavigableAsset> treeView;
+
+  private final DiagnosticsService diagnosticsService = DiagnosticsService.getInstance();
+
 
   public WorkspaceEditor(ResourcesService service, ResourceInfo resourceInfo, WorkspaceView view) {
     super(
@@ -247,30 +250,57 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         e.printStackTrace();
       }
 
-      // 2. Create Monaco editor
-      var ret = new MonacoEditorView(
-              content -> Platform.runLater(() -> saveDocument(content, asset)));
-
       // Use "kim" as language id for the LSP
       String languageId = "kim";   // even if Monaco treats it as plain-text for now
       String theme = Theme.CURRENT_THEME.isDark() ? "vs-dark" : "vs";
 
+      // For now use the Urn
+      String documentUri = "inmemory://klab/" + document.getUrn() + ".kim";
+
+      var ret = new MonacoEditorView(
+              documentUri,
+              content -> Platform.runLater(() -> saveDocument(content, asset)));
+
       ret.loadEditor(document.getSourceCode(), languageId, theme);
 
-      // 3. Compute a stable URI for the LSP document
-      //    (for now: use the physical file if available, or a synthetic URI)
-      String uri = "inmemory://klab/" + document.getUrn() + ".kim";
-
-      // 4. Tell LSP that the document is open
       KlabLspService lsp = KlabLspService.getInstance();
-      lsp.openDocument(uri, languageId, document.getSourceCode());
+      lsp.openDocument(documentUri, languageId, document.getSourceCode());
 
       // 5. Hook editor content changes -> LSP didChange
       ret.setChangeListener(newText -> {
         // send to LSP
-        lsp.changeDocument(uri, newText);
+        lsp.changeDocument(documentUri, newText);
       });
 
+      DiagnosticsService diagnosticsService = DiagnosticsService.getInstance();
+
+      DiagnosticsService.Listener listener = (uri, diagnostics) -> {
+        System.out.println("[WorkspaceEditor] Listener fired for URI = " + uri +
+                ", expected = " + documentUri +
+                ", count = " + diagnostics.size());
+
+        if (documentUri.equals(uri)) {
+          Platform.runLater(() -> {
+            System.out.println("[WorkspaceEditor] Forwarding diagnostics to MonacoEditorView");
+            ret.setDiagnostics(diagnostics);
+          });
+        }
+      };
+
+      diagnosticsService.addListener(listener);
+
+      // Initialize with any diagnostics already present for this URI
+      var existing = diagnosticsService.getDiagnostics(documentUri);
+      if (!existing.isEmpty()) {
+        ret.setDiagnostics(existing);
+      }
+
+      // 5. Automatic cleanup: when editor node is detached from scene, remove listener
+      ret.sceneProperty().addListener((obs, oldScene, newScene) -> {
+        if (newScene == null) {
+          diagnosticsService.removeListener(listener);
+        }
+      });
       return ret;
     }
     return null;
