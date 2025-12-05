@@ -1,7 +1,5 @@
-package org.integratedmodelling.klab.ide.components;
+package org.integratedmodelling.klab.ide.components.generic;
 
-import javafx.application.Platform;
-import javafx.geometry.Insets;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
@@ -10,10 +8,10 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.control.Label;
-import javafx.scene.control.Slider;
 import javafx.scene.control.Tooltip;
 import javafx.scene.Node;
 import org.integratedmodelling.common.logging.Logging;
+import org.integratedmodelling.klab.ide.components.Components;
 
 import java.time.Instant;
 import java.time.ZoneId;

@@ -1,6 +1,5 @@
 package org.integratedmodelling.klab.ide.components;
 
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,7 +13,7 @@ import org.integratedmodelling.klab.api.exceptions.KlabInternalErrorException;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.cli.DashboardLineReader;
 import org.integratedmodelling.klab.ide.cli.DashboardTerminal;
-import org.integratedmodelling.klab.ide.contrib.AutoCompleteTextField;
+import org.integratedmodelling.klab.ide.components.generic.AutoCompleteTextField;
 import org.integratedmodelling.klab.ide.pages.OutlinePage;
 import org.integratedmodelling.klab.ide.pages.Page;
 
