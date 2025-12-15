@@ -186,6 +186,7 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
     var ret = new ResourceInfo();
     ret.setUrn(resource.getUrn());
     ret.setServiceId(resource.getServiceId());
+    ret.setKnowledgeClass(KlabAsset.KnowledgeClass.RESOURCE);
     return ret;
   }
 

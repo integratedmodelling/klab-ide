@@ -266,6 +266,8 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
   private void createDigitalTwin(
       DigitalTwin.Configuration configuration, RuntimeService runtimeService) {
     var session = KlabIDEController.instance().user().getUserSession(runtimeService);
+    Logging.INSTANCE.info(
+        "Creating session " + session + " in service " + runtimeService.serviceName());
     if (session != null) {
       var context = session.createContext(configuration);
       if (context instanceof ClientContextScope clientContextScope) {
