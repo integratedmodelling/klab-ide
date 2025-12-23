@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.Map;
 import java.util.function.Function;
 
 import static org.integratedmodelling.klab.api.configuration.Configuration.KLAB_WORK_DIRECTORY;
@@ -19,6 +20,11 @@ import static org.integratedmodelling.klab.api.configuration.Configuration.KLAB_
 public class KlabLspService {
 
     private static final KlabLspService INSTANCE = new KlabLspService();
+    private final Map<String, Integer> docVersions = new ConcurrentHashMap<>();
+
+    private int nextVersion(String uri) {
+        return docVersions.merge(uri, 1, Integer::sum);
+    }
 
     public static KlabLspService getInstance() {
         return INSTANCE;
@@ -72,39 +78,66 @@ public class KlabLspService {
 
     public void openDocument(String uri, String languageId, String text) {
         if (!initialized) return;
+
+        // Set baseline version for this document (start at 1)
+        docVersions.put(uri, 1);
+
         TextDocumentItem item = new TextDocumentItem();
         item.setUri(uri);
         item.setLanguageId(languageId);
-        item.setVersion(versionCounter++);
+        item.setVersion(1);
         item.setText(text);
 
-        server.getTextDocumentService()
-                .didOpen(new DidOpenTextDocumentParams(item));
+        DidOpenTextDocumentParams params = new DidOpenTextDocumentParams(item);
+        server.getTextDocumentService().didOpen(params);
+
+        System.out.println("[LSP] didOpen uri=" + uri + " version=1 len=" + (text != null ? text.length() : 0));
     }
 
     public void changeDocument(String uri, String newText) {
         if (!initialized) return;
+
+        Integer current = docVersions.get(uri);
+        if (current == null) {
+            // This is *very* useful to detect ordering bugs (didChange before didOpen)
+            System.err.println("[LSP] didChange called for unopened uri=" + uri + " -> forcing baseline version");
+            docVersions.put(uri, 1);
+        }
+
+        int v = nextVersion(uri);
+
         TextDocumentContentChangeEvent change = new TextDocumentContentChangeEvent();
-        change.setText(newText); // full text for now
+        change.setText(newText); // full text
 
         VersionedTextDocumentIdentifier id = new VersionedTextDocumentIdentifier();
         id.setUri(uri);
-        id.setVersion(versionCounter++);
+        id.setVersion(v);
 
         DidChangeTextDocumentParams params =
-                new DidChangeTextDocumentParams(id,
-                        Collections.singletonList(change));
+                new DidChangeTextDocumentParams(id, Collections.singletonList(change));
 
-        server.getTextDocumentService().didChange(params);
+        try {
+            server.getTextDocumentService().didChange(params);
+            System.out.println("[LSP] didChange uri=" + uri + " version=" + v + " len=" + (newText != null ? newText.length() : 0));
+        } catch (Exception e) {
+            System.err.println("[LSP] didChange failed uri=" + uri + " version=" + v);
+            e.printStackTrace();
+        }
     }
 
     public void closeDocument(String uri) {
         if (!initialized) return;
-        TextDocumentIdentifier id = new TextDocumentIdentifier(uri);
-        server.getTextDocumentService().didClose(
-                new DidCloseTextDocumentParams(id));
+        try {
+            TextDocumentIdentifier id = new TextDocumentIdentifier(uri);
+            server.getTextDocumentService().didClose(new DidCloseTextDocumentParams(id));
+            System.out.println("[LSP] didClose uri=" + uri);
+        } catch (Exception e) {
+            System.err.println("[LSP] didClose failed uri=" + uri);
+            e.printStackTrace();
+        } finally {
+            docVersions.remove(uri);
+        }
     }
-
     public CompletableFuture<Either<List<CompletionItem>, CompletionList>> completion(
             String uri, int line, int character) {
 

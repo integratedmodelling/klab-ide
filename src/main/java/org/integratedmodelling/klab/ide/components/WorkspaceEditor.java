@@ -255,7 +255,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       String theme = Theme.CURRENT_THEME.isDark() ? "vs-dark" : "vs";
 
       // For now use the Urn
-      String documentUri = "inmemory://klab/" + document.getUrn() + ".kim";
+      String documentUri = "inmemory:///klab/" + document.getUrn() + ".kim";
 
       var ret = new MonacoEditorView(
               documentUri,
@@ -264,12 +264,18 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       ret.loadEditor(document.getSourceCode(), languageId, theme);
 
       KlabLspService lsp = KlabLspService.getInstance();
+      System.out.println("[WorkspaceEditor] Opening LSP document " + documentUri);
       lsp.openDocument(documentUri, languageId, document.getSourceCode());
 
       // 5. Hook editor content changes -> LSP didChange
       ret.setChangeListener(newText -> {
-        // send to LSP
-        lsp.changeDocument(documentUri, newText);
+        try {
+          // Send to LSP
+          lsp.changeDocument(documentUri, newText);
+        } catch (Exception e) {
+          System.err.println("[WorkspaceEditor] Failed didChange for " + documentUri);
+          e.printStackTrace();
+        }
       });
 
       DiagnosticsService diagnosticsService = DiagnosticsService.getInstance();
@@ -284,6 +290,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
             System.out.println("[WorkspaceEditor] Forwarding diagnostics to MonacoEditorView");
             ret.setDiagnostics(diagnostics);
           });
+        } else {
+          System.out.println("[WorkspaceEditor] Ignoring diagnostics for " + uri);
         }
       };
 

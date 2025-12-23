@@ -14,7 +14,6 @@ public class DiagnosticsService {
     }
 
     private static final DiagnosticsService INSTANCE = new DiagnosticsService();
-
     private final Map<String, List<Diagnostic>> byUri = new ConcurrentHashMap<>();
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
 
@@ -23,13 +22,6 @@ public class DiagnosticsService {
     }
 
     public void updateDiagnostics(String uri, List<Diagnostic> diagnostics) {
-        byUri.put(uri, diagnostics);
-        for (Listener l : listeners) {
-            l.onDiagnosticsChanged(uri, diagnostics);
-        }
-        System.out.println("[DiagnosticsService] updateDiagnostics(uri=" +
-                uri + ", count=" + diagnostics.size() + ")");
-
         byUri.put(uri, diagnostics);
         for (Listener l : listeners) {
             try {
