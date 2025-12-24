@@ -48,7 +48,6 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   private final DiagnosticsService diagnosticsService = DiagnosticsService.getInstance();
 
-
   public WorkspaceEditor(ResourcesService service, ResourceInfo resourceInfo, WorkspaceView view) {
     super(
         new NavigableWorkspace(
@@ -243,7 +242,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   protected Node createEditor(NavigableAsset asset) {
     if (asset instanceof KlabDocument<?> document) {
       // 1. LSP init for this workspace
-      Path workspaceRoot = Paths.get("/home/klab/git/klab-ide");
+      Path workspaceRoot = Paths.get(System.getProperty("user.home") + "/git/klab-ide");
       try {
         KlabLspService.getInstance().startIfNeeded(workspaceRoot);
       } catch (Exception e) {
@@ -251,15 +250,15 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       }
 
       // Use "kim" as language id for the LSP
-      String languageId = "kim";   // even if Monaco treats it as plain-text for now
+      String languageId = "kim"; // even if Monaco treats it as plain-text for now
       String theme = Theme.CURRENT_THEME.isDark() ? "vs-dark" : "vs";
 
       // For now use the Urn
       String documentUri = "inmemory:///klab/" + document.getUrn() + ".kim";
 
-      var ret = new MonacoEditorView(
-              documentUri,
-              content -> Platform.runLater(() -> saveDocument(content, asset)));
+      var ret =
+          new MonacoEditorView(
+              documentUri, content -> Platform.runLater(() -> saveDocument(content, asset)));
 
       ret.loadEditor(document.getSourceCode(), languageId, theme);
 
@@ -268,32 +267,40 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       lsp.openDocument(documentUri, languageId, document.getSourceCode());
 
       // 5. Hook editor content changes -> LSP didChange
-      ret.setChangeListener(newText -> {
-        try {
-          // Send to LSP
-          lsp.changeDocument(documentUri, newText);
-        } catch (Exception e) {
-          System.err.println("[WorkspaceEditor] Failed didChange for " + documentUri);
-          e.printStackTrace();
-        }
-      });
+      ret.setChangeListener(
+          newText -> {
+            try {
+              // Send to LSP
+              lsp.changeDocument(documentUri, newText);
+            } catch (Exception e) {
+              System.err.println("[WorkspaceEditor] Failed didChange for " + documentUri);
+              e.printStackTrace();
+            }
+          });
 
       DiagnosticsService diagnosticsService = DiagnosticsService.getInstance();
 
-      DiagnosticsService.Listener listener = (uri, diagnostics) -> {
-        System.out.println("[WorkspaceEditor] Listener fired for URI = " + uri +
-                ", expected = " + documentUri +
-                ", count = " + diagnostics.size());
+      DiagnosticsService.Listener listener =
+          (uri, diagnostics) -> {
+            System.out.println(
+                "[WorkspaceEditor] Listener fired for URI = "
+                    + uri
+                    + ", expected = "
+                    + documentUri
+                    + ", count = "
+                    + diagnostics.size());
 
-        if (documentUri.equals(uri)) {
-          Platform.runLater(() -> {
-            System.out.println("[WorkspaceEditor] Forwarding diagnostics to MonacoEditorView");
-            ret.setDiagnostics(diagnostics);
-          });
-        } else {
-          System.out.println("[WorkspaceEditor] Ignoring diagnostics for " + uri);
-        }
-      };
+            if (documentUri.equals(uri)) {
+              Platform.runLater(
+                  () -> {
+                    System.out.println(
+                        "[WorkspaceEditor] Forwarding diagnostics to MonacoEditorView");
+                    ret.setDiagnostics(diagnostics);
+                  });
+            } else {
+              System.out.println("[WorkspaceEditor] Ignoring diagnostics for " + uri);
+            }
+          };
 
       diagnosticsService.addListener(listener);
 
@@ -304,11 +311,13 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       }
 
       // 5. Automatic cleanup: when editor node is detached from scene, remove listener
-      ret.sceneProperty().addListener((obs, oldScene, newScene) -> {
-        if (newScene == null) {
-          diagnosticsService.removeListener(listener);
-        }
-      });
+      ret.sceneProperty()
+          .addListener(
+              (obs, oldScene, newScene) -> {
+                if (newScene == null) {
+                  diagnosticsService.removeListener(listener);
+                }
+              });
       return ret;
     }
     return null;
