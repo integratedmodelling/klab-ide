@@ -3,6 +3,8 @@ package org.integratedmodelling.klab.ide;
 import atlantafx.base.theme.Styles;
 import com.google.common.collect.EvictingQueue;
 import com.google.common.collect.Queues;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import java.awt.*;
 import java.io.File;
@@ -75,6 +77,7 @@ import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.integratedmodelling.klab.ide.utils.NodeUtils;
+import org.integratedmodelling.klab.ide.lsp.KlabLspService;
 import org.integratedmodelling.klab.modeler.ModelerImpl;
 import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.bootstrapicons.BootstrapIcons;
