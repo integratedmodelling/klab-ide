@@ -9,6 +9,7 @@ import org.eclipse.lsp4j.services.LanguageServer;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.*;
@@ -19,180 +20,183 @@ import static org.integratedmodelling.klab.api.configuration.Configuration.KLAB_
 
 public class KlabLspService {
 
-    private static final KlabLspService INSTANCE = new KlabLspService();
-    private final Map<String, Integer> docVersions = new ConcurrentHashMap<>();
+  private static final KlabLspService INSTANCE = new KlabLspService();
+  private final Map<String, Integer> docVersions = new ConcurrentHashMap<>();
 
-    private int nextVersion(String uri) {
-        return docVersions.merge(uri, 1, Integer::sum);
+  private int nextVersion(String uri) {
+    return docVersions.merge(uri, 1, Integer::sum);
+  }
+
+  public static KlabLspService getInstance() {
+    return INSTANCE;
+  }
+
+  private Process serverProcess;
+  private LanguageServer server;
+  private Launcher<LanguageServer> launcher;
+  private final ExecutorService executor = Executors.newCachedThreadPool();
+  private int versionCounter = 1;
+
+  private volatile boolean initialized = false;
+
+  private KlabLspService() {}
+
+  public synchronized void startIfNeeded(Path workspaceRoot) throws Exception {
+    if (initialized) return;
+
+    // 1. Start Xtext LSP server process
+    serverProcess = startServerProcess(workspaceRoot);
+
+    InputStream in = serverProcess.getInputStream(); // server -> client
+    OutputStream out = serverProcess.getOutputStream(); // client -> server
+
+    LanguageClient client = new KlabLanguageClient();
+
+    launcher =
+        Launcher.createLauncher(
+            client, LanguageServer.class, in, out, executor, Function.identity());
+    server = launcher.getRemoteProxy();
+    launcher.startListening();
+
+    // 2. Initialize
+    InitializeParams params = new InitializeParams();
+    params.setCapabilities(new ClientCapabilities());
+    params.setRootUri(workspaceRoot.toUri().toString());
+    server.initialize(params).get(20, TimeUnit.SECONDS);
+    server.initialized(new InitializedParams());
+
+    initialized = true;
+  }
+
+  public LanguageServer getServer() {
+    return server;
+  }
+
+  public void openDocument(String uri, String languageId, String text) {
+    if (!initialized) return;
+
+    // Set baseline version for this document (start at 1)
+    docVersions.put(uri, 1);
+
+    TextDocumentItem item = new TextDocumentItem();
+    item.setUri(uri);
+    item.setLanguageId(languageId);
+    item.setVersion(1);
+    item.setText(text);
+
+    DidOpenTextDocumentParams params = new DidOpenTextDocumentParams(item);
+    server.getTextDocumentService().didOpen(params);
+
+    System.out.println(
+        "[LSP] didOpen uri=" + uri + " version=1 len=" + (text != null ? text.length() : 0));
+  }
+
+  public void changeDocument(String uri, String newText) {
+    if (!initialized) return;
+
+    Integer current = docVersions.get(uri);
+    if (current == null) {
+      // This is *very* useful to detect ordering bugs (didChange before didOpen)
+      System.err.println(
+          "[LSP] didChange called for unopened uri=" + uri + " -> forcing baseline version");
+      docVersions.put(uri, 1);
     }
 
-    public static KlabLspService getInstance() {
-        return INSTANCE;
+    int v = nextVersion(uri);
+
+    TextDocumentContentChangeEvent change = new TextDocumentContentChangeEvent();
+    change.setText(newText); // full text
+
+    VersionedTextDocumentIdentifier id = new VersionedTextDocumentIdentifier();
+    id.setUri(uri);
+    id.setVersion(v);
+
+    DidChangeTextDocumentParams params =
+        new DidChangeTextDocumentParams(id, Collections.singletonList(change));
+
+    try {
+      server.getTextDocumentService().didChange(params);
+      System.out.println(
+          "[LSP] didChange uri="
+              + uri
+              + " version="
+              + v
+              + " len="
+              + (newText != null ? newText.length() : 0));
+    } catch (Exception e) {
+      System.err.println("[LSP] didChange failed uri=" + uri + " version=" + v);
+      e.printStackTrace();
+    }
+  }
+
+  public void closeDocument(String uri) {
+    if (!initialized) return;
+    try {
+      TextDocumentIdentifier id = new TextDocumentIdentifier(uri);
+      server.getTextDocumentService().didClose(new DidCloseTextDocumentParams(id));
+      System.out.println("[LSP] didClose uri=" + uri);
+    } catch (Exception e) {
+      System.err.println("[LSP] didClose failed uri=" + uri);
+      e.printStackTrace();
+    } finally {
+      docVersions.remove(uri);
+    }
+  }
+
+  public CompletableFuture<Either<List<CompletionItem>, CompletionList>> completion(
+      String uri, int line, int character) {
+
+    if (!initialized) {
+      CompletableFuture<Either<List<CompletionItem>, CompletionList>> f = new CompletableFuture<>();
+      f.completeExceptionally(new IllegalStateException("LSP not initialized"));
+      return f;
     }
 
-    private Process serverProcess;
-    private LanguageServer server;
-    private Launcher<LanguageServer> launcher;
-    private final ExecutorService executor = Executors.newCachedThreadPool();
-    private int versionCounter = 1;
+    TextDocumentIdentifier id = new TextDocumentIdentifier(uri);
+    Position pos = new Position(line, character);
+    CompletionParams params =
+        new CompletionParams(new TextDocumentIdentifier(uri), new Position(line, character));
+    return server.getTextDocumentService().completion(params);
+  }
 
-    private volatile boolean initialized = false;
+  public void shutdown() throws Exception {
+    if (!initialized) return;
+    server.shutdown().get(5, TimeUnit.SECONDS);
+    server.exit();
+    serverProcess.destroy();
+    executor.shutdown();
+    initialized = false;
+  }
 
-    private KlabLspService() {}
+  private Process startServerProcess(Path workspaceRoot) throws Exception {
+    // Location of "target/classes" relative to workspaceRoot
+    Path classesDir = workspaceRoot.resolve("target").resolve("classes");
 
-    public synchronized void startIfNeeded(Path workspaceRoot) throws Exception {
-        if (initialized) return;
+    // Load classpath.txt which the .sh script uses
+    Path cpFile = workspaceRoot.resolve("target").resolve("classpath.txt");
+    String extraCp = java.nio.file.Files.readString(cpFile).trim();
 
-        // 1. Start Xtext LSP server process
-        serverProcess = startServerProcess(workspaceRoot);
+    // Build the full classpath (classes + additional entries from classpath.txt)
+    // TODO change this to something production-ready
+    String classpath = classesDir.toString() + System.getProperty("path.separator") + extraCp;
 
-        InputStream in  = serverProcess.getInputStream();   // server -> client
-        OutputStream out = serverProcess.getOutputStream(); // client -> server
+    // Build the Java command equivalent to start-lsp.sh
+    ProcessBuilder pb =
+        new ProcessBuilder(
+            "java",
+            "-Dxtext.disable.standalone.setup=true",
+            "org.eclipse.xtext.ide.server.ServerLauncher");
 
-        LanguageClient client = new KlabLanguageClient();
+    // put CLASSPATH in an env var so that the CL doesn't kill Windows
+    pb.environment().put("CLASSPATH", classpath);
+    pb.directory(workspaceRoot.toFile());
+    pb.redirectError(ProcessBuilder.Redirect.INHERIT);
 
-        launcher = Launcher.createLauncher(
-                client,
-                LanguageServer.class,
-                in,
-                out,
-                executor,
-                Function.identity()
-        );
-        server = launcher.getRemoteProxy();
-        launcher.startListening();
+    return pb.start();
+  }
 
-        // 2. Initialize
-        InitializeParams params = new InitializeParams();
-        params.setCapabilities(new ClientCapabilities());
-        params.setRootUri(workspaceRoot.toUri().toString());
-        server.initialize(params).get(20, TimeUnit.SECONDS);
-        server.initialized(new InitializedParams());
-
-        initialized = true;
-    }
-
-    public LanguageServer getServer() {
-        return server;
-    }
-
-    public void openDocument(String uri, String languageId, String text) {
-        if (!initialized) return;
-
-        // Set baseline version for this document (start at 1)
-        docVersions.put(uri, 1);
-
-        TextDocumentItem item = new TextDocumentItem();
-        item.setUri(uri);
-        item.setLanguageId(languageId);
-        item.setVersion(1);
-        item.setText(text);
-
-        DidOpenTextDocumentParams params = new DidOpenTextDocumentParams(item);
-        server.getTextDocumentService().didOpen(params);
-
-        System.out.println("[LSP] didOpen uri=" + uri + " version=1 len=" + (text != null ? text.length() : 0));
-    }
-
-    public void changeDocument(String uri, String newText) {
-        if (!initialized) return;
-
-        Integer current = docVersions.get(uri);
-        if (current == null) {
-            // This is *very* useful to detect ordering bugs (didChange before didOpen)
-            System.err.println("[LSP] didChange called for unopened uri=" + uri + " -> forcing baseline version");
-            docVersions.put(uri, 1);
-        }
-
-        int v = nextVersion(uri);
-
-        TextDocumentContentChangeEvent change = new TextDocumentContentChangeEvent();
-        change.setText(newText); // full text
-
-        VersionedTextDocumentIdentifier id = new VersionedTextDocumentIdentifier();
-        id.setUri(uri);
-        id.setVersion(v);
-
-        DidChangeTextDocumentParams params =
-                new DidChangeTextDocumentParams(id, Collections.singletonList(change));
-
-        try {
-            server.getTextDocumentService().didChange(params);
-            System.out.println("[LSP] didChange uri=" + uri + " version=" + v + " len=" + (newText != null ? newText.length() : 0));
-        } catch (Exception e) {
-            System.err.println("[LSP] didChange failed uri=" + uri + " version=" + v);
-            e.printStackTrace();
-        }
-    }
-
-    public void closeDocument(String uri) {
-        if (!initialized) return;
-        try {
-            TextDocumentIdentifier id = new TextDocumentIdentifier(uri);
-            server.getTextDocumentService().didClose(new DidCloseTextDocumentParams(id));
-            System.out.println("[LSP] didClose uri=" + uri);
-        } catch (Exception e) {
-            System.err.println("[LSP] didClose failed uri=" + uri);
-            e.printStackTrace();
-        } finally {
-            docVersions.remove(uri);
-        }
-    }
-    public CompletableFuture<Either<List<CompletionItem>, CompletionList>> completion(
-            String uri, int line, int character) {
-
-        if (!initialized) {
-            CompletableFuture<Either<List<CompletionItem>, CompletionList>> f = new CompletableFuture<>();
-            f.completeExceptionally(new IllegalStateException("LSP not initialized"));
-            return f;
-        }
-
-        TextDocumentIdentifier id = new TextDocumentIdentifier(uri);
-        Position pos = new Position(line, character);
-        CompletionParams params = new CompletionParams(
-                new TextDocumentIdentifier(uri),
-                new Position(line, character)
-        );
-        return server.getTextDocumentService()
-                .completion(params);
-    }
-
-    public void shutdown() throws Exception {
-        if (!initialized) return;
-        server.shutdown().get(5, TimeUnit.SECONDS);
-        server.exit();
-        serverProcess.destroy();
-        executor.shutdown();
-        initialized = false;
-    }
-
-    private Process startServerProcess(Path workspaceRoot) throws Exception {
-        // Location of "target/classes" relative to workspaceRoot
-        Path classesDir = workspaceRoot.resolve("target").resolve("classes");
-
-        // Load classpath.txt which the .sh script uses
-        Path cpFile = workspaceRoot.resolve("target").resolve("classpath.txt");
-        String extraCp = java.nio.file.Files.readString(cpFile).trim();
-
-        // Correct classpath separator for OS
-        String sep = System.getProperty("os.name").toLowerCase().contains("win") ? ";" : ":";
-
-        // Build the full classpath (classes + additional entries from classpath.txt)
-        String classpath = classesDir.toString() + sep + extraCp;
-
-        // Build the Java command equivalent to start-lsp.sh
-        ProcessBuilder pb = new ProcessBuilder(
-                "java",
-                "-Dxtext.disable.standalone.setup=true",
-                "-cp",
-                classpath,
-                "org.eclipse.xtext.ide.server.ServerLauncher"
-        );
-
-        pb.directory(workspaceRoot.toFile());
-        pb.redirectError(ProcessBuilder.Redirect.INHERIT);
-
-        return pb.start();
-    }
-
+  public static void main(String[] diocan) throws Exception {
+    Path workspaceRoot = Paths.get(System.getProperty("user.home") + "/git/klab-ide");
+    KlabLspService.getInstance().startIfNeeded(workspaceRoot);
+  }
 }
