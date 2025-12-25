@@ -249,12 +249,16 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         e.printStackTrace();
       }
 
-      // Use "kim" as language id for the LSP
-      String languageId = "kim"; // even if Monaco treats it as plain-text for now
+      String languageId =
+          document
+              .getLanguage()
+              .languageId(); // even if Monaco treats it as plain-text for now
+
       String theme = Theme.CURRENT_THEME.isDark() ? "vs-dark" : "vs";
 
       // For now use the Urn
-      String documentUri = "inmemory:///klab/" + document.getUrn() + ".kim";
+      String documentUri =
+          "inmemory:///klab/" + document.getUrn() + "." + document.getLanguage().fileExtension();
 
       var ret =
           new MonacoEditorView(
@@ -271,6 +275,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           newText -> {
             try {
               // Send to LSP
+              System.err.println("[WorkspaceEditor] Sending changes for " + documentUri);
               lsp.changeDocument(documentUri, newText);
             } catch (Exception e) {
               System.err.println("[WorkspaceEditor] Failed didChange for " + documentUri);
