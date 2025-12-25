@@ -270,11 +270,11 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       System.out.println("[WorkspaceEditor] Opening LSP document " + documentUri);
       lsp.openDocument(documentUri, languageId, document.getSourceCode());
 
-      // 5. Hook editor content changes -> LSP didChange
+      // 5. Hook editor content changes -> LSP didChange. Sometimes it gets invoked, sometimes not
       ret.setChangeListener(
           newText -> {
             try {
-              // Send to LSP
+              // Send to LSP. This does not happen reliably.
               System.err.println("[WorkspaceEditor] Sending changes for " + documentUri);
               lsp.changeDocument(documentUri, newText);
             } catch (Exception e) {
