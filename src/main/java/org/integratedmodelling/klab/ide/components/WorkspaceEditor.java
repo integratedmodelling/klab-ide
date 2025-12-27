@@ -245,8 +245,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       Path workspaceRoot = Paths.get(System.getProperty("user.home") + "/git/klab-ide");
       try {
         KlabLspService.getInstance().startIfNeeded(workspaceRoot);
+        System.out.println("[WorkspaceEditor] LSP Server initialized");
       } catch (Exception e) {
         e.printStackTrace();
+        System.err.println("[WorkspaceEditor] Error starting LSP Server" + e);
       }
 
       String languageId =
@@ -267,24 +269,11 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       ret.loadEditor(document.getSourceCode(), languageId, theme);
 
       KlabLspService lsp = KlabLspService.getInstance();
+
       System.out.println("[WorkspaceEditor] Opening LSP document " + documentUri);
       lsp.openDocument(documentUri, languageId, document.getSourceCode());
 
-      // 5. Hook editor content changes -> LSP didChange. Sometimes it gets invoked, sometimes not
-      ret.setChangeListener(
-          newText -> {
-            try {
-              // Send to LSP. This does not happen reliably.
-              System.err.println("[WorkspaceEditor] Sending changes for " + documentUri);
-              lsp.changeDocument(documentUri, newText);
-            } catch (Exception e) {
-              System.err.println("[WorkspaceEditor] Failed didChange for " + documentUri);
-              e.printStackTrace();
-            }
-          });
-
       DiagnosticsService diagnosticsService = DiagnosticsService.getInstance();
-
       DiagnosticsService.Listener listener =
           (uri, diagnostics) -> {
             System.out.println(
@@ -315,12 +304,24 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         ret.setDiagnostics(existing);
       }
 
+      ret.setChangeListener(
+              newText -> {
+                try {
+                  // Send to LSP. This does not happen reliably.
+                  System.err.println("[WorkspaceEditor] Sending changes for " + documentUri);
+                  lsp.changeDocument(documentUri, newText);
+                } catch (Exception e) {
+                  System.err.println("[WorkspaceEditor] Failed didChange for " + documentUri);
+                  e.printStackTrace();
+                }
+              });
       // 5. Automatic cleanup: when editor node is detached from scene, remove listener
       ret.sceneProperty()
           .addListener(
               (obs, oldScene, newScene) -> {
                 if (newScene == null) {
                   diagnosticsService.removeListener(listener);
+                  lsp.closeDocument(documentUri);
                 }
               });
       return ret;
