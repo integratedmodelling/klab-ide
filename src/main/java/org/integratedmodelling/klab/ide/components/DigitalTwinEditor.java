@@ -97,6 +97,7 @@ public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
               activeContextMenu.hide();
             }
             activeContextMenu = new ContextMenu();
+            activeContextMenu.setAutoHide(true);
             List<Pair<String, Consumer<RuntimeAsset>>> entries =
                 getContextMenuEntries(item.getValue());
             for (Pair<String, Consumer<RuntimeAsset>> entry : entries) {

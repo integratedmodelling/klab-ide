@@ -31,10 +31,7 @@ import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.lsp.DiagnosticsService;
 import org.integratedmodelling.klab.ide.lsp.KlabLspService;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
-import org.integratedmodelling.klab.modeler.model.NavigableKimConceptStatement;
-import org.integratedmodelling.klab.modeler.model.NavigableKimModel;
-import org.integratedmodelling.klab.modeler.model.NavigableProject;
-import org.integratedmodelling.klab.modeler.model.NavigableWorkspace;
+import org.integratedmodelling.klab.modeler.model.*;
 import org.integratedmodelling.klabeditor.MonacoEditorView;
 
 public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAsset> {
@@ -103,29 +100,13 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           TreeItem<NavigableAsset> item = treeView.getSelectionModel().getSelectedItem();
           if (item != null) {
             var contextMenu = new javafx.scene.control.ContextMenu();
+            contextMenu.setAutoHide(true);
             switch (item.getValue()) {
               case NavigableProject project -> {
-                var lockUnlock =
-                    new javafx.scene.control.MenuItem(project.isLocked() ? "Unlock" : "Lock");
-                lockUnlock.setOnAction(
-                    e -> {
-                      if (service instanceof ResourcesService.Admin admin) {
-                        if (project.isLocked()) {
-                          admin.unlockProject(
-                              project.getUrn(), KlabIDEController.instance().user());
-                          project.setLocked(false);
-                        } else {
-                          admin.lockProject(project.getUrn(), KlabIDEController.instance().user());
-                          project.setLocked(true);
-                        }
-                      }
-                    });
-                contextMenu.getItems().add(lockUnlock);
+                setupProjectMenu(contextMenu, project);
               }
               case KlabDocument<?> document -> {
-                var openEdit = new javafx.scene.control.MenuItem("Open");
-                openEdit.setOnAction(e -> edit(item.getValue()));
-                contextMenu.getItems().add(openEdit);
+                setupDocumentMenu(contextMenu, document);
               }
               default -> {}
             }
@@ -160,6 +141,58 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         });
 
     return treeView;
+  }
+
+  private void setupDocumentMenu(ContextMenu contextMenu, KlabDocument<?> document) {
+    var openEdit = new javafx.scene.control.MenuItem("Delete");
+    //    openEdit.setOnAction(e -> edit(document));
+    contextMenu.getItems().add(openEdit);
+  }
+
+  private void setupProjectMenu(ContextMenu contextMenu, NavigableProject project) {
+    var lockUnlock = new javafx.scene.control.MenuItem(project.isLocked() ? "Unlock" : "Lock");
+    lockUnlock.setOnAction(
+        e -> {
+          if (service instanceof ResourcesService.Admin admin) {
+            if (project.isLocked()) {
+              admin.unlockProject(project.getUrn(), KlabIDEController.instance().user());
+              project.setLocked(false);
+            } else {
+              admin.lockProject(project.getUrn(), KlabIDEController.instance().user());
+              project.setLocked(true);
+            }
+          }
+        });
+
+    var newMenu = new javafx.scene.control.Menu("New");
+    var newNamespace = new javafx.scene.control.MenuItem("Namespace");
+    var newBehavior = new javafx.scene.control.MenuItem("Behavior, Application or test case");
+    var newOntology = new javafx.scene.control.MenuItem("Ontology");
+    var newObservationStrategy = new javafx.scene.control.MenuItem("Observation strategy");
+
+    newMenu.getItems().addAll(newNamespace, newBehavior, newOntology, newObservationStrategy);
+
+    var teamMenu = new javafx.scene.control.Menu("Team");
+
+    for (var op : RepositoryState.Operation.values()) {
+      var teamOperation = new javafx.scene.control.MenuItem(op.description());
+      teamOperation.setOnAction(
+          e -> {
+            KlabIDEController.instance()
+                .manageProject(project.getUrn(), op, getOperationParameters(project, op));
+          });
+      teamMenu.getItems().add(teamOperation);
+    }
+
+    contextMenu.getItems().add(newMenu);
+    contextMenu.getItems().add(teamMenu);
+    contextMenu.getItems().add(new javafx.scene.control.SeparatorMenuItem());
+    contextMenu.getItems().add(lockUnlock);
+  }
+
+  private String[] getOperationParameters(NavigableProject project, RepositoryState.Operation op) {
+    // TODO use alerts and config, including confirmation
+    return new String[] {};
   }
 
   private void handleAssetDrop(NavigableAsset value) {
@@ -240,7 +273,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   @Override
   protected Node createEditor(NavigableAsset asset) {
-    if (asset instanceof KlabDocument<?> document) {
+    if (asset instanceof NavigableKlabDocument<?, ?> document) {
       // 1. LSP init for this workspace
       Path workspaceRoot = Paths.get(System.getProperty("user.home") + "/git/klab-ide");
       try {
@@ -252,9 +285,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       }
 
       String languageId =
-          document
-              .getLanguage()
-              .languageId(); // even if Monaco treats it as plain-text for now
+          document.getLanguage().languageId(); // even if Monaco treats it as plain-text for now
 
       String theme = Theme.CURRENT_THEME.isDark() ? "vs-dark" : "vs";
 
@@ -274,6 +305,13 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       lsp.openDocument(documentUri, languageId, document.getSourceCode());
 
       DiagnosticsService diagnosticsService = DiagnosticsService.getInstance();
+      ret.setCursorPositionListener(
+          offset -> {
+            for (var ass : document.getAssetsAt(offset)) {
+              System.out.println("Enclosing asset: " + ass);
+            }
+          });
+      ret.setOnDirtyChanged(dirty -> System.out.println("Dirty status: " + dirty));
       DiagnosticsService.Listener listener =
           (uri, diagnostics) -> {
             System.out.println(
@@ -305,16 +343,16 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       }
 
       ret.setChangeListener(
-              newText -> {
-                try {
-                  // Send to LSP. This does not happen reliably.
-                  System.err.println("[WorkspaceEditor] Sending changes for " + documentUri);
-                  lsp.changeDocument(documentUri, newText);
-                } catch (Exception e) {
-                  System.err.println("[WorkspaceEditor] Failed didChange for " + documentUri);
-                  e.printStackTrace();
-                }
-              });
+          newText -> {
+            try {
+              // Send to LSP. This does not happen reliably.
+              System.err.println("[WorkspaceEditor] Sending changes for " + documentUri);
+              lsp.changeDocument(documentUri, newText);
+            } catch (Exception e) {
+              System.err.println("[WorkspaceEditor] Failed didChange for " + documentUri);
+              e.printStackTrace();
+            }
+          });
       // 5. Automatic cleanup: when editor node is detached from scene, remove listener
       ret.sceneProperty()
           .addListener(

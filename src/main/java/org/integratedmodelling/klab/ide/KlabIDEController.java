@@ -391,7 +391,10 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   @Override
   public ResourceSet processAlerts(ResourceSet resourceSet) {
-    return null;
+    for (var notification : resourceSet.getNotifications()) {
+      handleNotification(notification);
+    }
+    return resourceSet;
   }
 
   public void selectView(View view) {
