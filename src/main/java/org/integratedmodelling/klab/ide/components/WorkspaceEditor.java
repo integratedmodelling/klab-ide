@@ -8,12 +8,16 @@ import java.nio.file.Paths;
 import java.util.*;
 
 import javafx.application.Platform;
+import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.input.*;
 import javafx.scene.input.ClipboardContent;
+import javafx.scene.layout.HBox;
+import javafx.scene.paint.Color;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.klab.api.data.RepositoryState;
+import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.organization.ProjectStorage;
 import org.integratedmodelling.klab.api.lang.kim.KlabDocument;
@@ -28,6 +32,7 @@ import org.integratedmodelling.klab.ide.KlabIDEApplication;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.IDEContextScope;
+import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.ide.lsp.DiagnosticsService;
 import org.integratedmodelling.klab.ide.lsp.KlabLspService;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
@@ -37,7 +42,7 @@ import org.integratedmodelling.klabeditor.MonacoEditorView;
 public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAsset> {
 
   private final ResourcesService service;
-  private final NavigableWorkspace workspace;
+  private NavigableWorkspace workspace;
   private final WorkspaceView view;
   private TreeItem<NavigableAsset> root;
   private ProgressBar progressBar;
@@ -164,30 +169,150 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           }
         });
 
+    var projectSettings = new javafx.scene.control.MenuItem("Project settings...");
+    projectSettings.setOnAction(
+        e -> {
+          if (service instanceof ResourcesService.Admin admin) {
+            /* TODO */
+          }
+        });
+
+    var deleteProject = new javafx.scene.control.MenuItem("Delete project...");
+    deleteProject.setOnAction(
+        e -> {
+          if (service instanceof ResourcesService.Admin admin) {
+            deleteProject(project);
+          }
+        });
+
     var newMenu = new javafx.scene.control.Menu("New");
-    var newNamespace = new javafx.scene.control.MenuItem("Namespace");
-    var newBehavior = new javafx.scene.control.MenuItem("Behavior, Application or test case");
-    var newOntology = new javafx.scene.control.MenuItem("Ontology");
-    var newObservationStrategy = new javafx.scene.control.MenuItem("Observation strategy");
+    var newNamespace = new javafx.scene.control.MenuItem("Namespace...");
+    var newBehavior = new javafx.scene.control.MenuItem("Behavior, Application or test case...");
+    var newOntology = new javafx.scene.control.MenuItem("Ontology...");
+    var newObservationStrategy = new javafx.scene.control.MenuItem("Observation strategy...");
+
+    newNamespace.setOnAction(
+        actionEvent -> {
+          createNewDocument(project, ProjectStorage.ResourceType.MODEL_NAMESPACE);
+        });
+    newBehavior.setOnAction(
+        actionEvent -> {
+          createNewDocument(project, ProjectStorage.ResourceType.BEHAVIOR_COMPONENT);
+        });
+    newOntology.setOnAction(
+        actionEvent -> {
+          createNewDocument(project, ProjectStorage.ResourceType.ONTOLOGY);
+        });
+    newObservationStrategy.setOnAction(
+        actionEvent -> {
+          createNewDocument(project, ProjectStorage.ResourceType.STRATEGY);
+        });
 
     newMenu.getItems().addAll(newNamespace, newBehavior, newOntology, newObservationStrategy);
 
     var teamMenu = new javafx.scene.control.Menu("Team");
 
-    for (var op : RepositoryState.Operation.values()) {
-      var teamOperation = new javafx.scene.control.MenuItem(op.description());
-      teamOperation.setOnAction(
-          e -> {
-            KlabIDEController.instance()
-                .manageProject(project.getUrn(), op, getOperationParameters(project, op));
-          });
-      teamMenu.getItems().add(teamOperation);
-    }
+    if (project.getRepositoryState().getOverallStatus() == RepositoryState.Status.UNTRACKED) {
 
+      var newProject = new javafx.scene.control.MenuItem("Add to version control...");
+      teamMenu.getItems().add(newProject);
+
+    } else {
+
+      for (var op : RepositoryState.Operation.values()) {
+        var teamOperation = new javafx.scene.control.MenuItem(op.description());
+        teamOperation.setOnAction(
+            e -> {
+              KlabIDEController.instance()
+                  .manageProject(service, project.getUrn(), op, getOperationParameters(project, op));
+
+              // TODO the new branch/switch menus should be submenus with the existing branches +
+              //  New branch...
+
+            });
+        teamMenu.getItems().add(teamOperation);
+      }
+
+      // TODO add Untrack after separator
+      var detach = new javafx.scene.control.MenuItem("Detach from version control");
+      detach.setOnAction(
+          e -> {
+            /* TODO */
+          });
+      teamMenu.getItems().add(new javafx.scene.control.SeparatorMenuItem());
+      teamMenu.getItems().add(detach);
+    }
     contextMenu.getItems().add(newMenu);
     contextMenu.getItems().add(teamMenu);
     contextMenu.getItems().add(new javafx.scene.control.SeparatorMenuItem());
-    contextMenu.getItems().add(lockUnlock);
+    contextMenu.getItems().addAll(lockUnlock, projectSettings, deleteProject);
+  }
+
+  @Override
+  protected Node createTopMenu() {
+    var hBox = new HBox();
+    hBox.setAlignment(Pos.CENTER_RIGHT);
+
+    var workspaceSettings = new Button("");
+    workspaceSettings.setGraphic(new IconLabel(Theme.WORKSPACE_SETTINGS_ICON, 16, Color.DARKGREEN));
+    workspaceSettings.setOnAction(actionEvent -> showWorkspaceSettings());
+    workspaceSettings.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
+
+    var addProject = new Button("");
+    addProject.setGraphic(new IconLabel(Theme.ADD_PROJECT_ICON, 16, Color.DARKGREEN));
+    addProject.setOnAction(
+        actionEvent -> {
+          createNewProject();
+        });
+    addProject.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
+    hBox.getChildren().addAll(workspaceSettings, addProject);
+    return hBox;
+  }
+
+  private void showWorkspaceSettings() {
+    // TODO add settings tab or switch to it
+  }
+
+  private boolean createNewProject() {
+    var dialog = new TextInputDialog();
+    dialog.setTitle("Create a new project");
+    dialog.setHeaderText(
+        "Porcodí, porcodá in workspace " + workspace.getUrn() + ", famo sto progetto diocá");
+    dialog.setContentText("URN of new project:");
+    dialog.initOwner(getScene().getWindow());
+    var urn = dialog.showAndWait().orElse(null);
+    return KlabIDEController.instance().createProject(service, urn, workspace.getUrn());
+  }
+
+  private boolean createNewDocument(
+      NavigableProject project, ProjectStorage.ResourceType knowledgeClass) {
+    var dialog = new TextInputDialog();
+    dialog.setTitle("Create a new " + knowledgeClass.name().toLowerCase());
+    dialog.setHeaderText("Porcodí, porcodó, questo cazzo a chi lo dó");
+    dialog.setContentText("URN of new document:");
+    dialog.initOwner(getScene().getWindow());
+    var urn = dialog.showAndWait().orElse(null);
+    return KlabIDEController.instance()
+        .createDocument(service, urn, project.getUrn(), knowledgeClass);
+  }
+
+  public void deleteProject(NavigableProject project) {
+    var alert = new Alert(Alert.AlertType.WARNING);
+    alert.setTitle("Delete project " + project.getUrn());
+    alert.setHeaderText("You are about to remove the project. Please confirm");
+    alert.setContentText(
+        "Removing this project will also remove all assets in it for all users. All data will be deleted permanently. ");
+    ButtonType yesBtn = new ButtonType("Confirm", ButtonBar.ButtonData.YES);
+    ButtonType cancelBtn = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+
+    alert.getButtonTypes().setAll(yesBtn, cancelBtn);
+    alert.initOwner(getScene().getWindow());
+    var result = alert.showAndWait();
+    if (!result.isEmpty()
+        && result.get().getButtonData() == ButtonBar.ButtonData.YES
+        && service instanceof ResourcesService.Admin admin) {
+      KlabIDEController.instance().deleteProject(service, project.getUrn());
+    }
   }
 
   private String[] getOperationParameters(NavigableProject project, RepositoryState.Operation op) {
@@ -311,7 +436,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
               System.out.println("Enclosing asset: " + ass);
             }
           });
-      ret.setOnDirtyChanged(dirty -> System.out.println("Dirty status: " + dirty));
+      ret.setOnDirtyChanged(
+          dirty -> {
+            // TODO change the tab title with the asterisk on top
+          });
       DiagnosticsService.Listener listener =
           (uri, diagnostics) -> {
             System.out.println(
@@ -385,6 +513,14 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
               .findFirst();
       workspaceChanges.ifPresent(this::updateWorkspace);
     }
+  }
+
+  public void updateWorkspace(NavigableWorkspace workspace) {
+    this.workspace = workspace;
+    Platform.runLater(
+        () -> {
+          treeView.setRoot(this.root = defineTree(workspace));
+        });
   }
 
   public void updateWorkspace(ResourceSet changes) {

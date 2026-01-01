@@ -13,6 +13,8 @@ import javafx.scene.control.TabPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import org.integratedmodelling.klab.api.engine.Engine;
+import org.integratedmodelling.klab.api.view.View;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.jline.reader.Editor;
@@ -20,7 +22,7 @@ import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2MZ;
 
 /** The generic browser with a modal index on the left. */
-public abstract class BrowsablePage<T extends Node, A> extends StackPane implements Page {
+public abstract class BrowsablePage<T extends Node, A> extends StackPane implements Page, View {
 
   protected static final int BROWSER_WIDTH = 280;
   private final TabPane tabPane;
@@ -202,5 +204,36 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
     modalPane.setAlignment(Pos.TOP_LEFT);
     modalPane.usePredefinedTransitionFactories(Side.LEFT);
     modalPane.show(browserArea);
+  }
+
+
+  @Override
+  public void show() {
+
+  }
+
+  @Override
+  public void hide() {
+
+  }
+
+  @Override
+  public void enable() {
+
+  }
+
+  @Override
+  public void disable() {
+
+  }
+
+  @Override
+  public boolean isShown() {
+    return false;
+  }
+
+  @Override
+  public boolean isEnabled() {
+    return false;
   }
 }

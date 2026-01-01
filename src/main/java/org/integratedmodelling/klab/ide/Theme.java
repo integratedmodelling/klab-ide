@@ -137,6 +137,7 @@ public enum Theme {
   public static Ikon STRATEGY_DOCUMENT_ICON = Material2MZ.WORK_OUTLINE;
   public static Ikon STRATEGY_ICON = Material2MZ.WORK_OUTLINE;
   public static Ikon WORKSPACE_ICON = Material2AL.APPS;
+  public static Ikon WORKSPACE_SETTINGS_ICON = CarbonIcons.SETTINGS;
   public static Ikon SCENARIO_ICON = UniconsLine.SCENERY;
   public static Ikon UNKNOWN_ICON = BootstrapIcons.EXCLAMATION_CIRCLE_FILL;
   public static Ikon KNOWLEDGE_GRAPH_ICON = BootstrapIcons.DIAGRAM_3;

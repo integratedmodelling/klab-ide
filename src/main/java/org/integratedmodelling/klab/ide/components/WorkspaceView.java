@@ -39,7 +39,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorkspace> {
+public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorkspace>
+    implements ResourcesNavigator {
 
   private final ResourcesNavigatorController controller;
 
@@ -53,6 +54,7 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
   public WorkspaceView() {
     this.controller =
         KlabIDEController.instance().viewController(ResourcesNavigatorController.class);
+    this.controller.registerView(this);
   }
 
   @Override
@@ -233,5 +235,23 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
           resourceInfo.getUrn() + "@" + service.serviceName(),
           new FontIcon(Theme.WORKSPACE_ICON));
     }
+  }
+
+  @Override
+  public void workspaceModified(NavigableContainer changedContainer) {
+    System.out.println("Workspace modified: " + changedContainer);
+    var editor = openEditors.get(changedContainer.getUrn());
+    if (editor != null && changedContainer instanceof NavigableWorkspace workspace) {
+      editor.updateWorkspace(workspace);
+    }
+  }
+
+  @Override
+  public void engineStatusChanged(Engine.Status status) {}
+
+  @Override
+  public NavigableContainer getVisualizedWorkspace(String workspace) {
+    var editor = this.openEditors.get(workspace);
+    return editor == null ? null : editor.getEditedAsset();
   }
 }

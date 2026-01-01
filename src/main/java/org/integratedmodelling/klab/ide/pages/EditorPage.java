@@ -173,12 +173,26 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
 
           container.getChildren().addAll(tree, dtContainer);
 
+          var topMenu = createTopMenu();
+          if (topMenu != null) {
+            browsingArea.setTop(topMenu);
+          }
+
           browsingArea.setCenter(container);
 
           if (KlabIDEController.instance().getFocalScope() != null) {
             setDigitalTwin(KlabIDEController.instance().getFocalScope(), true);
           }
         });
+  }
+
+  /**
+   * Redefine to add a menu on top of the tree view. Default has no menu.
+   *
+   * @return
+   */
+  protected Node createTopMenu() {
+    return null;
   }
 
   public void showDigitalTwinControlPanel() {
