@@ -62,7 +62,7 @@ public class KlabLspService {
     InitializeParams params = new InitializeParams();
     params.setCapabilities(new ClientCapabilities());
     params.setRootUri(workspaceRoot.toUri().toString());
-    server.initialize(params).get(20, TimeUnit.SECONDS);
+    server.initialize(params).get(60, TimeUnit.SECONDS);
     server.initialized(new InitializedParams());
 
     initialized = true;

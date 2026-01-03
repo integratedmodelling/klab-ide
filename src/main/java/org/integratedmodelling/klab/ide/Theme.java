@@ -80,6 +80,7 @@ public enum Theme {
   public static final Color RESOURCES_COLOR_ACTIVE = Color.web("#29a329");
   public static final Color RESOLVER_COLOR_ACTIVE = Color.web("#cc6600");
   public static final Color RUNTIME_COLOR_ACTIVE = Color.web("#cc0000");
+  public static final Color FOREGROUND_COLOR = CURRENT_THEME.dark ? Color.LIGHTGREY : Color.BLACK;
 
   public static final Color SUBJECT_COLOR =
       Color.rgb(

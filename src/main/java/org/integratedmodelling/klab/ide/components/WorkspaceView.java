@@ -34,10 +34,7 @@ import javafx.geometry.HPos;
 import javafx.geometry.Insets;
 import javafx.scene.control.ButtonBar.ButtonData;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorkspace>
     implements ResourcesNavigator {
@@ -238,11 +235,12 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
   }
 
   @Override
-  public void workspaceModified(NavigableContainer changedContainer) {
+  public void workspaceModified(
+      NavigableContainer changedContainer, Collection<NavigableAsset> changedAssets) {
     System.out.println("Workspace modified: " + changedContainer);
     var editor = openEditors.get(changedContainer.getUrn());
     if (editor != null && changedContainer instanceof NavigableWorkspace workspace) {
-      editor.updateWorkspace(workspace);
+      editor.updateWorkspace(workspace, changedAssets);
     }
   }
 

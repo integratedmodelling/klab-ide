@@ -14,6 +14,7 @@ import javafx.scene.control.*;
 import javafx.scene.input.*;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.klab.api.data.RepositoryState;
@@ -38,6 +39,8 @@ import org.integratedmodelling.klab.ide.lsp.KlabLspService;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.integratedmodelling.klab.modeler.model.*;
 import org.integratedmodelling.klabeditor.MonacoEditorView;
+import org.kordamp.ikonli.carbonicons.CarbonIcons;
+import org.kordamp.ikonli.material2.Material2MZ;
 
 public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAsset> {
 
@@ -96,28 +99,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   protected TreeView<NavigableAsset> createContentTree() {
 
     treeView = new TreeView<>(this.root = defineTree(workspace));
-    treeView.setCellFactory(p -> new AssetTreeCell());
+    treeView.setCellFactory(p -> new AssetTreeCell(this));
     treeView.getStyleClass().addAll(Tweaks.EDGE_TO_EDGE, Styles.DENSE);
     treeView.setShowRoot(false);
     treeView.setPrefWidth(340);
-    treeView.setOnContextMenuRequested(
-        event -> {
-          TreeItem<NavigableAsset> item = treeView.getSelectionModel().getSelectedItem();
-          if (item != null) {
-            var contextMenu = new javafx.scene.control.ContextMenu();
-            contextMenu.setAutoHide(true);
-            switch (item.getValue()) {
-              case NavigableProject project -> {
-                setupProjectMenu(contextMenu, project);
-              }
-              case KlabDocument<?> document -> {
-                setupDocumentMenu(contextMenu, document);
-              }
-              default -> {}
-            }
-            contextMenu.show(treeView, event.getScreenX(), event.getScreenY());
-          }
-        });
 
     treeView.setOnDragDetected(
         event -> {
@@ -185,11 +170,23 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           }
         });
 
-    var newMenu = new javafx.scene.control.Menu("New");
-    var newNamespace = new javafx.scene.control.MenuItem("Namespace...");
-    var newBehavior = new javafx.scene.control.MenuItem("Behavior, Application or test case...");
-    var newOntology = new javafx.scene.control.MenuItem("Ontology...");
-    var newObservationStrategy = new javafx.scene.control.MenuItem("Observation strategy...");
+    var newMenu =
+        new javafx.scene.control.Menu(
+            "New", new IconLabel(CarbonIcons.DOCUMENT_ADD, 16, Theme.FOREGROUND_COLOR));
+    var newNamespace =
+        new javafx.scene.control.MenuItem(
+            "Namespace...", new IconLabel(Theme.NAMESPACE_ICON, 16, Theme.FOREGROUND_COLOR));
+    var newBehavior =
+        new javafx.scene.control.MenuItem(
+            "Behavior, Application or test case...",
+            new IconLabel(Theme.BEHAVIOR_ICON, 16, Theme.FOREGROUND_COLOR));
+    var newOntology =
+        new javafx.scene.control.MenuItem(
+            "Ontology...", new IconLabel(Theme.ONTOLOGY_ICON, 16, Theme.FOREGROUND_COLOR));
+    var newObservationStrategy =
+        new javafx.scene.control.MenuItem(
+            "Observation strategy...",
+            new IconLabel(Theme.OBSERVATION_ICON, 16, Theme.FOREGROUND_COLOR));
 
     newNamespace.setOnAction(
         actionEvent -> {
@@ -210,7 +207,9 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
     newMenu.getItems().addAll(newNamespace, newBehavior, newOntology, newObservationStrategy);
 
-    var teamMenu = new javafx.scene.control.Menu("Team");
+    var teamMenu =
+        new javafx.scene.control.Menu(
+            "Team", new IconLabel(Material2MZ.PEOPLE, 16, Theme.FOREGROUND_COLOR));
 
     if (project.getRepositoryState().getOverallStatus() == RepositoryState.Status.UNTRACKED) {
 
@@ -224,7 +223,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         teamOperation.setOnAction(
             e -> {
               KlabIDEController.instance()
-                  .manageProject(service, project.getUrn(), op, getOperationParameters(project, op));
+                  .manageProject(
+                      service, project.getUrn(), op, getOperationParameters(project, op));
 
               // TODO the new branch/switch menus should be submenus with the existing branches +
               //  New branch...
@@ -254,19 +254,20 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     hBox.setAlignment(Pos.CENTER_RIGHT);
 
     var workspaceSettings = new Button("");
-    workspaceSettings.setGraphic(new IconLabel(Theme.WORKSPACE_SETTINGS_ICON, 16, Color.DARKGREEN));
+    workspaceSettings.setGraphic(
+        new IconLabel(Theme.WORKSPACE_SETTINGS_ICON, 16, Theme.FOREGROUND_COLOR));
     workspaceSettings.setOnAction(actionEvent -> showWorkspaceSettings());
     workspaceSettings.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
 
     var addProject = new Button("");
-    addProject.setGraphic(new IconLabel(Theme.ADD_PROJECT_ICON, 16, Color.DARKGREEN));
+    addProject.setGraphic(new IconLabel(Theme.ADD_PROJECT_ICON, 16, Theme.FOREGROUND_COLOR));
     addProject.setOnAction(
         actionEvent -> {
           createNewProject();
         });
     addProject.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
     hBox.getChildren().addAll(workspaceSettings, addProject);
-    return hBox;
+    return new VBox(hBox, new Separator());
   }
 
   private void showWorkspaceSettings() {
@@ -350,12 +351,38 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   private static final class AssetTreeCell extends TreeCell<NavigableAsset> {
+
+    WorkspaceEditor editor;
+
+    public AssetTreeCell(WorkspaceEditor workspaceEditor) {
+      this.editor = workspaceEditor;
+    }
+
     @Override
     protected void updateItem(NavigableAsset asset, boolean empty) {
       super.updateItem(asset, empty);
       if (asset != null && !empty) {
         setText(Theme.getLabel(asset));
         setGraphic(Theme.getGraphics(asset));
+        setOnContextMenuRequested(
+            event -> {
+              //                  TreeItem<NavigableAsset> item =
+              // treeView.getSelectionModel().getSelectedItem();
+              //                  if (item != null) {
+              var contextMenu = new javafx.scene.control.ContextMenu();
+              contextMenu.setAutoHide(true);
+              switch (asset) {
+                case NavigableProject project -> {
+                  editor.setupProjectMenu(contextMenu, project);
+                }
+                case KlabDocument<?> document -> {
+                  editor.setupDocumentMenu(contextMenu, document);
+                }
+                default -> {}
+              }
+              contextMenu.show(this, event.getScreenX(), event.getScreenY());
+              //                  }
+            });
         switch (asset) {
           case NavigableProject navigableProject -> {
             if (navigableProject.isLocked()) {
@@ -390,6 +417,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   private TreeItem<NavigableAsset> defineTree(NavigableAsset asset) {
     var root = new TreeItem<>(asset);
+    root.setGraphic(Theme.getGraphics(asset));
     for (var child : asset.children()) {
       root.getChildren().add(defineTree(child));
     }
@@ -515,10 +543,12 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     }
   }
 
-  public void updateWorkspace(NavigableWorkspace workspace) {
+  public void updateWorkspace(
+      NavigableWorkspace workspace, Collection<NavigableAsset> changedAssets) {
     this.workspace = workspace;
     Platform.runLater(
         () -> {
+          // TODO this must become smarter, only change the nodes that have changed
           treeView.setRoot(this.root = defineTree(workspace));
         });
   }

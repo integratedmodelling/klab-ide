@@ -231,6 +231,11 @@
         </dependency>
         <dependency>
             <groupId>org.integratedmodelling</groupId>
+            <artifactId>org.integratedmodelling.languages.worldview.ide</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>org.integratedmodelling</groupId>
             <artifactId>org.integratedmodelling.languages.kim</artifactId>
             <version>1.0.0-SNAPSHOT</version>
         </dependency>
@@ -244,11 +249,21 @@
             <artifactId>org.integratedmodelling.languages.observation</artifactId>
             <version>1.0.0-SNAPSHOT</version>
         </dependency>
+<!--        <dependency>-->
+<!--            <groupId>org.integratedmodelling</groupId>-->
+<!--            <artifactId>org.integratedmodelling.languages.observation.ide</artifactId>-->
+<!--            <version>1.0.0-SNAPSHOT</version>-->
+<!--        </dependency>-->
         <dependency>
             <groupId>org.integratedmodelling</groupId>
             <artifactId>org.integratedmodelling.languages.kactors</artifactId>
             <version>1.0.0-SNAPSHOT</version>
         </dependency>
+<!--        <dependency>-->
+<!--            <groupId>org.integratedmodelling</groupId>-->
+<!--            <artifactId>org.integratedmodelling.languages.kactors.ide</artifactId>-->
+<!--            <version>1.0.0-SNAPSHOT</version>-->
+<!--        </dependency>-->
         <dependency>
             <groupId>org.eclipse.lsp4j</groupId>
             <artifactId>org.eclipse.lsp4j</artifactId>
