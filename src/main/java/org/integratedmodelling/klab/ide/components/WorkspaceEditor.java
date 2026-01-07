@@ -41,8 +41,12 @@ import org.integratedmodelling.klab.ide.lsp.KlabLspService;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.integratedmodelling.klab.modeler.model.*;
 import org.integratedmodelling.klabeditor.MonacoEditorView;
+import org.kordamp.ikonli.bootstrapicons.BootstrapIcons;
 import org.kordamp.ikonli.carbonicons.CarbonIcons;
+import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
+import org.kordamp.ikonli.materialdesign.MaterialDesign;
+import org.kordamp.ikonli.materialdesign.MaterialDesignIkonHandler;
 
 public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAsset> {
 
@@ -137,14 +141,21 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   private void setupDocumentMenu(ContextMenu contextMenu, KlabDocument<?> document) {
     if (document instanceof NavigableAsset asset) {
-      var openEdit = new javafx.scene.control.MenuItem("Delete");
+      var openEdit =
+          new MenuItem("Delete", new IconLabel(Material2AL.DELETE, 16, Theme.FOREGROUND_COLOR));
       openEdit.setOnAction(e -> KlabIDEController.instance().deleteAsset(service, asset));
       contextMenu.getItems().add(openEdit);
     }
   }
 
   private void setupProjectMenu(ContextMenu contextMenu, NavigableProject project) {
-    var lockUnlock = new javafx.scene.control.MenuItem(project.isLocked() ? "Unlock" : "Lock");
+    var lockUnlock =
+        new MenuItem(
+            project.isLocked() ? "Unlock" : "Lock",
+            new IconLabel(
+                project.isLocked() ? BootstrapIcons.LOCK : BootstrapIcons.UNLOCK,
+                16,
+                Theme.FOREGROUND_COLOR));
     lockUnlock.setOnAction(
         e -> {
           if (service instanceof ResourcesService.Admin admin) {
@@ -158,7 +169,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           }
         });
 
-    var projectSettings = new javafx.scene.control.MenuItem("Project settings...");
+    var projectSettings =
+        new MenuItem(
+            "Project settings...",
+            new IconLabel(Theme.WORKSPACE_SETTINGS_ICON, 16, Theme.FOREGROUND_COLOR));
     projectSettings.setOnAction(
         e -> {
           if (service instanceof ResourcesService.Admin admin) {
@@ -166,7 +180,9 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           }
         });
 
-    var deleteProject = new javafx.scene.control.MenuItem("Delete project...");
+    var deleteProject =
+        new MenuItem(
+            "Delete project...", new IconLabel(Material2AL.DELETE, 16, Theme.FOREGROUND_COLOR));
     deleteProject.setOnAction(
         e -> {
           if (service instanceof ResourcesService.Admin admin) {
@@ -175,20 +191,18 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         });
 
     var newMenu =
-        new javafx.scene.control.Menu(
-            "New", new IconLabel(CarbonIcons.DOCUMENT_ADD, 16, Theme.FOREGROUND_COLOR));
+        new Menu("New", new IconLabel(CarbonIcons.DOCUMENT_ADD, 16, Theme.FOREGROUND_COLOR));
     var newNamespace =
-        new javafx.scene.control.MenuItem(
+        new MenuItem(
             "Namespace...", new IconLabel(Theme.NAMESPACE_ICON, 16, Theme.FOREGROUND_COLOR));
     var newBehavior =
-        new javafx.scene.control.MenuItem(
+        new MenuItem(
             "Behavior, Application or test case...",
             new IconLabel(Theme.BEHAVIOR_ICON, 16, Theme.FOREGROUND_COLOR));
     var newOntology =
-        new javafx.scene.control.MenuItem(
-            "Ontology...", new IconLabel(Theme.ONTOLOGY_ICON, 16, Theme.FOREGROUND_COLOR));
+        new MenuItem("Ontology...", new IconLabel(Theme.ONTOLOGY_ICON, 16, Theme.FOREGROUND_COLOR));
     var newObservationStrategy =
-        new javafx.scene.control.MenuItem(
+        new MenuItem(
             "Observation strategy...",
             new IconLabel(Theme.OBSERVATION_ICON, 16, Theme.FOREGROUND_COLOR));
 
@@ -211,19 +225,29 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
     newMenu.getItems().addAll(newNamespace, newBehavior, newOntology, newObservationStrategy);
 
-    var teamMenu =
-        new javafx.scene.control.Menu(
-            "Team", new IconLabel(Material2MZ.PEOPLE, 16, Theme.FOREGROUND_COLOR));
+    var teamMenu = new Menu("Team", new IconLabel(Material2MZ.PEOPLE, 16, Theme.FOREGROUND_COLOR));
 
     if (project.getRepositoryState().getOverallStatus() == RepositoryState.Status.UNTRACKED) {
 
-      var newProject = new javafx.scene.control.MenuItem("Add to version control...");
+      var newProject = new MenuItem("Add to version control...");
       teamMenu.getItems().add(newProject);
 
     } else {
 
       for (var op : RepositoryState.Operation.values()) {
-        var teamOperation = new javafx.scene.control.MenuItem(op.description());
+        var teamOperation =
+            new MenuItem(
+                op.description(),
+                new IconLabel(
+                    switch (op) {
+                      case FETCH_COMMIT_AND_PUSH -> MaterialDesign.MDI_CLOUD_SYNC;
+                      case FETCH_AND_MERGE -> MaterialDesign.MDI_CLOUD_DOWNLOAD;
+                      case COMMIT_AND_SWITCH -> MaterialDesign.MDI_SOURCE_BRANCH;
+                      case HARD_RESET -> MaterialDesign.MDI_RELOAD;
+                      case MERGE_CHANGES_FROM -> MaterialDesign.MDI_GIT;
+                    },
+                    16,
+                    Theme.FOREGROUND_COLOR));
         teamOperation.setOnAction(
             e -> {
               KlabIDEController.instance()
@@ -238,17 +262,20 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       }
 
       // TODO add Untrack after separator
-      var detach = new javafx.scene.control.MenuItem("Detach from version control");
+      var detach =
+          new MenuItem(
+              "Detach from version control",
+              new IconLabel(CarbonIcons.UNLINK, 16, Theme.FOREGROUND_COLOR));
       detach.setOnAction(
           e -> {
             /* TODO */
           });
-      teamMenu.getItems().add(new javafx.scene.control.SeparatorMenuItem());
+      teamMenu.getItems().add(new SeparatorMenuItem());
       teamMenu.getItems().add(detach);
     }
     contextMenu.getItems().add(newMenu);
     contextMenu.getItems().add(teamMenu);
-    contextMenu.getItems().add(new javafx.scene.control.SeparatorMenuItem());
+    contextMenu.getItems().add(new SeparatorMenuItem());
     contextMenu.getItems().addAll(lockUnlock, projectSettings, deleteProject);
   }
 
@@ -377,7 +404,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
               //                  TreeItem<NavigableAsset> item =
               // treeView.getSelectionModel().getSelectedItem();
               //                  if (item != null) {
-              var contextMenu = new javafx.scene.control.ContextMenu();
+              var contextMenu = new ContextMenu();
               contextMenu.setAutoHide(true);
               switch (asset) {
                 case NavigableProject project -> {
@@ -613,19 +640,13 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       var node = findNodeContaining(change.getResourceUrn());
       var newAsset =
           wroot.findAsset(change.getResourceUrn(), KlabAsset.class, change.getKnowledgeClass());
-      var current =
-          node
-              .getChildren()
-              .filtered(item -> item.getValue().getUrn().equals(change.getResourceUrn()))
-              .stream()
-              .findFirst()
-              .orElse(null);
-      if (current != null) {
-        current.setValue((NavigableAsset) newAsset);
-        current.getChildren().clear();
-        focus = current;
-        updateTree(current, (NavigableAsset) newAsset);
-        if (current.getValue() instanceof NavigableDocument navigableDocument) {
+
+      if (node != null) {
+        node.setValue((NavigableAsset) newAsset);
+        node.getChildren().clear();
+        focus = node;
+        updateTree(node, (NavigableAsset) newAsset);
+        if (node.getValue() instanceof NavigableDocument navigableDocument) {
           document = navigableDocument;
         }
       }
