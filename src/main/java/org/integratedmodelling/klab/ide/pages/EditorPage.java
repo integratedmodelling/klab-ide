@@ -43,6 +43,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
   private TreeView<T> tree;
   //  private HBox toggleBar;
   private A currentAsset;
+  private VBox container;
 
   //  private boolean isContentShown = false;
   //  private Label digitalTwinLabel;
@@ -119,7 +120,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
                 }
               });
 
-          var container = new VBox();
+          this.container = new VBox();
           VBox.setVgrow(tree, Priority.ALWAYS);
           container.setMaxWidth(Double.MAX_VALUE);
           tree.setMaxWidth(Double.MAX_VALUE);
@@ -130,48 +131,10 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
               .prefHeightProperty()
               .bind(digitalTwinControlPanel.widthProperty());
           configureDigitalTwinWidget(digitalTwinControlPanel);
-          //          KlabIDEController.instance().digitalTwinPanelHidden(this,
-          // digitalTwinControlPanel);
+          //          var dtContainer = new StackPane();
+          // dtContainer.getChildren().addAll(digitalTwinControlPanel /*, toggleBar*/);
 
-          //          this.toggleBar = new HBox();
-          //          toggleBar.setStyle("-fx-background-color: -color-neutral-subtle; -fx-padding:
-          // 4;");
-          //          toggleBar.setAlignment(Pos.CENTER_LEFT);
-          //          toggleBar.setPrefHeight(44);
-          //
-          //          var arrowIcon = new Button();
-          //          arrowIcon.setGraphic(new FontIcon(Material2AL.ARROW_UPWARD));
-          //          arrowIcon
-          //              .onActionProperty()
-          //              .set(
-          //                  e -> {
-          //                    showDigitalTwinControlPanel();
-          //                    NodeUtils.toggleVisibility(toggleBar, false);
-          //                  });
-          //          arrowIcon.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
-          //          this.digitalTwinLabel = new Label("Digital Twin Control");
-          //          digitalTwinLabel.setAlignment(Pos.CENTER_LEFT);
-          //          digitalTwinLabel.setStyle("-fx-font-size: 14;");
-          //          digitalTwinLabel.setMaxWidth(Double.MAX_VALUE);
-          //          HBox.setHgrow(digitalTwinLabel, Priority.ALWAYS);
-          //          toggleBar.getChildren().addAll(digitalTwinLabel, arrowIcon);
-          //          toggleBar.setMaxWidth(Double.MAX_VALUE);
-          //          toggleBar.setOnMouseClicked(
-          //              e -> {
-          //                showDigitalTwinControlPanel();
-          //                NodeUtils.toggleVisibility(toggleBar, false);
-          //              });
-          //          HBox.setHgrow(toggleBar, Priority.ALWAYS);
-
-          //          showDigitalTwinControlPanel();
-          //          NodeUtils.toggleVisibility(digitalTwinControlPanel, false);
-
-          //          NodeUtils.toggleVisibility(toggleBar, true);
-
-          var dtContainer = new StackPane();
-          dtContainer.getChildren().addAll(digitalTwinControlPanel /*, toggleBar*/);
-
-          container.getChildren().addAll(tree, dtContainer);
+          container.getChildren().addAll(tree);
 
           var topMenu = createTopMenu();
           if (topMenu != null) {
@@ -196,31 +159,37 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
   }
 
   public void showDigitalTwinControlPanel() {
-    if (!digitalTwinControlPanel.isVisible()) {
-      Platform.runLater(
-          () -> {
-            NodeUtils.toggleVisibility(digitalTwinControlPanel, true);
-            //            NodeUtils.toggleVisibility(
-            //                digitalTwinControlPanel.getParent().getChildrenUnmodifiable().get(0),
-            // false);
+    //    if (!digitalTwinControlPanel.isVisible()) {
+    Platform.runLater(
+        () -> {
+          //            NodeUtils.toggleVisibility(digitalTwinControlPanel, true);
+          //            NodeUtils.toggleVisibility(
+          //                digitalTwinControlPanel.getParent().getChildrenUnmodifiable().get(0),
+          // false);
+          if (!container.getChildren().contains(digitalTwinControlPanel)) {
+            this.container.getChildren().add(digitalTwinControlPanel);
             KlabIDEController.instance().digitalTwinPanelShown(this, digitalTwinControlPanel);
-          });
-    }
+          }
+        });
+    //    }
   }
 
   public void hideDigitalTwinControlPanel() {
-    if (digitalTwinControlPanel.isVisible()) {
-      Platform.runLater(
-          () -> {
-            digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.IDLE);
-            NodeUtils.toggleVisibility(digitalTwinControlPanel, false);
+    //    if (digitalTwinControlPanel.isVisible()) {
+    Platform.runLater(
+        () -> {
+          //          digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.IDLE);
+          //          NodeUtils.toggleVisibility(digitalTwinControlPanel, false);
+          if (container.getChildren().contains(digitalTwinControlPanel)) {
+            this.container.getChildren().remove(digitalTwinControlPanel);
             KlabIDEController.instance().digitalTwinPanelHidden(this, digitalTwinControlPanel);
-          });
-    }
+          }
+        });
+    //    }
   }
 
   public void toggleDigitalTwinControlPanel() {
-    if (digitalTwinControlPanel.isVisible()) {
+    if (container.getChildren().contains(digitalTwinControlPanel)) {
       hideDigitalTwinControlPanel();
     } else {
       showDigitalTwinControlPanel();

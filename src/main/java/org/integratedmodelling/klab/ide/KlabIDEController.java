@@ -1340,7 +1340,11 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   }
 
   @Override
-  public void importProject(ResourcesService service, String workspaceName, String projectUrl, boolean overwriteExisting) {
+  public void importProject(
+      ResourcesService service,
+      String workspaceName,
+      String projectUrl,
+      boolean overwriteExisting) {
     modeler.importProject(service, workspaceName, projectUrl, overwriteExisting);
   }
 
@@ -1355,8 +1359,11 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   }
 
   @Override
-  public void manageProject(ResourcesService service,
-      String projectId, RepositoryState.Operation operation, String... arguments) {
+  public void manageProject(
+      ResourcesService service,
+      String projectId,
+      RepositoryState.Operation operation,
+      String... arguments) {
     modeler.manageProject(service, projectId, operation, arguments);
   }
 
@@ -1365,17 +1372,31 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     modeler.editProperties(service, projectId);
   }
 
-    @Override
-    public boolean createProject(ResourcesService service, String projectName, String workspaceName) {
-        return modeler.createProject(service, projectName, workspaceName);
-    }
+  @Override
+  public boolean createProject(ResourcesService service, String projectName, String workspaceName) {
+    return modeler.createProject(service, projectName, workspaceName);
+  }
 
-    @Override
-    public boolean createDocument(ResourcesService service, String projectName, String documentUrn, ProjectStorage.ResourceType documentType) {
-        return modeler.createDocument(service, projectName, documentUrn, documentType);
-    }
+  @Override
+  public boolean createDocument(
+      ResourcesService service,
+      String projectName,
+      String documentUrn,
+      ProjectStorage.ResourceType documentType) {
+    return modeler.createDocument(service, projectName, documentUrn, documentType);
+  }
 
-    @Override
+  @Override
+  public boolean updateDocument(
+      ResourcesService service,
+      String projectName,
+      String documentUrn,
+      ProjectStorage.ResourceType documentType,
+      String updatedContent) {
+    return modeler.updateDocument(service, projectName, documentUrn, documentType, updatedContent);
+  }
+
+  @Override
   public UIView getUI() {
     return this;
   }

@@ -236,11 +236,13 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
 
   @Override
   public void workspaceModified(
-      NavigableContainer changedContainer, Collection<NavigableAsset> changedAssets) {
+      NavigableContainer changedContainer,
+      ResourceSet changes,
+      Collection<NavigableAsset> changedAssets) {
     System.out.println("Workspace modified: " + changedContainer);
     var editor = openEditors.get(changedContainer.getUrn());
     if (editor != null && changedContainer instanceof NavigableWorkspace workspace) {
-      editor.updateWorkspace(workspace, changedAssets);
+      editor.updateWorkspace(workspace, changes, changedAssets);
     }
   }
 

@@ -211,7 +211,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     // Create bottom control bar for scenarios
     this.bottomBar = new HBox(10);
     setBottom(bottomBar);
-    setVisible(false);
+//    setVisible(false);
   }
 
   private void setView(View view) {

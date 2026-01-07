@@ -15,8 +15,9 @@ import javafx.scene.input.*;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color;
 import org.integratedmodelling.common.logging.Logging;
+import org.integratedmodelling.common.utils.Utils;
+import org.integratedmodelling.klab.api.authentication.CRUDOperation;
 import org.integratedmodelling.klab.api.data.RepositoryState;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
@@ -29,6 +30,7 @@ import org.integratedmodelling.klab.api.services.resources.ResourceSet;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableAsset;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableDocument;
+import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableFolder;
 import org.integratedmodelling.klab.ide.KlabIDEApplication;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
@@ -134,9 +136,11 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   private void setupDocumentMenu(ContextMenu contextMenu, KlabDocument<?> document) {
-    var openEdit = new javafx.scene.control.MenuItem("Delete");
-    //    openEdit.setOnAction(e -> edit(document));
-    contextMenu.getItems().add(openEdit);
+    if (document instanceof NavigableAsset asset) {
+      var openEdit = new javafx.scene.control.MenuItem("Delete");
+      openEdit.setOnAction(e -> KlabIDEController.instance().deleteAsset(service, asset));
+      contextMenu.getItems().add(openEdit);
+    }
   }
 
   private void setupProjectMenu(ContextMenu contextMenu, NavigableProject project) {
@@ -277,8 +281,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private boolean createNewProject() {
     var dialog = new TextInputDialog();
     dialog.setTitle("Create a new project");
-    dialog.setHeaderText(
-        "Porcodí, porcodá in workspace " + workspace.getUrn() + ", famo sto progetto diocá");
+    dialog.setHeaderText("Create a new project in the " + workspace.getUrn() + " workspace");
     dialog.setContentText("URN of new project:");
     dialog.initOwner(getScene().getWindow());
     var urn = dialog.showAndWait().orElse(null);
@@ -289,7 +292,12 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       NavigableProject project, ProjectStorage.ResourceType knowledgeClass) {
     var dialog = new TextInputDialog();
     dialog.setTitle("Create a new " + knowledgeClass.name().toLowerCase());
-    dialog.setHeaderText("Porcodí, porcodó, questo cazzo a chi lo dó");
+    dialog.setHeaderText(
+        "Create a new "
+            + knowledgeClass.name().toLowerCase()
+            + " document in project "
+            + project.getUrn()
+            + "");
     dialog.setContentText("URN of new document:");
     dialog.initOwner(getScene().getWindow());
     var urn = dialog.showAndWait().orElse(null);
@@ -461,7 +469,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       ret.setCursorPositionListener(
           offset -> {
             for (var ass : document.getAssetsAt(offset)) {
-              System.out.println("Enclosing asset: " + ass);
+              System.out.println("Cursor position " + offset + " within asset: " + ass);
             }
           });
       ret.setOnDirtyChanged(
@@ -527,94 +535,38 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     Logging.INSTANCE.info("Save document requested: " + asset.getUrn());
     if (service instanceof ResourcesService.Admin admin
         && asset instanceof KlabDocument<?> document) {
-      var changes =
-          admin.updateDocument(
+      KlabIDEController.instance()
+          .updateDocument(
+              service,
               asset.parent(NavigableProject.class).getUrn(),
+              document.getUrn(),
               ProjectStorage.ResourceType.classify(document),
-              text,
-              KlabIDEController.instance().user());
-      // FIXME dispatch EACH changeset to the respective workspace editor if one is present in the
-      //  parent view
-      var workspaceChanges =
-          changes.stream()
-              .filter(ch -> this.workspace.getUrn().equals(ch.getWorkspace()))
-              .findFirst();
-      workspaceChanges.ifPresent(this::updateWorkspace);
+              text);
     }
   }
 
   public void updateWorkspace(
-      NavigableWorkspace workspace, Collection<NavigableAsset> changedAssets) {
+      NavigableWorkspace workspace, ResourceSet changes, Collection<NavigableAsset> changedAssets) {
     this.workspace = workspace;
-    Platform.runLater(
-        () -> {
-          // TODO this must become smarter, only change the nodes that have changed
-          treeView.setRoot(this.root = defineTree(workspace));
-        });
-  }
-
-  public void updateWorkspace(ResourceSet changes) {
-
-    var codeNotifications =
-        changes.getNotifications().stream()
-            .filter(notification -> notification.getLexicalContext() != null)
-            .toList();
-    var systemNotifications =
-        changes.getNotifications().stream()
-            .filter(notification -> notification.getLexicalContext() == null)
-            .toList();
-
-    if (!systemNotifications.isEmpty()
-        && KlabIDEController.instance().handleNotifications(systemNotifications)) {
-      return;
-    }
-
-    /*
-    TODO codeNotifications must be shown in the editors corresponding to the assets they belong to.
-     Icons for those same assets must change color accordingly.
-     */
 
     if (!changes.isEmpty()) {
-
-      setWaiting(true);
       Platform.runLater(
           () -> {
-            for (var asset : workspace.mergeChanges(changes, KlabIDEController.instance().user())) {
-
-              var status =
-                  asset
-                      .localMetadata()
-                      .get(NavigableAsset.REPOSITORY_STATUS_KEY, RepositoryState.Status.class);
-
-              var rootNode = findRootNode(asset);
-              if (rootNode == null) {
-                findParentNode(asset).getChildren().add(defineTree(asset));
-              } else if (status == RepositoryState.Status.REMOVED) {
-                rootNode.getParent().getChildren().remove(rootNode);
-              } else {
-                updateTree(rootNode, asset);
-              }
+            setWaiting(true);
+            for (var change : Utils.Resources.collectChanges(changes)) {
+              mergeChangeIntoTree(change);
             }
             setWaiting(false);
           });
     }
   }
 
-  private TreeItem<NavigableAsset> findParentNode(NavigableAsset asset) {
-    var parent = asset.parent();
-    if (parent != null) {
-      return findTreeNode(this.root, parent);
-    }
-    return this.root;
-  }
-
-  private TreeItem<NavigableAsset> findTreeNode(
-      TreeItem<NavigableAsset> root, NavigableAsset asset) {
-    if (root.getValue().equals(asset)) {
+  private TreeItem<NavigableAsset> findTreeNode(TreeItem<NavigableAsset> root, String urn) {
+    if (root.getValue().getUrn().equals(urn)) {
       return root;
     }
     for (TreeItem<NavigableAsset> child : root.getChildren()) {
-      var found = findTreeNode(child, asset);
+      var found = findTreeNode(child, urn);
       if (found != null) {
         return found;
       }
@@ -622,8 +574,81 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     return null;
   }
 
-  private TreeItem<NavigableAsset> findRootNode(NavigableAsset asset) {
-    return findTreeNode(this.root, asset);
+  private TreeItem<NavigableAsset> findNodeContaining(String assetUrn) {
+    return findTreeNode(this.root, assetUrn);
+  }
+
+  private void mergeChangeIntoTree(ResourceSet.Resource change) {
+
+    NavigableDocument document = null;
+    TreeItem<NavigableAsset> focus = null;
+    if (change.getOperation() == CRUDOperation.DELETE) {
+
+      var root = findNodeContaining(change.getResourceUrn());
+      if (root != null) {
+        root.getParent().getChildren().remove(root);
+      }
+
+    } else if (change.getOperation() == CRUDOperation.CREATE
+        && workspace instanceof NavigableKlabAsset<?> wroot) {
+
+      // Find the proper place to put it
+      var newAsset =
+          wroot.findAsset(change.getResourceUrn(), KlabAsset.class, change.getKnowledgeClass());
+      var parentAsset = wroot.getParentFor(newAsset, wroot);
+      var root =
+          parentAsset instanceof NavigableFolder folder
+              ? findOrAddFolder(folder)
+              : findTreeNode(this.root, parentAsset.getUrn());
+      if (root != null) {
+        root.getChildren().add(focus = new TreeItem<>((NavigableAsset) newAsset));
+      }
+      if (newAsset instanceof NavigableDocument navigableDocument) {
+        document = navigableDocument;
+        // TODO enqueue an event to edit the document. Doing it here hangs everything
+      }
+
+    } else if (change.getOperation() == CRUDOperation.UPDATE
+        && workspace instanceof NavigableKlabAsset<?> wroot) {
+      var node = findNodeContaining(change.getResourceUrn());
+      var newAsset =
+          wroot.findAsset(change.getResourceUrn(), KlabAsset.class, change.getKnowledgeClass());
+      var current =
+          node
+              .getChildren()
+              .filtered(item -> item.getValue().getUrn().equals(change.getResourceUrn()))
+              .stream()
+              .findFirst()
+              .orElse(null);
+      if (current != null) {
+        current.setValue((NavigableAsset) newAsset);
+        current.getChildren().clear();
+        focus = current;
+        updateTree(current, (NavigableAsset) newAsset);
+        if (current.getValue() instanceof NavigableDocument navigableDocument) {
+          document = navigableDocument;
+        }
+      }
+    }
+
+    if (focus != null) {
+      // TODO incorporate errors and walk the tree upwards to update the status icons
+    }
+
+    if (document != null) {
+      /*
+      TODO codeNotifications must be shown in the editors corresponding to the assets they belong to.
+       Icons for those same assets must change color accordingly.
+       */
+      var codeNotifications =
+          change.getNotifications().stream()
+              .filter(notification -> notification.getLexicalContext() != null)
+              .toList();
+    }
+  }
+
+  private TreeItem<NavigableAsset> findOrAddFolder(NavigableFolder folder) {
+    return null;
   }
 
   private void updateTree(TreeItem<NavigableAsset> root, NavigableAsset changed) {
@@ -666,6 +691,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     if (KlabIDEApplication.instance().isInspectorShown()) {
       KlabIDEController.instance().getInspector().inspect(value);
     }
+    System.out.println("clicked on " + value + "");
   }
 
   @Override
