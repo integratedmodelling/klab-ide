@@ -54,4 +54,6 @@ module org.integratedmodelling.klab.ide {
     opens org.integratedmodelling.klab.ide.test to javafx.fxml;
     exports org.integratedmodelling.klab.ide.components.generic;
     opens org.integratedmodelling.klab.ide.components.generic to javafx.fxml;
+    exports org.integratedmodelling.klab.ide.components.treeviews;
+    opens org.integratedmodelling.klab.ide.components.treeviews to javafx.fxml;
 }

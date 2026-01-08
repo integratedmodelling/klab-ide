@@ -28,6 +28,7 @@ import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
+import org.integratedmodelling.klab.ide.components.treeviews.KnowledgeGraphTree;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 
 public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>

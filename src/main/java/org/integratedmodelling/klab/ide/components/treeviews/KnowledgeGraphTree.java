@@ -1,4 +1,4 @@
-package org.integratedmodelling.klab.ide.components;
+package org.integratedmodelling.klab.ide.components.treeviews;
 
 import java.util.HashSet;
 import java.util.List;
@@ -8,7 +8,6 @@ import javafx.collections.ObservableList;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 import javafx.scene.text.Text;
-import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
