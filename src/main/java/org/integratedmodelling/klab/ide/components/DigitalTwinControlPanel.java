@@ -28,6 +28,9 @@ import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.ide.components.treeviews.ActivityTree;
+import org.integratedmodelling.klab.ide.components.treeviews.ObservationTree;
+import org.integratedmodelling.klab.ide.components.treeviews.ObserverTree;
+import org.integratedmodelling.klab.ide.components.treeviews.ScenarioTree;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.kordamp.ikonli.material2.Material2AL;
 
@@ -92,6 +95,10 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   private Pane dropZone;
   private Status status = Status.IDLE;
   private ActivityTree activityTree;
+  private ObservationTree observationTree;
+  private ScenarioTree scenarioTree;
+  private ObserverTree observerTree;
+
   private View currentView = View.ACTIVITIES;
 
   public DigitalTwinControlPanel(int size, EditorPage<?, ?> editorPage) {
@@ -124,6 +131,9 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     resetButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
 
     activitiesButton.setOnAction(click -> setView(View.ACTIVITIES));
+    observationButton.setOnAction(click -> setView(View.OBSERVATIONS));
+    observerButton.setOnAction(click -> setView(View.OBSERVERS));
+    scenarioButton.setOnAction(click -> setView(View.SCENARIOS));
 
     var contextSelector = new HBox(0);
     contextSelector.setAlignment(Pos.CENTER_LEFT);
@@ -170,6 +180,10 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     setTop(topBar);
 
     activityTree = new ActivityTree();
+    observationTree = new ObservationTree();
+    scenarioTree = new ScenarioTree();
+    observerTree = new ObserverTree();
+
     activityTree.setMinSize(220, 220);
 
     dropZone = new Pane();
@@ -185,6 +199,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   }
 
   private void setView(View view) {
+    if (this.currentView == view) return;
     this.currentView = view;
     this.setMainView();
   }
@@ -222,6 +237,15 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   private void setMainView() {
 
+    this.setCenter(
+        switch (currentView) {
+          case ACTIVITIES -> activityTree;
+          case OBSERVATIONS -> observationTree;
+          case OBSERVERS -> observerTree;
+          case SCENARIOS -> scenarioTree;
+          case IDLE -> null;
+        });
+
     this.activitiesButton.setGraphic(
         new IconLabel(
             Theme.ACTIVITY_ICON,
@@ -254,26 +278,48 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
         new IconLabel(
             Material2AL.DELETE_FOREVER, 18, scope == null ? Color.DARKGRAY : Color.DARKRED));
 
+    outlineButton(this.activitiesButton, currentView == View.ACTIVITIES);
+    outlineButton(this.observationButton, currentView == View.OBSERVATIONS);
+    outlineButton(this.observerButton, currentView == View.OBSERVERS);
+    outlineButton(this.scenarioButton, currentView == View.SCENARIOS);
+
     if (scope != null) {
-      switch (currentView) {
-        case ACTIVITIES -> {
-          this.activitiesButton.setGraphic(new IconLabel(Theme.ACTIVITY_ICON, 14, Color.DARKGREEN));
-          setCenter(activityTree);
-        }
-        case OBSERVATIONS -> {
-          this.observationButton.setGraphic(
-              new IconLabel(Theme.OBSERVATION_ICON, 14, Color.DARKGRAY));
-        }
-        case OBSERVERS -> {}
-        case SCENARIOS -> {}
-        //        case SCHEDULE -> {}
-        //        case KNOWLEDGE_GRAPH -> {}
-        //        case LOGS -> {}
-        case IDLE -> {}
-      }
+//      switch (currentView) {
+//        case ACTIVITIES -> {
+//          this.activitiesButton.setGraphic(new IconLabel(Theme.ACTIVITY_ICON, 14, Color.DARKGREEN));
+//          setCenter(activityTree);
+//        }
+//        case OBSERVATIONS -> {
+//          this.observationButton.setGraphic(
+//              new IconLabel(Theme.KNOWLEDGE_GRAPH_ICON, 14, Color.DARKGREEN));
+//        }
+//        case OBSERVERS -> {}
+//        case SCENARIOS -> {}
+//        //        case SCHEDULE -> {}
+//        //        case KNOWLEDGE_GRAPH -> {}
+//        //        case LOGS -> {}
+//        case IDLE -> {}
+//      }
     } else {
       setCenter(null);
       this.contextPath.setSelectedCrumb(null);
+    }
+  }
+
+  private void outlineButton(Button button, boolean b) {
+    if (scope == null) {
+      button.getStyleClass().removeAll(Styles.BUTTON_OUTLINED);
+      button.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
+      button.setDisable(true);
+    } else {
+      button.setDisable(false);
+      if (b) {
+        button.getStyleClass().removeAll(Styles.FLAT);
+        button.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.BUTTON_OUTLINED);
+      } else {
+        button.getStyleClass().removeAll(Styles.BUTTON_OUTLINED);
+        button.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
+      }
     }
   }
 
@@ -344,7 +390,10 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   public void setObserver(Observation observation) {}
 
   @Override
-  public void knowledgeGraphModified() {}
+  public void knowledgeGraphModified() {
+    System.out.println("KOKKO GRAPH MODIFIED");
+    setView(View.OBSERVATIONS);
+  }
 
   @Override
   public void activitiesModified() {
