@@ -26,8 +26,6 @@ public class ActivityTree extends TreeTableView<Activity> {
 
   public ActivityTree() {
 
-    setAccessibleText("Activity Tree");
-
     setColumnResizePolicy(TreeTableView.UNCONSTRAINED_RESIZE_POLICY);
     getStyleClass().addAll(Styles.DENSE, Tweaks.EDGE_TO_EDGE, Tweaks.NO_HEADER);
     setShowRoot(false);

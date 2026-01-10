@@ -64,7 +64,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   private final ProgressIndicator progressIndicator;
   private final HBox topBar;
-  private final HBox bottomBar;
+//  private final HBox bottomBar;
   private final Button resetButton;
   private final Button activitiesButton;
   private final Button scenarioButton;
@@ -191,11 +191,11 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     dropZone.setMaxSize(220, 220);
     dropZone.setStyle(
         "-fx-background-color: #F5F5F5; -fx-border-color: grey; -fx-border-width: 5; -fx-border-style: dashed; -fx-border-radius: 10;");
-    setCenter(activityTree);
+    setCenter(null); // TODO use some idle view
 
-    // Create bottom control bar for scenarios
-    this.bottomBar = new HBox(10);
-    setBottom(bottomBar);
+//    // Create bottom control bar for scenarios
+//    this.bottomBar = new HBox(10);
+//    setBottom(bottomBar);
   }
 
   private void setView(View view) {
@@ -237,14 +237,19 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   private void setMainView() {
 
-    this.setCenter(
-        switch (currentView) {
-          case ACTIVITIES -> activityTree;
-          case OBSERVATIONS -> observationTree;
-          case OBSERVERS -> observerTree;
-          case SCENARIOS -> scenarioTree;
-          case IDLE -> null;
-        });
+    if (scope == null) {
+      setCenter(null); // TODO use some idle view
+      this.contextPath.setSelectedCrumb(null);
+    } else {
+      this.setCenter(
+          switch (currentView) {
+            case ACTIVITIES -> activityTree;
+            case OBSERVATIONS -> observationTree;
+            case OBSERVERS -> observerTree;
+            case SCENARIOS -> scenarioTree;
+            case IDLE -> null;
+          });
+    }
 
     this.activitiesButton.setGraphic(
         new IconLabel(
@@ -282,28 +287,6 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     outlineButton(this.observationButton, currentView == View.OBSERVATIONS);
     outlineButton(this.observerButton, currentView == View.OBSERVERS);
     outlineButton(this.scenarioButton, currentView == View.SCENARIOS);
-
-    if (scope != null) {
-//      switch (currentView) {
-//        case ACTIVITIES -> {
-//          this.activitiesButton.setGraphic(new IconLabel(Theme.ACTIVITY_ICON, 14, Color.DARKGREEN));
-//          setCenter(activityTree);
-//        }
-//        case OBSERVATIONS -> {
-//          this.observationButton.setGraphic(
-//              new IconLabel(Theme.KNOWLEDGE_GRAPH_ICON, 14, Color.DARKGREEN));
-//        }
-//        case OBSERVERS -> {}
-//        case SCENARIOS -> {}
-//        //        case SCHEDULE -> {}
-//        //        case KNOWLEDGE_GRAPH -> {}
-//        //        case LOGS -> {}
-//        case IDLE -> {}
-//      }
-    } else {
-      setCenter(null);
-      this.contextPath.setSelectedCrumb(null);
-    }
   }
 
   private void outlineButton(Button button, boolean b) {
@@ -359,13 +342,22 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   }
 
   @Override
-  public void submissionStarted(Observation observation) {}
+  public void submissionStarted(Observation observation) {
+    Platform.runLater(() -> {
+      setView(View.ACTIVITIES);
+    });
+  }
 
   @Override
-  public void submissionAborted(Observation observation) {}
+  public void submissionAborted(Observation observation) {
+    // TODO show some error message temporarily
+  }
 
   @Override
-  public void submissionFinished(Observation observation) {}
+  public void submissionFinished(Observation observation) {
+    observationTree.update(scope, observation);
+    Platform.runLater(() -> setView(View.OBSERVATIONS));
+  }
 
   @Override
   public void setContext(Observation observation) {
@@ -390,10 +382,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   public void setObserver(Observation observation) {}
 
   @Override
-  public void knowledgeGraphModified() {
-    System.out.println("KOKKO GRAPH MODIFIED");
-    setView(View.OBSERVATIONS);
-  }
+  public void knowledgeGraphModified() {}
 
   @Override
   public void activitiesModified() {

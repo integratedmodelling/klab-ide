@@ -236,7 +236,12 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
                       .filter(c -> c != focalScope)
                       .map(
                           c -> {
-                            var item = new MenuItem(c.getName());
+                            // TODO use icon colors to reflect DT ownership/service
+                            var item =
+                                new MenuItem(
+                                    c.getName(),
+                                    new IconLabel(
+                                        Theme.DIGITAL_TWINS_ICON, 16, Theme.FOREGROUND_COLOR));
                             item.setOnAction(actionEvent -> setFocalScope(c, false));
                             return item;
                           })
