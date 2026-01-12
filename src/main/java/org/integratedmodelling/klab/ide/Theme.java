@@ -203,7 +203,7 @@ public enum Theme {
     };
   }
 
-  public static Node getGraphics(Object asset) {
+  public static IconLabel getGraphics(Object asset) {
 
     int errorCount = 0;
     int warningCount = 0;

@@ -5,6 +5,7 @@ import atlantafx.base.theme.Tweaks;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.collections.ObservableList;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeTableColumn;
@@ -38,46 +39,25 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
     descriptionColumn.setCellValueFactory(
         param -> new SimpleObjectProperty<>(observationDescription(param.getValue().getValue())));
 
-    TreeTableColumn<RuntimeAsset, IconLabel> statusColumn = new TreeTableColumn<>("Status");
-    statusColumn.setMinWidth(40);
-    statusColumn.setMaxWidth(40);
-    statusColumn.setCellValueFactory(
-        param -> {
-          var activity = param.getValue() == null ? null : param.getValue().getValue();
-          var ikon = Theme.OBSERVATION_ICON;
-          var color = Color.GOLDENROD;
-          //          if (activity != null && activity.getOutcome() != null) {
-          //            ikon =
-          //                activity.getOutcome() == Activity.Outcome.SUCCESS
-          //                    ? Material2AL.CHECK_CIRCLE
-          //                    : Material2AL.ERROR;
-          //            color = activity.getOutcome() == Activity.Outcome.SUCCESS ? Color.GREEN :
-          // Color.RED;
-          //          }
-          var icon = new IconLabel(ikon, 14, color);
-          return new SimpleObjectProperty<>(icon);
-        });
+    //    TreeTableColumn<RuntimeAsset, Node> statusColumn = new TreeTableColumn<>("Status");
+    //    statusColumn.setMinWidth(40);
+    //    statusColumn.setMaxWidth(40);
+    //    statusColumn.setCellValueFactory(
+    //        param -> {
+    //          var activity = param.getValue() == null ? null : param.getValue().getValue();
+    //          var icon = Theme.getGraphics(activity);
+    //          return new SimpleObjectProperty<>(icon);
+    //        });
 
-    descriptionColumn.prefWidthProperty().bind(widthProperty().subtract(40));
+    descriptionColumn.prefWidthProperty().bind(widthProperty().subtract(10));
 
-    getColumns().setAll(descriptionColumn, statusColumn);
+    getColumns().setAll(descriptionColumn);
     setRoot(new TreeItem<>());
   }
 
   private HBox observationDescription(RuntimeAsset observation) {
-    var icon =
-        new IconLabel(
-            Theme.OBSERVATION_ICON,
-            //                new IconLabel(
-            //                        switch (activity.getType()) {
-            //                            case CONTEXT_INITIALIZATION, SUBMISSION ->
-            // Evaicons.DOWNLOAD;
-            //                            case INITIALIZATION -> BootstrapIcons.PLAY_BTN;
-            //                            case RESOLUTION -> CarbonIcons.TREE_VIEW_ALT;
-            //                            case CONTEXTUALIZATION -> MaterialDesign.MDI_RUN;
-            //                        },
-            16,
-            Theme.FOREGROUND_COLOR);
+
+    var icon = Theme.getGraphics(observation);
     icon.setMaxWidth(24);
     icon.setMinWidth(24);
 
@@ -89,15 +69,59 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
     var ret = new HBox(icon, label);
     ret.setSpacing(2);
     ret.setAlignment(Pos.CENTER_LEFT);
-    icon.setOnMouseClicked(mouseEvent -> System.out.println(observation));
+    icon.setOnMouseClicked(mouseEvent -> attemptSettingContext(observation, icon));
+
     return ret;
   }
 
+  private void attemptSettingContext(RuntimeAsset observation, IconLabel icon) {
+    System.out.println("PUTAZZO IL GESÚ");
+  }
+
   public void update(IDEContextScope scope, Observation observation) {
-    // TODO redraw tree and select the passed observation
+    //  redraw tree and select the passed observation
     this.clientKnowledgeGraph = scope.getDigitalTwin().getKnowledgeGraph();
     setRoot(new AssetTreeItem(RuntimeAsset.CONTEXT_ASSET));
-    // TODO select observation
+    //  select observation
+    var treeItem = findTreeItem(observation);
+    if (treeItem != null) {
+      if (treeItem.getParent() != null) {
+        treeItem.getParent().setExpanded(true);
+      }
+      getSelectionModel().select(treeItem);
+      scrollTo(getSelectionModel().getSelectedIndex());
+    }
+  }
+
+  private TreeItem<RuntimeAsset> findTreeItem(RuntimeAsset asset) {
+    if (asset == null || getRoot() == null) {
+      return null;
+    }
+    return findTreeItemRecursive(getRoot(), asset);
+  }
+
+  private TreeItem<RuntimeAsset> findTreeItemRecursive(
+      TreeItem<RuntimeAsset> current, RuntimeAsset asset) {
+    if (current == null) {
+      return null;
+    }
+
+    RuntimeAsset currentAsset = current.getValue();
+    if (currentAsset != null && currentAsset.getId() == asset.getId()) {
+      return current;
+    }
+
+    // Expand the node to ensure children are loaded
+    current.setExpanded(true);
+
+    for (TreeItem<RuntimeAsset> child : current.getChildren()) {
+      TreeItem<RuntimeAsset> result = findTreeItemRecursive(child, asset);
+      if (result != null) {
+        return result;
+      }
+    }
+
+    return null;
   }
 
   private class AssetTreeItem extends TreeItem<RuntimeAsset> {
