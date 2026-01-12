@@ -67,10 +67,8 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
 
     @Override
     public ObservableList<TreeItem<RuntimeAsset>> getChildren() {
-      //      if (children == null) {
-      var children = super.getChildren();
-      //      }
 
+      var children = super.getChildren();
       RuntimeAsset asset = getValue();
       if (asset != null && (!(asset instanceof Observation) || asset.getChildrenCount() > 0)) {
         Set<Long> selectedIds =

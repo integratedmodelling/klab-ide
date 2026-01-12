@@ -64,7 +64,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   private final ProgressIndicator progressIndicator;
   private final HBox topBar;
-//  private final HBox bottomBar;
+  //  private final HBox bottomBar;
   private final Button resetButton;
   private final Button activitiesButton;
   private final Button scenarioButton;
@@ -193,9 +193,9 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
         "-fx-background-color: #F5F5F5; -fx-border-color: grey; -fx-border-width: 5; -fx-border-style: dashed; -fx-border-radius: 10;");
     setCenter(null); // TODO use some idle view
 
-//    // Create bottom control bar for scenarios
-//    this.bottomBar = new HBox(10);
-//    setBottom(bottomBar);
+    //    // Create bottom control bar for scenarios
+    //    this.bottomBar = new HBox(10);
+    //    setBottom(bottomBar);
   }
 
   private void setView(View view) {
@@ -343,9 +343,10 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   @Override
   public void submissionStarted(Observation observation) {
-    Platform.runLater(() -> {
-      setView(View.ACTIVITIES);
-    });
+    Platform.runLater(
+        () -> {
+          setView(View.ACTIVITIES);
+        });
   }
 
   @Override
@@ -354,10 +355,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   }
 
   @Override
-  public void submissionFinished(Observation observation) {
-    observationTree.update(scope, observation);
-    Platform.runLater(() -> setView(View.OBSERVATIONS));
-  }
+  public void submissionFinished(Observation observation) {}
 
   @Override
   public void setContext(Observation observation) {
@@ -390,7 +388,10 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   }
 
   @Override
-  public void focusObservations(List<RuntimeAsset> ids) {}
+  public void focusObservations(List<RuntimeAsset> ids) {
+    observationTree.update(scope, (Observation) ids.getFirst());
+    Platform.runLater(() -> setView(View.OBSERVATIONS));
+  }
 
   @Override
   public boolean isAffectedBy(IDEContextScope scope) {
