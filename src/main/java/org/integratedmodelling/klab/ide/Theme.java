@@ -123,7 +123,7 @@ public enum Theme {
   public static Ikon ONTOLOGY_ICON = CarbonIcons.CONCEPT;
   public static Ikon NAMESPACE_ICON = Material2AL.DEVELOPER_BOARD;
   public static Ikon MODEL_ICON = Material2MZ.WORK_OUTLINE;
-  public static Ikon CONCEPT_DEFINITION_ICON = CarbonIcons.IDEA;
+  public static Ikon CONCEPT_DEFINITION_ICON = BootstrapIcons.LIGHTBULB_FILL;
   public static Ikon OBSERVATION_FOLDER_ICON = Material2AL.ADJUST;
   public static Ikon OBSERVATION_ICON = Material2AL.FIBER_MANUAL_RECORD;
   public static Ikon OBSERVER_ICON = UniconsLine.HEAD_SIDE;
@@ -141,7 +141,7 @@ public enum Theme {
   public static Ikon WORKSPACE_ICON = Material2AL.APPS;
   public static Ikon WORKSPACE_SETTINGS_ICON = CarbonIcons.SETTINGS;
   public static Ikon SCENARIO_ICON = UniconsLine.SCENERY;
-  public static Ikon UNKNOWN_ICON = BootstrapIcons.EXCLAMATION_CIRCLE_FILL;
+  public static Ikon UNKNOWN_ICON = BootstrapIcons.LIGHTBULB_OFF_FILL;
   public static Ikon KNOWLEDGE_GRAPH_ICON = BootstrapIcons.DIAGRAM_3;
   public static Ikon INSTANTIATOR_MODEL_ICON = FontAwesomeSolid.COGS;
   public static Ikon RESOLVER_MODEL_ICON = FontAwesomeSolid.COG;
