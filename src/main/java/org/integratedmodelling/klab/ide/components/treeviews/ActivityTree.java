@@ -29,6 +29,7 @@ public class ActivityTree extends TreeTableView<Activity> {
     setColumnResizePolicy(TreeTableView.UNCONSTRAINED_RESIZE_POLICY);
     getStyleClass().addAll(Styles.DENSE, Tweaks.EDGE_TO_EDGE, Tweaks.NO_HEADER);
     setShowRoot(false);
+    setPlaceholder(new Label("No activities available"));
 
     TreeTableColumn<Activity, HBox> descriptionColumn = new TreeTableColumn<>("Description");
     descriptionColumn.setCellValueFactory(

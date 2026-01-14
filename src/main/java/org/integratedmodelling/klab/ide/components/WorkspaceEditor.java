@@ -14,6 +14,7 @@ import javafx.scene.control.*;
 import javafx.scene.input.*;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.utils.Utils;
@@ -282,13 +283,33 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   @Override
   protected Node createTopMenu() {
     var hBox = new HBox();
-    hBox.setAlignment(Pos.CENTER_RIGHT);
+    hBox.setAlignment(Pos.CENTER_LEFT);
 
+    var expand = new Button("", new IconLabel(CarbonIcons.EXPAND_ALL, 16, Theme.FOREGROUND_COLOR));
+    var collapse =
+        new Button("", new IconLabel(CarbonIcons.COLLAPSE_ALL, 16, Theme.FOREGROUND_COLOR));
+
+    expand.setOnAction(
+        actionEvent -> {
+          expandTreeView(treeView.getRoot());
+        });
+    collapse.setOnAction(
+        actionEvent -> {
+          collapseTreeView(treeView.getRoot());
+          treeView.getRoot().setExpanded(true);
+        });
+
+    expand.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
+    collapse.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
     var workspaceSettings = new Button("");
     workspaceSettings.setGraphic(
         new IconLabel(Theme.WORKSPACE_SETTINGS_ICON, 16, Theme.FOREGROUND_COLOR));
     workspaceSettings.setOnAction(actionEvent -> showWorkspaceSettings());
     workspaceSettings.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
+
+    var searchField = new TextField();
+    searchField.setPromptText("Search...");
+    HBox.setHgrow(searchField, Priority.ALWAYS);
 
     var addProject = new Button("");
     addProject.setGraphic(new IconLabel(Theme.ADD_PROJECT_ICON, 16, Theme.FOREGROUND_COLOR));
@@ -297,8 +318,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           createNewProject();
         });
     addProject.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
-    hBox.getChildren().addAll(workspaceSettings, addProject);
-    return new VBox(hBox, new Separator());
+    hBox.getChildren().addAll(addProject, workspaceSettings, searchField, expand, collapse);
+    return new VBox(hBox /*, new Separator()*/);
   }
 
   private void showWorkspaceSettings() {
@@ -734,6 +755,24 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       edit(value);
     } else if (value instanceof KlabStatement statement) {
       // TODO show editor and set the cursor there
+    }
+  }
+
+  private void expandTreeView(TreeItem<?> item) {
+    if (item != null && !item.isLeaf()) {
+      item.setExpanded(true);
+      for (TreeItem<?> child : item.getChildren()) {
+        expandTreeView(child);
+      }
+    }
+  }
+
+  private void collapseTreeView(TreeItem<?> item) {
+    if (item != null && !item.isLeaf()) {
+      item.setExpanded(false);
+      for (TreeItem<?> child : item.getChildren()) {
+        collapseTreeView(child);
+      }
     }
   }
 }

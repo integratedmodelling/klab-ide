@@ -124,6 +124,7 @@ public enum Theme {
   public static Ikon NAMESPACE_ICON = Material2AL.DEVELOPER_BOARD;
   public static Ikon MODEL_ICON = Material2MZ.WORK_OUTLINE;
   public static Ikon CONCEPT_DEFINITION_ICON = CarbonIcons.IDEA;
+  public static Ikon OBSERVATION_FOLDER_ICON = BootstrapIcons.CIRCLE;
   public static Ikon OBSERVATION_ICON = Material2AL.FIBER_MANUAL_RECORD;
   public static Ikon OBSERVER_ICON = UniconsLine.HEAD_SIDE;
   public static Ikon LOGS_ICON = Evaicons.FILE_TEXT_OUTLINE;
@@ -236,7 +237,9 @@ public enum Theme {
           case Observation observation -> {
             semanticType =
                 SemanticType.fundamentalType(observation.getObservable().getSemantics().getType());
-            yield OBSERVATION_ICON;
+            yield observation.getObservable().getSemantics().isCollective()
+                ? OBSERVATION_FOLDER_ICON
+                : OBSERVATION_ICON;
           }
           case NavigableKimConceptStatement definition -> {
             semanticType = SemanticType.fundamentalType(definition.getType());

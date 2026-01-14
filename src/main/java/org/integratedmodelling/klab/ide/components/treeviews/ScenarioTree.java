@@ -3,6 +3,7 @@ package org.integratedmodelling.klab.ide.components.treeviews;
 import atlantafx.base.theme.Styles;
 import atlantafx.base.theme.Tweaks;
 import javafx.beans.property.SimpleObjectProperty;
+import javafx.scene.control.Label;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeTableColumn;
 import javafx.scene.control.TreeTableView;
@@ -20,6 +21,7 @@ public class ScenarioTree extends TreeTableView<KimNamespace> {
     setColumnResizePolicy(TreeTableView.UNCONSTRAINED_RESIZE_POLICY);
     getStyleClass().addAll(Styles.DENSE, Tweaks.EDGE_TO_EDGE, Tweaks.NO_HEADER);
     setShowRoot(false);
+    setPlaceholder(new Label("No scenarios available"));
 
     TreeTableColumn<KimNamespace, HBox> descriptionColumn = new TreeTableColumn<>("Description");
     descriptionColumn.setCellValueFactory(

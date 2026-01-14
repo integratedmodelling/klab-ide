@@ -34,7 +34,7 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
     setColumnResizePolicy(TreeTableView.UNCONSTRAINED_RESIZE_POLICY);
     getStyleClass().addAll(Styles.DENSE, Tweaks.EDGE_TO_EDGE, Tweaks.NO_HEADER);
     setShowRoot(false);
-
+    setPlaceholder(new Label("No observations available"));
     TreeTableColumn<RuntimeAsset, HBox> descriptionColumn = new TreeTableColumn<>("Description");
     descriptionColumn.setCellValueFactory(
         param -> new SimpleObjectProperty<>(observationDescription(param.getValue().getValue())));
