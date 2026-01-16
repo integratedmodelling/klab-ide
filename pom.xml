@@ -14,6 +14,7 @@
         <junit.version>5.10.2</junit.version>
         <xtextVersion>2.36.0</xtextVersion>
         <klab.version>1.0.0-SNAPSHOT</klab.version>
+        <conveyor.target>app</conveyor.target>
     </properties>
 
     <dependencies>
@@ -414,7 +415,7 @@
                                     <target>
                                         <exec executable="conveyor">
                                             <arg value="make"/>
-                                            <arg value="app"/>
+                                            <arg value="${conveyor.target}"/>
                                             <env key="PROJECT_VERSION" value="${project.version}"/>
                                         </exec>
                                     </target>
