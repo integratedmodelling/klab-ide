@@ -9,10 +9,12 @@ import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.paint.Color;
+import javafx.util.Duration;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.provenance.Activity;
 import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.Theme;
+import org.integratedmodelling.klab.ide.components.cards.ActivityCard;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.kordamp.ikonli.bootstrapicons.BootstrapIcons;
 import org.kordamp.ikonli.carbonicons.CarbonIcons;
@@ -84,6 +86,13 @@ public class ActivityTree extends TreeTableView<Activity> {
     ret.setSpacing(2);
     ret.setAlignment(Pos.CENTER_LEFT);
     ret.setOnMouseClicked(mouseEvent -> System.out.println(activity.getDescription()));
+
+    // set the tooltip card
+    Tooltip tooltip = new Tooltip();
+    tooltip.setGraphic(new ActivityCard(activity, false));
+    tooltip.setShowDelay(Duration.millis(250));
+    Tooltip.install(ret, tooltip);
+
     return ret;
   }
 
