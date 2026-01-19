@@ -6,8 +6,7 @@ import javafx.application.Platform;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
+import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.util.Duration;
 import org.integratedmodelling.common.utils.Utils;
@@ -87,10 +86,10 @@ public class ActivityTree extends TreeTableView<Activity> {
     ret.setAlignment(Pos.CENTER_LEFT);
     ret.setOnMouseClicked(mouseEvent -> System.out.println(activity.getDescription()));
 
-    // set the tooltip card
+    // set the tooltip card. FIXME no way to not show borders in the tooltip, tried them all
     Tooltip tooltip = new Tooltip();
     tooltip.setGraphic(new ActivityCard(activity, false));
-    tooltip.setShowDelay(Duration.millis(250));
+    tooltip.setShowDelay(Duration.millis(300));
     Tooltip.install(ret, tooltip);
 
     return ret;

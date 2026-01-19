@@ -1,6 +1,7 @@
 package org.integratedmodelling.klab.ide.components.cards;
 
 import atlantafx.base.controls.Card;
+import javafx.scene.layout.Border;
 
 /**
  * Base class for cards that describe an asset. Cards can be created in extended or compact mode:
@@ -18,11 +19,11 @@ public abstract class BaseCard<T> extends Card {
   protected BaseCard(T asset, boolean extended) {
     this.asset = asset;
     this.extended = extended;
-    setMinSize(extended ? 800 : 400, extended ? 400 : 300);
-    setMaxSize(extended ? Double.MAX_VALUE : 400, extended ? 400 : 300);
+    setBorder(Border.EMPTY);
+    setMinSize(extended ? 800 : 400, extended ? 400 : 220);
+    setMaxSize(extended ? Double.MAX_VALUE : 400, extended ? 400 : 220);
     drawContent();
   }
 
   protected abstract void drawContent();
-
 }
