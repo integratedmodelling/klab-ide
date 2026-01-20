@@ -43,10 +43,10 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
   public void reset() {}
 
   @Override
-  protected void assetEditorSelected(Resource asset) {}
+  protected void assetEditorSelected(ResourceEditor asset) {}
 
   @Override
-  protected void assetEditorClosed(Resource asset) {}
+  protected void assetEditorClosed(ResourceEditor asset) {}
 
   // List to store components
   private final List<Node> components = new ArrayList<>();

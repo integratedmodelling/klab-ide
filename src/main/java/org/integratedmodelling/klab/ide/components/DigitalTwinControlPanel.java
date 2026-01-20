@@ -389,8 +389,12 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   @Override
   public void focusObservations(List<RuntimeAsset> ids) {
-    observationTree.update(scope, (Observation) ids.getFirst());
-    Platform.runLater(() -> setView(View.OBSERVATIONS));
+
+    Platform.runLater(
+        () -> {
+          observationTree.update(scope, (Observation) ids.getFirst());
+          setView(View.OBSERVATIONS);
+        });
   }
 
   @Override

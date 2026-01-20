@@ -31,7 +31,7 @@ import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.integratedmodelling.klab.ide.components.treeviews.KnowledgeGraphTree;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 
-public class DigitalTwinEditor extends EditorPage<ContextScope, RuntimeAsset>
+public class DigitalTwinEditor extends EditorPage<IDEContextScope, RuntimeAsset>
     implements DigitalTwinViewer {
 
   private final RuntimeService runtimeService;

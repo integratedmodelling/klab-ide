@@ -84,21 +84,15 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
   }
 
   protected void onTabClosed(Tab closedTab) {
-    if (closedTab.getContent() instanceof EditorPage<?, ?> editor) {
-      var asset = editor.getEditedAsset();
-      if (asset != null) {
-        assetEditorClosed((A) asset);
-      }
+    if (closedTab.getContent() instanceof EditorPage editor) {
+      assetEditorClosed((T) editor);
       editor.onVisualize(false);
     }
   }
 
   protected void onTabSelected(Tab selectedTab) {
-    if (selectedTab.getContent() instanceof EditorPage<?, ?> editor) {
-      var asset = editor.getEditedAsset();
-      if (asset != null) {
-        assetEditorSelected((A) asset);
-      }
+    if (selectedTab.getContent() instanceof EditorPage editor) {
+      assetEditorSelected((T) editor);
       editor.onVisualize(true);
     }
   }
@@ -111,9 +105,9 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
     return null;
   }
 
-  protected abstract void assetEditorSelected(A asset);
+  protected abstract void assetEditorSelected(T assetEditor);
 
-  protected abstract void assetEditorClosed(A asset);
+  protected abstract void assetEditorClosed(T assetEditor);
 
   protected Node makeHeader(String title, Runnable addAction) {
 
@@ -206,26 +200,17 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
     modalPane.show(browserArea);
   }
 
+  @Override
+  public void show() {}
 
   @Override
-  public void show() {
-
-  }
+  public void hide() {}
 
   @Override
-  public void hide() {
-
-  }
+  public void enable() {}
 
   @Override
-  public void enable() {
-
-  }
-
-  @Override
-  public void disable() {
-
-  }
+  public void disable() {}
 
   @Override
   public boolean isShown() {

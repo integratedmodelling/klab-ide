@@ -73,17 +73,22 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
   }
 
   @Override
-  protected void assetEditorSelected(IDEContextScope asset) {
+  protected void assetEditorSelected(DigitalTwinEditor asset) {
     if (KlabIDEController.instance().getFocalScope() != null
         && asset != null
-        && KlabIDEController.instance().getFocalScope().getId().equals(asset.getId())) {
+        && KlabIDEController.instance()
+            .getFocalScope()
+            .getId()
+            .equals(asset.getEditedAsset().getId())) {
       return;
     }
-    KlabIDEController.instance().setFocalScope(asset, Utils.URLs.isLocalHost(asset.getUrl()));
+    KlabIDEController.instance()
+        .setFocalScope(
+            asset.getEditedAsset(), Utils.URLs.isLocalHost(asset.getEditedAsset().getUrl()));
   }
 
   @Override
-  protected void assetEditorClosed(IDEContextScope asset) {
+  protected void assetEditorClosed(DigitalTwinEditor asset) {
     Logging.INSTANCE.info("Closing scope " + asset);
     if (openEditors.containsKey(asset.getId())) {
       openEditors.get(asset.getId()).close();
@@ -98,8 +103,8 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
     // select whatever remains in the editor. When closing X with just X in the editor, X for some
     // reason remains selected, hence the check
     var nextAsset = getSelectedAsset();
-    if (nextAsset != null && !nextAsset.getId().equals(asset.getId())) {
-      assetEditorSelected(nextAsset);
+    if (nextAsset != null && !nextAsset.getId().equals(asset.getEditedAsset().getId())) {
+      assetEditorSelected(asset);
     } else {
       KlabIDEController.instance().setFocalScope(null, false);
     }

@@ -55,12 +55,13 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
   }
 
   @Override
-  protected void assetEditorSelected(NavigableWorkspace asset) {}
+  protected void assetEditorSelected(WorkspaceEditor asset) {}
 
   @Override
-  protected void assetEditorClosed(NavigableWorkspace asset) {
-    workspaces.remove(asset.getUrn());
-    openEditors.remove(asset.getUrn());
+  protected void assetEditorClosed(WorkspaceEditor editor) {
+    System.out.println("DIO CARBONARO REMOVING " + editor.getEditedAsset().getUrn());
+    workspaces.remove(editor.getEditedAsset().getUrn());
+    openEditors.remove(editor.getEditedAsset().getUrn());
   }
 
   @Override

@@ -21,10 +21,10 @@ public class SessionView extends BrowsablePage {
   public void reset() {}
 
   @Override
-  protected void assetEditorSelected(Object asset) {}
+  protected void assetEditorSelected(Node assetEditor) {}
 
   @Override
-  protected void assetEditorClosed(Object asset) {}
+  protected void assetEditorClosed(Node assetEditor) {}
 
   @Override
   protected void defineBrowser(VBox vBox) {}
