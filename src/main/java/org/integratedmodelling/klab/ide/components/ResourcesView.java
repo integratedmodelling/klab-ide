@@ -11,9 +11,11 @@ import javafx.scene.layout.VBox;
 import org.integratedmodelling.klab.api.Klab;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.Resource;
+import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.api.services.Resolver;
 import org.integratedmodelling.klab.api.services.ResourcesService;
 import org.integratedmodelling.klab.api.services.resources.ResourceInfo;
+import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
@@ -198,6 +200,7 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
           .get(resourceInfo.getUrn())
           .requestFocus(); // FIXME must remember the tabs and select(tab) - in both cases
     } else {
+      Resource resource = null;
       var service =
           KlabIDEController.instance()
               .user()
@@ -205,12 +208,32 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
                   ResourcesService.class, s -> resourceInfo.getServiceId().equals(s.serviceId()))
               .orElse(null);
 
-      // TODO handle the unlikely case that the service is unavailable. That will throw an exception
-      //  from getService
+      if (service != null) {
+        resource =
+            service.retrieveResource(
+                List.of(resourceInfo.getUrn()), KlabIDEController.instance().user());
+      } else if (KlabIDEController.instance().getFocalScope() != null) {
 
-      var resource =
-          service.retrieveResource(
-              List.of(resourceInfo.getUrn()), KlabIDEController.instance().user());
+        var resolver =
+            KlabIDEController.instance()
+                .user()
+                .findService(Resolver.class, s -> resourceInfo.getServiceId().equals(s.serviceId()))
+                .orElse(null);
+
+        if (resolver != null) {
+          resource =
+              resolver.getSubmittedResources(KlabIDEController.instance().getFocalScope()).stream()
+                  .filter(r -> r.getUrn().equals(resourceInfo.getUrn()))
+                  .findFirst()
+                  .orElse(null);
+        }
+      }
+
+      if (resource == null) {
+        KlabIDEController.instance()
+            .handleNotification(Notification.error("Could not find resource"));
+        return;
+      }
 
       var newEditor = new ResourceEditor(resource /*, resourceInfo, this*/);
       openEditors.put(resourceInfo.getUrn(), newEditor);
