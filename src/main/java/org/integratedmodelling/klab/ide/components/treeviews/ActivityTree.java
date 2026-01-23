@@ -88,6 +88,7 @@ public class ActivityTree extends TreeTableView<Activity> {
 
     // set the tooltip card. FIXME no way to not show borders in the tooltip, tried them all
     Tooltip tooltip = new Tooltip();
+    tooltip.setStyle("-fx-effect: null;");
     tooltip.setGraphic(new ActivityCard(activity, false));
     tooltip.setShowDelay(Duration.millis(300));
     Tooltip.install(ret, tooltip);
