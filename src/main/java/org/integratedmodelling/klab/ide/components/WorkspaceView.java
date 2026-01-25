@@ -198,14 +198,12 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
   }
 
   private void createWorkspace(String workspaceName, String description, ResourcesService service) {
-    if (service instanceof ResourcesService.Admin admin) {
-      if (!admin.createWorkspace(
+      if (!service.createWorkspace(
           workspaceName,
           Metadata.create(Metadata.DC_COMMENT, description),
           KlabIDEController.instance().user())) {
         KlabIDEController.instance().alert(Notification.error("Workspace creation failed"));
       }
-    }
   }
 
   private void raiseWorkspace(ResourceInfo resourceInfo) {

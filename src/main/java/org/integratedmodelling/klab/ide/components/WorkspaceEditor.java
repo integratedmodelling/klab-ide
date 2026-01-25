@@ -67,13 +67,11 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     this.service = service;
     this.view = view;
     this.workspace = getEditedAsset();
-    if (service instanceof ResourcesService.Admin admin) {
-      // lock all projects that let us
-      for (var project : workspace.getProjects()) {
-        if (admin.lockProject(project.getUrn(), KlabIDEController.instance().user())
-            && project instanceof NavigableProject navigableProject) {
-          navigableProject.setLocked(true);
-        }
+    // lock all projects that let us
+    for (var project : workspace.getProjects()) {
+      if (service.lockProject(project.getUrn(), KlabIDEController.instance().user())
+          && project instanceof NavigableProject navigableProject) {
+        navigableProject.setLocked(true);
       }
     }
   }
@@ -159,14 +157,12 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                 Theme.FOREGROUND_COLOR));
     lockUnlock.setOnAction(
         e -> {
-          if (service instanceof ResourcesService.Admin admin) {
-            if (project.isLocked()) {
-              admin.unlockProject(project.getUrn(), KlabIDEController.instance().user());
-              project.setLocked(false);
-            } else {
-              admin.lockProject(project.getUrn(), KlabIDEController.instance().user());
-              project.setLocked(true);
-            }
+          if (project.isLocked()) {
+            service.unlockProject(project.getUrn(), KlabIDEController.instance().user());
+            project.setLocked(false);
+          } else {
+            service.lockProject(project.getUrn(), KlabIDEController.instance().user());
+            project.setLocked(true);
           }
         });
 
@@ -176,9 +172,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
             new IconLabel(Theme.WORKSPACE_SETTINGS_ICON, 16, Theme.FOREGROUND_COLOR));
     projectSettings.setOnAction(
         e -> {
-          if (service instanceof ResourcesService.Admin admin) {
-            /* TODO */
-          }
+          /* TODO */
         });
 
     var deleteProject =
@@ -186,9 +180,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
             "Delete project...", new IconLabel(Material2AL.DELETE, 16, Theme.FOREGROUND_COLOR));
     deleteProject.setOnAction(
         e -> {
-          if (service instanceof ResourcesService.Admin admin) {
-            deleteProject(project);
-          }
+          deleteProject(project);
         });
 
     var newMenu =
@@ -365,9 +357,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     alert.getButtonTypes().setAll(yesBtn, cancelBtn);
     alert.initOwner(getScene().getWindow());
     var result = alert.showAndWait();
-    if (!result.isEmpty()
-        && result.get().getButtonData() == ButtonBar.ButtonData.YES
-        && service instanceof ResourcesService.Admin admin) {
+    if (!result.isEmpty() && result.get().getButtonData() == ButtonBar.ButtonData.YES) {
       KlabIDEController.instance().deleteProject(service, project.getUrn());
     }
   }
@@ -581,8 +571,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   private void saveDocument(String text, NavigableAsset asset) {
     Logging.INSTANCE.info("Save document requested: " + asset.getUrn());
-    if (service instanceof ResourcesService.Admin admin
-        && asset instanceof KlabDocument<?> document) {
+    if (asset instanceof KlabDocument<?> document) {
       KlabIDEController.instance()
           .updateDocument(
               service,
