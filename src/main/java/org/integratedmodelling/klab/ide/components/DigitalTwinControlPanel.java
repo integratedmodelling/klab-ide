@@ -35,36 +35,19 @@ import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.kordamp.ikonli.material2.Material2AL;
 
 /**
- * Controlled by the DT peer installed in the main IDE controller. Differently from other DT views,
- * this one exists independently of any DT and is installed in all main views; the DT can be
- * swapped. All other views are dedicated to an individual DT, so the handling must be customized.
+ * Controlled by the current DT peer installed in the main IDE controller. Differently from other DT
+ * views, this one is installed in all {@link EditorPage}s, although it may not be in view. Its
+ * visibility is controlled for the current editor page using the UI status bar. The current DT can
+ * be swapped, which causes all instances of the DT control panel to be refocused.
  *
- * <p>IDEA: top menu has DT choice (MenuButton) + DT switch to main view button (->) + Observer
- * label + Observer choice (MenuButton)
- *
- * <p>TODO add view types and toggles in menu bar. Use DT icon for the full view. Link
- * info/warn/error from local service to activities.
- *
- * <p>Upper bar: switch between activities, knowledge graph, schedule, observers + Current context
- * or "Root"; on right, log toggle (for activities or other) and stats (time in existence etc. in
- * tooltip)
- *
- * <p>Below bar: DT icon to switch to full view + DT name and current observer; on right, connected
- * scopes and delete button
- *
- * <p>Center area shows context in some way and has spinner for current observation (ideally on top
- * of context). If no context show the "drop here" arrow, same size spinner if computing. Errors and
- * info message should be just small buttons getting colored; click should show the list as an
- * overlay. Full logs in full view
- *
- * <p>Bottom menu has Context choice (MenuButton) + Context label + Scenario count + Scenario choose
- * button (dialog or switch)/reset all scenarios
+ * <p>Center area shows content of the DT according to the selected viee in IDLE or COMPUTING state,
+ * and displays the "drop here" arrow when in RECEIVING mode (normally during a drag of a suitable
+ * resolvable from the associated editor page).
  */
 public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinViewer {
 
   private final ProgressIndicator progressIndicator;
   private final HBox topBar;
-  //  private final HBox bottomBar;
   private final Button resetButton;
   private final Button activitiesButton;
   private final Button scenarioButton;
@@ -84,9 +67,6 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   public enum View {
     ACTIVITIES,
     OBSERVATIONS,
-    //    SCHEDULE,
-    //    KNOWLEDGE_GRAPH,
-    //    LOGS,
     OBSERVERS,
     SCENARIOS,
     IDLE;
@@ -192,10 +172,6 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     dropZone.setStyle(
         "-fx-background-color: #F5F5F5; -fx-border-color: grey; -fx-border-width: 5; -fx-border-style: dashed; -fx-border-radius: 10;");
     setCenter(null); // TODO use some idle view
-
-    //    // Create bottom control bar for scenarios
-    //    this.bottomBar = new HBox(10);
-    //    setBottom(bottomBar);
   }
 
   private void setView(View view) {
