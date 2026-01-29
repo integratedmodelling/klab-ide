@@ -210,8 +210,8 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
 
       if (service != null) {
         resource =
-            service.retrieveResource(
-                List.of(resourceInfo.getUrn()), KlabIDEController.instance().user());
+            service.retrieve(
+                resourceInfo.getUrn(), Resource.class, KlabIDEController.instance().user());
       } else if (KlabIDEController.instance().getFocalScope() != null) {
 
         var resolver =
