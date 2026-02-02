@@ -73,7 +73,7 @@ public class Asset implements RuntimeAsset {
           case ACTIVITY -> null;
           case PLAN -> null;
           case AGENT -> null;
-          //          case ARTIFACT -> null;
+          case COMMIT -> null;
           case DATA -> null;
           case LINK -> null;
         };
@@ -87,7 +87,7 @@ public class Asset implements RuntimeAsset {
           case ACTIVITY -> null;
           case PLAN -> null;
           case AGENT -> null;
-          //          case ARTIFACT -> null;
+          case COMMIT -> null;
           case DATA -> null;
           case LINK -> null;
           case COHORT -> null;
