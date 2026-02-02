@@ -368,7 +368,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
     Platform.runLater(
         () -> {
-          observationTree.update(scope, (Observation) ids.getFirst());
+          observationTree.update(scope, ids.getFirst());
           setView(View.OBSERVATIONS);
         });
   }

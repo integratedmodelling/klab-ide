@@ -68,6 +68,7 @@ public class Asset implements RuntimeAsset {
           case ACTUATOR -> null;
           case CONTEXT -> "homeVertex";
           case DATAFLOW -> null;
+          case COHORT -> null;
           case PROVENANCE -> null;
           case ACTIVITY -> null;
           case PLAN -> null;
@@ -89,6 +90,7 @@ public class Asset implements RuntimeAsset {
           //          case ARTIFACT -> null;
           case DATA -> null;
           case LINK -> null;
+          case COHORT -> null;
         };
     if (style != null) {
       var stylableVertex = graphView.getStylableVertex(this);
