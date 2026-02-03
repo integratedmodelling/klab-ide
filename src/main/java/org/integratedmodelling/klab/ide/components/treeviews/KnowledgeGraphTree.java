@@ -47,45 +47,45 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
     return this.scope.getId().equals(scope.getId());
   }
 
-  private class AssetTreeItem extends TreeItem<RuntimeAsset> {
-
-    public AssetTreeItem(RuntimeAsset asset) {
-      super(asset);
-    }
-
-    @Override
-    public boolean isLeaf() {
-      var asset = getValue();
-      return asset == null
-          || (asset instanceof Observation && asset.getChildrenCount() == 0)
-          || (!(asset
-                  instanceof Observation) // TODO eventually this should be correct for all assets
-              && clientKnowledgeGraph.outgoing(asset, GraphModel.Relationship.HAS_CHILD).isEmpty());
-    }
-
-    //    private ObservableList<TreeItem<RuntimeAsset>> children;
-
-    @Override
-    public ObservableList<TreeItem<RuntimeAsset>> getChildren() {
-
-      var children = super.getChildren();
-      RuntimeAsset asset = getValue();
-      if (asset != null && (!(asset instanceof Observation) || asset.getChildrenCount() > 0)) {
-        Set<Long> selectedIds =
-            new HashSet<>(
-                children.stream().map(TreeItem::getValue).map(RuntimeAsset::getId).toList());
-        var ch = clientKnowledgeGraph.getChildAssets(asset);
-        for (var child : ch) {
-          if (selectedIds.contains(child.getId())) {
-            continue;
-          }
-          children.add(new AssetTreeItem(child));
-        }
-        return children;
-      }
-      return children;
-    }
-  }
+//  private class AssetTreeItem extends TreeItem<RuntimeAsset> {
+//
+//    public AssetTreeItem(RuntimeAsset asset) {
+//      super(asset);
+//    }
+//
+//    @Override
+//    public boolean isLeaf() {
+//      var asset = getValue();
+//      return asset == null
+//          || (asset instanceof Observation && asset.getChildrenCount() == 0)
+//          || (!(asset
+//                  instanceof Observation) // TODO eventually this should be correct for all assets
+//              && clientKnowledgeGraph.outgoing(asset, GraphModel.Relationship.HAS_CHILD).isEmpty());
+//    }
+//
+//    //    private ObservableList<TreeItem<RuntimeAsset>> children;
+//
+//    @Override
+//    public ObservableList<TreeItem<RuntimeAsset>> getChildren() {
+//
+//      var children = super.getChildren();
+//      RuntimeAsset asset = getValue();
+//      if (asset != null && (!(asset instanceof Observation) || asset.getChildrenCount() > 0)) {
+//        Set<Long> selectedIds =
+//            new HashSet<>(
+//                children.stream().map(TreeItem::getValue).map(RuntimeAsset::getId).toList());
+//        var ch = clientKnowledgeGraph.getChildAssets(asset);
+//        for (var child : ch) {
+//          if (selectedIds.contains(child.getId())) {
+//            continue;
+//          }
+//          children.add(new AssetTreeItem(child));
+//        }
+//        return children;
+//      }
+//      return children;
+//    }
+//  }
 
   public KnowledgeGraphTree() {
     super();
@@ -95,7 +95,7 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
     super();
     this.scope = KlabIDEController.instance().requireDigitalTwinPeer(contextScope, this);
     this.clientKnowledgeGraph = this.scope.getDigitalTwin().getKnowledgeGraph();
-    setRoot(new AssetTreeItem(rootAsset));
+    setRoot(new AssetTreeItem(rootAsset, scope));
   }
 
   @Override
@@ -182,7 +182,7 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
   public void focusObservations(List<RuntimeAsset> ids) {
 
     // reset graph
-    setRoot(new AssetTreeItem(RuntimeAsset.CONTEXT_ASSET));
+    setRoot(new AssetTreeItem(RuntimeAsset.CONTEXT_ASSET, scope));
 
     // TODO ensure the observations are selected
   }

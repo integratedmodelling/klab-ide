@@ -3,29 +3,19 @@ package org.integratedmodelling.klab.ide.components.treeviews;
 import atlantafx.base.theme.Styles;
 import atlantafx.base.theme.Tweaks;
 import javafx.beans.property.SimpleObjectProperty;
-import javafx.collections.ObservableList;
 import javafx.geometry.Pos;
-import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeTableColumn;
 import javafx.scene.control.TreeTableView;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
-import javafx.scene.paint.Color;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
 import org.integratedmodelling.common.utils.Utils;
-import org.integratedmodelling.klab.api.data.KnowledgeGraph;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
-import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
-import org.integratedmodelling.klab.api.knowledge.Cohort;
-import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
-
-import java.util.HashSet;
-import java.util.Set;
 
 public class ObservationTree extends TreeTableView<RuntimeAsset> {
 
@@ -117,59 +107,4 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
     return null;
   }
 
-  private class AssetTreeItem extends TreeItem<RuntimeAsset> {
-
-    private IDEContextScope scope;
-
-    public AssetTreeItem(RuntimeAsset asset, IDEContextScope scope) {
-      super(asset);
-      this.scope = scope;
-    }
-
-    @Override
-    public boolean isLeaf() {
-      var asset = getValue();
-      return asset == null
-          || (asset instanceof KnowledgeGraph.Commit commit && commit.getAddedAssets().isEmpty())
-          || (asset instanceof Observation && asset.getChildrenCount() == 0)
-          || (!(asset
-                  instanceof Observation) // TODO eventually this should be correct for all assets
-              && clientKnowledgeGraph.outgoing(asset, GraphModel.Relationship.HAS_CHILD).isEmpty());
-    }
-
-    @Override
-    public ObservableList<TreeItem<RuntimeAsset>> getChildren() {
-
-      var children = super.getChildren();
-      RuntimeAsset asset = getValue();
-      if (asset instanceof KnowledgeGraph.Commit commit) {
-        for (var observationId : commit.getAddedObservations()) {
-          var observation = clientKnowledgeGraph.getAsset(observationId, scope, Observation.class);
-          if (observation != null) {
-            children.add(new AssetTreeItem(observation, scope));
-          }
-        }
-        for (var cohortId : commit.getAddedCohorts()) {
-          var cohort = clientKnowledgeGraph.getAsset(cohortId, scope, Cohort.class);
-          if (cohort != null) {
-            children.add(new AssetTreeItem(cohort, scope));
-          }
-        }
-      } else if (asset != null
-          && (!(asset instanceof Observation) || asset.getChildrenCount() > 0)) {
-        Set<Long> selectedIds =
-            new HashSet<>(
-                children.stream().map(TreeItem::getValue).map(RuntimeAsset::getId).toList());
-        var ch = clientKnowledgeGraph.getChildAssets(asset);
-        for (var child : ch) {
-          if (selectedIds.contains(child.getId())) {
-            continue;
-          }
-          children.add(new AssetTreeItem(child, scope));
-        }
-        return children;
-      }
-      return children;
-    }
-  }
 }
