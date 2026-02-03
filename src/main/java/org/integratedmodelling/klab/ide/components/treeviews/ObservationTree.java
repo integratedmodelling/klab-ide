@@ -15,8 +15,10 @@ import javafx.scene.layout.Priority;
 import javafx.scene.paint.Color;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
 import org.integratedmodelling.common.utils.Utils;
+import org.integratedmodelling.klab.api.data.KnowledgeGraph;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
+import org.integratedmodelling.klab.api.knowledge.Cohort;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.Theme;
@@ -38,16 +40,6 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
     TreeTableColumn<RuntimeAsset, HBox> descriptionColumn = new TreeTableColumn<>("Description");
     descriptionColumn.setCellValueFactory(
         param -> new SimpleObjectProperty<>(observationDescription(param.getValue().getValue())));
-
-    //    TreeTableColumn<RuntimeAsset, Node> statusColumn = new TreeTableColumn<>("Status");
-    //    statusColumn.setMinWidth(40);
-    //    statusColumn.setMaxWidth(40);
-    //    statusColumn.setCellValueFactory(
-    //        param -> {
-    //          var activity = param.getValue() == null ? null : param.getValue().getValue();
-    //          var icon = Theme.getGraphics(activity);
-    //          return new SimpleObjectProperty<>(icon);
-    //        });
 
     descriptionColumn.prefWidthProperty().bind(widthProperty().subtract(10));
 
@@ -78,19 +70,20 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
     System.out.println("PUTAZZO IL GESÚ");
   }
 
-  public void update(IDEContextScope scope, RuntimeAsset observation) {
+  public void update(IDEContextScope scope, RuntimeAsset asset) {
     //  redraw tree and select the passed observation
     this.clientKnowledgeGraph = scope.getDigitalTwin().getKnowledgeGraph();
-    setRoot(new AssetTreeItem(RuntimeAsset.CONTEXT_ASSET));
+    var root = new AssetTreeItem(asset, scope);
+    setRoot(root);
     //  select observation
-    var treeItem = findTreeItem(observation);
-    if (treeItem != null) {
-      if (treeItem.getParent() != null) {
-        treeItem.getParent().setExpanded(true);
-      }
-      getSelectionModel().select(treeItem);
-      scrollTo(getSelectionModel().getSelectedIndex());
-    }
+    //    var treeItem = findTreeItem(observation);
+    //    if (treeItem != null) {
+    //      if (treeItem.getParent() != null) {
+    root.setExpanded(true);
+    //      }
+    //      getSelectionModel().select(treeItem);
+    //      scrollTo(getSelectionModel().getSelectedIndex());
+    //    }
   }
 
   private TreeItem<RuntimeAsset> findTreeItem(RuntimeAsset asset) {
@@ -126,14 +119,18 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
 
   private class AssetTreeItem extends TreeItem<RuntimeAsset> {
 
-    public AssetTreeItem(RuntimeAsset asset) {
+    private IDEContextScope scope;
+
+    public AssetTreeItem(RuntimeAsset asset, IDEContextScope scope) {
       super(asset);
+      this.scope = scope;
     }
 
     @Override
     public boolean isLeaf() {
       var asset = getValue();
       return asset == null
+          || (asset instanceof KnowledgeGraph.Commit commit && commit.getAddedAssets().isEmpty())
           || (asset instanceof Observation && asset.getChildrenCount() == 0)
           || (!(asset
                   instanceof Observation) // TODO eventually this should be correct for all assets
@@ -145,7 +142,21 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
 
       var children = super.getChildren();
       RuntimeAsset asset = getValue();
-      if (asset != null && (!(asset instanceof Observation) || asset.getChildrenCount() > 0)) {
+      if (asset instanceof KnowledgeGraph.Commit commit) {
+        for (var observationId : commit.getAddedObservations()) {
+          var observation = clientKnowledgeGraph.getAsset(observationId, scope, Observation.class);
+          if (observation != null) {
+            children.add(new AssetTreeItem(observation, scope));
+          }
+        }
+        for (var cohortId : commit.getAddedCohorts()) {
+          var cohort = clientKnowledgeGraph.getAsset(cohortId, scope, Cohort.class);
+          if (cohort != null) {
+            children.add(new AssetTreeItem(cohort, scope));
+          }
+        }
+      } else if (asset != null
+          && (!(asset instanceof Observation) || asset.getChildrenCount() > 0)) {
         Set<Long> selectedIds =
             new HashSet<>(
                 children.stream().map(TreeItem::getValue).map(RuntimeAsset::getId).toList());
@@ -154,7 +165,7 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
           if (selectedIds.contains(child.getId())) {
             continue;
           }
-          children.add(new AssetTreeItem(child));
+          children.add(new AssetTreeItem(child, scope));
         }
         return children;
       }

@@ -10,6 +10,7 @@ import org.integratedmodelling.klab.api.branding.Branding;
 import org.integratedmodelling.klab.api.data.RepositoryState;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.exceptions.KlabInternalErrorException;
+import org.integratedmodelling.klab.api.knowledge.Cohort;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.SemanticType;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
@@ -132,6 +133,7 @@ public enum Theme {
   public static Ikon DEFINITION_ICON = Material2MZ.WORK_OUTLINE;
   public static Ikon BEHAVIOR_ICON = Material2MZ.WORK_OUTLINE;
   public static Ikon FOLDER_ICON = Material2AL.FOLDER_OPEN;
+  public static Ikon COHORT_ICON = Material2AL.FOLDER_OPEN;
   public static Ikon TESTCASE_ICON = Material2MZ.WORK_OUTLINE;
   public static Ikon APP_ICON = Material2MZ.WORK_OUTLINE;
   public static Ikon COMPONENT_ICON = Material2MZ.WORK_OUTLINE;
@@ -303,9 +305,12 @@ public enum Theme {
     } else if (asset instanceof RuntimeAsset) {
       // TODO all real chances first
       if (asset instanceof Observation observation) {
-        return observation.getName() == null
-            ? observation.getObservable().getName()
-            : observation.getName();
+        return Branding.observationDescription(
+                observation, Branding.DescriptionStyle.SHORTEST);
+      } else if (asset instanceof Cohort cohort) {
+        return Branding.pluralize(
+            Branding.conceptDescription(
+                cohort.getObservable(), Branding.DescriptionStyle.SHORTEST));
       }
       return "Knowledge Graph";
     }
