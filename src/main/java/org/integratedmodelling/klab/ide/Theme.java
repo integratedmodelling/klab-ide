@@ -6,6 +6,7 @@ import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tooltip;
 import javafx.scene.paint.Color;
+import org.atteo.evo.inflector.English;
 import org.integratedmodelling.klab.api.branding.Branding;
 import org.integratedmodelling.klab.api.data.RepositoryState;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
@@ -14,6 +15,7 @@ import org.integratedmodelling.klab.api.knowledge.Cohort;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.SemanticType;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
+import org.integratedmodelling.klab.api.knowledge.organization.Project;
 import org.integratedmodelling.klab.api.lang.kim.KimModel;
 import org.integratedmodelling.klab.api.lang.kim.KimSymbolDefinition;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
@@ -236,6 +238,7 @@ public enum Theme {
           case NavigableKimOntology ignored -> ONTOLOGY_ICON;
           case NavigableKimNamespace ignored -> NAMESPACE_ICON;
           case NavigableFolder ignored -> FOLDER_ICON;
+          case Cohort ignored -> COHORT_ICON;
           case Observation observation -> {
             semanticType =
                 SemanticType.fundamentalType(observation.getObservable().getSemantics().getType());
@@ -296,26 +299,36 @@ public enum Theme {
   }
 
   public static <T> String getLabel(T asset) {
+
     if (asset instanceof NavigableAsset navigableAsset) {
       var repositoryStatus =
           navigableAsset
               .localMetadata()
               .get(NavigableAsset.REPOSITORY_STATUS_KEY, RepositoryState.Status.class);
-      return repositoryStatusPrefix(repositoryStatus) + navigableAsset.getUrn();
+      var ret = repositoryStatusPrefix(repositoryStatus) + navigableAsset.getUrn();
+      if (asset instanceof Project) {
+        var branch =
+            navigableAsset
+                .localMetadata()
+                .get(NavigableAsset.REPOSITORY_CURRENT_BRANCH_KEY, String.class);
+        if (branch != null) {
+          ret += " [" + branch + "]";
+        }
+      }
+      return ret;
     } else if (asset instanceof RuntimeAsset) {
       // TODO all real chances first
       if (asset instanceof Observation observation) {
-        return Branding.observationDescription(
-                observation, Branding.DescriptionStyle.SHORTEST);
+        return Branding.observationDescription(observation, Branding.DescriptionStyle.SHORTEST);
       } else if (asset instanceof Cohort cohort) {
-        return Branding.pluralize(
+        return English.plural(
             Branding.conceptDescription(
                 cohort.getObservable(), Branding.DescriptionStyle.SHORTEST));
       }
-      return "Knowledge Graph";
+      return "RuntimeAsset";
     }
 
-    return "BLAAAAH";
+    return "BLAH";
   }
 
   private static String repositoryStatusPrefix(RepositoryState.Status repositoryStatus) {
