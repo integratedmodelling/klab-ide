@@ -18,6 +18,7 @@ import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.organization.Project;
 import org.integratedmodelling.klab.api.lang.kim.KimModel;
 import org.integratedmodelling.klab.api.lang.kim.KimSymbolDefinition;
+import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableAsset;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableFolder;
@@ -316,7 +317,7 @@ public enum Theme {
         }
       }
       return ret;
-    } else if (asset instanceof RuntimeAsset) {
+    } else if (asset instanceof RuntimeAsset runtimeAsset) {
       // TODO all real chances first
       if (asset instanceof Observation observation) {
         return Branding.observationDescription(observation, Branding.DescriptionStyle.SHORTEST);
@@ -324,8 +325,10 @@ public enum Theme {
         return English.plural(
             Branding.conceptDescription(
                 cohort.getObservable(), Branding.DescriptionStyle.SHORTEST));
+      } else if (asset instanceof RuntimeAsset.ContextAsset) {
+        return "Knowledge Graph";
       }
-      return "RuntimeAsset";
+      return "DIOPORCO " + asset;
     }
 
     return "BLAH";
