@@ -337,6 +337,9 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     var root = observation.getMetadata().containsKey(Metadata.IM_COMMIT)
             ? observation.getMetadata().get(Metadata.IM_COMMIT, KnowledgeGraph.Commit.class)
             : RuntimeAsset.CONTEXT_ASSET;
+
+    focusObservations(root, List.of(observation));
+
   }
 
   @Override

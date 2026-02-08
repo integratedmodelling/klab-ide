@@ -71,7 +71,7 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
     var root = observation.getMetadata().containsKey(Metadata.IM_COMMIT)
             ? observation.getMetadata().get(Metadata.IM_COMMIT, KnowledgeGraph.Commit.class)
             : RuntimeAsset.CONTEXT_ASSET;
-
+    focusObservations(root, List.of(observation));
   }
 
   @Override
@@ -149,7 +149,7 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
   public void focusObservations(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets) {
 
     // reset graph
-    setRoot(new AssetTreeItem(RuntimeAsset.CONTEXT_ASSET, scope));
+    setRoot(new AssetTreeItem(rootAsset, scope));
 
     // TODO ensure the observations are selected
   }
