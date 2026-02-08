@@ -60,10 +60,10 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
     System.out.println("PUTAZZO IL GESÚ");
   }
 
-  public void update(IDEContextScope scope, RuntimeAsset asset) {
+  public void update(IDEContextScope scope, RuntimeAsset rootAsset, RuntimeAsset focalAsset) {
     //  redraw tree and select the passed observation
     this.clientKnowledgeGraph = scope.getDigitalTwin().getKnowledgeGraph();
-    var root = new AssetTreeItem(asset, scope);
+    var root = new AssetTreeItem(rootAsset, scope);
     setRoot(root);
     //  select observation
     //    var treeItem = findTreeItem(observation);

@@ -17,6 +17,8 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
+import org.integratedmodelling.klab.api.data.KnowledgeGraph;
+import org.integratedmodelling.klab.api.data.Metadata;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
@@ -91,17 +93,19 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
 
     homeButton.setOnAction(
         event -> {
-          scope.setFocalAssets(RuntimeAsset.CONTEXT_ASSET);
+          scope.setFocalAssets(RuntimeAsset.CONTEXT_ASSET, List.of());
           graphView.setAutomaticLayout(true);
         });
     minusButton.setOnAction(
         event -> {
-          scope.setGraphDepth(scope.getGraphDepth() - 1);
+          scope.setGraphDepth(
+              scope.getGraphDepth() > 2 ? scope.getGraphDepth() - 1 : scope.getGraphDepth());
           graphView.setAutomaticLayout(true);
         });
     plusButton.setOnAction(
         event -> {
-          scope.setGraphDepth(scope.getGraphDepth() + 1);
+          scope.setGraphDepth(
+              scope.getGraphDepth() == 5 ? scope.getGraphDepth() : scope.getGraphDepth() + 1);
           graphView.setAutomaticLayout(true);
         });
     redrawButton.setOnAction(
@@ -173,7 +177,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
               asset = wrapper.getDelegate();
             }
             //            this.editor.selectAsset(asset);
-            this.scope.setFocalAssets(asset);
+            this.scope.setFocalAssets(this.scope.getFocalRoot(), List.of(asset));
           });
 
       graphView.setEdgeDoubleClickAction(
@@ -316,10 +320,11 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
 
   @Override
   public void submissionFinished(Observation observation) {
-    changePending();
-  }
+    var root =
+        observation.getMetadata().containsKey(Metadata.IM_COMMIT)
+            ? observation.getMetadata().get(Metadata.IM_COMMIT, KnowledgeGraph.Commit.class)
+            : RuntimeAsset.CONTEXT_ASSET;
 
-  private void changePending() {
     this.changePending.set(true);
   }
 
@@ -336,7 +341,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   public void activitiesModified() {}
 
   @Override
-  public void focusObservations(List<RuntimeAsset> assets) {
+  public void focusObservations(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets) {
     updateGraphSafely();
   }
 
@@ -430,8 +435,6 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   @Override
   public void closeDigitalTwin(IDEContextScope ideContextScope) {}
 
-    @Override
-    public void unsetDigitalTwin(IDEContextScope focalScope) {
-
-    }
+  @Override
+  public void unsetDigitalTwin(IDEContextScope focalScope) {}
 }

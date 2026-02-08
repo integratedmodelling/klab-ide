@@ -16,6 +16,8 @@ import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledg
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.collections.Pair;
 import org.integratedmodelling.klab.api.collections.Parameters;
+import org.integratedmodelling.klab.api.data.KnowledgeGraph;
+import org.integratedmodelling.klab.api.data.Metadata;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.SemanticType;
@@ -158,7 +160,7 @@ public class DigitalTwinEditor extends EditorPage<IDEContextScope, RuntimeAsset>
   public void activitiesModified() {}
 
   @Override
-  public void focusObservations(List<RuntimeAsset> ids) {}
+  public void focusObservations(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets) {}
 
   @Override
   protected void onVisualize(boolean visibleAfterCall) {
@@ -240,7 +242,12 @@ public class DigitalTwinEditor extends EditorPage<IDEContextScope, RuntimeAsset>
   public void submissionAborted(Observation observation) {}
 
   @Override
-  public void submissionFinished(Observation observation) {}
+  public void submissionFinished(Observation observation) {
+    var root = observation.getMetadata().containsKey(Metadata.IM_COMMIT)
+            ? observation.getMetadata().get(Metadata.IM_COMMIT, KnowledgeGraph.Commit.class)
+            : RuntimeAsset.CONTEXT_ASSET;
+
+  }
 
   @Override
   public void setContext(Observation observation) {}

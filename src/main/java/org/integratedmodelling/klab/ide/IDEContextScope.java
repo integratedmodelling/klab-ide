@@ -16,6 +16,8 @@ import org.integratedmodelling.common.services.client.digitaltwin.ClientDigitalT
 import org.integratedmodelling.common.services.client.scope.ClientContextScope;
 import org.integratedmodelling.klab.api.collections.Parameters;
 import org.integratedmodelling.klab.api.data.Data;
+import org.integratedmodelling.klab.api.data.KnowledgeGraph;
+import org.integratedmodelling.klab.api.data.Metadata;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.digitaltwin.DigitalTwin;
 import org.integratedmodelling.klab.api.identities.Federation;
@@ -64,6 +66,8 @@ public class IDEContextScope implements ContextScope {
       new DefaultDirectedGraph<>(DefaultEdge.class);
   private HashMap<Long, Activity> activities = new HashMap<>();
   private Schedule schedule;
+  private AtomicReference<RuntimeAsset> focalRoot =
+      new AtomicReference<>(RuntimeAsset.CONTEXT_ASSET);
   private final AtomicReference<List<RuntimeAsset>> focalObservations =
       new AtomicReference<>(List.of(RuntimeAsset.CONTEXT_ASSET));
   //  private List<RuntimeAsset> focalAssets = Collections.synchronizedList(new ArrayList<>());
@@ -89,13 +93,11 @@ public class IDEContextScope implements ContextScope {
     return focalObservations.get();
   }
 
-  public void setFocalAssets(RuntimeAsset... assets) {
-    focalObservations.set(List.of());
-    if (assets != null) {
-      focalObservations.set(Arrays.asList(assets));
-    }
+  public void setFocalAssets(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets) {
+    focalObservations.set(focalAssets);
+    focalRoot.set(rootAsset);
     for (var view : viewers) {
-      view.focusObservations(focalObservations.get());
+      view.focusObservations(rootAsset, focalAssets);
     }
   }
 
@@ -112,7 +114,7 @@ public class IDEContextScope implements ContextScope {
     if (newDepth >= 1 && newDepth <= 5) {
       this.graphDepth = newDepth;
       for (var view : viewers) {
-        view.focusObservations(focalObservations.get());
+        view.focusObservations(focalRoot.get(), focalObservations.get());
       }
     }
   }
@@ -125,19 +127,23 @@ public class IDEContextScope implements ContextScope {
       case ObservationSubmissionFinished -> {
         var observation = message.getPayload(Observation.class);
         executor.execute(() -> viewers.forEach(v -> v.submissionFinished(observation)));
-      }
-      case ObservationsInFocus -> {
-        var ids = message.getPayload(String.class);
-        var observations =
-            Utils.Data.parseList(ids, Long.class, ",").stream()
-                .map(
-                    id ->
-                        delegate
-                            .getDigitalTwin()
-                            .getKnowledgeGraph()
-                            .getAsset(id, delegate, RuntimeAsset.class))
-                .toList();
-        this.setFocus(observations);
+        //      }
+        //      case ObservationsInFocus -> {
+        //        var ids = message.getPayload(String.class);
+        //        var observations =
+        //            Utils.Data.parseList(ids, Long.class, ",").stream()
+        //                .map(
+        //                    id ->
+        //                        delegate
+        //                            .getDigitalTwin()
+        //                            .getKnowledgeGraph()
+        //                            .getAsset(id, delegate, RuntimeAsset.class))
+        //                .toList();
+        this.setFocus(
+            observation.getMetadata().containsKey(Metadata.IM_COMMIT)
+                ? observation.getMetadata().get(Metadata.IM_COMMIT, KnowledgeGraph.Commit.class)
+                : RuntimeAsset.CONTEXT_ASSET,
+            List.of(observation));
       }
       case ActivityFinished -> {
         var activity = message.getPayload(Activity.class);
@@ -175,9 +181,10 @@ public class IDEContextScope implements ContextScope {
     return activityGraph;
   }
 
-  public void setFocus(List<RuntimeAsset> ids) {
+  public void setFocus(RuntimeAsset root, List<RuntimeAsset> ids) {
     this.focalObservations.set(ids);
-    executor.execute(() -> viewers.forEach(v -> v.focusObservations(ids)));
+    this.focalRoot.set(root);
+    executor.execute(() -> viewers.forEach(v -> v.focusObservations(root, ids)));
   }
 
   @Override
@@ -597,5 +604,9 @@ public class IDEContextScope implements ContextScope {
     }
     Collections.reverse(path);
     return path;
+  }
+
+  public RuntimeAsset getFocalRoot() {
+    return focalRoot.get();
   }
 }

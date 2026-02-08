@@ -43,7 +43,8 @@ public interface DigitalTwinViewer extends DigitalTwinReactor {
    * knowledge graph. Any observation beyond the first is unlinked to the submitted observation, so
    * it should be added to the graph for visibility.
    *
-   * @param ids
+   * @param rootAsset
+   * @param focalAssets
    */
-  void focusObservations(List<RuntimeAsset> ids);
+  void focusObservations(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets);
 }

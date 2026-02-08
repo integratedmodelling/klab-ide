@@ -9,6 +9,8 @@ import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 import javafx.scene.text.Text;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
+import org.integratedmodelling.klab.api.data.KnowledgeGraph;
+import org.integratedmodelling.klab.api.data.Metadata;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
@@ -65,7 +67,12 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
   public void submissionAborted(Observation observation) {}
 
   @Override
-  public void submissionFinished(Observation observation) {}
+  public void submissionFinished(Observation observation) {
+    var root = observation.getMetadata().containsKey(Metadata.IM_COMMIT)
+            ? observation.getMetadata().get(Metadata.IM_COMMIT, KnowledgeGraph.Commit.class)
+            : RuntimeAsset.CONTEXT_ASSET;
+
+  }
 
   @Override
   public void setContext(Observation observation) {
@@ -139,7 +146,7 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
   public void activitiesModified() {}
 
   @Override
-  public void focusObservations(List<RuntimeAsset> ids) {
+  public void focusObservations(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets) {
 
     // reset graph
     setRoot(new AssetTreeItem(RuntimeAsset.CONTEXT_ASSET, scope));

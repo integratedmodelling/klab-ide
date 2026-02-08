@@ -19,6 +19,8 @@ import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.paint.Color;
 import org.integratedmodelling.common.utils.Utils;
+import org.integratedmodelling.klab.api.data.KnowledgeGraph;
+import org.integratedmodelling.klab.api.data.Metadata;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedule;
@@ -331,7 +333,11 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   }
 
   @Override
-  public void submissionFinished(Observation observation) {}
+  public void submissionFinished(Observation observation) {
+    var root = observation.getMetadata().containsKey(Metadata.IM_COMMIT)
+            ? observation.getMetadata().get(Metadata.IM_COMMIT, KnowledgeGraph.Commit.class)
+            : RuntimeAsset.CONTEXT_ASSET;
+  }
 
   @Override
   public void setContext(Observation observation) {
@@ -364,11 +370,12 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   }
 
   @Override
-  public void focusObservations(List<RuntimeAsset> ids) {
+  public void focusObservations(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets) {
 
     Platform.runLater(
         () -> {
-          observationTree.update(scope, ids.getFirst());
+          observationTree.update(
+              scope, rootAsset, focalAssets.isEmpty() ? null : focalAssets.getFirst());
           setView(View.OBSERVATIONS);
         });
   }
