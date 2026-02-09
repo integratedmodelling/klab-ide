@@ -63,7 +63,7 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
   public void update(IDEContextScope scope, RuntimeAsset rootAsset, RuntimeAsset focalAsset) {
     //  redraw tree and select the passed observation
     this.clientKnowledgeGraph = scope.getDigitalTwin().getKnowledgeGraph();
-    var root = new AssetTreeItem(rootAsset, scope);
+    var root = new TreeModel.AssetTreeItem(rootAsset, scope);
     setRoot(root);
     //  select observation
     //    var treeItem = findTreeItem(observation);

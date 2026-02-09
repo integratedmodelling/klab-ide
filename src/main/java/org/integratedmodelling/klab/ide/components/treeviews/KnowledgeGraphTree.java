@@ -22,9 +22,9 @@ import org.integratedmodelling.klab.ide.IDEContextScope;
 
 public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements DigitalTwinViewer {
 
-  private AssetTreeItem previousBoldItem;
+  private TreeModel.AssetTreeItem previousBoldItem;
   private ClientKnowledgeGraph clientKnowledgeGraph;
-  private AssetTreeItem root;
+  private TreeModel.AssetTreeItem root;
   private IDEContextScope scope;
 
   public TreeItem<RuntimeAsset> findItemById(long id) {
@@ -57,7 +57,7 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
     super();
     this.scope = KlabIDEController.instance().requireDigitalTwinPeer(contextScope, this);
     this.clientKnowledgeGraph = this.scope.getDigitalTwin().getKnowledgeGraph();
-    setRoot(new AssetTreeItem(rootAsset, scope));
+    setRoot(new TreeModel.AssetTreeItem(rootAsset, scope));
   }
 
   @Override
@@ -68,7 +68,8 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
 
   @Override
   public void submissionFinished(Observation observation) {
-    var root = observation.getMetadata().containsKey(Metadata.IM_COMMIT)
+    var root =
+        observation.getMetadata().containsKey(Metadata.IM_COMMIT)
             ? observation.getMetadata().get(Metadata.IM_COMMIT, KnowledgeGraph.Commit.class)
             : RuntimeAsset.CONTEXT_ASSET;
     focusObservations(root, List.of(observation));
@@ -81,7 +82,7 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
     // should only react to the notification
 
     if (observation != null) {
-      var item = findTreeItemById((AssetTreeItem) getRoot(), observation.getId());
+      var item = findTreeItemById((TreeModel.AssetTreeItem) getRoot(), observation.getId());
       Platform.runLater(
           () -> {
             if (previousBoldItem != null) {
@@ -117,12 +118,12 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
     }
   }
 
-  private AssetTreeItem findTreeItemById(AssetTreeItem current, long id) {
+  private TreeModel.AssetTreeItem findTreeItemById(TreeModel.AssetTreeItem current, long id) {
     if (current.getValue() != null && current.getValue().getId() == id) {
       return current;
     }
     for (var child : current.getChildren()) {
-      var result = findTreeItemById((AssetTreeItem) child, id);
+      var result = findTreeItemById((TreeModel.AssetTreeItem) child, id);
       if (result != null) {
         return result;
       }
@@ -149,7 +150,7 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
   public void focusObservations(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets) {
 
     // reset graph
-    setRoot(new AssetTreeItem(rootAsset, scope));
+    setRoot(new TreeModel.AssetTreeItem(rootAsset, scope));
 
     // TODO ensure the observations are selected
   }
