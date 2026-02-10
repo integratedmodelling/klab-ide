@@ -5,13 +5,16 @@ import javafx.scene.control.TreeItem;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
 import org.integratedmodelling.klab.api.collections.Pair;
 import org.integratedmodelling.klab.api.data.KnowledgeGraph;
+import org.integratedmodelling.klab.api.data.Metadata;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
 import org.integratedmodelling.klab.api.knowledge.Cohort;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.jgrapht.Graph;
+import org.jgrapht.graph.DefaultDirectedGraph;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -42,12 +45,44 @@ public class TreeModel {
    * @return a graph representation of the asset's relationships
    */
   public static Graph<RuntimeAsset, ClientKnowledgeGraph.Relationship> createGraph(
-      RuntimeAsset asset, int depth, IDEContextScope scope) {
-    return null;
+      RuntimeAsset asset,
+      int depth,
+      IDEContextScope scope,
+      Set<RuntimeAsset.Type> types,
+      Set<GraphModel.Relationship> relationships) {
+    var ret =
+        new DefaultDirectedGraph<RuntimeAsset, ClientKnowledgeGraph.Relationship>(
+            ClientKnowledgeGraph.Relationship.class);
+    createGraph(asset, depth, scope, types, relationships, ret);
+    return ret;
+  }
+
+  private static void createGraph(
+      RuntimeAsset asset,
+      int depth,
+      IDEContextScope scope,
+      Set<RuntimeAsset.Type> types,
+      Set<GraphModel.Relationship> relationships,
+      Graph<RuntimeAsset, ClientKnowledgeGraph.Relationship> graph) {
+    graph.addVertex(asset);
+    for (var child : getChildren(asset, scope, types, relationships)) {
+      graph.addVertex(child.getFirst());
+      graph.addEdge(
+          asset,
+          child.getFirst(),
+          new ClientKnowledgeGraph.Relationship(
+              child.getSecond(), asset.getId(), child.getFirst().getId(), Metadata.create()));
+      if (depth > 0) {
+        createGraph(child.getFirst(), depth - 1, scope, types, relationships, graph);
+      }
+    }
   }
 
   /**
-   * Get the outgoing related objects of the given asset.
+   * Get the outgoing related objects of the given asset filtering for the specified types and
+   * relationships. Walk the knowledge graph from the scope unless the passed asset is a commit, in
+   * which case the strategy picks the results that have been committed and arranges them for best
+   * visibility.
    *
    * @param asset
    * @param scope
@@ -60,7 +95,37 @@ public class TreeModel {
       IDEContextScope scope,
       Set<RuntimeAsset.Type> types,
       Set<GraphModel.Relationship> relationships) {
-    return null;
+
+    var kg = scope.getDigitalTwin().getKnowledgeGraph();
+    var ret = new ArrayList<Pair<RuntimeAsset, GraphModel.Relationship>>();
+
+    /*
+     * This can only happen at root level, as the commit is not stored in the KG
+     */
+    if (asset instanceof KnowledgeGraph.Commit commit) {
+      if (commit.getAddedAssets().isEmpty()) {
+        return List.of();
+      } else if (commit.getAddedObservations().size() == 1) {
+        var ass = kg.getAsset(commit.getAddedAssets().iterator().next(), scope, RuntimeAsset.class);
+        ret.add(
+            Pair.of(
+                ass,
+                ass instanceof Cohort
+                    ? GraphModel.Relationship.HAS_MEMBER
+                    : GraphModel.Relationship.HAS_CHILD));
+      } else {
+        // mo' son cazzi
+        System.out.println("Mo' son cazzi");
+      }
+    } else {
+      for (var diocan : kg.getLinks(asset, GraphModel.Relationship.Direction.OUTGOING, scope)) {
+        if (types.contains(diocan.target().classify()) && relationships.contains(diocan.type())) {
+          ret.add(Pair.of(diocan.target(), diocan.type()));
+        }
+      }
+    }
+
+    return ret;
   }
 
   static class AssetTreeItem extends TreeItem<RuntimeAsset> {
