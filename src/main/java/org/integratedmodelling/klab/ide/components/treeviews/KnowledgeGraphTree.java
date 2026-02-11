@@ -57,7 +57,11 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
     super();
     this.scope = KlabIDEController.instance().requireDigitalTwinPeer(contextScope, this);
     this.clientKnowledgeGraph = this.scope.getDigitalTwin().getKnowledgeGraph();
-    setRoot(new TreeModel.AssetTreeItem(rootAsset, scope));
+    var pair = TreeModel.createTree(rootAsset, null, scope);
+    setRoot(pair.getFirst());
+    if (pair.getSecond() != null) {
+      getSelectionModel().select(pair.getSecond());
+    }
   }
 
   @Override
@@ -72,7 +76,11 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
         observation.getMetadata().containsKey(Metadata.IM_COMMIT)
             ? observation.getMetadata().get(Metadata.IM_COMMIT, KnowledgeGraph.Commit.class)
             : RuntimeAsset.CONTEXT_ASSET;
-    focusObservations(root, List.of(observation));
+    var pair = TreeModel.createTree(root, observation, scope);
+    setRoot(pair.getFirst());
+    if (pair.getSecond() != null) {
+      getSelectionModel().select(pair.getSecond());
+    }
   }
 
   @Override
@@ -146,14 +154,14 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
   @Override
   public void activitiesModified() {}
 
-  @Override
-  public void focusObservations(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets) {
-
-    // reset graph
-    setRoot(new TreeModel.AssetTreeItem(rootAsset, scope));
-
-    // TODO ensure the observations are selected
-  }
+  //  @Override
+  //  public void focusObservations(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets) {
+  //
+  //    // reset graph
+  //    setRoot(new TreeModel.AssetTreeItem(rootAsset, scope));
+  //
+  //    // TODO ensure the observations are selected
+  //  }
 
   @Override
   public void setDigitalTwin(IDEContextScope scope, boolean focus) {

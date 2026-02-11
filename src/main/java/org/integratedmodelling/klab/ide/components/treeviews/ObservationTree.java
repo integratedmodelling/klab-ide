@@ -30,9 +30,7 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
     TreeTableColumn<RuntimeAsset, HBox> descriptionColumn = new TreeTableColumn<>("Description");
     descriptionColumn.setCellValueFactory(
         param -> new SimpleObjectProperty<>(observationDescription(param.getValue().getValue())));
-
     descriptionColumn.prefWidthProperty().bind(widthProperty().subtract(10));
-
     getColumns().setAll(descriptionColumn);
     setRoot(new TreeItem<>());
   }
@@ -60,21 +58,21 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
     System.out.println("PUTAZZO IL GESÚ");
   }
 
-  public void update(IDEContextScope scope, RuntimeAsset rootAsset, RuntimeAsset focalAsset) {
-    //  redraw tree and select the passed observation
-    this.clientKnowledgeGraph = scope.getDigitalTwin().getKnowledgeGraph();
-    var root = new TreeModel.AssetTreeItem(rootAsset, scope);
-    setRoot(root);
-    //  select observation
-    //    var treeItem = findTreeItem(observation);
-    //    if (treeItem != null) {
-    //      if (treeItem.getParent() != null) {
-    root.setExpanded(true);
-    //      }
-    //      getSelectionModel().select(treeItem);
-    //      scrollTo(getSelectionModel().getSelectedIndex());
-    //    }
-  }
+  //  public void update(IDEContextScope scope, RuntimeAsset rootAsset, RuntimeAsset focalAsset) {
+  //    //  redraw tree and select the passed observation
+  //    this.clientKnowledgeGraph = scope.getDigitalTwin().getKnowledgeGraph();
+  //    var root = new TreeModel.AssetTreeItem(rootAsset, scope);
+  //    setRoot(root);
+  //    //  select observation
+  //    //    var treeItem = findTreeItem(observation);
+  //    //    if (treeItem != null) {
+  //    //      if (treeItem.getParent() != null) {
+  //    root.setExpanded(true);
+  //    //      }
+  //    //      getSelectionModel().select(treeItem);
+  //    //      scrollTo(getSelectionModel().getSelectedIndex());
+  //    //    }
+  //  }
 
   private TreeItem<RuntimeAsset> findTreeItem(RuntimeAsset asset) {
     if (asset == null || getRoot() == null) {
@@ -107,4 +105,11 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
     return null;
   }
 
+  public void update(RuntimeAsset rootAsset, RuntimeAsset focalAsset, IDEContextScope scope) {
+    var root = TreeModel.createTree(rootAsset, focalAsset, scope);
+    setRoot(root.getFirst());
+    if (root.getSecond() != null) {
+      getSelectionModel().select(root.getSecond());
+    }
+  }
 }

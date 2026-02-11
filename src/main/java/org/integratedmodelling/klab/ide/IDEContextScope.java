@@ -96,9 +96,9 @@ public class IDEContextScope implements ContextScope {
   public void setFocalAssets(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets) {
     focalObservations.set(focalAssets);
     focalRoot.set(rootAsset);
-    for (var view : viewers) {
-      view.focusObservations(rootAsset, focalAssets);
-    }
+    //    for (var view : viewers) {
+//      view.focusObservations(rootAsset, focalAssets);
+//    }
   }
 
   @Override
@@ -113,9 +113,9 @@ public class IDEContextScope implements ContextScope {
   public void setGraphDepth(int newDepth) {
     if (newDepth >= 1 && newDepth <= 5) {
       this.graphDepth = newDepth;
-      for (var view : viewers) {
-        view.focusObservations(focalRoot.get(), focalObservations.get());
-      }
+//      for (var view : viewers) {
+//        view.focusObservations(focalRoot.get(), focalObservations.get());
+//      }
     }
   }
 
@@ -184,7 +184,7 @@ public class IDEContextScope implements ContextScope {
   public void setFocus(RuntimeAsset root, List<RuntimeAsset> ids) {
     this.focalObservations.set(ids);
     this.focalRoot.set(root);
-    executor.execute(() -> viewers.forEach(v -> v.focusObservations(root, ids)));
+//    executor.execute(() -> viewers.forEach(v -> v.focusObservations(root, ids)));
   }
 
   @Override

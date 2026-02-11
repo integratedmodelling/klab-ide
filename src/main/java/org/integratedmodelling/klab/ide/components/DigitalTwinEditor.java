@@ -159,8 +159,8 @@ public class DigitalTwinEditor extends EditorPage<IDEContextScope, RuntimeAsset>
   @Override
   public void activitiesModified() {}
 
-  @Override
-  public void focusObservations(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets) {}
+//  @Override
+//  public void focusObservations(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets) {}
 
   @Override
   protected void onVisualize(boolean visibleAfterCall) {

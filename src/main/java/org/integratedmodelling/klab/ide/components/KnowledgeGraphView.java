@@ -95,18 +95,21 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
         event -> {
           scope.setFocalAssets(RuntimeAsset.CONTEXT_ASSET, List.of());
           graphView.setAutomaticLayout(true);
+          updateGraphSafely();
         });
     minusButton.setOnAction(
         event -> {
           scope.setGraphDepth(
               scope.getGraphDepth() > 2 ? scope.getGraphDepth() - 1 : scope.getGraphDepth());
           graphView.setAutomaticLayout(true);
+          updateGraphSafely();
         });
     plusButton.setOnAction(
         event -> {
           scope.setGraphDepth(
               scope.getGraphDepth() == 5 ? scope.getGraphDepth() : scope.getGraphDepth() + 1);
           graphView.setAutomaticLayout(true);
+          updateGraphSafely();
         });
     redrawButton.setOnAction(
         event -> {
@@ -340,10 +343,10 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   @Override
   public void activitiesModified() {}
 
-  @Override
-  public void focusObservations(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets) {
-    updateGraphSafely();
-  }
+//  @Override
+//  public void focusObservations(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets) {
+//    updateGraphSafely();
+//  }
 
   @Override
   public void scheduleModified(Schedule schedule) {

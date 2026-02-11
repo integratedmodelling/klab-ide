@@ -1,5 +1,6 @@
 package org.integratedmodelling.klab.ide.components.treeviews;
 
+import jakarta.annotation.Nullable;
 import javafx.collections.ObservableList;
 import javafx.scene.control.TreeItem;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
@@ -28,8 +29,12 @@ public class TreeModel {
    * @param scope the IDE context scope
    * @return a new AssetTreeItem root
    */
-  public static AssetTreeItem createTree(RuntimeAsset asset, IDEContextScope scope) {
-    return new AssetTreeItem(asset, scope);
+  public static Pair<AssetTreeItem, AssetTreeItem> createTree(
+          RuntimeAsset asset, @Nullable RuntimeAsset focus, IDEContextScope scope) {
+
+    var graph = createGraph(asset, 1, scope, Set.of(), Set.of());
+
+    return Pair.of(new AssetTreeItem(asset, scope), null);
   }
 
   /**
@@ -140,7 +145,7 @@ public class TreeModel {
       this.scope = scope;
     }
 
-    public AssetTreeItem(RuntimeAsset asset, IDEContextScope scope) {
+    private AssetTreeItem(RuntimeAsset asset, IDEContextScope scope) {
       super(asset);
       this.scope = scope;
     }

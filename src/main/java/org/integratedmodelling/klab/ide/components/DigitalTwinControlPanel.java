@@ -334,10 +334,15 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   @Override
   public void submissionFinished(Observation observation) {
-    var root = observation.getMetadata().containsKey(Metadata.IM_COMMIT)
+    var root =
+        observation.getMetadata().containsKey(Metadata.IM_COMMIT)
             ? observation.getMetadata().get(Metadata.IM_COMMIT, KnowledgeGraph.Commit.class)
             : RuntimeAsset.CONTEXT_ASSET;
-    focusObservations(root, List.of(observation));
+    Platform.runLater(
+        () -> {
+          observationTree.update(root, observation, scope);
+          setView(View.OBSERVATIONS);
+        });
   }
 
   @Override
@@ -370,16 +375,16 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     activityTree.update(scope);
   }
 
-  @Override
-  public void focusObservations(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets) {
-
-    Platform.runLater(
-        () -> {
-          observationTree.update(
-              scope, rootAsset, focalAssets.isEmpty() ? null : focalAssets.getFirst());
-          setView(View.OBSERVATIONS);
-        });
-  }
+  //  @Override
+  //  public void focusObservations(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets) {
+  //
+  //    Platform.runLater(
+  //        () -> {
+  //          observationTree.update(
+  //              scope, rootAsset, focalAssets.isEmpty() ? null : focalAssets.getFirst());
+  //          setView(View.OBSERVATIONS);
+  //        });
+  //  }
 
   @Override
   public boolean isAffectedBy(IDEContextScope scope) {

@@ -38,13 +38,13 @@ public interface DigitalTwinViewer extends DigitalTwinReactor {
    */
   void activitiesModified();
 
-  /**
-   * Communicate the IDs of all observations to be focused on from a recent successful commit to the
-   * knowledge graph. Any observation beyond the first is unlinked to the submitted observation, so
-   * it should be added to the graph for visibility.
-   *
-   * @param rootAsset
-   * @param focalAssets
-   */
-  void focusObservations(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets);
+//  /**
+//   * Communicate the IDs of all observations to be focused on from a recent successful commit to the
+//   * knowledge graph. Any observation beyond the first is unlinked to the submitted observation, so
+//   * it should be added to the graph for visibility.
+//   *
+//   * @param rootAsset
+//   * @param focalAssets
+//   */
+//  void focusObservations(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets);
 }
