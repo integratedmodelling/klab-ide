@@ -375,17 +375,6 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     activityTree.update(scope);
   }
 
-  //  @Override
-  //  public void focusObservations(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets) {
-  //
-  //    Platform.runLater(
-  //        () -> {
-  //          observationTree.update(
-  //              scope, rootAsset, focalAssets.isEmpty() ? null : focalAssets.getFirst());
-  //          setView(View.OBSERVATIONS);
-  //        });
-  //  }
-
   @Override
   public boolean isAffectedBy(IDEContextScope scope) {
     return this.scope.getId().equals(scope.getId());

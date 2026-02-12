@@ -58,22 +58,6 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
     System.out.println("PUTAZZO IL GESÚ");
   }
 
-  //  public void update(IDEContextScope scope, RuntimeAsset rootAsset, RuntimeAsset focalAsset) {
-  //    //  redraw tree and select the passed observation
-  //    this.clientKnowledgeGraph = scope.getDigitalTwin().getKnowledgeGraph();
-  //    var root = new TreeModel.AssetTreeItem(rootAsset, scope);
-  //    setRoot(root);
-  //    //  select observation
-  //    //    var treeItem = findTreeItem(observation);
-  //    //    if (treeItem != null) {
-  //    //      if (treeItem.getParent() != null) {
-  //    root.setExpanded(true);
-  //    //      }
-  //    //      getSelectionModel().select(treeItem);
-  //    //      scrollTo(getSelectionModel().getSelectedIndex());
-  //    //    }
-  //  }
-
   private TreeItem<RuntimeAsset> findTreeItem(RuntimeAsset asset) {
     if (asset == null || getRoot() == null) {
       return null;

@@ -7,7 +7,9 @@ import javafx.scene.control.Label;
 import javafx.scene.control.Tooltip;
 import javafx.scene.paint.Color;
 import org.atteo.evo.inflector.English;
+import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.branding.Branding;
+import org.integratedmodelling.klab.api.data.KnowledgeGraph;
 import org.integratedmodelling.klab.api.data.RepositoryState;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.exceptions.KlabInternalErrorException;
@@ -15,6 +17,7 @@ import org.integratedmodelling.klab.api.knowledge.Cohort;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.SemanticType;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
+import org.integratedmodelling.klab.api.knowledge.observation.scale.time.TimeInstant;
 import org.integratedmodelling.klab.api.knowledge.organization.Project;
 import org.integratedmodelling.klab.api.lang.kim.KimModel;
 import org.integratedmodelling.klab.api.lang.kim.KimSymbolDefinition;
@@ -327,6 +330,11 @@ public enum Theme {
                 cohort.getObservable(), Branding.DescriptionStyle.SHORTEST));
       } else if (asset instanceof RuntimeAsset.ContextAsset) {
         return "Knowledge Graph";
+      } else if (asset instanceof KnowledgeGraph.Commit commit) {
+        return "Commit "
+            + Utils.Time.actualizedFormat(TimeInstant.create(commit.getTimestamp()))
+            + " by "
+            + commit.getOwner();
       }
       return "DIOPORCO " + asset;
     }

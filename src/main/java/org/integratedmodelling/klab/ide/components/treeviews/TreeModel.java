@@ -32,10 +32,6 @@ public class TreeModel {
   public static Pair<AssetTreeItem, AssetTreeItem> createTree(
       RuntimeAsset asset, @Nullable RuntimeAsset focus, IDEContextScope scope) {
 
-    if (asset instanceof KnowledgeGraph.Commit) {
-      System.out.println("DIOPOLLO");
-    }
-
     var types = Set.of(RuntimeAsset.Type.OBSERVATION, RuntimeAsset.Type.COHORT);
     var relationships =
         Set.of(GraphModel.Relationship.HAS_CHILD, GraphModel.Relationship.HAS_MEMBER);
@@ -152,6 +148,11 @@ public class TreeModel {
         }
       }
     } else {
+
+      if (asset instanceof Cohort cohort) {
+        System.out.println("PETO");
+      }
+
       for (var diocan :
           kg.getLinks(
               asset,

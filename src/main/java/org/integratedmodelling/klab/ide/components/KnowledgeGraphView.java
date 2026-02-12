@@ -39,10 +39,10 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   private final ClientKnowledgeGraph knowledgeGraph;
   private final IDEContextScope scope;
   private final DigitalTwinEditor editor;
-  private boolean autoLayout = false;
+  //  private boolean autoLayout = false;
   private SmartGraphPanel<RuntimeAsset, ClientKnowledgeGraph.Relationship> graphView;
   private Set<GraphModel.Relationship> visibleRelationships =
-      EnumSet.of(GraphModel.Relationship.HAS_CHILD);
+      EnumSet.of(GraphModel.Relationship.HAS_CHILD, GraphModel.Relationship.HAS_MEMBER);
   private Set<RuntimeAsset.Type> visibleTypes =
       EnumSet.of(RuntimeAsset.Type.OBSERVATION, RuntimeAsset.Type.COHORT);
 
@@ -152,9 +152,8 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     if (isGraphViewReady()) {
       for (int i = 0; i < 1; i++) {
         //        autoLayout = !autoLayout;
-        updateGraph(/*scope.getFocalAssets()*/ );
+        updateGraph();
         graphView.setAutomaticLayout(true);
-        //        graphView.setAutomaticLayout(false);
       }
     } else {
       // TODO enqueue event for when graph comes into view
@@ -207,8 +206,6 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
       Platform.runLater(
           () -> {
             try {
-//              var focalAssets = scope.getFocalAssets();
-//
               if (graphView.getParent() != null && graphView.getScene() != null) {
                 graphView.init();
                 this.initialized = true;
@@ -216,11 +213,9 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
 
                 // Process any pending focal asset update
                 if (pendingFocalAssets != null) {
-                  updateGraph(/*pendingFocalAssets*/);
-//                  focalAssets = pendingFocalAssets;
                   pendingFocalAssets = null;
                 } else if (!scope.getFocalAssets().isEmpty()) {
-                  updateGraph(/*focalAssets*/);
+                  updateGraph();
                 }
               } else {
                 // Still not ready, try again
@@ -237,8 +232,6 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
               }
               Platform.runLater(
                   () -> {
-//                    var focalAssets = scope.getFocalAssets();
-
                     if (graphView.getWidth() > 0
                         && graphView.getHeight() > 0
                         && graphView.getParent() != null
@@ -250,11 +243,10 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
 
                         // Process any pending focal asset update
                         if (pendingFocalAssets != null) {
-                          updateGraph(/*pendingFocalAssets*/);
-//                          focalAssets = pendingFocalAssets;
+                          updateGraph();
                           pendingFocalAssets = null;
                         } else if (!scope.getFocalAssets().isEmpty()) {
-                          updateGraph(/*focalAssets*/);
+                          updateGraph();
                         }
                       } catch (IllegalStateException ex) {
                         Logging.INSTANCE.error("Failed to initialize graph view after retry", ex);
@@ -277,7 +269,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     }
   }
 
-  public void updateGraph(/*List<RuntimeAsset> focalAssets*/ ) {
+  public void updateGraph() {
 
     if (!initialized || !graphViewReady || graphView == null) {
       Logging.INSTANCE.warn("Attempted to update graph before initialization");
@@ -285,15 +277,9 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     }
 
     clear();
-
-    //    if (focalAssets.isEmpty()) {
-    //      focalAssets.add(RuntimeAsset.CONTEXT_ASSET);
-    //    }
-
     var graph =
         TreeModel.createGraph(
             scope.getFocalRoot(), scope.getGraphDepth(), scope, visibleTypes, visibleRelationships);
-    //        knowledgeGraph.getSubgraph(focalAssets, scope.getGraphDepth(), visibleRelationships);
 
     var cache = new HashMap<Long, Asset>();
     for (var vertex : graph.vertexSet()) {
@@ -346,11 +332,6 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
 
   @Override
   public void activitiesModified() {}
-
-  //  @Override
-  //  public void focusObservations(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets) {
-  //    updateGraphSafely();
-  //  }
 
   @Override
   public void scheduleModified(Schedule schedule) {

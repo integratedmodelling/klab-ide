@@ -312,7 +312,6 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
     if (!(scope instanceof IDEContextScope)) {
       var fScope = KlabIDEController.instance().requireDigitalTwinPeer(scope, null);
       KlabIDEController.instance().setFocalScope(fScope, Utils.URLs.isLocalHost(scope.getUrl()));
-//      ret.focusObservations(fScope.getFocalRoot(), fScope.getFocalAssets());
     }
     return ret;
   }

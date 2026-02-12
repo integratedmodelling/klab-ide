@@ -85,7 +85,6 @@ public class DigitalTwinEditor extends EditorPage<IDEContextScope, RuntimeAsset>
   protected TreeView<RuntimeAsset> createContentTree() {
 
     treeView = new KnowledgeGraphTree(this.context, contextScope);
-    //    controller.register(treeView);
     treeView.setCellFactory(p -> new AssetTreeCell());
     treeView.getStyleClass().addAll(Tweaks.EDGE_TO_EDGE, Styles.DENSE);
     treeView.setShowRoot(false);
@@ -158,9 +157,6 @@ public class DigitalTwinEditor extends EditorPage<IDEContextScope, RuntimeAsset>
 
   @Override
   public void activitiesModified() {}
-
-//  @Override
-//  public void focusObservations(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets) {}
 
   @Override
   protected void onVisualize(boolean visibleAfterCall) {
