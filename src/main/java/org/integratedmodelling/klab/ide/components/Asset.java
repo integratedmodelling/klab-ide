@@ -66,14 +66,12 @@ public class Asset implements RuntimeAsset {
         switch (classify()) {
           case OBSERVATION -> getObservationStyle((Observation) delegate);
           case ACTUATOR -> null;
-          case CONTEXT -> "homeVertex";
+          case CONTEXT, COMMIT, COHORT -> "homeVertex";
           case DATAFLOW -> null;
-          case COHORT -> null;
           case PROVENANCE -> null;
           case ACTIVITY -> null;
           case PLAN -> null;
           case AGENT -> null;
-          case COMMIT -> null;
           case DATA -> null;
           case LINK -> null;
         };
@@ -87,10 +85,10 @@ public class Asset implements RuntimeAsset {
           case ACTIVITY -> null;
           case PLAN -> null;
           case AGENT -> null;
-          case COMMIT -> null;
+          case COMMIT -> "-fx-fill: url(\"file:icons8-update-30.png\");";
           case DATA -> null;
           case LINK -> null;
-          case COHORT -> null;
+          case COHORT ->  "-fx-fill: url(\"file:icons8-box-30.png\");";
         };
     if (style != null) {
       var stylableVertex = graphView.getStylableVertex(this);
