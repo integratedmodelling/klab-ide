@@ -177,7 +177,6 @@ public class Components {
               "Ferdinando Villa",
               "Enrico Girotto",
               "Andrea Antonello",
-              "Iñigo Cobian",
               "Arnab Moitra")) {
         Label label = new Label(developer);
         label.setAlignment(Pos.CENTER);
