@@ -13,9 +13,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javafx.application.Platform;
-import javafx.scene.control.Button;
-import javafx.scene.control.MenuButton;
-import javafx.scene.control.Spinner;
+import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import org.integratedmodelling.cli.Test;
@@ -89,8 +87,20 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     cohortsSwitch.setSelected(true);
 
     MenuButton homeButton = new MenuButton();
+    homeButton.getStyleClass().addAll(Styles.FLAT, Styles.SMALL);
+    homeButton.setText("Knowledge graph");
     homeButton.setGraphic(new FontIcon(Material2AL.HOME));
-    homeButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT, Styles.SMALL);
+
+    MenuItem homeMenuItem = new MenuItem("Knowledge graph", new FontIcon(Material2AL.HOME));
+    homeButton.getItems().add(homeMenuItem);
+    homeMenuItem.setOnAction(
+        event -> {
+          // TODO set into the editor, which will reset both the graph and the tree
+          scope.setFocalAssets(RuntimeAsset.CONTEXT_ASSET, null);
+          graphView.setAutomaticLayout(true);
+          updateGraphSafely();
+        });
+
     Spinner<Integer> spinner = new Spinner<>(1, 5, 2);
     spinner.setPrefWidth(100);
     IntegerStringConverter.createFor(spinner);
@@ -107,12 +117,6 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     redrawButton.setGraphic(new FontIcon(Material2AL.AUTORENEW));
     redrawButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT, Styles.SMALL);
 
-    homeButton.setOnAction(
-        event -> {
-          scope.setFocalAssets(RuntimeAsset.CONTEXT_ASSET, List.of());
-          graphView.setAutomaticLayout(true);
-          updateGraphSafely();
-        });
     spinner
         .valueProperty()
         .addListener(
@@ -165,9 +169,13 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
               if (obs.getValue()) {
                 visibleTypes.add(RuntimeAsset.Type.ACTIVITY);
                 visibleTypes.add(RuntimeAsset.Type.PROVENANCE);
+                visibleRelationships.add(GraphModel.Relationship.HAS_ACTIVITY);
+                visibleRelationships.add(GraphModel.Relationship.HAS_PROVENANCE);
               } else {
                 visibleTypes.remove(RuntimeAsset.Type.ACTIVITY);
                 visibleTypes.remove(RuntimeAsset.Type.PROVENANCE);
+                visibleRelationships.remove(GraphModel.Relationship.HAS_ACTIVITY);
+                visibleRelationships.remove(GraphModel.Relationship.HAS_PROVENANCE);
               }
               graphView.setAutomaticLayout(true);
               updateGraphSafely();
@@ -179,9 +187,13 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
               if (obs.getValue()) {
                 visibleTypes.add(RuntimeAsset.Type.DATAFLOW);
                 visibleTypes.add(RuntimeAsset.Type.ACTUATOR);
+                visibleRelationships.add(GraphModel.Relationship.HAS_PLAN);
+                visibleRelationships.add(GraphModel.Relationship.HAS_DATAFLOW);
               } else {
                 visibleTypes.remove(RuntimeAsset.Type.DATAFLOW);
                 visibleTypes.remove(RuntimeAsset.Type.ACTUATOR);
+                visibleRelationships.remove(GraphModel.Relationship.HAS_PLAN);
+                visibleRelationships.remove(GraphModel.Relationship.HAS_DATAFLOW);
               }
               graphView.setAutomaticLayout(true);
               updateGraphSafely();
@@ -262,7 +274,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
               asset = wrapper.getDelegate();
             }
             //            this.editor.selectAsset(asset);
-            this.scope.setFocalAssets(this.scope.getFocalRoot(), List.of(asset));
+            this.scope.setFocalAssets(this.scope.getFocalRoot(), asset);
           });
 
       graphView.setEdgeDoubleClickAction(
@@ -293,7 +305,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
                 // Process any pending focal asset update
                 if (pendingFocalAssets != null) {
                   pendingFocalAssets = null;
-                } else if (!scope.getFocalAssets().isEmpty()) {
+                } else if (scope.getFocalAsset() != null) {
                   updateGraph();
                 }
               } else {
@@ -324,7 +336,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
                         if (pendingFocalAssets != null) {
                           updateGraph();
                           pendingFocalAssets = null;
-                        } else if (!scope.getFocalAssets().isEmpty()) {
+                        } else if (scope.getFocalAsset() != null) {
                           updateGraph();
                         }
                       } catch (IllegalStateException ex) {
@@ -363,7 +375,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
             scope,
             visibleTypes,
             visibleRelationships,
-            scope.getFocalAssets().stream().findAny().orElse(null));
+            scope.getFocalAsset());
 
     var cache = new HashMap<Long, Asset>();
     for (var vertex : graph.vertexSet()) {

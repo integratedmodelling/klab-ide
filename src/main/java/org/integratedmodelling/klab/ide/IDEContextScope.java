@@ -9,8 +9,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
+
+import org.apache.commons.collections.list.SynchronizedList;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientDigitalTwin;
 import org.integratedmodelling.common.services.client.scope.ClientContextScope;
+import org.integratedmodelling.klab.api.collections.Pair;
 import org.integratedmodelling.klab.api.collections.Parameters;
 import org.integratedmodelling.klab.api.data.Data;
 import org.integratedmodelling.klab.api.data.KnowledgeGraph;
@@ -63,11 +66,10 @@ public class IDEContextScope implements ContextScope {
   private Schedule schedule;
   private AtomicReference<RuntimeAsset> focalRoot =
       new AtomicReference<>(RuntimeAsset.CONTEXT_ASSET);
-  private final AtomicReference<List<RuntimeAsset>> focalObservations =
-      new AtomicReference<>(List.of(RuntimeAsset.CONTEXT_ASSET));
-  //  private List<RuntimeAsset> focalAssets = Collections.synchronizedList(new ArrayList<>());
+  private final AtomicReference<RuntimeAsset> focalAsset = new AtomicReference<>(null);
   private int graphDepth = 2;
-  private boolean ownsDTPanel = false;
+  private final List<Pair<KnowledgeGraph.Commit, Observation>> commits =
+      Collections.synchronizedList(new ArrayList<>());
 
   public IDEContextScope(ClientContextScope delegate) {
     this.delegate = delegate;
@@ -84,16 +86,20 @@ public class IDEContextScope implements ContextScope {
     this.viewers.add(viewer);
   }
 
-  public List<RuntimeAsset> getFocalAssets() {
-    return focalObservations.get();
+  public RuntimeAsset getFocalAsset() {
+    return focalAsset.get();
   }
 
-  public void setFocalAssets(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets) {
-    focalObservations.set(focalAssets);
+  public void setFocalAssets(RuntimeAsset rootAsset, RuntimeAsset focalAssets) {
+    focalAsset.set(focalAssets);
     focalRoot.set(rootAsset);
     //    for (var view : viewers) {
-//      view.focusObservations(rootAsset, focalAssets);
-//    }
+    //      view.focusObservations(rootAsset, focalAssets);
+    //    }
+  }
+
+  public List<Pair<KnowledgeGraph.Commit, Observation>> getCommits() {
+    return commits;
   }
 
   @Override
@@ -108,9 +114,9 @@ public class IDEContextScope implements ContextScope {
   public void setGraphDepth(int newDepth) {
     if (newDepth >= 1 && newDepth <= 5) {
       this.graphDepth = newDepth;
-//      for (var view : viewers) {
-//        view.focusObservations(focalRoot.get(), focalObservations.get());
-//      }
+      //      for (var view : viewers) {
+      //        view.focusObservations(focalRoot.get(), focalObservations.get());
+      //      }
     }
   }
 
@@ -134,11 +140,14 @@ public class IDEContextScope implements ContextScope {
         //                            .getKnowledgeGraph()
         //                            .getAsset(id, delegate, RuntimeAsset.class))
         //                .toList();
-        this.setFocus(
+        var root =
             observation.getMetadata().containsKey(Metadata.IM_COMMIT)
                 ? observation.getMetadata().get(Metadata.IM_COMMIT, KnowledgeGraph.Commit.class)
-                : RuntimeAsset.CONTEXT_ASSET,
-            List.of(observation));
+                : RuntimeAsset.CONTEXT_ASSET;
+        if (root instanceof KnowledgeGraph.Commit commit) {
+          addCommit(Pair.of(commit, observation));
+        }
+        this.setFocus(root, observation);
       }
       case ActivityFinished -> {
         var activity = message.getPayload(Activity.class);
@@ -172,14 +181,18 @@ public class IDEContextScope implements ContextScope {
     }
   }
 
+  private void addCommit(Pair<KnowledgeGraph.Commit, Observation> of) {
+    commits.add(of);
+  }
+
   public Graph<Activity, DefaultEdge> getActivityGraph() {
     return activityGraph;
   }
 
-  public void setFocus(RuntimeAsset root, List<RuntimeAsset> ids) {
-    this.focalObservations.set(ids);
+  public void setFocus(RuntimeAsset root, RuntimeAsset focus) {
+    this.focalAsset.set(focus);
     this.focalRoot.set(root);
-//    executor.execute(() -> viewers.forEach(v -> v.focusObservations(root, ids)));
+    //    executor.execute(() -> viewers.forEach(v -> v.focusObservations(root, ids)));
   }
 
   @Override

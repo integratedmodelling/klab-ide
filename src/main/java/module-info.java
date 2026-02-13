@@ -44,6 +44,7 @@ module org.integratedmodelling.klab.ide {
     requires java.management;
     requires com.jcraft.jsch;
     requires org.slf4j;
+    requires commons.collections;
 
     opens org.integratedmodelling.klab.ide to javafx.fxml;
     opens org.integratedmodelling.klab.ide.components to javafx.fxml;
