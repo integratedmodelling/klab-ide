@@ -154,15 +154,6 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
   @Override
   public void activitiesModified() {}
 
-  //  @Override
-  //  public void focusObservations(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets) {
-  //
-  //    // reset graph
-  //    setRoot(new TreeModel.AssetTreeItem(rootAsset, scope));
-  //
-  //    // TODO ensure the observations are selected
-  //  }
-
   @Override
   public void setDigitalTwin(IDEContextScope scope, boolean focus) {
     scope.addViewer(this);

@@ -1,7 +1,9 @@
 package org.integratedmodelling.klab.ide.components.treeviews;
 
+import com.jcraft.jsch.HASH;
 import jakarta.annotation.Nullable;
 import javafx.collections.ObservableList;
+import javafx.scene.control.Label;
 import javafx.scene.control.TreeItem;
 import org.integratedmodelling.cli.Test;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
@@ -13,6 +15,7 @@ import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
 import org.integratedmodelling.klab.api.knowledge.Cohort;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.ide.IDEContextScope;
+import org.integratedmodelling.klab.ide.Theme;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultDirectedGraph;
 
@@ -34,8 +37,11 @@ public class TreeModel {
 
     var types = Set.of(RuntimeAsset.Type.OBSERVATION, RuntimeAsset.Type.COHORT);
     var relationships =
-        Set.of(GraphModel.Relationship.HAS_CHILD, GraphModel.Relationship.HAS_MEMBER);
-    var graph = createGraph(asset, scope.getGraphDepth(), scope, types, relationships);
+        Set.of(
+            GraphModel.Relationship.CREATED,
+            GraphModel.Relationship.HAS_CHILD,
+            GraphModel.Relationship.HAS_MEMBER);
+    var graph = createGraph(asset, scope.getGraphDepth(), scope, types, relationships, focus);
 
     var focusItem = new AtomicReference<AssetTreeItem>();
     var tree =
@@ -71,11 +77,12 @@ public class TreeModel {
       int depth,
       IDEContextScope scope,
       Set<RuntimeAsset.Type> types,
-      Set<GraphModel.Relationship> relationships) {
+      Set<GraphModel.Relationship> relationships,
+      RuntimeAsset focus) {
     var ret =
         new DefaultDirectedGraph<RuntimeAsset, ClientKnowledgeGraph.Relationship>(
             ClientKnowledgeGraph.Relationship.class);
-    createGraph(asset, depth, scope, types, relationships, ret);
+    createGraph(asset, depth, scope, types, relationships, ret, focus);
     return ret;
   }
 
@@ -85,13 +92,14 @@ public class TreeModel {
       IDEContextScope scope,
       Set<RuntimeAsset.Type> types,
       Set<GraphModel.Relationship> relationships,
-      Graph<RuntimeAsset, ClientKnowledgeGraph.Relationship> graph) {
+      Graph<RuntimeAsset, ClientKnowledgeGraph.Relationship> graph,
+      RuntimeAsset focus) {
     graph.addVertex(asset);
     var ret = false;
     if (depth > 0) {
-      for (var child : getChildren(asset, scope, types, relationships)) {
+      for (var child : getChildren(asset, scope, types, relationships, focus)) {
         ret = true;
-        createGraph(child.getFirst(), depth - 1, scope, types, relationships, graph);
+        createGraph(child.getFirst(), depth - 1, scope, types, relationships, graph, focus);
         graph.addEdge(
             asset,
             child.getFirst(),
@@ -118,7 +126,8 @@ public class TreeModel {
       RuntimeAsset asset,
       IDEContextScope scope,
       Set<RuntimeAsset.Type> types,
-      Set<GraphModel.Relationship> relationships) {
+      Set<GraphModel.Relationship> relationships,
+      RuntimeAsset focus) {
 
     var kg = scope.getDigitalTwin().getKnowledgeGraph();
     var ret = new ArrayList<Pair<RuntimeAsset, GraphModel.Relationship>>();
@@ -127,31 +136,40 @@ public class TreeModel {
      * This can only happen at root level, as the commit is not stored in the KG
      */
     if (asset instanceof KnowledgeGraph.Commit commit) {
-      // all observations that are children of the asset
+      // we only store observations that are at root level in the existing commit, forcing
+      // the target observation to be at root level.
       for (var observation : commit.getAddedObservations()) {
         var observationAsset = kg.getAsset(observation, scope, Observation.class);
         if (observationAsset != null && types.contains(observationAsset.classify())) {
-          // to be added to the commit, it must not be the child of another observation
-          var add = kg.incoming(observationAsset, GraphModel.Relationship.HAS_CHILD).isEmpty();
-          if (add) {
-            ret.add(Pair.of(observationAsset, GraphModel.Relationship.HAS_CHILD));
+
+          boolean isRoot =
+              commit.getAddedLinks().stream()
+                  .filter(
+                      l ->
+                          l.getSecond().equals(observation)
+                              && (l.getThird().equals(GraphModel.Relationship.HAS_CHILD.name())
+                                  || l.getThird()
+                                      .equals(GraphModel.Relationship.HAS_MEMBER.name())))
+                  .findAny()
+                  .isEmpty();
+
+          // keep the target observation at root level anyway
+          isRoot |= (focus != null && observation.equals(focus.getId()));
+
+          if (isRoot) {
+            ret.add(Pair.of(observationAsset, GraphModel.Relationship.CREATED));
           }
         }
       }
-      // if the asset is CONTEXT_ASSET and types contains Cohort, we also add any cohorts
-      if (asset == RuntimeAsset.CONTEXT_ASSET && types.contains(RuntimeAsset.Type.COHORT)) {
+      if (types.contains(RuntimeAsset.Type.COHORT)) {
         for (var cohort : commit.getAddedCohorts()) {
           var cohortAsset = kg.getAsset(cohort, scope, Cohort.class);
           if (cohortAsset != null) {
-            ret.add(Pair.of(cohortAsset, GraphModel.Relationship.HAS_MEMBER));
+            ret.add(Pair.of(cohortAsset, GraphModel.Relationship.CREATED));
           }
         }
       }
     } else {
-
-      if (asset instanceof Cohort cohort) {
-        System.out.println("PETO");
-      }
 
       for (var diocan :
           kg.getLinks(
@@ -219,9 +237,26 @@ public class TreeModel {
 
       var ret = new ArrayList<RuntimeAsset>();
 
-      if (dynamic && prefillDepth <= 0) {
-        // TODO use the main kg
-      } // TODO else {
+      if (dynamic && prefillDepth <= 0 && getValue().getChildrenCount() > 0) {
+        //  fish from the main kg
+        for (var asset :
+            scope
+                .getDigitalTwin()
+                .getKnowledgeGraph()
+                .getLinks(
+                    getValue(),
+                    GraphModel.Relationship.Direction.OUTGOING,
+                    scope,
+                    relationships.toArray(GraphModel.Relationship[]::new))) {
+          if (types.contains(asset.classify())) {
+            graph.addEdge(
+                getValue(),
+                asset.target(),
+                new ClientKnowledgeGraph.Relationship(
+                    asset.type(), getValue().getId(), asset.target().getId(), Map.of()));
+          }
+        }
+      }
 
       for (var childEdge : graph.outgoingEdgesOf(getValue())) {
         var child = graph.getEdgeTarget(childEdge);

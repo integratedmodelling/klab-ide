@@ -12,6 +12,7 @@ import org.integratedmodelling.klab.api.branding.Branding;
 import org.integratedmodelling.klab.api.data.KnowledgeGraph;
 import org.integratedmodelling.klab.api.data.RepositoryState;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
+import org.integratedmodelling.klab.api.data.Storage;
 import org.integratedmodelling.klab.api.exceptions.KlabInternalErrorException;
 import org.integratedmodelling.klab.api.knowledge.Cohort;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
@@ -335,11 +336,13 @@ public enum Theme {
             + Utils.Time.actualizedFormat(TimeInstant.create(commit.getTimestamp()))
             + " by "
             + commit.getOwner();
+      } else if (asset instanceof Storage.Shard shard) {
+        return "Data (" + shard.getGeometry().size() + ")";
       }
-      return "DIOPORCO " + asset;
+      return "CARAJO " + asset;
     }
 
-    return "BLAH";
+    return "HOSTIA";
   }
 
   private static String repositoryStatusPrefix(RepositoryState.Status repositoryStatus) {

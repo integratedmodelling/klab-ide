@@ -42,6 +42,8 @@ module org.integratedmodelling.klab.ide {
     requires org.eclipse.lsp4j.jsonrpc;
     requires evo.inflector;
     requires java.management;
+    requires com.jcraft.jsch;
+    requires org.slf4j;
 
     opens org.integratedmodelling.klab.ide to javafx.fxml;
     opens org.integratedmodelling.klab.ide.components to javafx.fxml;

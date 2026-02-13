@@ -42,7 +42,7 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
     icon.setMinWidth(24);
 
     var description =
-        Utils.Strings.abbreviate(Utils.Strings.replaceWhitespace(observation.toString(), " "), 42);
+        Utils.Strings.abbreviate(Theme.getLabel(observation), 42);
 
     var label = new Label(description);
     HBox.setHgrow(label, Priority.ALWAYS);

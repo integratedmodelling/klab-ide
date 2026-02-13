@@ -2,6 +2,7 @@ package org.integratedmodelling.klab.ide.components;
 
 import atlantafx.base.controls.ToggleSwitch;
 import atlantafx.base.theme.Styles;
+import atlantafx.base.util.IntegerStringConverter;
 import com.brunomnsilva.smartgraph.graph.DigraphEdgeList;
 import com.brunomnsilva.smartgraph.graphview.ForceDirectedSpringGravityLayoutStrategy;
 import com.brunomnsilva.smartgraph.graphview.SmartCircularSortedPlacementStrategy;
@@ -13,6 +14,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import javafx.application.Platform;
 import javafx.scene.control.Button;
+import javafx.scene.control.MenuButton;
+import javafx.scene.control.Spinner;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import org.integratedmodelling.cli.Test;
@@ -76,21 +79,30 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     ToggleSwitch dataSwitch = new ToggleSwitch("Data");
     ToggleSwitch activitiesSwitch = new ToggleSwitch("Activities");
     ToggleSwitch actuatorsSwitch = new ToggleSwitch("Actuators");
+    ToggleSwitch cohortsSwitch = new ToggleSwitch("Cohorts");
 
     affectedSwitch.getStyleClass().addAll(Styles.SMALL, Styles.TEXT_SMALL);
     dataSwitch.getStyleClass().addAll(Styles.SMALL, Styles.TEXT_SMALL);
     activitiesSwitch.getStyleClass().addAll(Styles.SMALL, Styles.TEXT_SMALL);
     actuatorsSwitch.getStyleClass().addAll(Styles.SMALL, Styles.TEXT_SMALL);
+    cohortsSwitch.getStyleClass().addAll(Styles.SMALL, Styles.TEXT_SMALL);
+    cohortsSwitch.setSelected(true);
 
-    Button homeButton = new Button();
+    MenuButton homeButton = new MenuButton();
     homeButton.setGraphic(new FontIcon(Material2AL.HOME));
     homeButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT, Styles.SMALL);
-    Button minusButton = new Button();
-    minusButton.setGraphic(new FontIcon(Material2MZ.REMOVE_CIRCLE_OUTLINE));
-    minusButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT, Styles.SMALL);
-    Button plusButton = new Button();
-    plusButton.setGraphic(new FontIcon(Material2AL.ADD_CIRCLE_OUTLINE));
-    plusButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT, Styles.SMALL);
+    Spinner<Integer> spinner = new Spinner<>(1, 5, 2);
+    spinner.setPrefWidth(100);
+    IntegerStringConverter.createFor(spinner);
+    spinner.setEditable(false);
+    spinner
+        .getStyleClass()
+        .addAll(
+            Styles.TEXT_SMALL,
+            Styles.SMALL,
+            Styles.FLAT,
+            Spinner.STYLE_CLASS_SPLIT_ARROWS_HORIZONTAL);
+
     Button redrawButton = new Button();
     redrawButton.setGraphic(new FontIcon(Material2AL.AUTORENEW));
     redrawButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT, Styles.SMALL);
@@ -101,31 +113,98 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
           graphView.setAutomaticLayout(true);
           updateGraphSafely();
         });
-    minusButton.setOnAction(
-        event -> {
-          scope.setGraphDepth(
-              scope.getGraphDepth() > 2 ? scope.getGraphDepth() - 1 : scope.getGraphDepth());
-          graphView.setAutomaticLayout(true);
-          updateGraphSafely();
-        });
-    plusButton.setOnAction(
-        event -> {
-          scope.setGraphDepth(
-              scope.getGraphDepth() == 5 ? scope.getGraphDepth() : scope.getGraphDepth() + 1);
-          graphView.setAutomaticLayout(true);
-          updateGraphSafely();
-        });
+    spinner
+        .valueProperty()
+        .addListener(
+            (observable, oldValue, newValue) -> {
+              scope.setGraphDepth(newValue);
+              graphView.setAutomaticLayout(true);
+              updateGraphSafely();
+            });
+    //    plusButton.setOnAction(
+    //        event -> {
+    //          scope.setGraphDepth(
+    //              scope.getGraphDepth() == 5 ? scope.getGraphDepth() : scope.getGraphDepth() + 1);
+    //          graphView.setAutomaticLayout(true);
+    //          updateGraphSafely();
+    //        });
     redrawButton.setOnAction(
         event -> {
           redrawGraph();
         });
-    affectedSwitch.selectedProperty().addListener((obs, old, val) -> {});
-    dataSwitch.selectedProperty().addListener((obs, old, val) -> {});
-    activitiesSwitch.selectedProperty().addListener((obs, old, val) -> {});
-    actuatorsSwitch.selectedProperty().addListener((obs, old, val) -> {});
+    affectedSwitch
+        .selectedProperty()
+        .addListener(
+            (obs, old, val) -> {
+              if (obs.getValue()) {
+                visibleRelationships.add(GraphModel.Relationship.AFFECTS);
+              } else {
+                visibleRelationships.remove(GraphModel.Relationship.AFFECTS);
+              }
+              graphView.setAutomaticLayout(true);
+              updateGraphSafely();
+            });
+    dataSwitch
+        .selectedProperty()
+        .addListener(
+            (obs, old, val) -> {
+              if (obs.getValue()) {
+                visibleTypes.add(RuntimeAsset.Type.DATA);
+                visibleRelationships.add(GraphModel.Relationship.HAS_DATA);
+              } else {
+                visibleTypes.add(RuntimeAsset.Type.DATA);
+                visibleRelationships.remove(GraphModel.Relationship.HAS_DATA);
+              }
+              graphView.setAutomaticLayout(true);
+              updateGraphSafely();
+            });
+    activitiesSwitch
+        .selectedProperty()
+        .addListener(
+            (obs, old, val) -> {
+              if (obs.getValue()) {
+                visibleTypes.add(RuntimeAsset.Type.ACTIVITY);
+                visibleTypes.add(RuntimeAsset.Type.PROVENANCE);
+              } else {
+                visibleTypes.remove(RuntimeAsset.Type.ACTIVITY);
+                visibleTypes.remove(RuntimeAsset.Type.PROVENANCE);
+              }
+              graphView.setAutomaticLayout(true);
+              updateGraphSafely();
+            });
+    actuatorsSwitch
+        .selectedProperty()
+        .addListener(
+            (obs, old, val) -> {
+              if (obs.getValue()) {
+                visibleTypes.add(RuntimeAsset.Type.DATAFLOW);
+                visibleTypes.add(RuntimeAsset.Type.ACTUATOR);
+              } else {
+                visibleTypes.remove(RuntimeAsset.Type.DATAFLOW);
+                visibleTypes.remove(RuntimeAsset.Type.ACTUATOR);
+              }
+              graphView.setAutomaticLayout(true);
+              updateGraphSafely();
+            });
+    cohortsSwitch
+        .selectedProperty()
+        .addListener(
+            (obs, old, val) -> {
+              if (obs.getValue()) {
+                visibleRelationships.add(GraphModel.Relationship.CREATED);
+                visibleTypes.add(RuntimeAsset.Type.COHORT);
+              } else {
+                visibleRelationships.remove(GraphModel.Relationship.CREATED);
+                visibleTypes.remove(RuntimeAsset.Type.COHORT);
+              }
+              graphView.setAutomaticLayout(true);
+              updateGraphSafely();
+            });
 
-    switchesBox.getChildren().addAll(affectedSwitch, dataSwitch, activitiesSwitch, actuatorsSwitch);
-    HBox spinnerBox = new HBox(homeButton, minusButton, plusButton, redrawButton);
+    switchesBox
+        .getChildren()
+        .addAll(affectedSwitch, dataSwitch, activitiesSwitch, actuatorsSwitch, cohortsSwitch);
+    HBox spinnerBox = new HBox(homeButton, spinner, redrawButton);
     HBox.setHgrow(spinnerBox, javafx.scene.layout.Priority.ALWAYS);
     controls.getChildren().addAll(spinnerBox, switchesBox);
     this.setTop(controls);
@@ -279,7 +358,12 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     clear();
     var graph =
         TreeModel.createGraph(
-            scope.getFocalRoot(), scope.getGraphDepth(), scope, visibleTypes, visibleRelationships);
+            scope.getFocalRoot(),
+            scope.getGraphDepth(),
+            scope,
+            visibleTypes,
+            visibleRelationships,
+            scope.getFocalAssets().stream().findAny().orElse(null));
 
     var cache = new HashMap<Long, Asset>();
     for (var vertex : graph.vertexSet()) {
