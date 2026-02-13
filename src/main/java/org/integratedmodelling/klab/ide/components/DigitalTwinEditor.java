@@ -6,6 +6,8 @@ import java.io.File;
 import java.net.URL;
 import java.util.*;
 import java.util.function.Consumer;
+
+import com.brunomnsilva.smartgraph.graphview.SmartGraphPanel;
 import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.control.*;
@@ -239,10 +241,10 @@ public class DigitalTwinEditor extends EditorPage<IDEContextScope, RuntimeAsset>
 
   @Override
   public void submissionFinished(Observation observation) {
-    var root = observation.getMetadata().containsKey(Metadata.IM_COMMIT)
+    var root =
+        observation.getMetadata().containsKey(Metadata.IM_COMMIT)
             ? observation.getMetadata().get(Metadata.IM_COMMIT, KnowledgeGraph.Commit.class)
             : RuntimeAsset.CONTEXT_ASSET;
-
   }
 
   @Override
@@ -261,6 +263,10 @@ public class DigitalTwinEditor extends EditorPage<IDEContextScope, RuntimeAsset>
             treeView.getSelectionModel().select(item);
           });
     }
+  }
+
+  public KnowledgeGraphTree getKnowledgeTree() {
+    return treeView;
   }
 
   private static final class AssetTreeCell extends TreeCell<RuntimeAsset> {

@@ -76,7 +76,12 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
         observation.getMetadata().containsKey(Metadata.IM_COMMIT)
             ? observation.getMetadata().get(Metadata.IM_COMMIT, KnowledgeGraph.Commit.class)
             : RuntimeAsset.CONTEXT_ASSET;
-    var pair = TreeModel.createTree(root, observation, scope);
+    update(root, observation);
+  }
+
+  public void update(RuntimeAsset rootAsset, RuntimeAsset focus) {
+
+    var pair = TreeModel.createTree(rootAsset, focus, scope);
     setRoot(pair.getFirst());
     if (pair.getSecond() != null) {
       getSelectionModel().select(pair.getSecond());

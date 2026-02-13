@@ -27,10 +27,12 @@ import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedule;
 import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.ide.KlabIDEController;
+import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.components.generic.Timeline;
 import org.integratedmodelling.klab.ide.components.treeviews.TreeModel;
+import org.kordamp.ikonli.evaicons.Evaicons;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
@@ -40,7 +42,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   private final ClientKnowledgeGraph knowledgeGraph;
   private final IDEContextScope scope;
   private final DigitalTwinEditor editor;
-  //  private boolean autoLayout = false;
+  private final MenuButton homeButton;
   private SmartGraphPanel<RuntimeAsset, ClientKnowledgeGraph.Relationship> graphView;
   private Set<GraphModel.Relationship> visibleRelationships =
       EnumSet.of(GraphModel.Relationship.HAS_CHILD, GraphModel.Relationship.HAS_MEMBER);
@@ -86,7 +88,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     cohortsSwitch.getStyleClass().addAll(Styles.SMALL, Styles.TEXT_SMALL);
     cohortsSwitch.setSelected(true);
 
-    MenuButton homeButton = new MenuButton();
+    this.homeButton = new MenuButton();
     homeButton.getStyleClass().addAll(Styles.FLAT, Styles.SMALL);
     homeButton.setText("Knowledge graph");
     homeButton.setGraphic(new FontIcon(Material2AL.HOME));
@@ -95,8 +97,10 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     homeButton.getItems().add(homeMenuItem);
     homeMenuItem.setOnAction(
         event -> {
-          // TODO set into the editor, which will reset both the graph and the tree
+          homeButton.setText("Knowledge graph");
+          homeButton.setGraphic(new FontIcon(Material2AL.HOME));
           scope.setFocalAssets(RuntimeAsset.CONTEXT_ASSET, null);
+          editor.getKnowledgeTree().update(RuntimeAsset.CONTEXT_ASSET, null);
           graphView.setAutomaticLayout(true);
           updateGraphSafely();
         });
@@ -413,8 +417,22 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
         observation.getMetadata().containsKey(Metadata.IM_COMMIT)
             ? observation.getMetadata().get(Metadata.IM_COMMIT, KnowledgeGraph.Commit.class)
             : RuntimeAsset.CONTEXT_ASSET;
-
-    this.changePending.set(true);
+    MenuItem homeMenuItem = new MenuItem(Theme.getLabel(root), new FontIcon(Evaicons.DOWNLOAD));
+    homeButton.getItems().add(homeMenuItem);
+    homeMenuItem.setOnAction(
+        event -> {
+          homeButton.setText(Theme.getLabel(root));
+          homeButton.setGraphic(new FontIcon(Evaicons.DOWNLOAD));
+          scope.setFocalAssets(root, observation);
+          editor.getKnowledgeTree().update(root, observation);
+          if (graphView == null) {
+            this.changePending.set(true);
+          } else {
+            graphView.setAutomaticLayout(true);
+            updateGraphSafely();
+          }
+        });
+    homeMenuItem.fire();
   }
 
   @Override
