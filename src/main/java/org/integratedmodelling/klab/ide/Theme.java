@@ -7,6 +7,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.Tooltip;
 import javafx.scene.paint.Color;
 import org.atteo.evo.inflector.English;
+import org.integratedmodelling.cli.Test;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.branding.Branding;
 import org.integratedmodelling.klab.api.data.KnowledgeGraph;
@@ -22,7 +23,9 @@ import org.integratedmodelling.klab.api.knowledge.observation.scale.time.TimeIns
 import org.integratedmodelling.klab.api.knowledge.organization.Project;
 import org.integratedmodelling.klab.api.lang.kim.KimModel;
 import org.integratedmodelling.klab.api.lang.kim.KimSymbolDefinition;
+import org.integratedmodelling.klab.api.provenance.Activity;
 import org.integratedmodelling.klab.api.scope.ContextScope;
+import org.integratedmodelling.klab.api.services.runtime.Actuator;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableAsset;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableFolder;
@@ -338,6 +341,15 @@ public enum Theme {
             + commit.getOwner();
       } else if (asset instanceof Storage.Shard shard) {
         return "Data (" + shard.getGeometry().size() + ")";
+      } else if (asset == RuntimeAsset.DATAFLOW_ASSET) {
+        return "Dataflow";
+      } else if (asset == RuntimeAsset.PROVENANCE_ASSET) {
+        return "Provenance";
+      } else if (asset instanceof Actuator) {
+        return "Actuator"; // TODO
+      } else if (asset instanceof Activity activity) {
+        return Utils.Strings.capitalize(activity.getType().name().toLowerCase())
+            + " activity"; // TODO improve
       }
       return "CARAJO " + asset;
     }

@@ -230,14 +230,27 @@ public class TreeModel {
 
     @Override
     public boolean isLeaf() {
-      return computeChildren().isEmpty();
+      return (dynamic && getValue() instanceof Observation)
+          ? getValue().getChildrenCount() == 0
+          : computeChildren().isEmpty();
     }
 
     List<RuntimeAsset> computeChildren() {
 
       var ret = new ArrayList<RuntimeAsset>();
 
-      if (dynamic && prefillDepth <= 0 && getValue().getChildrenCount() > 0) {
+      int nChildren = 0;
+      for (var childEdge : graph.outgoingEdgesOf(getValue())) {
+        var child = graph.getEdgeTarget(childEdge);
+        if (childEdge.relationship == GraphModel.Relationship.HAS_CHILD) {
+          nChildren++;
+        }
+        if (relationships.contains(childEdge.relationship) && types.contains(child.classify())) {
+          ret.add(child);
+        }
+      }
+
+      if (dynamic && getValue().getChildrenCount() > nChildren) {
         //  fish from the main kg
         for (var asset :
             scope
@@ -248,20 +261,14 @@ public class TreeModel {
                     GraphModel.Relationship.Direction.OUTGOING,
                     scope,
                     relationships.toArray(GraphModel.Relationship[]::new))) {
-          if (types.contains(asset.classify())) {
+          if (types.contains(asset.target().classify()) && !ret.contains(asset.target())) {
+            graph.addVertex(asset.target());
             graph.addEdge(
                 getValue(),
                 asset.target(),
                 new ClientKnowledgeGraph.Relationship(
                     asset.type(), getValue().getId(), asset.target().getId(), Map.of()));
           }
-        }
-      }
-
-      for (var childEdge : graph.outgoingEdgesOf(getValue())) {
-        var child = graph.getEdgeTarget(childEdge);
-        if (relationships.contains(childEdge.relationship) && types.contains(child.classify())) {
-          ret.add(child);
         }
       }
 

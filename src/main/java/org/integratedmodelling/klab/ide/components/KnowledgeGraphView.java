@@ -129,13 +129,6 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
               graphView.setAutomaticLayout(true);
               updateGraphSafely();
             });
-    //    plusButton.setOnAction(
-    //        event -> {
-    //          scope.setGraphDepth(
-    //              scope.getGraphDepth() == 5 ? scope.getGraphDepth() : scope.getGraphDepth() + 1);
-    //          graphView.setAutomaticLayout(true);
-    //          updateGraphSafely();
-    //        });
     redrawButton.setOnAction(
         event -> {
           redrawGraph();
@@ -174,11 +167,13 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
                 visibleTypes.add(RuntimeAsset.Type.ACTIVITY);
                 visibleTypes.add(RuntimeAsset.Type.PROVENANCE);
                 visibleRelationships.add(GraphModel.Relationship.HAS_ACTIVITY);
+                visibleRelationships.add(GraphModel.Relationship.TRIGGERED);
                 visibleRelationships.add(GraphModel.Relationship.HAS_PROVENANCE);
               } else {
                 visibleTypes.remove(RuntimeAsset.Type.ACTIVITY);
                 visibleTypes.remove(RuntimeAsset.Type.PROVENANCE);
                 visibleRelationships.remove(GraphModel.Relationship.HAS_ACTIVITY);
+                visibleRelationships.remove(GraphModel.Relationship.TRIGGERED);
                 visibleRelationships.remove(GraphModel.Relationship.HAS_PROVENANCE);
               }
               graphView.setAutomaticLayout(true);
