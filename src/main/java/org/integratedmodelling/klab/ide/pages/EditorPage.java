@@ -24,7 +24,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Editor for a first-class container - resource, digital twin or workspace.
+ * Editor for a first-class container - resource, digital twin or workspace. Editor has a treeview
+ * index and an editing area. Each editor can host the control panel for the currently focused
+ * digital twin, if any.
  *
  * @param <A> the overall asset being edited
  * @param <T> the individual assets we create editors for
@@ -33,7 +35,6 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
 
   private final BorderPane browsingArea;
   private final TabPane editorTabs;
-  //  private final Node menuArea;
   final Timeline clickTimeline = new Timeline();
   Duration clickDuration = Duration.millis(350);
   KeyFrame clickKeyFrame = new KeyFrame(clickDuration);
@@ -41,7 +42,6 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
   private Map<T, Tab> assetEditors = new HashMap<>();
   protected DigitalTwinControlPanel digitalTwinControlPanel;
   private TreeView<T> tree;
-  //  private HBox toggleBar;
   private A currentAsset;
   private VBox container;
 
@@ -54,6 +54,10 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
     this.editorTabs = new TabPane();
     this.editorTabs.getStyleClass().add(Styles.TABS_CLASSIC);
     this.editorTabs.setSide(Side.BOTTOM);
+
+    // TODO wrap the editorTabs into a splitpane that can be shown on top of the editors on command,
+    //  to host the semantic bar (or another component chosen by the hosting browseablepage).
+
     SplitPane splitPane = new SplitPane();
     splitPane.setOrientation(Orientation.HORIZONTAL);
     splitPane.getItems().addAll(editorTabs, browsingArea);
