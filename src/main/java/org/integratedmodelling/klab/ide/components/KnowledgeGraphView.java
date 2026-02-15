@@ -167,12 +167,14 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
                 visibleTypes.add(RuntimeAsset.Type.ACTIVITY);
                 visibleTypes.add(RuntimeAsset.Type.PROVENANCE);
                 visibleRelationships.add(GraphModel.Relationship.HAS_ACTIVITY);
+                visibleRelationships.add(GraphModel.Relationship.CONTEXTUALIZED);
                 visibleRelationships.add(GraphModel.Relationship.TRIGGERED);
                 visibleRelationships.add(GraphModel.Relationship.HAS_PROVENANCE);
               } else {
                 visibleTypes.remove(RuntimeAsset.Type.ACTIVITY);
                 visibleTypes.remove(RuntimeAsset.Type.PROVENANCE);
                 visibleRelationships.remove(GraphModel.Relationship.HAS_ACTIVITY);
+                visibleRelationships.remove(GraphModel.Relationship.CONTEXTUALIZED);
                 visibleRelationships.remove(GraphModel.Relationship.TRIGGERED);
                 visibleRelationships.remove(GraphModel.Relationship.HAS_PROVENANCE);
               }
@@ -186,11 +188,13 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
               if (obs.getValue()) {
                 visibleTypes.add(RuntimeAsset.Type.DATAFLOW);
                 visibleTypes.add(RuntimeAsset.Type.ACTUATOR);
+                visibleRelationships.add(GraphModel.Relationship.CONTEXTUALIZED_BY);
                 visibleRelationships.add(GraphModel.Relationship.HAS_PLAN);
                 visibleRelationships.add(GraphModel.Relationship.HAS_DATAFLOW);
               } else {
                 visibleTypes.remove(RuntimeAsset.Type.DATAFLOW);
                 visibleTypes.remove(RuntimeAsset.Type.ACTUATOR);
+                visibleRelationships.remove(GraphModel.Relationship.CONTEXTUALIZED_BY);
                 visibleRelationships.remove(GraphModel.Relationship.HAS_PLAN);
                 visibleRelationships.remove(GraphModel.Relationship.HAS_DATAFLOW);
               }

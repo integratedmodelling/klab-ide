@@ -22,6 +22,7 @@ import org.jgrapht.graph.DefaultDirectedGraph;
 import javax.management.relation.RelationType;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 public class TreeModel {
 
@@ -98,13 +99,25 @@ public class TreeModel {
     var ret = false;
     if (depth > 0) {
       for (var child : getChildren(asset, scope, types, relationships, focus)) {
+        if (asset == child.getFirst()) {
+          continue;
+        }
         ret = true;
-        createGraph(child.getFirst(), depth - 1, scope, types, relationships, graph, focus);
-        graph.addEdge(
-            asset,
-            child.getFirst(),
-            new ClientKnowledgeGraph.Relationship(
-                child.getSecond(), asset.getId(), child.getFirst().getId(), Metadata.create()));
+        if (child.getSecond().direction() == GraphModel.Relationship.Direction.OUTGOING) {
+          createGraph(child.getFirst(), depth - 1, scope, types, relationships, graph, focus);
+          graph.addEdge(
+              asset,
+              child.getFirst(),
+              new ClientKnowledgeGraph.Relationship(
+                  child.getSecond(), asset.getId(), child.getFirst().getId(), Metadata.create()));
+        } else {
+          graph.addVertex(child.getFirst());
+          graph.addEdge(
+              child.getFirst(),
+              asset,
+              new ClientKnowledgeGraph.Relationship(
+                  child.getSecond(), child.getFirst().getId(), asset.getId(), Metadata.create()));
+        }
       }
     }
     return ret;
@@ -171,14 +184,25 @@ public class TreeModel {
       }
     } else {
 
-      for (var diocan :
+      for (var link :
           kg.getLinks(
               asset,
               GraphModel.Relationship.Direction.OUTGOING,
               scope,
               relationships.toArray(GraphModel.Relationship[]::new))) {
-        if (types.contains(diocan.target().classify())) {
-          ret.add(Pair.of(diocan.target(), diocan.type()));
+        if (types.contains(link.target().classify())) {
+          ret.add(Pair.of(link.target(), link.type()));
+        }
+      }
+
+      for (var link :
+          kg.getLinks(
+              asset,
+              GraphModel.Relationship.Direction.INCOMING,
+              scope,
+              relationships.toArray(GraphModel.Relationship[]::new))) {
+        if (types.contains(link.source().classify())) {
+          ret.add(Pair.of(link.source(), link.type()));
         }
       }
     }
