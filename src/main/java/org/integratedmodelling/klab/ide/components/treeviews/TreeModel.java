@@ -100,6 +100,7 @@ public class TreeModel {
     if (depth > 0) {
       for (var child : getChildren(asset, scope, types, relationships, focus)) {
         if (asset == child.getFirst()) {
+          // shouldn't happen, but happens
           continue;
         }
         ret = true;

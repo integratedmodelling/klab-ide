@@ -264,11 +264,15 @@ public enum Theme {
           }
           case KimModel model -> {
             semanticType =
-                SemanticType.fundamentalType(
-                    model.getObservables().get(0).getSemantics().getType());
-            yield model.getObservables().getFirst().getSemantics().isCollective()
-                ? INSTANTIATOR_MODEL_ICON
-                : RESOLVER_MODEL_ICON;
+                model.getObservables().isEmpty()
+                    ? SemanticType.NOTHING
+                    : SemanticType.fundamentalType(
+                        model.getObservables().getFirst().getSemantics().getType());
+            yield model.getObservables().isEmpty()
+                ? RESOLVER_MODEL_ICON
+                : (model.getObservables().getFirst().getSemantics().isCollective()
+                    ? INSTANTIATOR_MODEL_ICON
+                    : RESOLVER_MODEL_ICON);
           }
           // TODO all runtime asset first
           case RuntimeAsset ignored -> KNOWLEDGE_GRAPH_ICON;
