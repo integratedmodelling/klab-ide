@@ -77,13 +77,17 @@ import org.integratedmodelling.klab.ide.utils.NodeUtils;
 import org.integratedmodelling.klab.modeler.ModelerImpl;
 import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.bootstrapicons.BootstrapIcons;
+import org.kordamp.ikonli.carbonicons.CarbonIcons;
+import org.kordamp.ikonli.evaicons.Evaicons;
 import org.kordamp.ikonli.fontawesome5.FontAwesomeSolid;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
+import org.kordamp.ikonli.materialdesign.MaterialDesign;
 
 public class KlabIDEController implements UIView, ServicesView, RuntimeView, Modeler {
 
   private static Modeler modeler;
+
   private View currentView;
   private UserScope user;
   private boolean inspectorIsOn;
@@ -111,6 +115,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private Button dtResetButton;
   private Button dtSwitchButton;
   private MenuButton digitalTwinSwitcher;
+  private IconLabel dbIcon;
+  private IconLabel messIcon;
+  private IconLabel langIcon;
 
   public <T, A> void digitalTwinPanelShown(
       EditorPage<A, T> atEditorPage, DigitalTwinControlPanel digitalTwinControlPanel) {
@@ -176,6 +183,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   @FXML Pane mainArea;
   @FXML Pane inspectorArea;
   @FXML ImageView logo;
+  @FXML HBox otherServices;
 
   private Button toggleRightSideButton;
   private final AtomicBoolean notificationsVisible = new AtomicBoolean(false);
@@ -526,6 +534,10 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
     setStatusBar();
 
+    this.dbIcon = new IconLabel(MaterialDesign.MDI_DATABASE, 11, Color.DARKGRAY);
+    this.langIcon = new IconLabel(CarbonIcons.LANGUAGE, 11, Color.DARKGRAY);
+    this.messIcon = new IconLabel(Evaicons.MESSAGE_SQUARE_OUTLINE, 11, Color.DARKGRAY);
+
     Platform.runLater(
         () -> {
           createModeler();
@@ -644,6 +656,13 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   private void handleStartButtonPress() {
 
+    Platform.runLater(
+        () -> {
+          // TODO set colors based on status - this should be done at creation and managed during
+          // start. Icons should not be visible until local services have been either started or
+          // found active
+          otherServices.getChildren().addAll(dbIcon, langIcon, messIcon);
+        });
     var condition =
         engineStatus.get() == null
             ? Engine.Status.EngineCondition.INOPERATIVE
@@ -1319,11 +1338,11 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         asset, event, mediaType, contextScope, visualizationOptions, outputType);
   }
 
-  @Override
-  public List<ContextScope> getOpenContexts() {
-    // TODO use focal scopes
-    return modeler.getOpenContexts();
-  }
+//  @Override
+//  public List<ContextScope> getOpenContexts() {
+//    // TODO use focal scopes
+//    return modeler.getOpenContexts();
+//  }
 
   @Override
   public synchronized ContextScope createDefaultContext() {

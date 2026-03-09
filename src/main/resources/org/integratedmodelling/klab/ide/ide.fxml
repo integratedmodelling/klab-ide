@@ -16,9 +16,10 @@
             <center>
                 <VBox alignment="TOP_CENTER" prefWidth="52.0" spacing="2.0">
                     <children>
-                        <ImageView fx:id="logo" fitHeight="48.0" fitWidth="48.0" pickOnBounds="true" preserveRatio="true">
+                        <ImageView fx:id="logo" fitHeight="48.0" fitWidth="48.0" pickOnBounds="true"
+                                   preserveRatio="true">
                             <image>
-                                <Image  url="@icons/klab-elephant.png"/>
+                                <Image url="@icons/klab-elephant.png"/>
                             </image>
                             <VBox.margin>
                                 <Insets bottom="8.0" top="12.0"/>
@@ -96,7 +97,16 @@
                                 </tooltip>
                             </Button>
                         </VBox>
+
+                        <HBox fx:id="otherServices" alignment="CENTER">
+                            <padding>
+                                <Insets top="12.0"/>
+                            </padding>
+                        </HBox>
+
                         <Pane minHeight="36.0"/>
+
+
                         <Button fx:id="settingsButton" styleClass="flat, button-circle">
                             <tooltip>
                                 <Tooltip text="Change local settings" showDelay="200ms"/>
