@@ -173,11 +173,7 @@ public class Components {
 
       List<Node> developers = new ArrayList<>();
       for (var developer :
-          List.of(
-              "Ferdinando Villa",
-              "Enrico Girotto",
-              "Andrea Antonello",
-              "Arnab Moitra")) {
+          List.of("Ferdinando Villa", "Enrico Girotto", "Andrea Antonello", "Arnab Moitra")) {
         Label label = new Label(developer);
         label.setAlignment(Pos.CENTER);
         label.setPadding(new Insets(10));
@@ -503,7 +499,7 @@ public class Components {
 
   public static class DistributionComponent extends BaseComponent {
 
-    public DistributionComponent(Distribution distribution) {
+    public DistributionComponent() {
       super(Type.Distribution, "Distribution status", true);
     }
 

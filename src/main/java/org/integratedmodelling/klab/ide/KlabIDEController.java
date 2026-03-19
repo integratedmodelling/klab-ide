@@ -32,13 +32,16 @@ import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
+import org.integratedmodelling.common.configuration.CommonConfiguration;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.services.client.scope.ClientContextScope;
 import org.integratedmodelling.common.utils.Utils;
+import org.integratedmodelling.klab.api.Klab;
 import org.integratedmodelling.klab.api.authentication.ExternalAuthenticationCredentials;
 import org.integratedmodelling.klab.api.collections.Pair;
 import org.integratedmodelling.klab.api.configuration.Setting;
 import org.integratedmodelling.klab.api.data.RepositoryState;
+import org.integratedmodelling.klab.api.data.Version;
 import org.integratedmodelling.klab.api.digitaltwin.DigitalTwin;
 import org.integratedmodelling.klab.api.digitaltwin.Scheduler;
 import org.integratedmodelling.klab.api.engine.Engine;
@@ -190,7 +193,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private Queue<Notification> notifications;
   private ServicesViewController servicesController;
   private RuntimeViewController runtimeController;
-  private Distribution distribution;
   private final Map<View, Button> viewButtons = new HashMap<>();
 
   private WorkspaceView workspaceView;
@@ -449,6 +451,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   @FXML
   protected void initialize() {
 
+    // this is needed to manage the software stack API
+    Klab.INSTANCE.setConfiguration(new CommonConfiguration());
+
     homeButton.setGraphic(
         new IconLabel(Material2AL.HOME, 24, Theme.CURRENT_THEME.getDefaultTextColor()));
     workspacesButton.setGraphic(new IconLabel(Theme.WORKSPACES_ICON, 24, Color.GREY));
@@ -546,7 +551,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
           // must call explicitly because the callback won't be used before boot.
           notifyUser(this.user.getUser());
-          notifyDistribution(modeler().getSoftwareStack());
+          notifyDistribution();
           notifications =
               Queues.synchronizedQueue(
                   EvictingQueue.create(
@@ -901,7 +906,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
               Color.DARKGOLDENROD,
               "Local services are starting or stopping. Wait until status changes.");
       case INOPERATIVE, ACTIVE_REMOTE_ONLY -> {
-        if (distribution != null && distribution.isUsable()) {
+        if (engine().hasValidSoftwareStack()) {
           setButton(
               startButton,
               BootstrapIcons.POWER,
@@ -1195,45 +1200,47 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   }
 
-  public void notifyDistribution(Stack distribution) {
+  /**
+   * TODO use this from the distribution view. Switching should only be available with engines
+   * stopped. Must call notifyDistribution after switching.
+   *
+   * @param tag
+   */
+  public void switchDistributionTag(Stack.Tag tag) {
+    // TODO
+  }
+
+  public void notifyDistribution() {
 
     Ikon icon = BootstrapIcons.DOWNLOAD;
     var color = Color.GREEN;
-    var status = modeler().getSoftwareStack().status();
     var tooltip = "No k.LAB distribution is available";
     var startColor = Color.GREEN;
     var startTooltip = "Local services are not available";
 
-    if (status.getDevelopmentStatus() == Product.Status.UP_TO_DATE
-    /*&& "source".equals(settings.getPrimaryDistribution().getValue())*/ ) {
+    if (engine().getDistributionTag().version() == Version.HEAD) {
 
-      this.distribution = distribution;
       icon = BootstrapIcons.LAPTOP;
       tooltip = "Using locally available source k.LAB distribution";
       startTooltip = "Start local k.LAB services";
 
     } else {
-      switch (status.getDownloadedStatus()) {
-        case UNAVAILABLE -> {
-          color = Color.RED;
-          tooltip = "No distribution available. Click to download";
-          startButton.setDisable(true);
-        }
-        case LOCAL_ONLY -> {
-          startTooltip = "Start local k.LAB services";
-          startButton.setDisable(false);
-        }
-        case UP_TO_DATE -> {
-          startTooltip = "Start local k.LAB services";
-          icon = BootstrapIcons.CHECK;
-          startButton.setDisable(false);
-        }
-        case OBSOLETE -> {
-          color = Color.GOLDENROD;
-          tooltip = "Updated k.LAB distribution available. Click to update";
-          startTooltip = "Start out-of-date local services";
-          startButton.setDisable(false);
-        }
+
+      var status = engine().getSoftwareStack().getStatus(engine().getDistributionTag());
+
+      if (status == Stack.Status.ABSENT) {
+        color = Color.RED;
+        tooltip = "No distribution available. Click to download";
+        startButton.setDisable(true);
+      } else if (status.downloadSize() == 0 && status.totalContentSize() > 0) {
+        startTooltip = "Start local k.LAB services";
+        icon = BootstrapIcons.CHECK;
+        startButton.setDisable(false);
+      } else {
+        color = Color.GOLDENROD;
+        tooltip = "Updated k.LAB distribution available. Click to update";
+        startTooltip = "Start out-of-date local services";
+        startButton.setDisable(false);
       }
     }
     setButton(startButton, Material2MZ.POWER_SETTINGS_NEW, 16, startColor, startTooltip);
@@ -1280,11 +1287,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   @Override
   public UserScope authenticate() {
     return modeler.authenticate();
-  }
-
-  @Override
-  public Stack getSoftwareStack() {
-    return modeler().getSoftwareStack();
   }
 
   @Override
