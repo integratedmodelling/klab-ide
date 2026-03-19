@@ -43,7 +43,7 @@ import org.integratedmodelling.klab.api.digitaltwin.DigitalTwin;
 import org.integratedmodelling.klab.api.digitaltwin.Scheduler;
 import org.integratedmodelling.klab.api.engine.Engine;
 import org.integratedmodelling.klab.api.engine.distribution.Distribution;
-import org.integratedmodelling.klab.api.engine.distribution.Product;
+import org.integratedmodelling.klab.api.engine.distribution.Stack;
 import org.integratedmodelling.klab.api.exceptions.KlabInternalErrorException;
 import org.integratedmodelling.klab.api.identities.UserIdentity;
 import org.integratedmodelling.klab.api.knowledge.Artifact;
@@ -546,7 +546,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
           // must call explicitly because the callback won't be used before boot.
           notifyUser(this.user.getUser());
-          notifyDistribution(modeler().getDistribution());
+          notifyDistribution(modeler().getSoftwareStack());
           notifications =
               Queues.synchronizedQueue(
                   EvictingQueue.create(
@@ -1195,11 +1195,11 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   }
 
-  public void notifyDistribution(Distribution distribution) {
+  public void notifyDistribution(Stack distribution) {
 
     Ikon icon = BootstrapIcons.DOWNLOAD;
     var color = Color.GREEN;
-    var status = modeler().engine().getDistributionStatus();
+    var status = modeler().getSoftwareStack().status();
     var tooltip = "No k.LAB distribution is available";
     var startColor = Color.GREEN;
     var startTooltip = "Local services are not available";
@@ -1283,8 +1283,8 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   }
 
   @Override
-  public Distribution getDistribution() {
-    return modeler.getDistribution();
+  public Stack getSoftwareStack() {
+    return modeler().getSoftwareStack();
   }
 
   @Override
@@ -1338,11 +1338,11 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         asset, event, mediaType, contextScope, visualizationOptions, outputType);
   }
 
-//  @Override
-//  public List<ContextScope> getOpenContexts() {
-//    // TODO use focal scopes
-//    return modeler.getOpenContexts();
-//  }
+  //  @Override
+  //  public List<ContextScope> getOpenContexts() {
+  //    // TODO use focal scopes
+  //    return modeler.getOpenContexts();
+  //  }
 
   @Override
   public synchronized ContextScope createDefaultContext() {
