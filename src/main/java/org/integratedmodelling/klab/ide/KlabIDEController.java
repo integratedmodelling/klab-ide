@@ -34,6 +34,7 @@ import javafx.stage.StageStyle;
 import javafx.util.Duration;
 import org.integratedmodelling.common.configuration.CommonConfiguration;
 import org.integratedmodelling.common.logging.Logging;
+import org.integratedmodelling.common.services.client.engine.EngineImpl;
 import org.integratedmodelling.common.services.client.scope.ClientContextScope;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.Klab;
@@ -45,7 +46,6 @@ import org.integratedmodelling.klab.api.data.Version;
 import org.integratedmodelling.klab.api.digitaltwin.DigitalTwin;
 import org.integratedmodelling.klab.api.digitaltwin.Scheduler;
 import org.integratedmodelling.klab.api.engine.Engine;
-import org.integratedmodelling.klab.api.engine.distribution.Distribution;
 import org.integratedmodelling.klab.api.engine.distribution.Stack;
 import org.integratedmodelling.klab.api.exceptions.KlabInternalErrorException;
 import org.integratedmodelling.klab.api.identities.UserIdentity;
@@ -551,7 +551,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
           // must call explicitly because the callback won't be used before boot.
           notifyUser(this.user.getUser());
-          notifyDistribution();
+          initializeSoftwareStack();
           notifications =
               Queues.synchronizedQueue(
                   EvictingQueue.create(
@@ -1202,23 +1202,31 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   /**
    * TODO use this from the distribution view. Switching should only be available with engines
-   * stopped. Must call notifyDistribution after switching.
+   * stopped.
    *
    * @param tag
    */
   public void switchDistributionTag(Stack.Tag tag) {
-    // TODO
+    if (engineStatus.get().isOperational()) {
+      Toolkit.getDefaultToolkit().beep();
+    } else {
+      if (engine() instanceof EngineImpl engine) {
+        engine.setDistributionTag(tag);
+        Platform.runLater(this::initializeSoftwareStack);
+      }
+    }
   }
 
-  public void notifyDistribution() {
+  public void initializeSoftwareStack() {
 
     Ikon icon = BootstrapIcons.DOWNLOAD;
     var color = Color.GREEN;
     var tooltip = "No k.LAB distribution is available";
     var startColor = Color.GREEN;
     var startTooltip = "Local services are not available";
+    var distributionTag = engine().getDistributionTag();
 
-    if (engine().getDistributionTag().version() == Version.HEAD) {
+    if (distributionTag.version() == Version.HEAD) {
 
       icon = BootstrapIcons.LAPTOP;
       tooltip = "Using locally available source k.LAB distribution";
@@ -1321,6 +1329,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
                   && !o.getObservable().getSemantics().isCollective()
                   && scope instanceof IDEContextScope) {
                 // set as context to avoid pain
+                // FIXME check - this does not do anything? Also, do we really want it?
                 scope.within(o);
               }
 
