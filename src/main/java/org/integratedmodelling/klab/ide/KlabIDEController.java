@@ -46,6 +46,7 @@ import org.integratedmodelling.klab.api.data.Version;
 import org.integratedmodelling.klab.api.digitaltwin.DigitalTwin;
 import org.integratedmodelling.klab.api.digitaltwin.Scheduler;
 import org.integratedmodelling.klab.api.engine.Engine;
+import org.integratedmodelling.klab.api.engine.distribution.Distribution;
 import org.integratedmodelling.klab.api.engine.distribution.Stack;
 import org.integratedmodelling.klab.api.exceptions.KlabInternalErrorException;
 import org.integratedmodelling.klab.api.identities.UserIdentity;
@@ -1057,6 +1058,25 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         }
       }
 
+      this.dbIcon.set(
+          MaterialDesign.MDI_DATABASE,
+          11,
+          status.getActiveAuxiliaryServices().contains(Distribution.Product.Type.DATABASE_SERVER)
+              ? Color.DARKGREEN
+              : Color.DARKGRAY);
+      this.langIcon.set(
+          CarbonIcons.LANGUAGE,
+          11,
+          status.getActiveAuxiliaryServices().contains(Distribution.Product.Type.LANGUAGE_SERVER)
+              ? Color.DARKGREEN
+              : Color.DARKGRAY);
+      this.messIcon.set(
+          Evaicons.MESSAGE_SQUARE_OUTLINE,
+          11,
+          status.getActiveAuxiliaryServices().contains(Distribution.Product.Type.AMQP_BROKER)
+              ? Color.DARKGREEN
+              : Color.DARKGRAY);
+
       var tooltip = serviceName; // FIXME use meaningful tooltip based on provision
 
       setButton(button, icon, 16, color, tooltip);
@@ -1234,7 +1254,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
     } else {
 
-      var status = engine().getSoftwareStack().getStatus(engine().getDistributionTag());
+      var status = engine().getSoftwareStack().status(engine().getDistributionTag());
 
       if (status == Stack.Status.ABSENT) {
         color = Color.RED;
