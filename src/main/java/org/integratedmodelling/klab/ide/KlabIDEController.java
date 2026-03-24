@@ -1062,19 +1062,19 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
           MaterialDesign.MDI_DATABASE,
           11,
           status.getActiveAuxiliaryServices().contains(Distribution.Product.Type.DATABASE_SERVER)
-              ? Color.DARKGREEN
+              ? Color.GREEN
               : Color.DARKGRAY);
       this.langIcon.set(
           CarbonIcons.LANGUAGE,
           11,
           status.getActiveAuxiliaryServices().contains(Distribution.Product.Type.LANGUAGE_SERVER)
-              ? Color.DARKGREEN
+              ? Color.GREEN
               : Color.DARKGRAY);
       this.messIcon.set(
           Evaicons.MESSAGE_SQUARE_OUTLINE,
           11,
           status.getActiveAuxiliaryServices().contains(Distribution.Product.Type.AMQP_BROKER)
-              ? Color.DARKGREEN
+              ? Color.GREEN
               : Color.DARKGRAY);
 
       var tooltip = serviceName; // FIXME use meaningful tooltip based on provision
