@@ -474,13 +474,15 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   protected Node createEditor(NavigableAsset asset) {
     if (asset instanceof NavigableKlabDocument<?, ?> document) {
       // 1. LSP init for this workspace
-      Path workspaceRoot = Paths.get(System.getProperty("user.home") + "/git/klab-ide");
-      try {
-        KlabLspService.getInstance().startIfNeeded(workspaceRoot);
-        System.out.println("[WorkspaceEditor] LSP Server initialized");
-      } catch (Exception e) {
-        e.printStackTrace();
-        System.err.println("[WorkspaceEditor] Error starting LSP Server" + e);
+//      Path workspaceRoot = Paths.get(System.getProperty("user.home") + "/git/klab-ide");
+      //      try {
+      if (!KlabLspService.getInstance().startIfNeeded()) {
+        KlabIDEController.instance()
+            .handleNotification(
+                Notification.error("LSP Server is not running: no edit support available"));
+        //      } catch (Exception e) {
+        //        e.printStackTrace();
+        //        System.err.println("[WorkspaceEditor] Error starting LSP Server" + e);
       }
 
       String languageId =

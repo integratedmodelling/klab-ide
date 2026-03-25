@@ -5,6 +5,7 @@ import org.eclipse.lsp4j.jsonrpc.Launcher;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.eclipse.lsp4j.services.LanguageClient;
 import org.eclipse.lsp4j.services.LanguageServer;
+import org.integratedmodelling.klab.ide.KlabIDEController;
 
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -41,31 +42,42 @@ public class KlabLspService {
 
   private KlabLspService() {}
 
-  public synchronized void startIfNeeded(Path workspaceRoot) throws Exception {
-    if (initialized) return;
+  public synchronized boolean startIfNeeded(/*Path workspaceRoot*/ ) {
 
-    // 1. Start Xtext LSP server process
-    serverProcess = startServerProcess(workspaceRoot);
+    if (initialized) return true;
 
-    InputStream in = serverProcess.getInputStream(); // server -> client
-    OutputStream out = serverProcess.getOutputStream(); // client -> server
+    //    // 1. Start Xtext LSP server process
+    //    serverProcess = startServerProcess(workspaceRoot);
+    //
+    //    InputStream in = serverProcess.getInputStream(); // server -> client
+    //    OutputStream out = serverProcess.getOutputStream(); // client -> server
 
-    LanguageClient client = new KlabLanguageClient();
+    try {
+      LanguageClient client = new KlabLanguageClient();
 
-    launcher =
-        Launcher.createLauncher(
-            client, LanguageServer.class, in, out, executor, Function.identity());
-    server = launcher.getRemoteProxy();
-    launcher.startListening();
+      launcher =
+          Launcher.createLauncher(
+              client,
+              LanguageServer.class,
+              KlabIDEController.instance().getLanguageServer().getInputStream(),
+              KlabIDEController.instance().getLanguageServer().getOutputStream(),
+              executor,
+              Function.identity());
+      server = launcher.getRemoteProxy();
+      launcher.startListening();
 
-    // 2. Initialize
-    InitializeParams params = new InitializeParams();
-    params.setCapabilities(new ClientCapabilities());
-    params.setRootUri(workspaceRoot.toUri().toString());
-    server.initialize(params).get(60, TimeUnit.SECONDS);
-    server.initialized(new InitializedParams());
+      // 2. Initialize
+      InitializeParams params = new InitializeParams();
+      params.setCapabilities(new ClientCapabilities());
+      //    params.setRootUri(workspaceRoot.toUri().toString());
+      server.initialize(params).get(60, TimeUnit.SECONDS);
+      server.initialized(new InitializedParams());
 
-    initialized = true;
+      initialized = true;
+    } catch (Exception e) {
+      return false;
+    }
+    return true;
   }
 
   public LanguageServer getServer() {
@@ -168,35 +180,35 @@ public class KlabLspService {
     initialized = false;
   }
 
-  private Process startServerProcess(Path workspaceRoot) throws Exception {
-    // Location of "target/classes" relative to workspaceRoot
-    Path classesDir = workspaceRoot.resolve("target").resolve("classes");
+  //  private Process startServerProcess(Path workspaceRoot) throws Exception {
+  //    // Location of "target/classes" relative to workspaceRoot
+  //    Path classesDir = workspaceRoot.resolve("target").resolve("classes");
+  //
+  //    // Load classpath.txt which the .sh script uses
+  //    Path cpFile = workspaceRoot.resolve("target").resolve("classpath.txt");
+  //    String extraCp = java.nio.file.Files.readString(cpFile).trim();
+  //
+  //    // Build the full classpath (classes + additional entries from classpath.txt)
+  //    // TODO change this to something production-ready
+  //    String classpath = classesDir.toString() + System.getProperty("path.separator") + extraCp;
+  //
+  //    // Build the Java command equivalent to start-lsp.sh
+  //    ProcessBuilder pb =
+  //        new ProcessBuilder(
+  //            "java",
+  //            "-Dxtext.disable.standalone.setup=true",
+  //            "org.eclipse.xtext.ide.server.ServerLauncher");
+  //
+  //    // put CLASSPATH in an env var so that the CL doesn't kill Windows
+  //    pb.environment().put("CLASSPATH", classpath);
+  //    pb.directory(workspaceRoot.toFile());
+  //    pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+  //
+  //    return pb.start();
+  //  }
 
-    // Load classpath.txt which the .sh script uses
-    Path cpFile = workspaceRoot.resolve("target").resolve("classpath.txt");
-    String extraCp = java.nio.file.Files.readString(cpFile).trim();
-
-    // Build the full classpath (classes + additional entries from classpath.txt)
-    // TODO change this to something production-ready
-    String classpath = classesDir.toString() + System.getProperty("path.separator") + extraCp;
-
-    // Build the Java command equivalent to start-lsp.sh
-    ProcessBuilder pb =
-        new ProcessBuilder(
-            "java",
-            "-Dxtext.disable.standalone.setup=true",
-            "org.eclipse.xtext.ide.server.ServerLauncher");
-
-    // put CLASSPATH in an env var so that the CL doesn't kill Windows
-    pb.environment().put("CLASSPATH", classpath);
-    pb.directory(workspaceRoot.toFile());
-    pb.redirectError(ProcessBuilder.Redirect.INHERIT);
-
-    return pb.start();
-  }
-
-  public static void main(String[] diocan) throws Exception {
-    Path workspaceRoot = Paths.get(System.getProperty("user.home") + "/git/klab-ide");
-    KlabLspService.getInstance().startIfNeeded(workspaceRoot);
-  }
+  //  public static void main(String[] diocan) throws Exception {
+  //    Path workspaceRoot = Paths.get(System.getProperty("user.home") + "/git/klab-ide");
+  //    KlabLspService.getInstance().startIfNeeded(workspaceRoot);
+  //  }
 }

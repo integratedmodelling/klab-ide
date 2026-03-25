@@ -47,6 +47,7 @@ import org.integratedmodelling.klab.api.digitaltwin.DigitalTwin;
 import org.integratedmodelling.klab.api.digitaltwin.Scheduler;
 import org.integratedmodelling.klab.api.engine.Engine;
 import org.integratedmodelling.klab.api.engine.distribution.Distribution;
+import org.integratedmodelling.klab.api.engine.distribution.LocalInstance;
 import org.integratedmodelling.klab.api.engine.distribution.Stack;
 import org.integratedmodelling.klab.api.exceptions.KlabInternalErrorException;
 import org.integratedmodelling.klab.api.identities.UserIdentity;
@@ -122,6 +123,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private IconLabel dbIcon;
   private IconLabel messIcon;
   private IconLabel langIcon;
+  private LocalInstance languageServer;
 
   public <T, A> void digitalTwinPanelShown(
       EditorPage<A, T> atEditorPage, DigitalTwinControlPanel digitalTwinControlPanel) {
@@ -290,6 +292,15 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
    */
   public void unregisterDigitalTwinReactor(DigitalTwinReactor reactor) {
     this.digitalTwinReactors.remove(reactor);
+  }
+
+  /**
+   * The language server instance. I/O will be bound to the editor's for LSP support.
+   *
+   * @return
+   */
+  public LocalInstance getLanguageServer() {
+    return languageServer;
   }
 
   /**
@@ -552,7 +563,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
           // must call explicitly because the callback won't be used before boot.
           notifyUser(this.user.getUser());
-          initializeSoftwareStack();
           notifications =
               Queues.synchronizedQueue(
                   EvictingQueue.create(
@@ -565,6 +575,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
           //            // TODO
           //            //      Thread.ofPlatform().start(this::toggleLocalServices);
           //          }
+          initializeSoftwareStack();
         });
   }
 
@@ -1059,19 +1070,19 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
       }
 
       this.dbIcon.set(
-          MaterialDesign.MDI_DATABASE,
+          Theme.DATABASE_ICON,
           11,
           status.getActiveAuxiliaryServices().contains(Distribution.Product.Type.DATABASE_SERVER)
               ? Color.LIGHTGREEN
               : Color.DARKGRAY);
       this.langIcon.set(
-          CarbonIcons.LANGUAGE,
+          Theme.LANGUAGE_SERVER_ICON,
           11,
           status.getActiveAuxiliaryServices().contains(Distribution.Product.Type.LANGUAGE_SERVER)
               ? Color.LIGHTGREEN
               : Color.DARKGRAY);
       this.messIcon.set(
-          Evaicons.MESSAGE_SQUARE_OUTLINE,
+          Theme.MESSAGING_ICON,
           11,
           status.getActiveAuxiliaryServices().contains(Distribution.Product.Type.AMQP_BROKER)
               ? Color.LIGHTGREEN
@@ -1245,7 +1256,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     var startColor = Color.GREEN;
     var startTooltip = "Local services are not available";
     var distributionTag = engine().getDistributionTag();
-
+    var available = false;
     if (distributionTag.version() == Version.HEAD) {
 
       icon = BootstrapIcons.LAPTOP;
@@ -1273,6 +1284,34 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     }
     setButton(startButton, Material2MZ.POWER_SETTINGS_NEW, 16, startColor, startTooltip);
     setButton(downloadButton, icon, 16, color, tooltip);
+
+    var started = false;
+    if (engine().hasValidSoftwareStack()) {
+      this.languageServer =
+          engine()
+              .getSoftwareStack()
+              .instance(Distribution.Product.Type.LANGUAGE_SERVER, distributionTag);
+      if (languageServer != null) {
+        // required even if the server already runs
+        if (languageServer.getStatus() == LocalInstance.Status.RUNNING) {
+          handleNotification(
+              Notification.info("Language server available", Notification.Outcome.Success));
+          started = true;
+        }
+
+        if (languageServer.start()) {
+          if (!started) {
+            handleNotification(
+                Notification.info("Language server started", Notification.Outcome.Success));
+          }
+          started = true;
+        }
+      }
+    }
+    if (!started) {
+      handleNotification(
+          Notification.warning("Language server not available", Notification.Outcome.Failure));
+    }
   }
 
   public static void setButton(Button button, Ikon icon, int size, Color color, String tooltip) {

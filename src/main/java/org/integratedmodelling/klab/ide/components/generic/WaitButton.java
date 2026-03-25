@@ -56,12 +56,16 @@ public class WaitButton extends Button {
   private String originalText;
   private boolean taskSucceeded;
 
+  public WaitButton(String text) {
+    this(text, 16);
+  }
+
   /**
    * Creates a new WaitButton with the specified text.
    *
    * @param text The text to display on the button
    */
-  public WaitButton(String text) {
+  public WaitButton(String text, int size) {
     super();
     this.originalText = text;
     this.executorService = Executors.newCachedThreadPool();
@@ -72,9 +76,9 @@ public class WaitButton extends Button {
     HBox.setHgrow(textLabel, Priority.ALWAYS);
 
     // Create icons for different states
-    this.arrowIcon = new IconLabel(Material2MZ.NAVIGATE_NEXT, 16, Color.GRAY);
-    this.successIcon = new IconLabel(Material2AL.CHECK_CIRCLE, 16, Color.GREEN);
-    this.errorIcon = new IconLabel(Material2AL.ERROR, 16, Color.RED);
+    this.arrowIcon = new IconLabel(Material2MZ.NAVIGATE_NEXT, size, Color.GRAY);
+    this.successIcon = new IconLabel(Material2AL.CHECK_CIRCLE, size, Color.GREEN);
+    this.errorIcon = new IconLabel(Material2AL.ERROR, size, Color.RED);
 
     // Initially only show the arrow icon
     this.arrowIcon.setVisible(true);
@@ -84,9 +88,9 @@ public class WaitButton extends Button {
     // Create progress indicator with AtlantaFX styling
     this.progressIndicator = new ProgressIndicator();
     // Make the indicator larger for better visibility
-    progressIndicator.setMaxSize(24, 24);
-    progressIndicator.setMinSize(24, 24);
-    progressIndicator.setPrefSize(24, 24);
+    progressIndicator.setMaxSize(size + 8, size + 8);
+    progressIndicator.setMinSize(size + 8, size + 8);
+    progressIndicator.setPrefSize(size + 8, size + 8);
     progressIndicator.setVisible(false);
 
     // Ensure the indicator is always fully visible, even when the button is in a "disabled" state

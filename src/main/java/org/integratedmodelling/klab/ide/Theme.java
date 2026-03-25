@@ -157,6 +157,9 @@ public enum Theme {
   public static Ikon KNOWLEDGE_GRAPH_ICON = BootstrapIcons.DIAGRAM_3;
   public static Ikon INSTANTIATOR_MODEL_ICON = FontAwesomeSolid.COGS;
   public static Ikon RESOLVER_MODEL_ICON = FontAwesomeSolid.COG;
+  public static Ikon DATABASE_ICON = MaterialDesign.MDI_DATABASE;
+  public static Ikon LANGUAGE_SERVER_ICON = CarbonIcons.LANGUAGE;
+  public static Ikon MESSAGING_ICON = Evaicons.MESSAGE_SQUARE_OUTLINE;
 
   // views
   public static Ikon RESOURCES_ICON = FontAwesomeSolid.CUBES;
