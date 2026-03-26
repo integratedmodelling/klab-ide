@@ -3,8 +3,6 @@ package org.integratedmodelling.klab.ide.components;
 import atlantafx.base.theme.Styles;
 import atlantafx.base.theme.Tweaks;
 
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 
 import javafx.application.Platform;
@@ -47,7 +45,6 @@ import org.kordamp.ikonli.carbonicons.CarbonIcons;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
 import org.kordamp.ikonli.materialdesign.MaterialDesign;
-import org.kordamp.ikonli.materialdesign.MaterialDesignIkonHandler;
 
 public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAsset> {
 
@@ -476,7 +473,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       // 1. LSP init for this workspace
 //      Path workspaceRoot = Paths.get(System.getProperty("user.home") + "/git/klab-ide");
       //      try {
-      if (!KlabLspService.getInstance().startIfNeeded()) {
+      if (!KlabLspService.getInstance().ensureInitialized()) {
         KlabIDEController.instance()
             .handleNotification(
                 Notification.error("LSP Server is not running: no edit support available"));

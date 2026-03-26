@@ -5,20 +5,13 @@ import org.eclipse.lsp4j.jsonrpc.Launcher;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.eclipse.lsp4j.services.LanguageClient;
 import org.eclipse.lsp4j.services.LanguageServer;
-import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.Map;
 import java.util.function.Function;
-
-import static org.integratedmodelling.klab.api.configuration.Configuration.KLAB_WORK_DIRECTORY;
 
 public class KlabLspService {
 
@@ -33,7 +26,7 @@ public class KlabLspService {
     return INSTANCE;
   }
 
-  private Process serverProcess;
+//  private Process serverProcess;
   private LanguageServer server;
   private Launcher<LanguageServer> launcher;
   private final ExecutorService executor = Executors.newCachedThreadPool();
@@ -43,15 +36,11 @@ public class KlabLspService {
 
   private KlabLspService() {}
 
-  public synchronized boolean startIfNeeded(/*Path workspaceRoot*/ ) {
+  public synchronized boolean ensureInitialized() {
 
-    if (initialized) return true;
-
-    //    // 1. Start Xtext LSP server process
-    //    serverProcess = startServerProcess(workspaceRoot);
-    //
-    //    InputStream in = serverProcess.getInputStream(); // server -> client
-    //    OutputStream out = serverProcess.getOutputStream(); // client -> server
+    if (initialized) {
+      return true;
+    }
 
     try {
       LanguageClient client = new KlabLanguageClient();
@@ -70,7 +59,6 @@ public class KlabLspService {
       // 2. Initialize
       InitializeParams params = new InitializeParams();
       params.setCapabilities(new ClientCapabilities());
-      //    params.setRootUri(workspaceRoot.toUri().toString());
       server.initialize(params).get(60, TimeUnit.SECONDS);
       server.initialized(new InitializedParams());
 
@@ -174,15 +162,15 @@ public class KlabLspService {
     return server.getTextDocumentService().completion(params);
   }
 
-  public void shutdown() throws Exception {
-    if (!initialized) return;
-    server.shutdown().get(5, TimeUnit.SECONDS);
-    server.exit();
-    serverProcess.destroy();
-    executor.shutdown();
-    initialized = false;
-  }
-
+//  public void shutdown() throws Exception {
+//    if (!initialized) return;
+//    server.shutdown().get(5, TimeUnit.SECONDS);
+//    server.exit();
+//    serverProcess.destroy();
+//    executor.shutdown();
+//    initialized = false;
+//  }
+//
   //  private Process startServerProcess(Path workspaceRoot) throws Exception {
   //    // Location of "target/classes" relative to workspaceRoot
   //    Path classesDir = workspaceRoot.resolve("target").resolve("classes");
