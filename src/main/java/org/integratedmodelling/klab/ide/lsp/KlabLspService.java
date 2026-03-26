@@ -5,6 +5,7 @@ import org.eclipse.lsp4j.jsonrpc.Launcher;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.eclipse.lsp4j.services.LanguageClient;
 import org.eclipse.lsp4j.services.LanguageServer;
+import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 
 import java.io.InputStream;
@@ -75,6 +76,8 @@ public class KlabLspService {
 
       initialized = true;
     } catch (Exception e) {
+      // the nightmare was that a closed outputstream was coming out of the instance. Hopefully
+      // that is solved now.
       return false;
     }
     return true;

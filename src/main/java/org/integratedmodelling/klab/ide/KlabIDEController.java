@@ -123,7 +123,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private IconLabel dbIcon;
   private IconLabel messIcon;
   private IconLabel langIcon;
-  private LocalInstance languageServer;
 
   public <T, A> void digitalTwinPanelShown(
       EditorPage<A, T> atEditorPage, DigitalTwinControlPanel digitalTwinControlPanel) {
@@ -300,7 +299,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
    * @return
    */
   public LocalInstance getLanguageServer() {
-    return languageServer;
+    return engine().getServiceInstance(KlabService.Type.LANGUAGE_SERVER);
   }
 
   /**
@@ -673,13 +672,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   private void handleStartButtonPress() {
 
-    Platform.runLater(
-        () -> {
-          // TODO set colors based on status - this should be done at creation and managed during
-          // start. Icons should not be visible until local services have been either started or
-          // found active
-          otherServices.getChildren().addAll(dbIcon, langIcon, messIcon);
-        });
     var condition =
         engineStatus.get() == null
             ? Engine.Status.EngineCondition.INOPERATIVE
@@ -1250,6 +1242,8 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   public void initializeSoftwareStack() {
 
+    otherServices.getChildren().addAll(dbIcon, langIcon, messIcon);
+
     Ikon icon = BootstrapIcons.DOWNLOAD;
     var color = Color.GREEN;
     var tooltip = "No k.LAB distribution is available";
@@ -1285,32 +1279,14 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     setButton(startButton, Material2MZ.POWER_SETTINGS_NEW, 16, startColor, startTooltip);
     setButton(downloadButton, icon, 16, color, tooltip);
 
-    var started = false;
-    if (engine().hasValidSoftwareStack()) {
-      this.languageServer =
-          engine()
-              .getSoftwareStack()
-              .instance(Distribution.Product.Type.LANGUAGE_SERVER, distributionTag);
-      if (languageServer != null) {
-        // required even if the server already runs
-        if (languageServer.getStatus() == LocalInstance.Status.RUNNING) {
-          handleNotification(
-              Notification.info("Language server available", Notification.Outcome.Success));
-          started = true;
-        }
-
-        if (languageServer.start()) {
-          if (!started) {
-            handleNotification(
-                Notification.info("Language server started", Notification.Outcome.Success));
-          }
-          started = true;
-        }
-      }
-    }
-    if (!started) {
+    if (engine().startAuxiliaryServices(KlabService.Type.LANGUAGE_SERVER)) {
+      handleNotification(
+          Notification.info("Language server started", Notification.Outcome.Success));
+      langIcon.set(Theme.LANGUAGE_SERVER_ICON, 11, Color.LIGHTGREEN);
+    } else {
       handleNotification(
           Notification.warning("Language server not available", Notification.Outcome.Failure));
+      langIcon.set(Theme.LANGUAGE_SERVER_ICON, 11, Color.RED);
     }
   }
 
