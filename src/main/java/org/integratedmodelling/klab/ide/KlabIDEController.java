@@ -1279,14 +1279,18 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     setButton(startButton, Material2MZ.POWER_SETTINGS_NEW, 16, startColor, startTooltip);
     setButton(downloadButton, icon, 16, color, tooltip);
 
-    if (engine().startAuxiliaryServices(KlabService.Type.LANGUAGE_SERVER)) {
-      handleNotification(
-          Notification.info("Language server started", Notification.Outcome.Success));
-      langIcon.set(Theme.LANGUAGE_SERVER_ICON, 11, Color.LIGHTGREEN);
+    if (engine().getSettings().get(Setting.START_LSP_SERVER_ON_STARTUP, Boolean.class)) {
+      if (engine().startAuxiliaryServices(KlabService.Type.LANGUAGE_SERVER)) {
+        handleNotification(
+            Notification.info("Language server started", Notification.Outcome.Success));
+        langIcon.set(Theme.LANGUAGE_SERVER_ICON, 11, Color.LIGHTGREEN);
+      } else {
+        handleNotification(
+            Notification.warning("Language server not available", Notification.Outcome.Failure));
+        langIcon.set(Theme.LANGUAGE_SERVER_ICON, 11, Color.RED);
+      }
     } else {
-      handleNotification(
-          Notification.warning("Language server not available", Notification.Outcome.Failure));
-      langIcon.set(Theme.LANGUAGE_SERVER_ICON, 11, Color.RED);
+      handleNotification(Notification.info("Language server was disabled in settings"));
     }
   }
 

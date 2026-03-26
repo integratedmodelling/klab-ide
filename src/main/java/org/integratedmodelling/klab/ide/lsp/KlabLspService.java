@@ -5,6 +5,7 @@ import org.eclipse.lsp4j.jsonrpc.Launcher;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.eclipse.lsp4j.services.LanguageClient;
 import org.eclipse.lsp4j.services.LanguageServer;
+import org.integratedmodelling.klab.api.engine.distribution.LocalInstance;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 
 import java.util.Collections;
@@ -26,7 +27,7 @@ public class KlabLspService {
     return INSTANCE;
   }
 
-//  private Process serverProcess;
+  //  private Process serverProcess;
   private LanguageServer server;
   private Launcher<LanguageServer> launcher;
   private final ExecutorService executor = Executors.newCachedThreadPool();
@@ -37,6 +38,11 @@ public class KlabLspService {
   private KlabLspService() {}
 
   public synchronized boolean ensureInitialized() {
+
+    if (KlabIDEController.instance().getLanguageServer().getStatus()
+        != LocalInstance.Status.RUNNING) {
+      return false;
+    }
 
     if (initialized) {
       return true;
@@ -162,15 +168,15 @@ public class KlabLspService {
     return server.getTextDocumentService().completion(params);
   }
 
-//  public void shutdown() throws Exception {
-//    if (!initialized) return;
-//    server.shutdown().get(5, TimeUnit.SECONDS);
-//    server.exit();
-//    serverProcess.destroy();
-//    executor.shutdown();
-//    initialized = false;
-//  }
-//
+  //  public void shutdown() throws Exception {
+  //    if (!initialized) return;
+  //    server.shutdown().get(5, TimeUnit.SECONDS);
+  //    server.exit();
+  //    serverProcess.destroy();
+  //    executor.shutdown();
+  //    initialized = false;
+  //  }
+  //
   //  private Process startServerProcess(Path workspaceRoot) throws Exception {
   //    // Location of "target/classes" relative to workspaceRoot
   //    Path classesDir = workspaceRoot.resolve("target").resolve("classes");
