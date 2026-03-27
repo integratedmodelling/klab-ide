@@ -15,7 +15,6 @@ module org.integratedmodelling.klab.ide {
     requires org.kordamp.ikonli.weathericons;
     requires org.eclipse.xtext.ide;
     requires com.ibm.icu;
-    requires org.eclipse.emf.ecore;
     requires jdk.jsobject;
     requires org.kordamp.ikonli.evaicons;
     requires com.google.common;
@@ -32,7 +31,6 @@ module org.integratedmodelling.klab.ide {
     requires javafx.media;
     requires devtoolsfx.gui;
     requires org.kordamp.ikonli.unicons;
-    requires org.integratedmodelling.languages.worldview;
     requires org.kordamp.ikonli.carbonicons;
     requires org.apache.commons.io;
     requires tyrus.standalone.client;
