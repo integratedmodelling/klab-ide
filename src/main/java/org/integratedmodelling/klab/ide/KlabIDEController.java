@@ -1397,6 +1397,10 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   @Override
   public synchronized ContextScope createDefaultContext() {
     var context = modeler.createDefaultContext();
+    if (context == null) {
+      alert(Notification.error("Failed to create default context: is the local runtime running?"));
+      return null;
+    }
     var ret = new IDEContextScope((ClientContextScope) context);
     contextMap.put(ret.getId(), ret);
     setFocalScope(ret, true);
@@ -1577,6 +1581,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   public IDEContextScope requireDefaultContext() {
     if (focalScope == null) {
       var context = createDefaultContext();
+      if (context == null) {
+          return null;
+      }
       focalScope = requireDigitalTwinPeer(context, null);
     }
 
