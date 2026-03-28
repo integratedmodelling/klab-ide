@@ -12,6 +12,8 @@ import javafx.geometry.Side;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.CustomMenuItem;
 import javafx.scene.control.TextField;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
 
@@ -64,6 +66,10 @@ public class AutoCompleteTextField extends TextField {
   /** The popup used to select an entry. */
   private ContextMenu entriesPopup;
 
+  private int selectedSuggestionIndex = -1;
+
+  private boolean isCycling = false;
+
   /**
    * Indicates whether the search is case sensitive or not. <br>
    * Default: false
@@ -100,12 +106,55 @@ public class AutoCompleteTextField extends TextField {
     this.filteredEntries = FXCollections.observableArrayList();
 
     entriesPopup = new ContextMenu();
+    entriesPopup
+        .showingProperty()
+        .addListener(
+            (obs, oldVal, newVal) -> {
+              if (!newVal) {
+                selectedSuggestionIndex = -1;
+              }
+            });
+
+    this.addEventFilter(
+        KeyEvent.KEY_PRESSED,
+        event -> {
+          if (event.getCode() == KeyCode.TAB) {
+            if (entriesPopup.isShowing() && !filteredEntries.isEmpty()) {
+              if (event.isShiftDown()) {
+                selectedSuggestionIndex =
+                    (selectedSuggestionIndex <= 0)
+                        ? filteredEntries.size() - 1
+                        : selectedSuggestionIndex - 1;
+              } else {
+                selectedSuggestionIndex = (selectedSuggestionIndex + 1) % filteredEntries.size();
+              }
+              String suggestion = filteredEntries.get(selectedSuggestionIndex);
+
+              isCycling = true;
+              setText(suggestion);
+              positionCaret(suggestion.length());
+              isCycling = false;
+              event.consume();
+            }
+          } else if (event.getCode() != KeyCode.SHIFT
+              && event.getCode() != KeyCode.CONTROL
+              && event.getCode() != KeyCode.ALT
+              && event.getCode() != KeyCode.META) {
+            if (selectedSuggestionIndex != -1) {
+              entriesPopup.hide();
+            }
+          }
+        });
+
     textProperty()
         .addListener(
             new ChangeListener<String>() {
               @Override
               public void changed(
                   ObservableValue<? extends String> observableValue, String s, String s2) {
+                if (isCycling) {
+                  return;
+                }
                 if (getText().isEmpty()) {
                   filteredEntries.clear();
                   entriesPopup.hide();
@@ -114,6 +163,7 @@ public class AutoCompleteTextField extends TextField {
                   List<String> searchResult = entryProvider.getSuggestions(text);
 
                   if (!searchResult.isEmpty()) {
+                    selectedSuggestionIndex = -1;
                     filteredEntries.clear();
                     filteredEntries.addAll(searchResult);
 
