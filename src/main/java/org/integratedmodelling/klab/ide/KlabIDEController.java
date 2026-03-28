@@ -184,7 +184,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   @FXML Button sessionsButton;
   @FXML Button worldviewButton;
   @FXML HBox statusBar;
-  @FXML NotebookView notebook;
+  @FXML NotebookViewer notebook;
   @FXML Pane mainArea;
   @FXML Pane inspectorArea;
   @FXML ImageView logo;
@@ -1582,7 +1582,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     if (focalScope == null) {
       var context = createDefaultContext();
       if (context == null) {
-          return null;
+        return null;
       }
       focalScope = requireDigitalTwinPeer(context, null);
     }

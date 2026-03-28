@@ -134,7 +134,7 @@ public class Components {
 
     protected void createContent() {
 
-      var card = new Card();
+      //      var card = new Pane();
       VBox content = new VBox(20);
       content.setPadding(new Insets(20));
 
@@ -176,11 +176,17 @@ public class Components {
       List<Node> developers = new ArrayList<>();
       for (var developer :
           List.of("Ferdinando Villa", "Enrico Girotto", "Andrea Antonello", "Arnab Moitra")) {
-        Label label = new Label(developer);
-        label.setAlignment(Pos.CENTER);
-        label.setPadding(new Insets(10));
-        label.setStyle("-fx-font-size: 10px;");
-        developers.add(label);
+        Label chip = new Label(developer);
+        chip.getStyleClass().addAll(Styles.BG_NEUTRAL_SUBTLE, Styles.ROUNDED);
+        chip.setPadding(new Insets(3, 10, 3, 10));
+        chip.setStyle("-fx-font-size: 10px;");
+        developers.add(chip);
+        //
+        //        Label label = new Label(developer);
+        //        label.setAlignment(Pos.CENTER);
+        //        label.setPadding(new Insets(10));
+        //        label.setStyle("-fx-font-size: 10px;");
+        //        developers.add(label);
       }
 
       // Create a horizontal auto-scroll pane
@@ -207,8 +213,8 @@ public class Components {
 
       content.getChildren().addAll(credits);
 
-      card.setBody(content);
-      this.getChildren().add(card);
+      //      card.setBody(content);
+      this.getChildren().add(content);
     }
 
     private Node createLink(String text, String url) {
@@ -332,10 +338,10 @@ public class Components {
 
       HBox main = new HBox(20, userInfoArea, groupArea, dropZone);
       main.setPadding(new Insets(10));
-      var card = new Card();
-      card.setBody(main);
+      //      var card = new Card();
+      //      card.setBody(main);
 
-      this.getChildren().add(card);
+      this.getChildren().add(main);
     }
 
     //    public void setupAuthenticationUI() {
@@ -546,7 +552,7 @@ public class Components {
     }
 
     protected void createContent() {
-      var card = new Card();
+      //      var card = new Card();
 
       var main = new HBox();
       var left = new VBox(10);
@@ -618,9 +624,9 @@ public class Components {
       right.getChildren().add(productList);
 
       main.getChildren().addAll(left, right);
-      card.setBody(main);
+      //      card.setBody(main);
 
-      this.getChildren().add(card);
+      this.getChildren().add(main);
     }
 
     private void selectTag(Stack.Tag tag) {
@@ -830,7 +836,7 @@ public class Components {
     }
 
     protected void createContent() {
-      var card = new Card();
+      //      var card = new Card();
 
       TabPane tabPane = new TabPane();
       tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
@@ -871,8 +877,8 @@ public class Components {
         tabPane.getTabs().add(tab);
       }
 
-      card.setBody(tabPane);
-      this.getChildren().add(card);
+      //      card.setBody(tabPane);
+      this.getChildren().add(tabPane);
     }
   }
 

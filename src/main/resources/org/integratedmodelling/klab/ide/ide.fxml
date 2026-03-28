@@ -6,7 +6,7 @@
 <?import javafx.scene.layout.*?>
 <?import org.kordamp.ikonli.javafx.*?>
 
-<?import org.integratedmodelling.klab.ide.components.NotebookView?>
+<?import org.integratedmodelling.klab.ide.components.NotebookViewer?>
 <BorderPane prefHeight="960.0" prefWidth="1280.0" xmlns="http://javafx.com/javafx/17.0.12"
             xmlns:fx="http://javafx.com/fxml/1" fx:id="rootPane"
             fx:controller="org.integratedmodelling.klab.ide.KlabIDEController">
@@ -142,7 +142,7 @@
                 <BorderPane BorderPane.alignment="CENTER">
                     <center>
                         <StackPane fx:id="mainArea">
-                            <NotebookView fx:id="notebook"/>
+                            <NotebookViewer fx:id="notebook"/>
                         </StackPane>
                     </center>
                     <bottom>
