@@ -13,6 +13,7 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.util.Duration;
 import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
@@ -42,15 +43,15 @@ public class Notebook extends BorderPane {
       "-fx-border-color: -color-border-default; -fx-border-radius: 6; -fx-border-width: 1;"
           + " -fx-background-radius: 6; -fx-background-color: -color-bg-default;";
   private static final String CARD_ACTIVE =
-      "-fx-border-color: -color-accent-emphasis; -fx-border-width: 2; -fx-border-radius: 6;"
+      "-fx-border-color: -color-neutral-emphasis; -fx-border-width: 2; -fx-border-radius: 6;"
           + " -fx-background-radius: 6; -fx-background-color: -color-bg-default;";
 
   private static final String INDEX_NORMAL =
       "-fx-border-color: -color-border-default; -fx-border-radius: 4; -fx-border-width: 1;"
           + " -fx-background-radius: 4; -fx-background-color: -color-bg-subtle; -fx-cursor: hand;";
   private static final String INDEX_ACTIVE =
-      "-fx-border-color: -color-accent-emphasis; -fx-border-width: 2; -fx-border-radius: 4;"
-          + " -fx-background-radius: 4; -fx-background-color: -color-accent-subtle; -fx-cursor: hand;";
+      "-fx-border-color: -color-neutral-emphasis; -fx-border-width: 2; -fx-border-radius: 4;"
+          + " -fx-background-radius: 4; -fx-background-color: -color-neutral-subtle; -fx-cursor: hand;";
 
   private static final String HEADER_STYLE =
       "-fx-background-color: -color-bg-subtle; -fx-background-radius: 5 5 0 0;";
@@ -316,7 +317,7 @@ public class Notebook extends BorderPane {
       header.setPadding(new Insets(7, 10, 7, 10));
       header.setStyle(HEADER_STYLE);
 
-      IconLabel iconLabel = new IconLabel(icon, 18, "-color-accent-fg");
+      IconLabel iconLabel = new IconLabel(icon, 18, "-color-fg-default");
 
       VBox titleBox = new VBox(2);
       HBox.setHgrow(titleBox, Priority.ALWAYS);
@@ -397,16 +398,19 @@ public class Notebook extends BorderPane {
       setMaxWidth(Double.MAX_VALUE);
       setStyle(INDEX_NORMAL);
 
-      IconLabel iconLabel = new IconLabel(icon, 16, "-color-accent-fg");
+      IconLabel iconLabel = new IconLabel(icon, 16, "-color-fg-default");
 
       String abbrev = title.length() > 14 ? title.substring(0, 13) + "\u2026" : title;
       Label titleLabel = new Label(abbrev);
       titleLabel.setWrapText(true);
       titleLabel.setStyle(
           "-fx-font-size: 10px; -fx-text-alignment: center; -fx-text-fill: -color-fg-muted;");
-      titleLabel.setMaxWidth(74);
-
+      //      titleLabel.setMaxWidth(74);
+      HBox.setHgrow(titleLabel, Priority.ALWAYS);
       getChildren().addAll(iconLabel, titleLabel);
+      var tooltip = new Tooltip(title);
+      tooltip.setShowDelay(Duration.millis(200));
+      titleLabel.setTooltip(tooltip);
 
       setOnMouseClicked(e -> focusCard(entry.id));
     }
