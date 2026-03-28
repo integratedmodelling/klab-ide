@@ -101,9 +101,9 @@ public class Notebook extends BorderPane {
     ScrollPane indexScroll = new ScrollPane(indexContainer);
     indexScroll.setFitToWidth(true);
     indexScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-    indexScroll.setPrefWidth(90);
+    indexScroll.setPrefWidth(120);
     indexScroll.setMinWidth(80);
-    indexScroll.setMaxWidth(100);
+    indexScroll.setMaxWidth(140);
     indexScroll.setStyle(
         "-fx-background: -color-bg-subtle; -fx-background-color: -color-bg-subtle;");
 
@@ -273,7 +273,7 @@ public class Notebook extends BorderPane {
     pinnedContainer.setStyle(
         hasPinned && hasUnpinned
             ? "-fx-background-color: -color-bg-default;"
-                + " -fx-border-color: transparent transparent -color-border-default transparent;"
+                + " -fx-border-color: transparent transparent transparent transparent;"
                 + " -fx-border-width: 0 0 1 0; -fx-padding: 0 0 6 0;"
             : "-fx-background-color: -color-bg-default;");
   }
