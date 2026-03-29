@@ -278,6 +278,15 @@ public class Notebook extends BorderPane {
             : "-fx-background-color: -color-bg-default;");
   }
 
+  /** Collapses all cards in the notebook, except for the pinned one if any. */
+  public void collapseAll() {
+    for (CardEntry e : cards) {
+      if (!e.pinned) {
+        e.cardView.setCollapsed(true);
+      }
+    }
+  }
+
   // ---- inner classes ----
 
   private class CardEntry {

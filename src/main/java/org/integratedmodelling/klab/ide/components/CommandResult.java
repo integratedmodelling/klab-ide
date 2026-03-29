@@ -1,5 +1,7 @@
 package org.integratedmodelling.klab.ide.components;
 
+import atlantafx.base.controls.Message;
+import atlantafx.base.util.BBCodeParser;
 import javafx.scene.Node;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TreeView;
@@ -8,6 +10,7 @@ import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import org.integratedmodelling.common.data.Tree;
 import org.integratedmodelling.klab.api.cli.FormattedString;
+import org.integratedmodelling.klab.ide.components.generic.BBCodeRenderer;
 
 import java.util.Collection;
 
@@ -24,16 +27,21 @@ public class CommandResult extends Components.BaseComponent {
   @Override
   protected Node createContent() {
     var content = new Pane();
+    /**
+     * TODO collections should become tables and trees should become tree tables. We can install
+     * renderers for other classes to become JavaFX components.
+     */
     var node =
         switch (result) {
-          case FormattedString formattedString -> new TextArea(formattedString.toString());
+          case FormattedString formattedString ->
+              BBCodeParser.createLayout(formattedString.render(BBCodeRenderer.INSTANCE));
           //      case Tree tree ->
           //          content.getChildren().add(new TreeView(tree));
           //      case Collection collection ->
-          case null -> new TextArea("No result");
-          default -> new TextArea("Unknown result type");
+          case null -> new Message(null, "No result");
+          default -> new TextResult("Unknown result type");
         };
-    
+
     HBox.setHgrow(node, Priority.ALWAYS);
     HBox.setHgrow(content, Priority.ALWAYS);
     node.prefWidthProperty().bind(content.widthProperty());

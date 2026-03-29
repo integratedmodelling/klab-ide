@@ -107,6 +107,7 @@ public class NotebookViewer extends BorderPane implements Page {
 
   private void executeCommand(String input) {
     var object = KlabIDEController.instance().getCLI().submit(input);
+    notebook.collapseAll();
     notebook.addCard(
         Utils.Names.fastName(),
         Theme.LOCAL_SERVICE_ICON,
