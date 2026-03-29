@@ -2,6 +2,7 @@ package org.integratedmodelling.klab.ide.components;
 
 import atlantafx.base.controls.Card;
 import javafx.geometry.Insets;
+import javafx.scene.Node;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
@@ -39,7 +40,7 @@ public class TimelineDemo extends Components.BaseComponent {
     }
 
     @Override
-    protected void createContent() {
+    protected Node createContent() {
         var card = new Card();
         VBox content = new VBox(20);
         content.setPadding(new Insets(20));
@@ -146,6 +147,7 @@ public class TimelineDemo extends Components.BaseComponent {
 
         card.setBody(content);
         this.getChildren().add(card);
+        return card;
     }
 
     /**

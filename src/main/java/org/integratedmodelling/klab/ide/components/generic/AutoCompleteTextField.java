@@ -64,11 +64,22 @@ public class AutoCompleteTextField extends TextField {
   private ObservableList<String> filteredEntries = FXCollections.observableArrayList();
 
   /** The popup used to select an entry. */
-  private ContextMenu entriesPopup;
+  protected ContextMenu entriesPopup;
 
   private int selectedSuggestionIndex = -1;
 
   private boolean isCycling = false;
+
+  /**
+   * Returns the string to be inserted into the text field when a suggestion is selected.
+   * Default implementation returns the suggestion as-is.
+   *
+   * @param suggestion the suggestion string from the provider.
+   * @return the string to insert.
+   */
+  protected String getReplacement(String suggestion) {
+    return suggestion;
+  }
 
   /**
    * Indicates whether the search is case sensitive or not. <br>
@@ -129,10 +140,11 @@ public class AutoCompleteTextField extends TextField {
                 selectedSuggestionIndex = (selectedSuggestionIndex + 1) % filteredEntries.size();
               }
               String suggestion = filteredEntries.get(selectedSuggestionIndex);
+              String replacement = getReplacement(suggestion);
 
               isCycling = true;
-              setText(suggestion);
-              positionCaret(suggestion.length());
+              setText(replacement);
+              positionCaret(replacement.length());
               isCycling = false;
               event.consume();
             }
@@ -213,7 +225,7 @@ public class AutoCompleteTextField extends TextField {
    *
    * @param searchResult The set of matching strings.
    */
-  private void populatePopup(List<String> searchResult, String text) {
+  protected void populatePopup(List<String> searchResult, String text) {
     List<CustomMenuItem> menuItems = new LinkedList<>();
     int count = Math.min(searchResult.size(), getMaxEntries());
     for (int i = 0; i < count; i++) {
@@ -245,7 +257,7 @@ public class AutoCompleteTextField extends TextField {
           new EventHandler<ActionEvent>() {
             @Override
             public void handle(ActionEvent actionEvent) {
-              setText(result);
+              setText(getReplacement(result));
               entriesPopup.hide();
             }
           });

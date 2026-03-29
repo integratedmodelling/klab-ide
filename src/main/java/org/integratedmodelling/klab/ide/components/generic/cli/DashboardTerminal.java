@@ -1,4 +1,4 @@
-package org.integratedmodelling.klab.ide.cli;
+package org.integratedmodelling.klab.ide.components.generic.cli;
 
 import org.jline.terminal.*;
 import org.jline.utils.ColorPalette;

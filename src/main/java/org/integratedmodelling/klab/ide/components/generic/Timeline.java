@@ -159,7 +159,7 @@ public class Timeline extends Components.BaseComponent {
   }
 
   @Override
-  protected void createContent() {
+  protected Node createContent() {
     VBox container = new VBox(10);
     //    container.setPadding(new Insets(10));
 
@@ -245,6 +245,8 @@ public class Timeline extends Components.BaseComponent {
 
     // Draw the initial timeline
     drawTimeline();
+
+    return container;
   }
 
   /**

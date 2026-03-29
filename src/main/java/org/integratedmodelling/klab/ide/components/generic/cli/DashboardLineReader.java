@@ -1,4 +1,4 @@
-package org.integratedmodelling.klab.ide.cli;
+package org.integratedmodelling.klab.ide.components.generic.cli;
 
 import javafx.scene.control.TextField;
 import org.jline.keymap.KeyMap;

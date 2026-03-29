@@ -1,4 +1,4 @@
-package org.integratedmodelling.klab.ide.cli;
+package org.integratedmodelling.klab.ide.components.generic.cli;
 
 import java.io.IOException;
 import java.nio.file.Files;

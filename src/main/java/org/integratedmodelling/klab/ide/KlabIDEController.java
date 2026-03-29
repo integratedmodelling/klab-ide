@@ -32,6 +32,7 @@ import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
+import org.integratedmodelling.common.commandline.KlabCommandLine;
 import org.integratedmodelling.common.configuration.CommonConfiguration;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.services.client.engine.EngineImpl;
@@ -39,6 +40,7 @@ import org.integratedmodelling.common.services.client.scope.ClientContextScope;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.Klab;
 import org.integratedmodelling.klab.api.authentication.ExternalAuthenticationCredentials;
+import org.integratedmodelling.klab.api.cli.CLI;
 import org.integratedmodelling.klab.api.collections.Pair;
 import org.integratedmodelling.klab.api.configuration.Setting;
 import org.integratedmodelling.klab.api.data.RepositoryState;
@@ -123,6 +125,12 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private IconLabel dbIcon;
   private IconLabel messIcon;
   private IconLabel langIcon;
+  private KlabCommandLine cli =
+      new KlabCommandLine(() -> focalScope == null ? modeler().engine().getOwner() : focalScope);
+
+  public CLI getCLI() {
+    return cli;
+  }
 
   public <T, A> void digitalTwinPanelShown(
       EditorPage<A, T> atEditorPage, DigitalTwinControlPanel digitalTwinControlPanel) {

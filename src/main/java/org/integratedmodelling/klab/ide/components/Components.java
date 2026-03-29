@@ -68,7 +68,7 @@ import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
 
 /**
- * Components are widgets that can fit into the {@link NotebookView}. They have a builder that
+ * Components are widgets that can fit into the {@link NotebookViewer}. They have a builder that
  * facilitates their construction and posting. They may have an ID and should save/restore their
  * state.
  */
@@ -117,7 +117,7 @@ public class Components {
       return title;
     }
 
-    protected abstract void createContent();
+    protected abstract Node createContent();
   }
 
   public static class About extends BaseComponent {
@@ -132,7 +132,7 @@ public class Components {
       // TODO add whatever
     };
 
-    protected void createContent() {
+    protected Node createContent() {
 
       //      var card = new Pane();
       VBox content = new VBox(20);
@@ -215,6 +215,8 @@ public class Components {
 
       //      card.setBody(content);
       this.getChildren().add(content);
+
+      return content;
     }
 
     private Node createLink(String text, String url) {
@@ -251,7 +253,7 @@ public class Components {
       createContent();
     }
 
-    protected void createContent() {
+    protected Node createContent() {
 
       var icon = new IconLabel(Material2MZ.PERSON, 32, Color.BLACK);
 
@@ -342,6 +344,8 @@ public class Components {
       //      card.setBody(main);
 
       this.getChildren().add(main);
+
+      return main;
     }
 
     //    public void setupAuthenticationUI() {
@@ -551,7 +555,7 @@ public class Components {
       super(Type.Distribution, "Software stack", true);
     }
 
-    protected void createContent() {
+    protected Node createContent() {
       //      var card = new Card();
 
       var main = new HBox();
@@ -627,6 +631,8 @@ public class Components {
       //      card.setBody(main);
 
       this.getChildren().add(main);
+
+      return main;
     }
 
     private void selectTag(Stack.Tag tag) {
@@ -835,7 +841,7 @@ public class Components {
       super(Type.Settings, "Settings", true);
     }
 
-    protected void createContent() {
+    protected Node createContent() {
       //      var card = new Card();
 
       TabPane tabPane = new TabPane();
@@ -879,6 +885,7 @@ public class Components {
 
       //      card.setBody(tabPane);
       this.getChildren().add(tabPane);
+      return tabPane;
     }
   }
 
@@ -899,7 +906,7 @@ public class Components {
       createContent();
     }
 
-    protected void createContent() {
+    protected Node createContent() {
       var card = new Card();
       VBox body = new VBox(10);
       var icon = new FontIcon(Theme.getIcon(descriptor.getKnowledgeClass()));
@@ -1003,6 +1010,7 @@ public class Components {
       card.setHeader(header);
       card.setFooter(footer);
       this.getChildren().add(card);
+      return card;
     }
   }
 
@@ -1017,7 +1025,7 @@ public class Components {
     private static final String RESOURCES = "RESOURCES";
     private static final String RUNTIME = "RUNTIME";
 
-    protected void createContent() {
+    protected Node createContent() {
       var card = new Card();
 
       Tab reasonerTab = createServiceTab("Reasoner", "REASONER", Reasoner.class);
@@ -1029,6 +1037,7 @@ public class Components {
       tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
       card.setBody(tabs);
       this.getChildren().add(card);
+      return card;
     }
 
     private Tab createServiceTab(
@@ -1119,7 +1128,7 @@ public class Components {
     }
 
     @Override
-    protected void createContent() {
+    protected Node createContent() {
       var card = new Card();
       VBox content = new VBox(10);
       content.setPadding(new Insets(10));
@@ -1231,6 +1240,7 @@ public class Components {
       card.setBody(content);
       VBox.setVgrow(card, Priority.ALWAYS);
       this.getChildren().add(card);
+      return card;
     }
   }
 
@@ -1242,7 +1252,7 @@ public class Components {
     }
 
     @Override
-    protected void createContent() {
+    protected Node createContent() {
       var card = new Card();
       VBox content = new VBox(20);
       content.setPadding(new Insets(20));
@@ -1349,6 +1359,7 @@ public class Components {
 
       card.setBody(content);
       this.getChildren().add(card);
+      return card;
     }
 
     private String getRandomColor() {
@@ -1371,8 +1382,10 @@ public class Components {
     }
 
     @Override
-    protected void createContent() {
-      this.getChildren().add(TimelineDemo.createDemo());
+    protected Node createContent() {
+      var demo = TimelineDemo.createDemo();
+      this.getChildren().add(demo);
+      return demo;
     }
   }
 
