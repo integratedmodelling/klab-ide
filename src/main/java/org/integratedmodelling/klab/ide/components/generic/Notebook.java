@@ -43,14 +43,14 @@ public class Notebook extends BorderPane {
       "-fx-border-color: -color-border-default; -fx-border-radius: 6; -fx-border-width: 1;"
           + " -fx-background-radius: 6; -fx-background-color: -color-bg-default;";
   private static final String CARD_ACTIVE =
-      "-fx-border-color: -color-neutral-emphasis; -fx-border-width: 2; -fx-border-radius: 6;"
+      "-fx-border-color: -color-neutral-emphasis; -fx-border-width: 1; -fx-border-radius: 6;"
           + " -fx-background-radius: 6; -fx-background-color: -color-bg-default;";
 
   private static final String INDEX_NORMAL =
-      "-fx-border-color: -color-border-default; -fx-border-radius: 4; -fx-border-width: 1;"
+      "-fx-border-color: -color-border-default; -fx-border-radius: 6; -fx-border-width: 1;"
           + " -fx-background-radius: 4; -fx-background-color: -color-bg-subtle; -fx-cursor: hand;";
   private static final String INDEX_ACTIVE =
-      "-fx-border-color: -color-neutral-emphasis; -fx-border-width: 2; -fx-border-radius: 4;"
+      "-fx-border-color: -color-neutral-emphasis; -fx-border-width: 1; -fx-border-radius: 6;"
           + " -fx-background-radius: 4; -fx-background-color: -color-neutral-subtle; -fx-cursor: hand;";
 
   private static final String HEADER_STYLE =
@@ -313,6 +313,7 @@ public class Notebook extends BorderPane {
     private final Node bodyWrapper;
     private final Button collapseBtn;
     private final Button pinBtn;
+    private final javafx.scene.layout.Region resizeHandle;
     private boolean collapsed;
 
     CardView(CardEntry entry, Ikon icon, String title, String subtitle, Node body) {
@@ -371,9 +372,34 @@ public class Notebook extends BorderPane {
       // ---- body ----
       VBox wrapper = new VBox(body);
       wrapper.setPadding(new Insets(8, 10, 10, 10));
+      VBox.setVgrow(body, Priority.ALWAYS);
       this.bodyWrapper = wrapper;
 
-      getChildren().addAll(header, bodyWrapper);
+      // ---- resize handle ----
+      resizeHandle = new javafx.scene.layout.Region();
+      resizeHandle.setPrefHeight(5);
+      resizeHandle.setMaxWidth(Double.MAX_VALUE);
+      resizeHandle.setStyle("-fx-cursor: s-resize; -fx-background-color: transparent;");
+      resizeHandle.setOnMouseEntered(
+          e -> resizeHandle.setStyle("-fx-cursor: s-resize; -fx-background-color: -color-border-default;"));
+      resizeHandle.setOnMouseExited(
+          e -> resizeHandle.setStyle("-fx-cursor: s-resize; -fx-background-color: transparent;"));
+
+      double[] dragState = {0, 0}; // [startScreenY, startBodyHeight]
+      resizeHandle.setOnMousePressed(
+          e -> {
+            dragState[0] = e.getScreenY();
+            dragState[1] = wrapper.getHeight();
+            e.consume();
+          });
+      resizeHandle.setOnMouseDragged(
+          e -> {
+            double newHeight = Math.max(40, dragState[1] + (e.getScreenY() - dragState[0]));
+            wrapper.setPrefHeight(newHeight);
+            e.consume();
+          });
+
+      getChildren().addAll(header, bodyWrapper, resizeHandle);
     }
 
     void setCollapsed(boolean collapse) {
@@ -381,6 +407,8 @@ public class Notebook extends BorderPane {
       entry.collapsed = collapse;
       bodyWrapper.setVisible(!collapse);
       bodyWrapper.setManaged(!collapse);
+      resizeHandle.setVisible(!collapse);
+      resizeHandle.setManaged(!collapse);
       collapseBtn.setGraphic(
           new IconLabel(
               collapse ? Material2AL.EXPAND_MORE : Material2AL.EXPAND_LESS, 14, "-color-fg-muted"));
@@ -422,7 +450,20 @@ public class Notebook extends BorderPane {
       tooltip.setShowDelay(Duration.millis(200));
       titleLabel.setTooltip(tooltip);
 
-      setOnMouseClicked(e -> focusCard(entry.id));
+      // Snapshot collapsed state at press time so the preceding single-click event
+      // (which focusCard may use to expand the card) does not corrupt the toggle.
+      final boolean[] collapsedAtPress = {false};
+      setOnMousePressed(e -> collapsedAtPress[0] = entry.collapsed);
+
+      setOnMouseClicked(
+          e -> {
+            if (e.getClickCount() == 2) {
+              entry.cardView.setCollapsed(!collapsedAtPress[0]);
+              setActiveCard(entry);
+            } else {
+              focusCard(entry.id);
+            }
+          });
     }
 
     void setActive(boolean active) {

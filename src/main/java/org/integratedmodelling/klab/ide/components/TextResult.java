@@ -6,6 +6,7 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
@@ -46,5 +47,6 @@ public class TextResult extends VBox {
     StackPane.setAlignment(copy, Pos.TOP_RIGHT);
     StackPane.setMargin(copy, new Insets(6, 8, 0, 0));
     getChildren().add(content);
+    VBox.setVgrow(content, Priority.ALWAYS);
   }
 }

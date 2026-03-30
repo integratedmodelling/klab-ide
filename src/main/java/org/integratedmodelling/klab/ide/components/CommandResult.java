@@ -13,10 +13,7 @@ import javafx.scene.control.TableView;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeTableColumn;
 import javafx.scene.control.TreeTableView;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Pane;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
+import javafx.scene.layout.*;
 import org.integratedmodelling.common.data.Tree;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.cli.FormattedString;
@@ -49,7 +46,9 @@ public class CommandResult extends Components.BaseComponent {
      */
     Region node = null;
 
-    if (result instanceof Tree<?>) {
+    if (Utils.Data.isPOD(result)) {
+      node = new TextResult(result.toString());
+    } else if (result instanceof Tree<?>) {
       node = createTreeContent((Tree<Object>) result);
     } else if (result instanceof Collection<?>) {
       node = createCollectionContent((Collection<?>) result);
@@ -82,6 +81,7 @@ public class CommandResult extends Components.BaseComponent {
 
     HBox.setHgrow(node, Priority.ALWAYS);
     HBox.setHgrow(content, Priority.ALWAYS);
+    VBox.setVgrow(content, Priority.ALWAYS);
     node.prefWidthProperty().bind(content.widthProperty());
     node.prefHeightProperty().bind(content.heightProperty());
     content.getChildren().add(node);
