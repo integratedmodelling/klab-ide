@@ -1,27 +1,19 @@
 package org.integratedmodelling.klab.ide.components;
 
 import java.io.File;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import javafx.geometry.Insets;
 import javafx.scene.Parent;
 import javafx.scene.layout.*;
-import org.integratedmodelling.common.commandline.KlabCommandLine;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.utils.Utils;
-import org.integratedmodelling.klab.api.cli.Command;
 import org.integratedmodelling.klab.api.configuration.Configuration;
 import org.integratedmodelling.klab.api.exceptions.KlabInternalErrorException;
 import org.integratedmodelling.klab.ide.KlabIDEController;
-import org.integratedmodelling.klab.ide.Theme;
+import org.integratedmodelling.klab.ide.components.generic.Notebook;
 import org.integratedmodelling.klab.ide.components.generic.cli.DashboardLineReader;
 import org.integratedmodelling.klab.ide.components.generic.cli.DashboardTerminal;
-import org.integratedmodelling.klab.ide.components.generic.AutoCompleteTextField;
-import org.integratedmodelling.klab.ide.components.generic.Notebook;
 import org.integratedmodelling.klab.ide.components.generic.cli.REPLTextField;
 import org.integratedmodelling.klab.ide.pages.Page;
 
@@ -29,9 +21,9 @@ public class NotebookViewer extends BorderPane implements Page {
 
   private final REPLTextField inputBox;
   private final Notebook notebook;
-  private DashboardTerminal terminal;
-  private DashboardLineReader lineReader;
   private final Map<Components.Type, Components.Component> componentMap = new LinkedHashMap<>();
+  private DashboardTerminal terminal;
+  private final DashboardLineReader lineReader;
 
   public NotebookViewer() {
 
@@ -78,10 +70,10 @@ public class NotebookViewer extends BorderPane implements Page {
 
   public void addComponent(Components.BaseComponent component) {
     notebook.addCard(
-        Components.Type.About.name(),
-        Theme.DIGITAL_TWINS_ICON,
+        component.getType().name(),
+        component.getIcon(),
         component.getTitle(),
-        "Subtitle TODO",
+        component.getDescription(),
         component);
   }
 
@@ -99,8 +91,7 @@ public class NotebookViewer extends BorderPane implements Page {
             case Settings -> new Components.Settings();
             default -> throw new KlabInternalErrorException("unexpected component " + type);
           };
-      notebook.addCard(
-          type.name(), Theme.LOCAL_SERVICE_ICON, card.getTitle(), "Subtitle TODO", card);
+      notebook.addCard(type.name(), card.getIcon(), card.getTitle(), card.getDescription(), card);
       notebook.focusCard(type.name());
     }
   }
@@ -108,32 +99,13 @@ public class NotebookViewer extends BorderPane implements Page {
   private void executeCommand(String input) {
     var object = KlabIDEController.instance().getCLI().submit(input);
     notebook.collapseAll();
+    var card = new CommandResult(object, input);
     notebook.addCard(
         Utils.Names.fastName(),
-        Theme.LOCAL_SERVICE_ICON,
+        card.getIcon(),
         input,
-        "Output of command " + input,
-        new CommandResult(object, input));
-  }
-
-  // FIXME substitute with CLI
-  private List<Command> createMockCommands() {
-
-    List<Command> commands = new ArrayList<>();
-
-    commands.add(
-        Command.builder("help", "Show help information for all commands", "Show help")
-            .option(
-                "--verbose", "-v", "Provide more context in the help output", "Show verbose help")
-            .build());
-
-    commands.add(
-        Command.builder("list", "List resources", "List available resources")
-            .option("--type", "-t", "Filter by type", "Specify the type of resources to list")
-            .option("--all", "-a", "Show all items", "Include hidden or internal items in the list")
-            .build());
-
-    return commands;
+        "Output of command: " + input,
+        card.createContent());
   }
 
   @Override

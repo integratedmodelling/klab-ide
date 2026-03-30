@@ -1,18 +1,18 @@
 package org.integratedmodelling.klab.ide.components;
 
 import atlantafx.base.controls.Message;
+import atlantafx.base.theme.Styles;
 import atlantafx.base.util.BBCodeParser;
 import javafx.scene.Node;
-import javafx.scene.control.TextArea;
-import javafx.scene.control.TreeView;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
-import org.integratedmodelling.common.data.Tree;
+import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.cli.FormattedString;
+import org.integratedmodelling.klab.api.exceptions.KlabCommandLineError;
 import org.integratedmodelling.klab.ide.components.generic.BBCodeRenderer;
-
-import java.util.Collection;
+import org.kordamp.ikonli.Ikon;
+import org.kordamp.ikonli.materialdesign.MaterialDesign;
 
 public class CommandResult extends Components.BaseComponent {
 
@@ -25,6 +25,11 @@ public class CommandResult extends Components.BaseComponent {
   }
 
   @Override
+  public Ikon getIcon() {
+    return MaterialDesign.MDI_CONSOLE;
+  }
+
+  @Override
   protected Node createContent() {
     var content = new Pane();
     /**
@@ -33,13 +38,26 @@ public class CommandResult extends Components.BaseComponent {
      */
     var node =
         switch (result) {
+          case Throwable throwable -> {
+            var title =
+                throwable instanceof KlabCommandLineError
+                    ? null
+                    : Utils.Paths.getLast(throwable.getClass().getCanonicalName(), '.');
+            var message =
+                throwable instanceof KlabCommandLineError
+                    ? throwable.getMessage()
+                    : Utils.Exceptions.stackTrace(throwable);
+            var ret = new TextResult(message, title);
+            ret.setMessageStyle(Styles.DANGER);
+            yield ret;
+          }
           case FormattedString formattedString ->
               BBCodeParser.createLayout(formattedString.render(BBCodeRenderer.INSTANCE));
           //      case Tree tree ->
           //          content.getChildren().add(new TreeView(tree));
           //      case Collection collection ->
           case null -> new Message(null, "No result");
-          default -> new TextResult("Unknown result type");
+          default -> new TextResult("Unknown result type: " + result.getClass().getSimpleName());
         };
 
     HBox.setHgrow(node, Priority.ALWAYS);

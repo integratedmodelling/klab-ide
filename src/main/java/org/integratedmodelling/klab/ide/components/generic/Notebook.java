@@ -127,6 +127,7 @@ public class Notebook extends BorderPane {
     CardEntry entry = new CardEntry(id, icon, title, subtitle, content);
     cards.add(entry);
     refreshView();
+    focusCard(id);
   }
 
   /**

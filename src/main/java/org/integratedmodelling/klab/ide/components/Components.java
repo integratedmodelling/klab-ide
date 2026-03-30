@@ -4,6 +4,7 @@ import atlantafx.base.controls.Card;
 import atlantafx.base.controls.ToggleSwitch;
 import atlantafx.base.theme.Styles;
 import atlantafx.base.theme.Tweaks;
+import devtoolsfx.gui.GUI;
 import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
@@ -13,8 +14,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-
-import devtoolsfx.gui.GUI;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleObjectProperty;
@@ -38,7 +37,6 @@ import javafx.scene.layout.Priority;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
 import javafx.util.StringConverter;
-import org.eclipse.swt.widgets.DateTime;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.Klab;
 import org.integratedmodelling.klab.api.configuration.Configuration;
@@ -63,9 +61,13 @@ import org.integratedmodelling.klab.ide.components.generic.AutoScrollPane;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.ide.components.generic.UploadBox;
 import org.integratedmodelling.klab.ide.components.generic.WaitButton;
+import org.kordamp.ikonli.Ikon;
+import org.kordamp.ikonli.carbonicons.CarbonIcons;
+import org.kordamp.ikonli.evaicons.Evaicons;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
+import org.kordamp.ikonli.materialdesign.MaterialDesign;
 
 /**
  * Components are widgets that can fit into the {@link NotebookViewer}. They have a builder that
@@ -91,6 +93,10 @@ public class Components {
     Type getType();
 
     String getTitle();
+
+    String getDescription();
+
+    Ikon getIcon();
   }
 
   public abstract static class BaseComponent extends VBox implements Component {
@@ -117,6 +123,16 @@ public class Components {
       return title;
     }
 
+    @Override
+    public String getDescription() {
+      return "No description available";
+    }
+
+    @Override
+    public Ikon getIcon() {
+      return Theme.DIGITAL_TWINS_ICON;
+    }
+
     protected abstract Node createContent();
   }
 
@@ -131,6 +147,16 @@ public class Components {
       "Sentinel-2 cloudless - https://s2maps.eu by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2024)"
       // TODO add whatever
     };
+
+    @Override
+    public String getDescription() {
+      return "General information and links to k.LAB documentation";
+    }
+
+    @Override
+    public Ikon getIcon() {
+      return Material2AL.INFO;
+    }
 
     protected Node createContent() {
 
@@ -251,6 +277,16 @@ public class Components {
       super(Type.UserInfo, "User information", false);
       this.user = userScope;
       createContent();
+    }
+
+    @Override
+    public String getDescription() {
+      return "Manage your user information and groups.";
+    }
+
+    @Override
+    public Ikon getIcon() {
+      return CarbonIcons.USER_AVATAR_FILLED_ALT;
     }
 
     protected Node createContent() {
@@ -555,6 +591,16 @@ public class Components {
       super(Type.Distribution, "Software stack", true);
     }
 
+    @Override
+    public String getDescription() {
+      return "Install, update and select software stack distributions";
+    }
+
+    @Override
+    public Ikon getIcon() {
+      return MaterialDesign.MDI_PACKAGE_VARIANT;
+    }
+
     protected Node createContent() {
       //      var card = new Card();
 
@@ -841,6 +887,11 @@ public class Components {
       super(Type.Settings, "Settings", true);
     }
 
+    @Override
+    public Ikon getIcon() {
+      return Evaicons.OPTIONS_OUTLINE;
+    }
+
     protected Node createContent() {
       //      var card = new Card();
 
@@ -1024,6 +1075,16 @@ public class Components {
     private static final String RESOLVER = "RESOLVER";
     private static final String RESOURCES = "RESOURCES";
     private static final String RUNTIME = "RUNTIME";
+
+    @Override
+    public String getDescription() {
+      return "Service information, settings and management dashboard";
+    }
+
+    @Override
+    public Ikon getIcon() {
+      return MaterialDesign.MDI_SERVER_NETWORK;
+    }
 
     protected Node createContent() {
       var card = new Card();
