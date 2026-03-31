@@ -1,21 +1,19 @@
 package org.integratedmodelling.klab.ide.components.generic;
 
-import javafx.application.Application;
-import javafx.scene.image.ImageView;
-import javafx.scene.Scene;
-import javafx.stage.Stage;
-import javafx.scene.layout.TilePane;
-import javafx.geometry.Insets;
-import org.glassfish.grizzly.http.server.filecache.FileCache;
-import org.integratedmodelling.klab.common.data.ExportFileCache;
-import org.integratedmodelling.klab.ide.KlabIDEController;
-
 import java.util.List;
+import javafx.application.Application;
+import javafx.geometry.Insets;
+import javafx.scene.Scene;
+import javafx.scene.image.ImageView;
+import javafx.scene.layout.TilePane;
+import javafx.stage.Stage;
+import org.integratedmodelling.klab.common.data.ExportFileCache;
 
 public class SatelliteImage extends ImageView {
 
   static ExportFileCache cache;
   static final double pixelResolutionLinear = 640;
+  static String layer = "s2cloudless,osm";
 
   public SatelliteImage(
       double minX, double minY, double maxX, double maxY, int viewportWidth, int viewportHeight) {
@@ -84,7 +82,8 @@ public class SatelliteImage extends ImageView {
             + "&transparent=true"
             + "&srs=EPSG:4326"
             + "&styles="
-            + "&layers=s2cloudless"
+            + "&layers="
+            + layer
             + "&bbox="
             + rMinX
             + ","

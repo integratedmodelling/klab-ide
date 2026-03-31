@@ -550,6 +550,7 @@ public class Components {
     private ComboBox<TagInfo> chooseTag;
     private HBox productList;
     private Label tagLabel;
+    private WaitButton downloadButton;
 
     private static class TagInfo {
       private final Stack.Tag tag;
@@ -604,7 +605,7 @@ public class Components {
     protected Node createContent() {
       //      var card = new Card();
 
-      var main = new HBox();
+      var main = new HBox(20);
       var left = new VBox(10);
       var right = new VBox(10);
 
@@ -651,9 +652,26 @@ public class Components {
 
       this.productList = new HBox(10);
       productList.setAlignment(Pos.CENTER);
+      productList.setStyle(
+          "-fx-border-color: -color-border-default; -fx-border-radius: 6; -fx-border-width: 1;"
+              + " -fx-background-radius: 4; -fx-background-color: -color-bg-subtle;");
       HBox.setHgrow(productList, Priority.ALWAYS);
       HBox.setHgrow(right, Priority.ALWAYS);
+      var downloadMonitor = new HBox();
+      HBox.setHgrow(downloadMonitor, Priority.ALWAYS);
 
+      var label = new Label("Placeholder for download progress");
+      label.setStyle(
+          "-fx-font-size: 10px; -fx-text-alignment: left; -fx-text-fill: -color-fg-muted;");
+
+      downloadMonitor.getChildren().add(label);
+
+      downloadMonitor.setAlignment(Pos.CENTER);
+      this.downloadButton = new WaitButton("Download");
+      downloadButton.setPrefSize(120, 60);
+      //      downloadMonitor.setStyle(
+      //          "-fx-border-color: -color-border-default; -fx-border-radius: 6; -fx-border-width:
+      // 1;" + " -fx-background-radius: 4; -fx-background-color: -color-bg-subtle;");
       int n = 0;
       for (Stack.Tag tag : KlabIDEController.instance().engine().getSoftwareStack().tags()) {
         chooseTag.getItems().add(new TagInfo(tag));
@@ -669,12 +687,13 @@ public class Components {
             selectTag(chooseTag.getValue().tag);
           });
 
-      this.tagLabel = new Label("Tag description");
-      left.getChildren().addAll(chooseTag, tagLabel);
-      right.getChildren().add(productList);
+      this.tagLabel = new Label("Choose a distribution to use, install or update");
+      left.getChildren().addAll(tagLabel, chooseTag);
+      right.getChildren().addAll(downloadMonitor, productList);
+      tagLabel.setStyle(
+          "-fx-font-size: 10px; -fx-text-alignment: left; -fx-text-fill: -color-fg-muted;");
 
-      main.getChildren().addAll(left, right);
-      //      card.setBody(main);
+      main.getChildren().addAll(left, downloadButton, right);
 
       this.getChildren().add(main);
 

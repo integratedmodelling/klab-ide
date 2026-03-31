@@ -35,7 +35,8 @@ public class NotebookViewer extends BorderPane implements Page {
     this.inputBox =
         new REPLTextField(
             this::executeCommand, KlabIDEController.instance().getCLI().getCommands(), historyPath);
-    this.inputBox.setPromptText("Enter a command; 'help' for assistance");
+    this.inputBox.setPromptText(
+        "Enter a command or a valid URN. Type 'help' for command assistance");
     var contextPane = new Pane();
     contextPane.setStyle(
         "-fx-background: -color-bg-subtle; -fx-background-color: -color-bg-subtle;");
