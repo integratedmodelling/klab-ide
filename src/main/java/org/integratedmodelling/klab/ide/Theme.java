@@ -2,12 +2,10 @@ package org.integratedmodelling.klab.ide;
 
 import atlantafx.base.theme.*;
 import javafx.application.Platform;
-import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tooltip;
 import javafx.scene.paint.Color;
 import org.atteo.evo.inflector.English;
-import org.integratedmodelling.cli.Test;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.branding.Branding;
 import org.integratedmodelling.klab.api.data.KnowledgeGraph;
@@ -24,7 +22,6 @@ import org.integratedmodelling.klab.api.knowledge.organization.Project;
 import org.integratedmodelling.klab.api.lang.kim.KimModel;
 import org.integratedmodelling.klab.api.lang.kim.KimSymbolDefinition;
 import org.integratedmodelling.klab.api.provenance.Activity;
-import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.api.services.runtime.Actuator;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableAsset;
@@ -215,6 +212,7 @@ public enum Theme {
       case WORLDVIEW -> WORLDVIEW_ICON;
       case WORKSPACE -> WORKSPACE_ICON;
       case CONCEPT_STATEMENT -> CONCEPT_DEFINITION_ICON;
+      case SERVICE_IMPLEMENTATION -> COMPONENT_ICON;
       case OBSERVATION -> OBSERVATION_ICON;
     };
   }

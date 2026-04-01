@@ -37,6 +37,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
 import javafx.util.StringConverter;
+import org.integratedmodelling.common.authentication.Authentication;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.Klab;
 import org.integratedmodelling.klab.api.configuration.Configuration;
@@ -334,21 +335,74 @@ public class Components {
       groupArea = new VBox(5);
       groupArea.getChildren().addAll(groupsLabel, groupIcons);
 
+      int i = 0;
       int row = 0, col = 0;
-      for (var group : user.getUser().getGroups()) {
-        Label groupIcon =
-            new Label(
-                group.getName().substring(0, Math.min(2, group.getName().length())).toUpperCase());
-        groupIcon.setStyle(
-            "-fx-background-color: #e0e0e0; -fx-padding: 5 10; -fx-background-radius: 3;");
-        Tooltip.install(groupIcon, new Tooltip(group.getName()));
-        groupIcons.add(groupIcon, col, row);
-        col++;
-        if (col > 2) {
-          col = 0;
-          row++;
+
+      var groups = new ArrayList<>(user.getUser().getGroups());
+      for (var group : groups) {
+        if (i < 16) {
+          int columnIndex = i % 4;
+          int rowIndex = i / 4;
+          Node groupIcon;
+          Tooltip tooltip = new Tooltip();
+          if (i == 15 && groups.size() > 16) {
+            groupIcon = new Label("...");
+            groupIcon.getStyleClass().add("group-icon");
+            StringBuffer otherGroups = new StringBuffer();
+            for (; i < groups.size(); i++) {
+              otherGroups.append(groups.get(i).getId()).append("\n");
+            }
+            tooltip.setText(otherGroups.toString());
+          } else {
+            if (group.getIconUrl() != null && !"".equals(group.getIconUrl())) {
+              Image groupImage = new Image(group.getIconUrl(), 32, 32, false, false);
+              groupIcon = new ImageView(groupImage);
+              groupIcon.setPickOnBounds(true);
+            } else {
+              StringBuffer lText =
+                  new StringBuffer().append(String.valueOf(group.getId().charAt(0)).toUpperCase());
+              if (group.getId().length() > 1) {
+                lText.append(String.valueOf(group.getId().charAt(1)).toUpperCase());
+              }
+              groupIcon = new Label(lText.toString());
+              groupIcon.getStyleClass().add("group-icon");
+              if (group.getId().equals(Authentication.DEVELOPERS_GROUP)) {
+                groupIcon.getStyleClass().add("group-icon-developer");
+              }
+              // ((Label)groupIcon).setAlignment(Pos.CENTER);
+            }
+            tooltip = new Tooltip(group.getId());
+          }
+          this.groupIcons.add(groupIcon, columnIndex, rowIndex);
+          tooltip.setStyle("-fx-font-size: 12");
+          Tooltip.install(groupIcon, tooltip);
+          col++;
+          if (col > 4) {
+            col = 0;
+            row++;
+          }
+          i++;
+        } else {
+          break;
         }
       }
+
+      //      int row = 0, col = 0;
+      //      for (var group : user.getUser().getGroups()) {
+      //        Label groupIcon =
+      //            new Label(
+      //                group.getName().substring(0, Math.min(2,
+      // group.getName().length())).toUpperCase());
+      //        groupIcon.setStyle(
+      //            "-fx-background-color: #e0e0e0; -fx-padding: 5 10; -fx-background-radius: 3;");
+      //        Tooltip.install(groupIcon, new Tooltip(group.getName()));
+      //        groupIcons.add(groupIcon, col, row);
+      //        col++;
+      //        if (col > 2) {
+      //          col = 0;
+      //          row++;
+      //        }
+      //      }
 
       VBox dropZone = new VBox();
       dropZone.setAlignment(Pos.CENTER);
