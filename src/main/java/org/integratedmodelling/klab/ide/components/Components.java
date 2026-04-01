@@ -329,7 +329,9 @@ public class Components {
       groupIcons.setHgap(5);
       groupIcons.setVgap(5);
 
-      Label groupsLabel = new Label("Groups");
+      var groups = new ArrayList<>(user.getUser().getGroups());
+
+      Label groupsLabel = new Label("Groups (" + groups.size() + ")");
       groupsLabel.setStyle("-fx-font-weight: bold;");
 
       groupArea = new VBox(5);
@@ -338,7 +340,6 @@ public class Components {
       int i = 0;
       int row = 0, col = 0;
 
-      var groups = new ArrayList<>(user.getUser().getGroups());
       for (var group : groups) {
         if (i < 16) {
           int columnIndex = i % 4;
@@ -377,7 +378,7 @@ public class Components {
           tooltip.setStyle("-fx-font-size: 12");
           Tooltip.install(groupIcon, tooltip);
           col++;
-          if (col > 4) {
+          if (col >= 4) {
             col = 0;
             row++;
           }
@@ -407,7 +408,7 @@ public class Components {
       VBox dropZone = new VBox();
       dropZone.setAlignment(Pos.CENTER);
       dropZone.setPrefWidth(200);
-      dropZone.setPrefHeight(150);
+      dropZone.setPrefHeight(180);
       dropZone.setStyle(
           "-fx-border-color: #808080; -fx-border-width: 3; -fx-border-style: dashed; "
               + "-fx-border-radius: 10; -fx-background-color: #f8f8f8; -fx-background-radius: 10;");
