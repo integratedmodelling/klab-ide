@@ -1,6 +1,7 @@
 package org.integratedmodelling.klab.ide.test;
 
 import atlantafx.base.theme.NordDark;
+import atlantafx.base.theme.PrimerLight;
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -47,7 +48,7 @@ public class LogViewerTest extends Application {
   @Override
   public void start(Stage stage) {
     // Apply AtlantaFX dark theme so the log level colours look their best
-    Application.setUserAgentStylesheet(new NordDark().getUserAgentStylesheet());
+    Application.setUserAgentStylesheet(new PrimerLight().getUserAgentStylesheet());
 
     // ── File toolbar ──────────────────────────────────────────────────────────
 
