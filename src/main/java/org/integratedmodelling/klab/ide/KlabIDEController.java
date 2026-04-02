@@ -12,7 +12,9 @@ import java.time.format.FormatStyle;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -127,6 +129,8 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private IconLabel langIcon;
   private KlabCommandLine cli =
       new KlabCommandLine(() -> focalScope == null ? modeler().engine().getOwner() : focalScope);
+  private Map<KlabService, KlabService.ServiceStatus> serviceStatus =
+      new ConcurrentHashMap<>() {};
 
   public CLI getCLI() {
     return cli;
@@ -902,7 +906,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   }
 
   @Override
-  public void notifyServiceStatus(KlabService service, KlabService.ServiceStatus status) {}
+  public void notifyServiceStatus(KlabService service, KlabService.ServiceStatus status) {
+    this.serviceStatus.put(service, status);
+  }
 
   @Override
   public void engineStatusChanged(Engine.Status status) {
