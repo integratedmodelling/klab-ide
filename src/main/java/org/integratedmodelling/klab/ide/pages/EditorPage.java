@@ -107,6 +107,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
                   isClickTimelinePlaying = false;
                   onDoubleClickItemSelection((T) item.getValue());
                   clickTimeline.stop();
+                  event.consume();
                 } else {
                   // when clicking for the first time
                   isClickTimelinePlaying = true;
