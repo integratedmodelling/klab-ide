@@ -1145,11 +1145,6 @@ public class Components {
       super(Type.ServiceInfo, "Services", true);
     }
 
-    private static final String REASONER = "REASONER";
-    private static final String RESOLVER = "RESOLVER";
-    private static final String RESOURCES = "RESOURCES";
-    private static final String RUNTIME = "RUNTIME";
-
     @Override
     public String getDescription() {
       return "Service information, settings and management dashboard";
@@ -1545,12 +1540,19 @@ public class Components {
       Label nameLabel = new Label("Service: " + service.serviceName());
       nameLabel.setStyle("-fx-font-weight: bold");
 
-      Hyperlink hostLink = new Hyperlink(service.getUrl().toString());
+      Hyperlink hostLink = new Hyperlink("Capabilities");
       hostLink.setOnAction(
           e ->
               KlabIDEApplication.instance()
                   .getHostServices()
                   .showDocument(service.getUrl() + "/public/capabilities"));
+
+      Hyperlink statusLink = new Hyperlink("Status");
+      statusLink.setOnAction(
+          e ->
+              KlabIDEApplication.instance()
+                  .getHostServices()
+                  .showDocument(service.getUrl() + "/public/status"));
 
       Hyperlink apiLink = new Hyperlink("API Documentation");
       apiLink.setOnAction(
@@ -1563,7 +1565,7 @@ public class Components {
       tabPane.setBorder(Border.EMPTY);
       Tab infoTab = new Tab("Info");
       infoTab.setClosable(false);
-      VBox infoContent = new VBox(10, nameLabel, hostLink, apiLink);
+      VBox infoContent = new VBox(10, nameLabel, hostLink, statusLink, apiLink);
       //      infoContent.setPadding(new Insets(10));
       infoTab.setContent(infoContent);
       parameterForm = new VBox(2);
