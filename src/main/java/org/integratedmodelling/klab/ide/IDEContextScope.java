@@ -93,9 +93,6 @@ public class IDEContextScope implements ContextScope {
   public void setFocalAssets(RuntimeAsset rootAsset, RuntimeAsset focalAssets) {
     focalAsset.set(focalAssets);
     focalRoot.set(rootAsset);
-    //    for (var view : viewers) {
-    //      view.focusObservations(rootAsset, focalAssets);
-    //    }
   }
 
   public List<Pair<KnowledgeGraph.Commit, Observation>> getCommits() {
@@ -114,9 +111,6 @@ public class IDEContextScope implements ContextScope {
   public void setGraphDepth(int newDepth) {
     if (newDepth >= 1 && newDepth <= 5) {
       this.graphDepth = newDepth;
-      //      for (var view : viewers) {
-      //        view.focusObservations(focalRoot.get(), focalObservations.get());
-      //      }
     }
   }
 
@@ -128,18 +122,6 @@ public class IDEContextScope implements ContextScope {
       case ObservationSubmissionFinished -> {
         var observation = message.getPayload(Observation.class);
         executor.execute(() -> viewers.forEach(v -> v.submissionFinished(observation)));
-        //      }
-        //      case ObservationsInFocus -> {
-        //        var ids = message.getPayload(String.class);
-        //        var observations =
-        //            Utils.Data.parseList(ids, Long.class, ",").stream()
-        //                .map(
-        //                    id ->
-        //                        delegate
-        //                            .getDigitalTwin()
-        //                            .getKnowledgeGraph()
-        //                            .getAsset(id, delegate, RuntimeAsset.class))
-        //                .toList();
         var root =
             observation.getMetadata().containsKey(Metadata.IM_COMMIT)
                 ? observation.getMetadata().get(Metadata.IM_COMMIT, KnowledgeGraph.Commit.class)
