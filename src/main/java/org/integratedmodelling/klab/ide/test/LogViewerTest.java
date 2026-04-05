@@ -30,16 +30,16 @@ import java.util.Set;
  *   <li>A status bar that shows the watched file path and the current entry count.
  * </ul>
  *
- * <p>By default the viewer opens the k.LAB resolver log at {@code
- * ~/.klab/services/resolver/logs/resolver.log} (if it exists).
+ * <p>By default the viewer opens the k.LAB runtime log at {@code
+ * ~/.klab/services/runtime/logs/runtime.log} (if it exists).
  *
  * <p>Run via {@code main()} – no extra arguments required.
  */
 public class LogViewerTest extends Application {
 
-  /** Default log file – adjust if your resolver log lives elsewhere. */
+  /** Default log file – adjust if your runtime log lives elsewhere. */
   private static final String DEFAULT_LOG =
-      System.getProperty("user.home") + "/.klab/services/resolver/logs/resolver.log";
+      System.getProperty("user.home") + "/.klab/services/runtime/logs/runtime.log";
 
   private LogViewer logViewer;
   private Label statusLabel;
@@ -101,7 +101,7 @@ public class LogViewerTest extends Application {
     columnBar.setPadding(new Insets(2, 8, 6, 8));
 
     // One checkbox per column; all visible initially
-    Set<Column> visible = EnumSet.allOf(Column.class);
+    Set<Column> visible = EnumSet.of(Column.TIME, Column.LEVEL, Column.MESSAGE);
     for (Column col : Column.values()) {
       CheckBox cb = new CheckBox(col.getLabel());
       cb.setSelected(true);

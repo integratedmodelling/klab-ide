@@ -4,7 +4,12 @@ import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.control.*;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
@@ -17,10 +22,10 @@ import java.util.regex.*;
 
 /**
  * A JavaFX component that tails a log file, parsing its contents and displaying them as a
- * {@link TableView}. Supports the Spring Boot / Logback default log format:
+ * {@link TableView}. Supports the k.LAB / Logback log format:
  *
  * <pre>
- * 2025-04-10T07:54:45.493+02:00  INFO 44644 --- [main] o.i.k.s.MyClass : message text
+ * [2026-04-05 11:51:31.384] - 11360 INFO  [main] --- o.i.k.s.MyClass: message text
  * </pre>
  *
  * <p>Features:
@@ -56,14 +61,16 @@ public class LogViewer extends VBox {
 
   // ── Log pattern ──────────────────────────────────────────────────────────────
   //
-  // Matches the Spring Boot / Logback default pattern, e.g.:
-  //   2025-04-10T07:54:45.493+02:00  INFO 44644 --- [main] o.i.k.s.MyClass   : message
+  // Matches the k.LAB / Logback pattern, e.g.:
+  //   [2026-04-05 11:51:31.384] - 11360 INFO  [main] --- o.i.k.s.MyClass: message
+  //
+  // Capture groups: 1=timestamp, 2=pid, 3=level, 4=thread, 5=logger, 6=message
   //
   private static final Pattern LOG_PATTERN =
       Pattern.compile(
-          "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+[+-]\\d{2}:\\d{2})\\s+"
+          "^\\[(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d+)\\]\\s+-\\s+(\\d+)\\s+"
               + "(TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\\s+"
-              + "(\\d+)\\s+---\\s+\\[([^\\]]+)]\\s+(\\S+)\\s+:\\s+(.*)$");
+              + "\\[([^\\]]+)\\]\\s+---\\s+(\\S+):\\s+(.*)$");
 
   // ── Row CSS – uses AtlantaFX looked-up color variables so rows adapt to any theme ──
   private static final String STYLE_TRACE =
@@ -316,12 +323,115 @@ public class LogViewer extends VBox {
         tc.setPrefWidth(col.getPrefWidth());
         tc.setMinWidth(40);
       }
+      if (col == Column.MESSAGE) {
+        tc.setCellFactory(c -> new MessageCell());
+      }
       columnMap.put(col, tc);
     }
 
     // Attach a right-click context menu to every column header
     for (Column col : Column.values()) {
       columnMap.get(col).setContextMenu(buildHeaderContextMenu());
+    }
+  }
+
+  /**
+   * Custom table cell for the Message column.
+   *
+   * <ul>
+   *   <li>Displays the first line of the message with ellipsis overflow for long text.
+   *   <li>A ▶/▼ toggle button appears on the left when the message has multiple lines; clicking it
+   *       reveals a read-only {@link TextArea} with the full message below the summary.
+   *   <li>A copy-to-clipboard button (⎘) appears on the right side only while the cursor hovers
+   *       over the cell; it copies the full message text to the system clipboard.
+   * </ul>
+   */
+  private static class MessageCell extends TableCell<LogEntry, String> {
+
+    /** Max chars shown in the summary line before the cell is considered expandable. */
+    private static final int PREVIEW_CHARS = 200;
+
+    private final Button   expandBtn    = new Button("▶");
+    private final Label    summaryLabel = new Label();
+    private final Button   copyBtn      = new Button("⎘");
+    private final TextArea fullArea     = new TextArea();
+    private final HBox     topRow;
+    private final VBox     container;
+    private boolean expanded = false;
+
+    MessageCell() {
+      expandBtn.getStyleClass().addAll("button", "flat", "small");
+      expandBtn.setFocusTraversable(false);
+      expandBtn.setOnAction(e -> setExpanded(!expanded));
+
+      summaryLabel.setMaxWidth(Double.MAX_VALUE);
+      summaryLabel.setTextOverrun(OverrunStyle.ELLIPSIS);
+      HBox.setHgrow(summaryLabel, Priority.ALWAYS);
+
+      // Copy button: always in layout (space reserved) but transparent until hover
+      copyBtn.getStyleClass().addAll("button", "flat", "small");
+      copyBtn.setFocusTraversable(false);
+      copyBtn.setOpacity(0);
+      copyBtn.setTooltip(new Tooltip("Copy message to clipboard"));
+      copyBtn.setOnAction(e -> {
+        String msg = getItem();
+        if (msg != null) {
+          ClipboardContent cc = new ClipboardContent();
+          cc.putString(msg);
+          Clipboard.getSystemClipboard().setContent(cc);
+        }
+      });
+
+      topRow = new HBox(4, expandBtn, summaryLabel, copyBtn);
+      topRow.setAlignment(Pos.CENTER_LEFT);
+
+      fullArea.setEditable(false);
+      fullArea.setWrapText(true);
+      fullArea.setPrefRowCount(6);
+      fullArea.setMinHeight(80);
+      fullArea.setMaxWidth(Double.MAX_VALUE);
+      fullArea.setVisible(false);
+      fullArea.setManaged(false);
+
+      container = new VBox(2, topRow, fullArea);
+      container.setMaxWidth(Double.MAX_VALUE);
+      container.setOnMouseEntered(e -> copyBtn.setOpacity(1));
+      container.setOnMouseExited(e ->  copyBtn.setOpacity(0));
+
+      setText(null);
+      setGraphic(container);
+      setPadding(Insets.EMPTY);
+    }
+
+    @Override
+    protected void updateItem(String msg, boolean empty) {
+      super.updateItem(msg, empty);
+      // Always collapse when the cell is recycled with new content
+      if (expanded) setExpanded(false);
+
+      if (empty || msg == null) {
+        setGraphic(null);
+        return;
+      }
+
+      boolean hasMore = msg.contains("\n") || msg.length() > PREVIEW_CHARS;
+
+      // Show only the first line in the summary; the Label clips the rest visually
+      int nl = msg.indexOf('\n');
+      summaryLabel.setText(nl >= 0 ? msg.substring(0, nl) : msg);
+      fullArea.setText(msg);
+
+      expandBtn.setVisible(hasMore);
+      expandBtn.setManaged(hasMore);
+
+      setGraphic(container);
+    }
+
+    private void setExpanded(boolean expand) {
+      expanded = expand;
+      expandBtn.setText(expand ? "▼" : "▶");
+      fullArea.setVisible(expand);
+      fullArea.setManaged(expand);
     }
   }
 
@@ -523,7 +633,7 @@ public class LogViewer extends VBox {
       Matcher m = LOG_PATTERN.matcher(line);
       if (m.matches()) {
         LogEntry entry = new LogEntry(
-            m.group(1), m.group(2), m.group(3), m.group(4), m.group(5), m.group(6));
+            m.group(1), m.group(3), m.group(2), m.group(4), m.group(5), m.group(6));
         batch.add(entry);
         lastParsedEntry = entry;
       } else if (lastParsedEntry != null) {
