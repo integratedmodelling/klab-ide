@@ -92,8 +92,8 @@ public class LogViewer extends VBox {
    * {@link #setVisibleColumns(Set)} to control which columns are displayed.
    */
   public enum Column {
-    TIME("Time", 210),
-    LEVEL("Level", 60),
+    TIME("Time", 180),
+    LEVEL("Level", 80),
     PID("PID", 60),
     THREAD("Thread", 150),
     LOGGER("Logger", 240),
@@ -321,7 +321,9 @@ public class LogViewer extends VBox {
       });
       if (col.getPrefWidth() > 0) {
         tc.setPrefWidth(col.getPrefWidth());
-        tc.setMinWidth(40);
+        tc.setMinWidth(col.getPrefWidth());
+        tc.setMaxWidth(col.getPrefWidth());
+      } else {
       }
       if (col == Column.MESSAGE) {
         tc.setCellFactory(c -> new MessageCell());

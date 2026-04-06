@@ -129,8 +129,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private IconLabel langIcon;
   private KlabCommandLine cli =
       new KlabCommandLine(() -> focalScope == null ? modeler().engine().getOwner() : focalScope);
-  private Map<KlabService, KlabService.ServiceStatus> serviceStatus =
-      new ConcurrentHashMap<>() {};
+  private Map<KlabService, KlabService.ServiceStatus> serviceStatus = new ConcurrentHashMap<>() {};
 
   public CLI getCLI() {
     return cli;
@@ -166,6 +165,16 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     }
     // TODO set status bar based on whether there is a DT
     this.currentEditorPage = editorPage;
+  }
+
+  public LocalInstance getInstance(KlabService service) {
+    if (Utils.URLs.isLocalHost(service.getUrl())) {
+      var instance = engine().getServiceInstance(service.status().getServiceType());
+      if (instance != null && instance.getStatus() == LocalInstance.Status.RUNNING) {
+        return instance;
+      }
+    }
+    return null;
   }
 
   /** The "circled" (current) view in the main area. */

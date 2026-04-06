@@ -58,10 +58,7 @@ import org.integratedmodelling.klab.api.services.runtime.objects.ContextInfo;
 import org.integratedmodelling.klab.ide.KlabIDEApplication;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
-import org.integratedmodelling.klab.ide.components.generic.AutoScrollPane;
-import org.integratedmodelling.klab.ide.components.generic.IconLabel;
-import org.integratedmodelling.klab.ide.components.generic.UploadBox;
-import org.integratedmodelling.klab.ide.components.generic.WaitButton;
+import org.integratedmodelling.klab.ide.components.generic.*;
 import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.carbonicons.CarbonIcons;
 import org.kordamp.ikonli.evaicons.Evaicons;
@@ -1614,6 +1611,33 @@ public class Components {
       importScroll.setContent(importPane);
       importTab.setContent(importScroll);
 
+      Tab logTab = null;
+      var instance = KlabIDEController.instance().getInstance(service);
+      if (instance != null) {
+        var configurationPath = instance.getConfigurationPath();
+        var logFile =
+            new File(
+                configurationPath
+                    + File.separator
+                    + "logs"
+                    + File.separator
+                    + instance.getProduct().getType().relativeConfigurationPath()
+                    + ".log");
+
+        //        if (logFile.exists()) {
+        var logView =
+            new LogViewer(
+                logFile.toPath(),
+                EnumSet.of(
+                    LogViewer.Column.TIME, LogViewer.Column.LEVEL, LogViewer.Column.MESSAGE));
+
+        // make another tab and set the logView in it
+        logTab = new Tab("Logs", logView);
+        //          settingsPane.getTabs().add(logTab);
+
+        //        }
+      }
+
       settingsPane
           .getChildren()
           .add(
@@ -1631,7 +1655,12 @@ public class Components {
       settingsScroll.setContent(settingsPane);
       settingsTab.setContent(settingsScroll);
 
-      tabPane.getTabs().addAll(infoTab, /*exportTab, */ importTab, settingsTab);
+      if (logTab != null) {
+        tabPane.getTabs().addAll(infoTab, /*exportTab, */ importTab, settingsTab, logTab);
+      } else {
+        tabPane.getTabs().addAll(infoTab, /*exportTab, */ importTab, settingsTab);
+      }
+
       content.getChildren().addAll(tabPane);
       VBox.setVgrow(tabPane, Priority.ALWAYS);
 

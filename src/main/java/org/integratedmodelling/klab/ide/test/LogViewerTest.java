@@ -123,7 +123,7 @@ public class LogViewerTest extends Application {
 
     // ── LogViewer ─────────────────────────────────────────────────────────────
 
-    logViewer = new LogViewer(Paths.get(DEFAULT_LOG));
+    logViewer = new LogViewer(Paths.get(DEFAULT_LOG), EnumSet.of(Column.TIME, Column.LEVEL, Column.MESSAGE));
     VBox.setVgrow(logViewer, Priority.ALWAYS);
 
     // Update status bar whenever the entry list changes
