@@ -5,6 +5,7 @@ import java.io.IOException;
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
+import javafx.scene.image.Image;
 import javafx.stage.Stage;
 import org.integratedmodelling.klab.ide.utils.AppContext;
 
@@ -25,13 +26,8 @@ public class KlabIDEApplication extends Application {
     instance = this;
     primaryStage = stage;
 
-    // Add icons to the stage
-    //    stage
-    //        .getIcons()
-    //        .addAll(
-    //            new Image(getClass().getResourceAsStream("/icons/app_16.png")),
-    //            new Image(getClass().getResourceAsStream("/icons/app_32.png")),
-    //            new Image(getClass().getResourceAsStream("/icons/app_64.png")));
+    // Add icon to the stage
+    stage.getIcons().add(new Image(getClass().getResourceAsStream("/package/linux/klab.png")));
 
     /*
      * TODO choose theme from settings and expose it to components

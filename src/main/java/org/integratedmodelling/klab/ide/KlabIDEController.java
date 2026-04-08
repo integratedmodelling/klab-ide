@@ -1,5 +1,6 @@
 package org.integratedmodelling.klab.ide;
 
+import atlantafx.base.controls.ModalPane;
 import atlantafx.base.theme.Styles;
 import com.google.common.collect.EvictingQueue;
 import com.google.common.collect.Queues;
@@ -14,11 +15,13 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import javafx.animation.PauseTransition;
+import javafx.event.EventHandler;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
@@ -130,6 +133,14 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private KlabCommandLine cli =
       new KlabCommandLine(() -> focalScope == null ? modeler().engine().getOwner() : focalScope);
   private Map<KlabService, KlabService.ServiceStatus> serviceStatus = new ConcurrentHashMap<>() {};
+  private ModalPane modalPane;
+  private final EventHandler<KeyEvent> escHandler =
+      event -> {
+        if (event.getCode() == KeyCode.ESCAPE) {
+          removeModalOverlay();
+          event.consume();
+        }
+      };
 
   public CLI getCLI() {
     return cli;
@@ -683,6 +694,33 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
       editor.close();
       currentEditorPage = null;
     }
+  }
+
+  public void showInModalOverlay(Node node) {
+    Platform.runLater(
+        () -> {
+          if (modalPane == null) {
+            modalPane = new ModalPane();
+            modalPane.setAlignment(Pos.CENTER);
+            mainArea.getChildren().add(modalPane);
+          }
+          if (mainArea.getScene() != null) {
+            mainArea.getScene().addEventFilter(KeyEvent.KEY_PRESSED, escHandler);
+          }
+          modalPane.show(node);
+        });
+  }
+
+  public void removeModalOverlay() {
+    Platform.runLater(
+        () -> {
+          if (modalPane != null) {
+            if (mainArea.getScene() != null) {
+              mainArea.getScene().removeEventFilter(KeyEvent.KEY_PRESSED, escHandler);
+            }
+            modalPane.hide();
+          }
+        });
   }
 
   private void toggleDigitalTwinControlPanel() {
