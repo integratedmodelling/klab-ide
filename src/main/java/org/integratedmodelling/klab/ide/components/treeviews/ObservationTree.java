@@ -10,9 +10,11 @@ import javafx.scene.control.TreeTableColumn;
 import javafx.scene.control.TreeTableView;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.paint.Color;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
+import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
@@ -41,11 +43,34 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
     icon.setMaxWidth(24);
     icon.setMinWidth(24);
 
-    var description =
-        Utils.Strings.abbreviate(Theme.getLabel(observation), 42);
+    var description = Utils.Strings.abbreviate(Theme.getLabel(observation), 42);
 
     var label = new Label(description);
     HBox.setHgrow(label, Priority.ALWAYS);
+
+    int level = 0;
+    var info = new Label("");
+    if (observation instanceof Observation obs) {
+      for (var notification : obs.getNotifications()) {
+        switch (notification.getLevel()) {
+          case Info:
+            level = 1;
+            break;
+          case Warning:
+            level = 2;
+            break;
+          case Error, SystemError:
+            level = 3;
+            break;
+        }
+      }
+
+      // TODO improve this, use right icons, provide hover support
+      if (level > 0) {
+        label.setGraphic(new IconLabel(Theme.OBSERVATION_ICON, 12, Color.DARKGOLDENROD));
+      }
+    }
+
     var ret = new HBox(icon, label);
     ret.setSpacing(2);
     ret.setAlignment(Pos.CENTER_LEFT);
