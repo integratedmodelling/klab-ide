@@ -70,9 +70,12 @@ public class CommandResult extends Components.BaseComponent {
               yield ret;
             }
             case FormattedString formattedString -> {
-                var ret = BBCodeParser.createLayout(formattedString.render(BBCodeRenderer.INSTANCE));
-                ret.setStyle("-fx-font-family: 'Monospaced';");
-                yield ret;
+              var ret = BBCodeParser.createLayout(formattedString.render(BBCodeRenderer.INSTANCE));
+              ret.setStyle(
+                  Utils.OS.get() == Utils.OS.WIN
+                      ? "-fx-font-family: 'Consolas';"
+                      : "-fx-font-family: 'Monospaced';");
+              yield ret;
             }
 
             //      case Tree tree ->
