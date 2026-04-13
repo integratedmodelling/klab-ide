@@ -328,14 +328,24 @@ public class IDEContextScope implements ContextScope {
     return delegate.getData(observations);
   }
 
-  @Override
-  public Collection<Observation> getRootObservations() {
-    return delegate.getRootObservations();
-  }
+  //  @Override
+  //  public Collection<Observation> getRootObservations() {
+  //    return delegate.getRootObservations();
+  //  }
 
   @Override
   public Observation getContextObservation() {
     return delegate.getContextObservation();
+  }
+
+  @Override
+  public Observation getSourceObservation() {
+    return delegate.getSourceObservation();
+  }
+
+  @Override
+  public Observation getTargetObservation() {
+    return delegate.getTargetObservation();
   }
 
   @Override
@@ -380,8 +390,8 @@ public class IDEContextScope implements ContextScope {
   }
 
   @Override
-  public CompletableFuture<Observation> submit(Observation observation) {
-    return delegate.submit(observation);
+  public Observation.Builder observation(Observable observable) {
+    return delegate.observation(observable);
   }
 
   @Override
@@ -462,6 +472,11 @@ public class IDEContextScope implements ContextScope {
   @Override
   public DigitalTwin.Configuration getConfiguration() {
     return delegate.getConfiguration();
+  }
+
+  @Override
+  public String getTransactionId() {
+    return delegate.getTransactionId();
   }
 
   @Override
