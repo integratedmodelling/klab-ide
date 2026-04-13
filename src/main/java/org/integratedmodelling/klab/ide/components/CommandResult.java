@@ -69,8 +69,12 @@ public class CommandResult extends Components.BaseComponent {
               ret.setMessageStyle(Styles.DANGER);
               yield ret;
             }
-            case FormattedString formattedString ->
-                BBCodeParser.createLayout(formattedString.render(BBCodeRenderer.INSTANCE));
+            case FormattedString formattedString -> {
+                var ret = BBCodeParser.createLayout(formattedString.render(BBCodeRenderer.INSTANCE));
+                ret.setStyle("-fx-font-family: 'Monospaced';");
+                yield ret;
+            }
+
             //      case Tree tree ->
             //          content.getChildren().add(new TreeView(tree));
             //      case Collection collection ->
