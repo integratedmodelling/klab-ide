@@ -13,8 +13,6 @@ module org.integratedmodelling.klab.ide {
     requires org.kordamp.ikonli.fontawesome5;
     requires org.kordamp.ikonli.bootstrapicons;
     requires org.kordamp.ikonli.weathericons;
-    requires org.eclipse.xtext.ide;
-    requires com.ibm.icu;
     requires jdk.jsobject;
     requires org.kordamp.ikonli.evaicons;
     requires com.google.common;
@@ -26,7 +24,6 @@ module org.integratedmodelling.klab.ide {
     requires klab.cli;
     requires org.kordamp.ikonli.materialdesign;
     requires javafx.controls;
-    requires org.eclipse.xtext.util;
     requires org.integratedmodelling.klabeditor;
     requires javafx.media;
     requires devtoolsfx.gui;
@@ -35,15 +32,13 @@ module org.integratedmodelling.klab.ide {
     requires org.apache.commons.io;
     requires tyrus.standalone.client;
     requires java.desktop;
-    requires org.integratedmodelling.languages.kim.ide;
-    requires org.integratedmodelling.languages.kim.ide.org.eclipse.lsp4j;
     requires org.eclipse.lsp4j.jsonrpc;
     requires evo.inflector;
     requires java.management;
     requires com.jcraft.jsch;
     requires org.slf4j;
     requires commons.collections;
-    requires org.eclipse.swt.cocoa.macosx.x86_64;
+    requires org.eclipse.lsp4j;
 
     opens org.integratedmodelling.klab.ide to javafx.fxml;
     opens org.integratedmodelling.klab.ide.components to javafx.fxml;
