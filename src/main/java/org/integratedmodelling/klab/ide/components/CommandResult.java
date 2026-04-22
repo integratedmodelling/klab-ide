@@ -17,7 +17,9 @@ import javafx.scene.layout.*;
 import org.integratedmodelling.common.data.Tree;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.cli.FormattedString;
+import org.integratedmodelling.klab.api.configuration.Setting;
 import org.integratedmodelling.klab.api.exceptions.KlabCommandLineError;
+import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.components.generic.BBCodeRenderer;
 import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.materialdesign.MaterialDesign;
@@ -72,9 +74,12 @@ public class CommandResult extends Components.BaseComponent {
             case FormattedString formattedString -> {
               var ret = BBCodeParser.createLayout(formattedString.render(BBCodeRenderer.INSTANCE));
               ret.setStyle(
-                  Utils.OS.get() == Utils.OS.WIN
-                      ? "-fx-font-family: 'Consolas';"
-                      : "-fx-font-family: 'Monospaced';");
+                  "-fx-font-family: '"
+                      + KlabIDEController.instance()
+                          .engine()
+                          .getSettings()
+                          .get(Setting.MONOSPACE_FONT, String.class)
+                      + "';");
               yield ret;
             }
 
