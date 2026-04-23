@@ -384,6 +384,18 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     return modeler;
   }
 
+  /**
+   * Return whatever scope we have available, more specific first, or null.
+   *
+   * @return
+   */
+  public static UserScope scope() {
+    if (_this != null) {
+      return _this.getFocalScope() == null ? _this.user() : _this.getFocalScope();
+    }
+    return null;
+  }
+
   private void createModeler() {
 
     modeler = new ModelerImpl(this);

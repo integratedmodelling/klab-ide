@@ -2,14 +2,8 @@ package org.integratedmodelling.klab.ide.components;
 
 import atlantafx.base.controls.Breadcrumbs;
 import atlantafx.base.theme.Styles;
-import atlantafx.base.theme.Tweaks;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import com.google.common.collect.Maps;
 import javafx.application.Platform;
-import javafx.beans.property.SimpleObjectProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
@@ -18,23 +12,27 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.paint.Color;
-import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.data.KnowledgeGraph;
 import org.integratedmodelling.klab.api.data.Metadata;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedule;
 import org.integratedmodelling.klab.api.provenance.Activity;
+import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
-import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
+import org.integratedmodelling.klab.ide.components.generic.Switcher;
+import org.integratedmodelling.klab.ide.components.generic.TreeSearchField;
 import org.integratedmodelling.klab.ide.components.treeviews.ActivityTree;
 import org.integratedmodelling.klab.ide.components.treeviews.ObservationTree;
 import org.integratedmodelling.klab.ide.components.treeviews.ObserverTree;
 import org.integratedmodelling.klab.ide.components.treeviews.ScenarioTree;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.kordamp.ikonli.material2.Material2AL;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Controlled by the current DT peer installed in the main IDE controller. Differently from other DT
@@ -55,7 +53,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   private final Button scenarioButton;
   private final Button observationButton;
   private final Button observerButton;
-  private final Breadcrumbs<Observation> contextPath;
+  //  private final Breadcrumbs<Observation> contextPath;
   private IDEContextScope scope;
 
   public enum Status {
@@ -117,32 +115,74 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     observerButton.setOnAction(click -> setView(View.OBSERVERS));
     scenarioButton.setOnAction(click -> setView(View.SCENARIOS));
 
-    var contextSelector = new HBox(0);
-    contextSelector.setAlignment(Pos.CENTER_LEFT);
+    activityTree = new ActivityTree();
+    observationTree = new ObservationTree();
+    scenarioTree = new ScenarioTree();
+    observerTree = new ObserverTree();
+
+    var activitySearch = new TreeSearchField<>(activityTree, (query, node) -> true);
+    var observationSearch = new TreeSearchField<>(observationTree, (query, node) -> true);
+    var scenarioSearch = new TreeSearchField<>(scenarioTree, (query, node) -> true);
+    var observerSearch = new TreeSearchField<>(observerTree, (query, node) -> true);
+
+    var searchArea =
+        new Switcher(
+            Map.of(
+                "activities",
+                activitySearch,
+                "observations",
+                observationSearch,
+                "scenarios",
+                scenarioSearch,
+                "observers",
+                observerSearch));
+
+    searchArea.show("activities");
+
+    //    searchArea.setAlignment(Pos.CENTER_LEFT);
     var homeButton = new Button("", new IconLabel(Material2AL.HOME, 14, Color.BLACK));
     homeButton.setOnAction(e -> scope.within(null));
     homeButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
 
-    this.contextPath = new Breadcrumbs<>();
-    contextPath.setDividerFactory(
-        item -> {
-          return item != null && !item.isLast() && !item.getChildren().isEmpty()
-              ? new IconLabel(Material2AL.CHEVRON_RIGHT, 12, Color.DARKGRAY)
-              : null;
+    var conceptButton = new Button("", new IconLabel(Theme.WORLDVIEW_ICON, 14, Color.BLACK));
+    conceptButton.setOnAction(
+        e -> {
+          /* TODO */
         });
-    contextPath.setCrumbFactory(
-        observation ->
-            new Hyperlink(observation == null ? "DT Home" : observation.getValue().getName()));
+    conceptButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
 
-    HBox.setMargin(contextSelector, new Insets(5, 5, 5, 5));
-    contextSelector.setStyle(
+    /**
+     * FIXME this is not what it should be. On the right we should have: 1. search bar for the
+     * CURRENT treeview with search icon to the right 2. Home button that is grey for no
+     * observations in KG, black for observations but context not set, blue for observations and
+     * context set. On click, shows the full knowledge graph AND locate the context line with the
+     * home icon if set. The home button becomes the spinner during ops. TODO must find how to cycle
+     * through commits; by default it can show the latest, then revert to KG at first click. 3.
+     * Lightbulb icon for the concept bar in the modal window, active if a DT is selected. 4. Thrash
+     * icon as current.
+     */
+    //    this.contextPath = new Breadcrumbs<>();
+    //    contextPath.setDividerFactory(
+    //        item -> {
+    //          return item != null && !item.isLast() && !item.getChildren().isEmpty()
+    //              ? new IconLabel(Material2AL.CHEVRON_RIGHT, 12, Color.DARKGRAY)
+    //              : null;
+    //        });
+    //    contextPath.setCrumbFactory(
+    //        observation ->
+    //            new Hyperlink(observation == null ? "DT Home" :
+    // observation.getValue().getName()));
+
+    HBox.setMargin(searchArea, new Insets(5, 5, 5, 5));
+    searchArea.setStyle(
         "-fx-border-color: #CCCCCC; -fx-border-width: 2px; -fx-border-radius: 3px;");
 
-    contextSelector.getChildren().addAll(homeButton, contextPath);
+    //    searchArea.getChildren().addAll(, contextPath);
 
-    HBox.setHgrow(contextSelector, Priority.ALWAYS);
-    contextSelector.setMaxWidth(Double.MAX_VALUE);
+    HBox.setHgrow(searchArea, Priority.ALWAYS);
+    searchArea.setMaxWidth(Double.MAX_VALUE);
 
+    // TODO this goes in a switcher pane with the homebutton
     this.progressIndicator = new ProgressIndicator(0);
     progressIndicator.setPrefSize(14, 14);
     progressIndicator.setMaxSize(14, 14);
@@ -155,16 +195,13 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
             observationButton,
             scenarioButton,
             observerButton,
-            contextSelector,
-            progressIndicator,
+            searchArea,
+            homeButton,
+            /* TODO pair with homeButton*/ progressIndicator,
+            conceptButton,
             resetButton);
 
     setTop(topBar);
-
-    activityTree = new ActivityTree();
-    observationTree = new ObservationTree();
-    scenarioTree = new ScenarioTree();
-    observerTree = new ObserverTree();
 
     activityTree.setMinSize(220, 220);
 
@@ -217,7 +254,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
     if (scope == null) {
       setCenter(null); // TODO use some idle view
-      this.contextPath.setSelectedCrumb(null);
+      //      this.contextPath.setSelectedCrumb(null);
     } else {
       this.setCenter(
           switch (currentView) {
@@ -351,7 +388,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
         () -> {
           var path = scope.getContextPath();
           if (path.isEmpty()) {
-            this.contextPath.setSelectedCrumb(null);
+            //            this.contextPath.setSelectedCrumb(null);
             return;
           }
           var root = new Breadcrumbs.BreadCrumbItem<>(path.getFirst());
@@ -360,7 +397,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
             root.getChildren().add(child);
             root = child;
           }
-          this.contextPath.setSelectedCrumb(root);
+          //          this.contextPath.setSelectedCrumb(root);
         });
   }
 

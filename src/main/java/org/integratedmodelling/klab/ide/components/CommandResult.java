@@ -4,6 +4,7 @@ import atlantafx.base.controls.Message;
 import atlantafx.base.theme.Styles;
 import atlantafx.base.theme.Tweaks;
 import atlantafx.base.util.BBCodeParser;
+import com.google.common.collect.Table;
 import java.util.Collection;
 import java.util.Map;
 import javafx.beans.property.SimpleStringProperty;
@@ -19,6 +20,10 @@ import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.cli.FormattedString;
 import org.integratedmodelling.klab.api.configuration.Setting;
 import org.integratedmodelling.klab.api.exceptions.KlabCommandLineError;
+import org.integratedmodelling.klab.api.knowledge.Resource;
+import org.integratedmodelling.klab.api.knowledge.Urn;
+import org.integratedmodelling.klab.api.lang.kim.KimObservable;
+import org.integratedmodelling.klab.api.services.ResourcesService;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.components.cards.AssetViewComponent;
 import org.integratedmodelling.klab.ide.components.cards.BaseAssetViewComponent;
@@ -62,6 +67,51 @@ public class CommandResult extends BaseAssetViewComponent {
           switch (result) {
             case Region n -> n;
             case Throwable throwable -> {
+              /*
+               * Check for knowable URNs first
+               */
+              if (throwable instanceof KlabCommandLineError klabError
+                  && KlabIDEController.scope() != null) {
+                // check if the command line can be parsed as a URN
+                var possibleType = Urn.classify(klabError.getCommandLine());
+                switch (possibleType) {
+                  case RESOURCE -> {
+                    // TODO this must use all services somehow. Probably loop and stop at the first
+                    //  non-null result
+                    var resource =
+                        KlabIDEController.scope()
+                            .getService(ResourcesService.class)
+                            .retrieve(
+                                klabError.getCommandLine(),
+                                Resource.class,
+                                KlabIDEController.scope());
+                    if (resource != null) {
+                      // TODO produce the resource view component here
+                    }
+                  }
+                  case KIM_OBJECT -> {
+                    // TODO must know the type of KimObject to produce the view - currently can be
+                    //  namespace, model, concept definition and symbol definition. It may or may
+                    // not
+                    //  be cached in the service client so there is no automatic
+                  }
+                  case OBSERVABLE -> {
+                    // TODO this must use all services somehow. Probably loop and stop at the first
+                    //  non-null result
+                    var observable =
+                        KlabIDEController.scope()
+                            .getService(ResourcesService.class)
+                            .retrieve(
+                                klabError.getCommandLine(),
+                                KimObservable.class,
+                                KlabIDEController.scope());
+                    if (observable != null) {
+                      // TODO produce the observable view component here
+                    }
+                  }
+                  default -> {}
+                }
+              }
               var title =
                   throwable instanceof KlabCommandLineError
                       ? null
@@ -85,7 +135,10 @@ public class CommandResult extends BaseAssetViewComponent {
                       + "';");
               yield ret;
             }
-
+            case Table<?, ?, ?> table -> {
+              // TODO implement table view
+              yield null;
+            }
             //      case Tree tree ->
             //          content.getChildren().add(new TreeView(tree));
             //      case Collection collection ->

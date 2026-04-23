@@ -213,6 +213,7 @@ public class REPLTextField extends AutoCompleteTextField {
         KeyEvent.KEY_PRESSED,
         event -> {
           if (event.getCode() == KeyCode.ENTER) {
+            event.consume();
             String text = getText();
             if (text != null && !text.trim().isEmpty()) {
               history.add(text);
@@ -221,21 +222,20 @@ public class REPLTextField extends AutoCompleteTextField {
               }
               clear();
             }
-            event.consume();
           } else if (event.getCode() == KeyCode.UP) {
+            event.consume();
             String prev = history.previous();
             if (prev != null) {
               setText(prev);
               positionCaret(prev.length());
             }
-            event.consume();
           } else if (event.getCode() == KeyCode.DOWN) {
+            event.consume();
             String next = history.next();
             if (next != null) {
               setText(next);
               positionCaret(next.length());
             }
-            event.consume();
           }
         });
 
