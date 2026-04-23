@@ -8,16 +8,15 @@ import javafx.scene.Parent;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.VBox;
-import org.integratedmodelling.klab.api.Klab;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.Resource;
-import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.api.services.Resolver;
 import org.integratedmodelling.klab.api.services.ResourcesService;
 import org.integratedmodelling.klab.api.services.resources.ResourceInfo;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
+import org.integratedmodelling.klab.ide.components.cards.ResourceSmallViewComponent;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 import org.kordamp.ikonli.javafx.FontIcon;
 
@@ -80,7 +79,7 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
       resultsBox
           .getChildren()
           .add(
-              new Components.Resource(
+              new ResourceSmallViewComponent(
                   makeResourceInfo(resource), this::viewResource, null /* TODO */));
     }
 
@@ -131,7 +130,7 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
                             resultsBox
                                 .getChildren()
                                 .add(
-                                    new Components.Resource(
+                                    new ResourceSmallViewComponent(
                                         makeResourceInfo(resource),
                                         this::viewResource,
                                         null /* TODO */));
@@ -146,7 +145,7 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
                               resultsBox
                                   .getChildren()
                                   .add(
-                                      new Components.Resource(
+                                      new ResourceSmallViewComponent(
                                           resource, this::viewResource, null /* TODO */));
                             }
                           }

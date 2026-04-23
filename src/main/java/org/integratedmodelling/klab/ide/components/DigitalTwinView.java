@@ -2,7 +2,7 @@ package org.integratedmodelling.klab.ide.components;
 
 import atlantafx.base.theme.Styles;
 import java.util.*;
-import javafx.application.Platform;
+
 import javafx.geometry.HPos;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
@@ -23,6 +23,7 @@ import org.integratedmodelling.klab.api.utils.Utils;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.IDEContextScope;
+import org.integratedmodelling.klab.ide.components.cards.DigitalTwinSmallViewComponent;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
@@ -126,7 +127,7 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
       }
       var isLocal = Utils.URLs.isLocalHost(dt.getConfiguration().getUrl());
       var dtComponent =
-          new Components.DigitalTwin(dt, this::showDigitalTwin, this::removeDigitalTwin, isLocal);
+          new DigitalTwinSmallViewComponent(dt, this::showDigitalTwin, this::removeDigitalTwin, isLocal);
       components.add(dtComponent);
       dtComponent.createContent();
     }

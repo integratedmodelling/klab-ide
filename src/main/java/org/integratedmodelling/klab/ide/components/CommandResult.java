@@ -20,16 +20,18 @@ import org.integratedmodelling.klab.api.cli.FormattedString;
 import org.integratedmodelling.klab.api.configuration.Setting;
 import org.integratedmodelling.klab.api.exceptions.KlabCommandLineError;
 import org.integratedmodelling.klab.ide.KlabIDEController;
+import org.integratedmodelling.klab.ide.components.cards.AssetViewComponent;
+import org.integratedmodelling.klab.ide.components.cards.BaseAssetViewComponent;
 import org.integratedmodelling.klab.ide.components.generic.BBCodeRenderer;
 import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.materialdesign.MaterialDesign;
 
-public class CommandResult extends Components.BaseComponent {
+public class CommandResult extends BaseAssetViewComponent {
 
   private final Object result;
 
   public CommandResult(Object result, String title) {
-    super(Components.Type.Object, title, false);
+    super(AssetViewComponent.Type.Object, title, false);
     this.result = result;
     createContent();
   }
@@ -58,6 +60,7 @@ public class CommandResult extends Components.BaseComponent {
 
       node =
           switch (result) {
+            case Region n -> n;
             case Throwable throwable -> {
               var title =
                   throwable instanceof KlabCommandLineError

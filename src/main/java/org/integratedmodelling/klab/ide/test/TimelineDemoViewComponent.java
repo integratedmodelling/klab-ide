@@ -1,4 +1,4 @@
-package org.integratedmodelling.klab.ide.components;
+package org.integratedmodelling.klab.ide.test;
 
 import atlantafx.base.controls.Card;
 import javafx.geometry.Insets;
@@ -12,6 +12,8 @@ import javafx.scene.control.TextField;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import org.integratedmodelling.klab.ide.components.cards.AssetViewComponent;
+import org.integratedmodelling.klab.ide.components.cards.BaseAssetViewComponent;
 import org.integratedmodelling.klab.ide.components.generic.Timeline;
 
 import java.time.Instant;
@@ -21,7 +23,7 @@ import java.util.function.Consumer;
 /**
  * A demo component that showcases the Timeline component with various configurations.
  */
-public class TimelineDemo extends Components.BaseComponent {
+public class TimelineDemoViewComponent extends BaseAssetViewComponent {
 
     private Timeline timeline;
     private ComboBox<TimeUnit> timeUnitComboBox;
@@ -35,8 +37,8 @@ public class TimelineDemo extends Components.BaseComponent {
     private Button redrawButton;
     private Button addFutureEventButton;
 
-    public TimelineDemo() {
-        super(Components.Type.Object, "Timeline Demo", true);
+    public TimelineDemoViewComponent() {
+        super(AssetViewComponent.Type.Object, "Timeline Demo", true);
     }
 
     @Override
@@ -251,7 +253,7 @@ public class TimelineDemo extends Components.BaseComponent {
      *
      * @return A new TimelineDemo instance
      */
-    public static TimelineDemo createDemo() {
-        return new TimelineDemo();
+    public static TimelineDemoViewComponent createDemo() {
+        return new TimelineDemoViewComponent();
     }
 }

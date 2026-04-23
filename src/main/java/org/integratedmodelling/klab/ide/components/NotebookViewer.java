@@ -11,6 +11,7 @@ import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.configuration.Configuration;
 import org.integratedmodelling.klab.api.exceptions.KlabInternalErrorException;
 import org.integratedmodelling.klab.ide.KlabIDEController;
+import org.integratedmodelling.klab.ide.components.cards.*;
 import org.integratedmodelling.klab.ide.components.generic.Notebook;
 import org.integratedmodelling.klab.ide.components.generic.cli.DashboardLineReader;
 import org.integratedmodelling.klab.ide.components.generic.cli.DashboardTerminal;
@@ -21,7 +22,7 @@ public class NotebookViewer extends BorderPane implements Page {
 
   private final REPLTextField inputBox;
   private final Notebook notebook;
-  private final Map<Components.Type, Components.Component> componentMap = new LinkedHashMap<>();
+  private final Map<AssetViewComponent.Type, AssetViewComponent> componentMap = new LinkedHashMap<>();
   private DashboardTerminal terminal;
   private final DashboardLineReader lineReader;
 
@@ -66,10 +67,10 @@ public class NotebookViewer extends BorderPane implements Page {
               }
             });
 
-    addComponent(new Components.About());
+    addComponent(new AboutViewComponent());
   }
 
-  public void addComponent(Components.BaseComponent component) {
+  public void addComponent(BaseAssetViewComponent component) {
     notebook.addCard(
         component.getType().name(),
         component.getIcon(),
@@ -78,18 +79,18 @@ public class NotebookViewer extends BorderPane implements Page {
         component);
   }
 
-  public void toggle(Components.Type type, Object... arguments) {
+  public void toggle(AssetViewComponent.Type type, Object... arguments) {
 
     if (notebook.hasCard(type.name())) {
       notebook.focusCard(type.name());
     } else {
       var card =
           switch (type) {
-            case Distribution -> new Components.DistributionComponent();
-            case UserInfo -> new Components.User(KlabIDEController.instance().user());
-            case ServiceInfo -> new Components.Services();
-            case About -> new Components.About();
-            case Settings -> new Components.Settings();
+            case Distribution -> new DistributionViewComponent();
+            case UserInfo -> new UserViewComponent(KlabIDEController.instance().user());
+            case ServiceInfo -> new ServicesViewComponent();
+            case About -> new AboutViewComponent();
+            case Settings -> new SettingsViewComponent();
             default -> throw new KlabInternalErrorException("unexpected component " + type);
           };
       notebook.addCard(type.name(), card.getIcon(), card.getTitle(), card.getDescription(), card);

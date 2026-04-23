@@ -11,7 +11,8 @@ import javafx.scene.control.Label;
 import javafx.scene.control.Tooltip;
 import javafx.scene.Node;
 import org.integratedmodelling.common.logging.Logging;
-import org.integratedmodelling.klab.ide.components.Components;
+import org.integratedmodelling.klab.ide.components.cards.AssetViewComponent;
+import org.integratedmodelling.klab.ide.components.cards.BaseAssetViewComponent;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -27,7 +28,7 @@ import java.util.function.Consumer;
  * and a temporal resolution (time unit and multiplier). The end time can be changed, and the
  * background will update accordingly.
  */
-public class Timeline extends Components.BaseComponent {
+public class Timeline extends BaseAssetViewComponent {
 
   private boolean initialized;
 
@@ -150,7 +151,7 @@ public class Timeline extends Components.BaseComponent {
    * @param multiplier The multiplier for the temporal resolution
    */
   public Timeline(long startTimeMs, long endTimeMs, TimeUnit timeUnit, int multiplier) {
-    super(Components.Type.Object, "Timeline", false);
+    super(AssetViewComponent.Type.Object, "Timeline", false);
     this.startTimeMs = startTimeMs;
     this.endTimeMs = endTimeMs;
     this.timeUnit = timeUnit;

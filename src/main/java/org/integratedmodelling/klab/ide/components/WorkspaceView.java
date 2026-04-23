@@ -1,13 +1,11 @@
 package org.integratedmodelling.klab.ide.components;
 
 import atlantafx.base.theme.Styles;
-import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
-import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.klab.api.authentication.CRUDOperation;
 import org.integratedmodelling.klab.api.data.Metadata;
 import org.integratedmodelling.klab.api.engine.Engine;
@@ -16,14 +14,13 @@ import org.integratedmodelling.klab.api.services.resources.ResourceInfo;
 import org.integratedmodelling.klab.api.services.resources.ResourceSet;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.api.utils.Utils;
-import org.integratedmodelling.klab.api.view.modeler.Modeler;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableAsset;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableContainer;
 import org.integratedmodelling.klab.api.view.modeler.views.ResourcesNavigator;
 import org.integratedmodelling.klab.api.view.modeler.views.controllers.ResourcesNavigatorController;
-import org.integratedmodelling.klab.ide.KlabIDEApplication;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
+import org.integratedmodelling.klab.ide.components.cards.ResourceSmallViewComponent;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 import org.integratedmodelling.klab.modeler.model.NavigableWorkspace;
 import org.kordamp.ikonli.javafx.FontIcon;
@@ -32,7 +29,6 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.geometry.HPos;
 import javafx.geometry.Insets;
-import javafx.scene.control.ButtonBar.ButtonData;
 
 import java.util.*;
 
@@ -116,7 +112,7 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
       components.add(workspaceDialog);
     }
     for (var workspace : getWorkspaceList()) {
-      components.add(new Components.Resource(workspace, this::raiseWorkspace, /* TODO */ null));
+      components.add(new ResourceSmallViewComponent(workspace, this::raiseWorkspace, /* TODO */ null));
     }
     browserComponents.getChildren().addAll(components);
   }

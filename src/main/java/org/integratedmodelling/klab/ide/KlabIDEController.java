@@ -19,10 +19,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import javafx.animation.PauseTransition;
-import javafx.event.EventHandler;
-import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyEvent;
 import javafx.application.Platform;
+import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
@@ -33,6 +31,8 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.stage.StageStyle;
@@ -82,6 +82,7 @@ import org.integratedmodelling.klab.api.view.modeler.visualization.Visualization
 import org.integratedmodelling.klab.ide.api.DigitalTwinReactor;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.integratedmodelling.klab.ide.components.*;
+import org.integratedmodelling.klab.ide.components.cards.AssetViewComponent;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
@@ -130,8 +131,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private IconLabel dbIcon;
   private IconLabel messIcon;
   private IconLabel langIcon;
-  private KlabCommandLine cli =
-      new KlabCommandLine(() -> focalScope == null ? modeler().engine().getOwner() : focalScope);
+  private final KlabCommandLine cli =
+      new ModelerCommandLine(() -> focalScope == null ? modeler().engine().getOwner() : focalScope);
+
   private Map<KlabService, KlabService.ServiceStatus> serviceStatus = new ConcurrentHashMap<>() {};
   private ModalPane modalPane;
   private final EventHandler<KeyEvent> escHandler =
@@ -537,42 +539,42 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
     downloadButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.toggle(Components.Type.Distribution);
+          notebook.toggle(AssetViewComponent.Type.Distribution);
           selectView(View.NOTEBOOK);
         });
     logo.setOnMouseClicked(
         mouseEvent -> {
-          notebook.toggle(Components.Type.About);
+          notebook.toggle(AssetViewComponent.Type.About);
           //          selectView(View.NOTEBOOK);
         });
     profileButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.toggle(Components.Type.UserInfo);
+          notebook.toggle(AssetViewComponent.Type.UserInfo);
           selectView(View.NOTEBOOK);
         });
     settingsButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.toggle(Components.Type.Settings);
+          notebook.toggle(AssetViewComponent.Type.Settings);
           selectView(View.NOTEBOOK);
         });
     reasonerButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.toggle(Components.Type.ServiceInfo, KlabService.Type.REASONER);
+          notebook.toggle(AssetViewComponent.Type.ServiceInfo, KlabService.Type.REASONER);
           selectView(View.NOTEBOOK);
         });
     resourcesButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.toggle(Components.Type.ServiceInfo, KlabService.Type.RESOURCES);
+          notebook.toggle(AssetViewComponent.Type.ServiceInfo, KlabService.Type.RESOURCES);
           selectView(View.NOTEBOOK);
         });
     resolverButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.toggle(Components.Type.ServiceInfo, KlabService.Type.RESOLVER);
+          notebook.toggle(AssetViewComponent.Type.ServiceInfo, KlabService.Type.RESOLVER);
           selectView(View.NOTEBOOK);
         });
     runtimeButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.toggle(Components.Type.ServiceInfo, KlabService.Type.RUNTIME);
+          notebook.toggle(AssetViewComponent.Type.ServiceInfo, KlabService.Type.RUNTIME);
           selectView(View.NOTEBOOK);
         });
 
