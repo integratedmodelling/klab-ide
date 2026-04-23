@@ -35,6 +35,7 @@ import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
+import org.integratedmodelling.klab.ide.components.generic.TreeSearchField;
 import org.integratedmodelling.klab.ide.lsp.DiagnosticsService;
 import org.integratedmodelling.klab.ide.lsp.KlabLspService;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
@@ -296,8 +297,12 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     workspaceSettings.setOnAction(actionEvent -> showWorkspaceSettings());
     workspaceSettings.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
 
-    var searchField = new TextField();
-    searchField.setPromptText("Search...");
+    var searchField =
+        new TreeSearchField<>(
+            this.treeView,
+            (q, asset) -> {
+              return asset.getUrn().toLowerCase().contains(q);
+            });
     HBox.setHgrow(searchField, Priority.ALWAYS);
 
     var addProject = new Button("");
@@ -471,7 +476,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   protected Node createEditor(NavigableAsset asset) {
     if (asset instanceof NavigableKlabDocument<?, ?> document) {
       // 1. LSP init for this workspace
-//      Path workspaceRoot = Paths.get(System.getProperty("user.home") + "/git/klab-ide");
+      //      Path workspaceRoot = Paths.get(System.getProperty("user.home") + "/git/klab-ide");
       //      try {
       if (!KlabLspService.getInstance().ensureInitialized()) {
         KlabIDEController.instance()

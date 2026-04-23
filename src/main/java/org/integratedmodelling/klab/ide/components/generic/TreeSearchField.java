@@ -34,10 +34,11 @@ public class TreeSearchField<T> extends HBox {
   private static final String STYLE_INACTIVE = "-fx-text-fill: -color-fg-muted;";
   private static final String STYLE_ACTIVE = "-fx-text-fill: -color-accent-fg;";
 
-  private final TreeTableView<T> treeView;
-  private final BiFunction<String, T, Boolean> itemMatcher;
-  private final TextField searchField;
-  private final IconLabel searchIcon;
+  private TreeTableView<T> treeTableView;
+  private TreeView<T> treeView;
+  private BiFunction<String, T, Boolean> itemMatcher;
+  private TextField searchField;
+  private IconLabel searchIcon;
 
   /**
    * Snapshot of each item's original children list, taken the first time a non-empty filter is
@@ -45,10 +46,19 @@ public class TreeSearchField<T> extends HBox {
    */
   private Map<TreeItem<T>, List<TreeItem<T>>> originalChildren;
 
-  public TreeSearchField(TreeTableView<T> treeView, BiFunction<String, T, Boolean> itemMatcher) {
+  public TreeSearchField(TreeView<T> treeView, BiFunction<String, T, Boolean> itemMatcher) {
     this.treeView = treeView;
-    this.itemMatcher = itemMatcher;
+    initialize(itemMatcher);
+  }
 
+  public TreeSearchField(TreeTableView<T> treeView, BiFunction<String, T, Boolean> itemMatcher) {
+    this.treeTableView = treeView;
+    initialize(itemMatcher);
+  }
+
+  private void initialize(BiFunction<String, T, Boolean> itemMatcher) {
+
+    this.itemMatcher = itemMatcher;
     searchField = new TextField();
     searchField.setPromptText("Search…");
     searchField.setEditable(false);
@@ -110,15 +120,23 @@ public class TreeSearchField<T> extends HBox {
     searchField.setEditable(false);
     searchField.setOpacity(0.45);
     searchIcon.setStyle(STYLE_INACTIVE);
-    treeView.requestFocus();
+    requestTreeFocus();
+  }
+
+  private void requestTreeFocus() {
+    if (treeTableView != null) {
+      treeTableView.requestFocus();
+    } else {
+      treeView.requestFocus();
+    }
   }
 
   // --- tree snapshot / filter / restore ----------------------------------------
 
   private void snapshotTree() {
     originalChildren = new IdentityHashMap<>();
-    if (treeView.getRoot() != null) {
-      snapshotItem(treeView.getRoot());
+    if (getRoot() != null) {
+      snapshotItem(getRoot());
     }
   }
 
@@ -130,10 +148,14 @@ public class TreeSearchField<T> extends HBox {
   }
 
   private void applyFilter(String text) {
-    if (treeView.getRoot() != null) {
-      filterItem(treeView.getRoot(), text);
-      treeView.getRoot().setExpanded(true);
+    if (getRoot() != null) {
+      filterItem(getRoot(), text);
+      getRoot().setExpanded(true);
     }
+  }
+
+  private TreeItem<T> getRoot() {
+    return treeTableView != null ? treeTableView.getRoot() : treeView.getRoot();
   }
 
   /**
@@ -166,8 +188,8 @@ public class TreeSearchField<T> extends HBox {
     if (originalChildren == null) {
       return;
     }
-    if (treeView.getRoot() != null) {
-      restoreItem(treeView.getRoot());
+    if (getRoot() != null) {
+      restoreItem(getRoot());
     }
     originalChildren = null;
   }

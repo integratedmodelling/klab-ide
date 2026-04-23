@@ -47,6 +47,7 @@ import java.util.Map;
 public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinViewer {
 
   private final ProgressIndicator progressIndicator;
+  private final Switcher homeSwitcher;
   private final HBox topBar;
   private final Button resetButton;
   private final Button activitiesButton;
@@ -90,7 +91,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
     // Create top control bar
     this.topBar = new HBox(0);
-    topBar.setPrefHeight(20);
+    topBar.setPrefHeight(30);
     topBar.setAlignment(Pos.CENTER_LEFT);
     topBar.setStyle("-fx-background-color: -color-neutral-muted;");
 
@@ -174,8 +175,8 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     // observation.getValue().getName()));
 
     HBox.setMargin(searchArea, new Insets(5, 5, 5, 5));
-    searchArea.setStyle(
-        "-fx-border-color: #CCCCCC; -fx-border-width: 2px; -fx-border-radius: 3px;");
+    //    searchArea.setStyle(
+    //        "-fx-border-color: #CCCCCC; -fx-border-width: 2px; -fx-border-radius: 3px;");
 
     //    searchArea.getChildren().addAll(, contextPath);
 
@@ -188,6 +189,9 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     progressIndicator.setMaxSize(14, 14);
     progressIndicator.setMinSize(14, 14);
 
+    this.homeSwitcher = new Switcher(Map.of("home", homeButton, "wait", progressIndicator));
+    homeSwitcher.show("home");
+
     topBar
         .getChildren()
         .addAll(
@@ -196,8 +200,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
             scenarioButton,
             observerButton,
             searchArea,
-            homeButton,
-            /* TODO pair with homeButton*/ progressIndicator,
+            homeSwitcher,
             conceptButton,
             resetButton);
 
@@ -237,6 +240,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
           switch (status) {
             case IDLE -> {
               progressIndicator.setProgress(0);
+              homeSwitcher.show("home");
               setMainView();
             }
             case RECEIVING -> {
@@ -245,6 +249,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
             case COMPUTING -> {
               setMainView();
               progressIndicator.setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
+              homeSwitcher.show("wait");
             }
           }
         });
