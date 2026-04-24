@@ -3,12 +3,10 @@ package org.integratedmodelling.klab.ide.components;
 import atlantafx.base.theme.Styles;
 import java.util.Map;
 import javafx.application.Platform;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Pane;
-import javafx.scene.layout.Priority;
+import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import org.integratedmodelling.klab.api.data.KnowledgeGraph;
 import org.integratedmodelling.klab.api.data.Metadata;
@@ -173,6 +171,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     conceptButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
     //    HBox.setMargin(searchArea, new Insets(5, 5, 5, 5));
     HBox.setHgrow(searchArea, Priority.ALWAYS);
+    HBox.setMargin(searchArea, new Insets(5, 0, 0, 0));
 
     this.progressIndicator = new ProgressIndicator(0);
     progressIndicator.setPrefSize(12, 12);

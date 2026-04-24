@@ -1,6 +1,8 @@
 package org.integratedmodelling.klab.ide.components.generic;
 
 import java.util.Map;
+
+import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Region;

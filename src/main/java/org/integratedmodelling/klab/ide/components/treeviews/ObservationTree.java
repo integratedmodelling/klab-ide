@@ -14,10 +14,13 @@ import javafx.scene.paint.Color;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
+import org.integratedmodelling.klab.api.knowledge.SemanticType;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.ide.IDEContextScope;
+import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
+import org.kordamp.ikonli.material2.Material2AL;
 
 public class ObservationTree extends TreeTableView<RuntimeAsset> {
 
@@ -43,7 +46,16 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
 
   private HBox observationDescription(RuntimeAsset observation) {
 
-    var icon = Theme.getGraphics(observation);
+    var scope = KlabIDEController.instance().getFocalScope();
+    RuntimeAsset current = null;
+    if (scope != null) {
+      current = scope.getContextObservation();
+    }
+    var icon =
+        current != null && current.getId() == observation.getId()
+            ? new IconLabel(Material2AL.HOME, 14, Color.BLUE)
+            : Theme.getGraphics(observation);
+
     icon.setMaxWidth(24);
     icon.setMinWidth(24);
 
@@ -71,20 +83,48 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
 
       // TODO improve this, use right icons, provide hover support
       if (level > 0) {
-        label.setGraphic(new IconLabel(Theme.OBSERVATION_ICON, 12, Color.DARKGOLDENROD));
+        //        label.setGraphic(new IconLabel(Theme.OBSERVATION_ICON, 12, Color.DARKGOLDENROD));
       }
     }
 
     var ret = new HBox(icon, label);
     ret.setSpacing(2);
     ret.setAlignment(Pos.CENTER_LEFT);
-    icon.setOnMouseClicked(mouseEvent -> attemptSettingContext(observation, icon));
+    icon.setOnMouseClicked(
+        mouseEvent -> {
+          if (attemptSettingContext(observation, icon)) {
+            icon.setGraphic(new IconLabel(Material2AL.HOME, 16, Color.BLUE));
+          }
+        });
 
     return ret;
   }
 
-  private void attemptSettingContext(RuntimeAsset observation, IconLabel icon) {
-    System.out.println("PUTAZZO IL GESÚ");
+  private boolean attemptSettingContext(RuntimeAsset observation, IconLabel icon) {
+    if (observation instanceof Observation obs
+        && obs.getObservable().is(SemanticType.SUBJECT)
+        && !obs.getObservable().getSemantics().isCollective()) {
+      var scope = KlabIDEController.instance().getFocalScope();
+      if (scope != null) {
+        var current = scope.getContextObservation();
+        if (current != null) {
+          var item = findTreeItem(current);
+          if (item != null) {
+            var normalIcon = Theme.getGraphics(current);
+            icon.setMaxWidth(24);
+            icon.setMinWidth(24);
+            item.setGraphic(normalIcon);
+          }
+          if (current.getId() == obs.getId()) {
+            scope.within(null);
+            return false;
+          }
+        }
+        scope.within(obs);
+        return true;
+      }
+    }
+    return false;
   }
 
   private TreeItem<RuntimeAsset> findTreeItem(RuntimeAsset asset) {
@@ -106,7 +146,7 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
     }
 
     // Expand the node to ensure children are loaded
-    current.setExpanded(true);
+//    current.setExpanded(true);
 
     for (TreeItem<RuntimeAsset> child : current.getChildren()) {
       TreeItem<RuntimeAsset> result = findTreeItemRecursive(child, asset);
