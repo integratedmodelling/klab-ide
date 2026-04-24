@@ -1,5 +1,6 @@
 package org.integratedmodelling.klab.ide.components.cards;
 
+import java.util.ArrayList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -20,8 +21,6 @@ import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.carbonicons.CarbonIcons;
 import org.kordamp.ikonli.material2.Material2MZ;
-
-import java.util.ArrayList;
 
 public class UserViewComponent extends BaseAssetViewComponent {
 
@@ -116,7 +115,7 @@ public class UserViewComponent extends BaseAssetViewComponent {
           tooltip.setText(otherGroups.toString());
         } else {
           if (group.getIconUrl() != null && !"".equals(group.getIconUrl())) {
-            Image groupImage = new Image(group.getIconUrl(), 32, 32, false, false);
+            Image groupImage = new Image(group.getIconUrl(), 29, 29, false, false);
             groupIcon = new ImageView(groupImage);
             groupIcon.setPickOnBounds(true);
           } else {

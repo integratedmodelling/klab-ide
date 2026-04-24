@@ -35,10 +35,10 @@
     -fx-font-size: 12px;
     -fx-background-color: #607d8b;
     -fx-background-radius: 17px;
-    -fx-min-width: 32px;
-    -fx-min-height: 32px;
-    -fx-max-width: 32px;
-    -fx-max-height: 32px;
+    -fx-min-width: 29px;
+    -fx-min-height: 29px;
+    -fx-max-width: 29px;
+    -fx-max-height: 29px;
     -fx-alignment: CENTER;
 }
 

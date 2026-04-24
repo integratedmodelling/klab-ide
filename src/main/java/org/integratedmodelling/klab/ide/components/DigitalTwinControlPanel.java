@@ -1,10 +1,8 @@
 package org.integratedmodelling.klab.ide.components;
 
-import atlantafx.base.controls.Breadcrumbs;
 import atlantafx.base.theme.Styles;
 import java.util.Map;
 import javafx.application.Platform;
-import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
@@ -17,6 +15,8 @@ import org.integratedmodelling.klab.api.data.Metadata;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedule;
+import org.integratedmodelling.klab.api.lang.kim.KimNamespace;
+import org.integratedmodelling.klab.api.provenance.Activity;
 import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
@@ -29,6 +29,7 @@ import org.integratedmodelling.klab.ide.components.treeviews.ObservationTree;
 import org.integratedmodelling.klab.ide.components.treeviews.ObserverTree;
 import org.integratedmodelling.klab.ide.components.treeviews.ScenarioTree;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
+import org.kordamp.ikonli.fontawesome5.FontAwesomeSolid;
 import org.kordamp.ikonli.material2.Material2AL;
 
 /**
@@ -51,6 +52,11 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   private final Button observationButton;
   private final Button observerButton;
   private final Button homeButton;
+  private final Switcher searchArea;
+  private final TreeSearchField<Activity> activitySearch;
+  private final TreeSearchField<RuntimeAsset> observationSearch;
+  private final TreeSearchField<Observation> observerSearch;
+  private final TreeSearchField<KimNamespace> scenarioSearch;
 
   private IDEContextScope scope;
 
@@ -88,7 +94,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
     // Create top control bar
     this.topBar = new HBox(0);
-    topBar.setPrefHeight(50);
+    topBar.setPrefHeight(38);
     topBar.setAlignment(Pos.CENTER_LEFT);
     topBar.setStyle("-fx-background-color: -color-neutral-muted;");
 
@@ -118,12 +124,12 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     scenarioTree = new ScenarioTree();
     observerTree = new ObserverTree();
 
-    var activitySearch = new TreeSearchField<>(activityTree, activityTree::matches);
-    var observationSearch = new TreeSearchField<>(observationTree, observationTree::matches);
-    var scenarioSearch = new TreeSearchField<>(scenarioTree, scenarioTree::matches);
-    var observerSearch = new TreeSearchField<>(observerTree, observerTree::matches);
+    this.activitySearch = new TreeSearchField<>(activityTree, activityTree::matches);
+    this.observationSearch = new TreeSearchField<>(observationTree, observationTree::matches);
+    this.scenarioSearch = new TreeSearchField<>(scenarioTree, scenarioTree::matches);
+    this.observerSearch = new TreeSearchField<>(observerTree, observerTree::matches);
 
-    var searchArea =
+    this.searchArea =
         new Switcher(
             Map.of(
                 "activities",
@@ -137,57 +143,42 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
     searchArea.show("activities");
 
-    //    searchArea.setAlignment(Pos.CENTER_LEFT);
     this.homeButton = new Button("", new IconLabel(Material2AL.HOME, 14, Color.BLACK));
     homeButton.setOnAction(e -> scope.within(null));
     homeButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
 
+    var homeContextMenu = new ContextMenu();
+    homeContextMenu.setStyle("-fx-font-size: 11px;");
+    var homeMenuItem1 = new MenuItem("TODO: menu item 1");
+    homeMenuItem1.setOnAction(
+        e -> {
+          /* TODO */
+        });
+    var homeMenuItem2 = new MenuItem("TODO: menu item 2");
+    homeMenuItem2.setOnAction(
+        e -> {
+          /* TODO */
+        });
+    homeContextMenu.getItems().addAll(homeMenuItem1, homeMenuItem2);
+    homeButton.setOnContextMenuRequested(
+        e -> homeContextMenu.show(homeButton, e.getScreenX(), e.getScreenY()));
+
     var conceptButton = new Button("", new IconLabel(Theme.WORLDVIEW_ICON, 14, Color.BLACK));
     conceptButton.setOnAction(
         e -> {
-          var button = new Button("Dio È Cane");
+          var button = new Button("Dio È Un Gran Cane");
           button.setOnAction(ex -> KlabIDEController.instance().removeModalOverlay());
           KlabIDEController.instance().showInModalOverlay(button);
         });
     conceptButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
-
-    /**
-     * FIXME this is not what it should be. On the right we should have: 1. search bar for the
-     * CURRENT treeview with search icon to the right 2. Home button that is grey for no
-     * observations in KG, black for observations but context not set, blue for observations and
-     * context set. On click, shows the full knowledge graph AND locate the context line with the
-     * home icon if set. The home button becomes the spinner during ops. TODO must find how to cycle
-     * through commits; by default it can show the latest, then revert to KG at first click. 3.
-     * Lightbulb icon for the concept bar in the modal window, active if a DT is selected. 4. Thrash
-     * icon as current.
-     */
-    //    this.contextPath = new Breadcrumbs<>();
-    //    contextPath.setDividerFactory(
-    //        item -> {
-    //          return item != null && !item.isLast() && !item.getChildren().isEmpty()
-    //              ? new IconLabel(Material2AL.CHEVRON_RIGHT, 12, Color.DARKGRAY)
-    //              : null;
-    //        });
-    //    contextPath.setCrumbFactory(
-    //        observation ->
-    //            new Hyperlink(observation == null ? "DT Home" :
-    // observation.getValue().getName()));
-
-    HBox.setMargin(searchArea, new Insets(5, 5, 5, 5));
-    //    searchArea.setStyle(
-    //        "-fx-border-color: #CCCCCC; -fx-border-width: 2px; -fx-border-radius: 3px;");
-
-    //    searchArea.getChildren().addAll(, contextPath);
-
+    //    HBox.setMargin(searchArea, new Insets(5, 5, 5, 5));
     HBox.setHgrow(searchArea, Priority.ALWAYS);
-    //    searchArea.setMaxWidth(Double.MAX_VALUE);
 
-    // TODO this goes in a switcher pane with the homebutton
     this.progressIndicator = new ProgressIndicator(0);
-    progressIndicator.setPrefSize(14, 14);
-    progressIndicator.setMaxSize(14, 14);
-    progressIndicator.setMinSize(14, 14);
-    progressIndicator.setVisible(false);
+    progressIndicator.setPrefSize(12, 12);
+    progressIndicator.setMaxSize(12, 12);
+    progressIndicator.setMinSize(12, 12);
+    progressIndicator.setManaged(false);
     topBar
         .getChildren()
         .addAll(
@@ -236,9 +227,11 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
         () -> {
           switch (status) {
             case IDLE -> {
-              progressIndicator.setManaged(false);
-              progressIndicator.setProgress(0);
               homeButton.setManaged(true);
+              homeButton.setVisible(true);
+              progressIndicator.setManaged(false);
+              progressIndicator.setVisible(false);
+              progressIndicator.setProgress(0);
               setMainView();
             }
             case RECEIVING -> {
@@ -246,9 +239,11 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
             }
             case COMPUTING -> {
               setMainView();
-              progressIndicator.setManaged(true);
-              progressIndicator.setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
               homeButton.setManaged(false);
+              homeButton.setVisible(false);
+              progressIndicator.setManaged(true);
+              progressIndicator.setVisible(true);
+              progressIndicator.setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
             }
           }
         });
@@ -266,6 +261,14 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
             case OBSERVATIONS -> observationTree;
             case OBSERVERS -> observerTree;
             case SCENARIOS -> scenarioTree;
+            case IDLE -> null;
+          });
+      this.searchArea.show(
+          switch (currentView) {
+            case ACTIVITIES -> "activities";
+            case OBSERVATIONS -> "observations";
+            case OBSERVERS -> "observers";
+            case SCENARIOS -> "scenarios";
             case IDLE -> null;
           });
     }
@@ -298,6 +301,16 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
             scope == null
                 ? Color.DARKGRAY
                 : (currentView == View.SCENARIOS ? Color.DARKGREEN : Color.BLACK)));
+    this.homeButton.setGraphic(
+        new IconLabel(
+            (scope == null || scope.getContextObservation() == null)
+                ? Material2AL.HOME
+                : FontAwesomeSolid.HOME,
+            14,
+            (scope == null
+                ? Color.DARKGRAY
+                : (scope.getContextObservation() == null ? Color.BLACK : Color.BLUE))));
+
     this.resetButton.setGraphic(
         new IconLabel(
             Material2AL.DELETE_FOREVER, 18, scope == null ? Color.DARKGRAY : Color.DARKRED));

@@ -52,11 +52,8 @@ public class ObserverTree extends TreeTableView<Observation> {
     setRoot(new TreeItem<>());
   }
 
-  public boolean matches(String string, Observation activity) {
-    if (activity == null) {
-      return false;
-    }
-    return activity.getUrn().contains(string);
+  public boolean matches(String string, Observation asset) {
+    return Theme.getLabel(asset).toLowerCase().contains(string.toLowerCase());
   }
 
   private HBox observationDescription(Observation value) {

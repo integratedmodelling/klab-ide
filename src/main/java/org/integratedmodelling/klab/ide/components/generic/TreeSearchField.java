@@ -16,6 +16,7 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.StackPane;
 import org.kordamp.ikonli.fontawesome5.FontAwesomeSolid;
 
 /**
@@ -40,10 +41,12 @@ public class TreeSearchField<T> extends HBox {
   private IconLabel searchIcon;
 
   /**
-   * Snapshot of each item's original children list, taken the first time a non-empty filter is
-   * applied. Null when no filter is active.
+   * Snapshot of each item's original children list and expanded state, taken the first time a
+   * non-empty filter is applied. Null when no filter is active.
    */
   private Map<TreeItem<T>, List<TreeItem<T>>> originalChildren;
+
+  private Map<TreeItem<T>, Boolean> originalExpanded;
 
   public TreeSearchField(TreeView<T> treeView, BiFunction<String, T, Boolean> itemMatcher) {
     this.treeView = treeView;
@@ -62,15 +65,19 @@ public class TreeSearchField<T> extends HBox {
     searchField.setPromptText("Search…");
     searchField.setEditable(false);
     searchField.setOpacity(0.45);
-    HBox.setHgrow(searchField, Priority.ALWAYS);
+    searchField.setPadding(new Insets(4, 26, 4, 7));
 
     searchIcon = new IconLabel(FontAwesomeSolid.SEARCH, 13, STYLE_INACTIVE);
     searchIcon.setCursor(Cursor.HAND);
-    searchIcon.setPadding(new Insets(0, 1, 0, 1));
+    searchIcon.setPadding(new Insets(0, 6, 0, 0));
+    searchIcon.setMouseTransparent(false);
+
+    StackPane fieldStack = new StackPane(searchField, searchIcon);
+    StackPane.setAlignment(searchIcon, Pos.CENTER_RIGHT);
+    HBox.setHgrow(fieldStack, Priority.ALWAYS);
 
     setAlignment(Pos.CENTER_LEFT);
-    setSpacing(2);
-    getChildren().addAll(searchField, searchIcon);
+    getChildren().add(fieldStack);
 
     searchIcon.setOnMouseClicked(
         e -> {
@@ -134,6 +141,7 @@ public class TreeSearchField<T> extends HBox {
 
   private void snapshotTree() {
     originalChildren = new IdentityHashMap<>();
+    originalExpanded = new IdentityHashMap<>();
     if (getRoot() != null) {
       snapshotItem(getRoot());
     }
@@ -141,6 +149,7 @@ public class TreeSearchField<T> extends HBox {
 
   private void snapshotItem(TreeItem<T> item) {
     originalChildren.put(item, new ArrayList<>(item.getChildren()));
+    originalExpanded.put(item, item.isExpanded());
     for (TreeItem<T> child : item.getChildren()) {
       snapshotItem(child);
     }
@@ -191,11 +200,13 @@ public class TreeSearchField<T> extends HBox {
       restoreItem(getRoot());
     }
     originalChildren = null;
+    originalExpanded = null;
   }
 
   private void restoreItem(TreeItem<T> item) {
     List<TreeItem<T>> origChildren = originalChildren.getOrDefault(item, List.of());
     item.getChildren().setAll(origChildren);
+    item.setExpanded(Boolean.TRUE.equals(originalExpanded.get(item)));
     for (TreeItem<T> child : origChildren) {
       restoreItem(child);
     }

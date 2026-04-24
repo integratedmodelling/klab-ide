@@ -15,7 +15,6 @@ import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledg
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
-import org.integratedmodelling.klab.api.provenance.Activity;
 import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
@@ -38,11 +37,8 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
     setRoot(new TreeItem<>());
   }
 
-  public boolean matches(String string, RuntimeAsset activity) {
-    if (activity == null) {
-      return false;
-    }
-    return true;
+  public boolean matches(String string, RuntimeAsset asset) {
+    return Theme.getLabel(asset).toLowerCase().contains(string.toLowerCase());
   }
 
   private HBox observationDescription(RuntimeAsset observation) {
