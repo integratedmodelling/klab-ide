@@ -93,7 +93,7 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
     icon.setOnMouseClicked(
         mouseEvent -> {
           if (attemptSettingContext(observation, icon)) {
-            icon.setGraphic(new IconLabel(Material2AL.HOME, 16, Color.BLUE));
+            icon.set(Material2AL.HOME, 16, Color.BLUE);
           }
         });
 
