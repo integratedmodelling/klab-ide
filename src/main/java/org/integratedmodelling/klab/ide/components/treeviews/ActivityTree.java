@@ -2,6 +2,7 @@ package org.integratedmodelling.klab.ide.components.treeviews;
 
 import atlantafx.base.theme.Styles;
 import atlantafx.base.theme.Tweaks;
+import java.util.*;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.geometry.Pos;
@@ -20,8 +21,6 @@ import org.kordamp.ikonli.carbonicons.CarbonIcons;
 import org.kordamp.ikonli.evaicons.Evaicons;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.materialdesign.MaterialDesign;
-
-import java.util.*;
 
 public class ActivityTree extends TreeTableView<Activity> {
 
@@ -59,6 +58,13 @@ public class ActivityTree extends TreeTableView<Activity> {
 
     getColumns().setAll(descriptionColumn, statusColumn);
     setRoot(new TreeItem<>());
+  }
+
+  public boolean matches(String string, Activity activity) {
+    if (activity == null) {
+      return false;
+    }
+    return activity.getDescription().toLowerCase().contains(string.toLowerCase());
   }
 
   private HBox activityDescription(Activity activity) {

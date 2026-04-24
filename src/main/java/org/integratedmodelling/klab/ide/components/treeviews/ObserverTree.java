@@ -52,6 +52,13 @@ public class ObserverTree extends TreeTableView<Observation> {
     setRoot(new TreeItem<>());
   }
 
+  public boolean matches(String string, Observation activity) {
+    if (activity == null) {
+      return false;
+    }
+    return activity.getUrn().contains(string);
+  }
+
   private HBox observationDescription(Observation value) {
     var ret = new HBox();
     return ret;

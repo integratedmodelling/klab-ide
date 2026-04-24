@@ -1,5 +1,10 @@
 package org.integratedmodelling.klab.ide.components.generic;
 
+import java.util.ArrayList;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.BiFunction;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Cursor;
@@ -12,12 +17,6 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import org.kordamp.ikonli.fontawesome5.FontAwesomeSolid;
-
-import java.util.ArrayList;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.BiFunction;
 
 /**
  * A JavaFX composite component that combines a search {@link TextField} with a search icon, wired
@@ -67,7 +66,7 @@ public class TreeSearchField<T> extends HBox {
 
     searchIcon = new IconLabel(FontAwesomeSolid.SEARCH, 13, STYLE_INACTIVE);
     searchIcon.setCursor(Cursor.HAND);
-    searchIcon.setPadding(new Insets(0, 5, 0, 5));
+    searchIcon.setPadding(new Insets(0, 1, 0, 1));
 
     setAlignment(Pos.CENTER_LEFT);
     setSpacing(2);

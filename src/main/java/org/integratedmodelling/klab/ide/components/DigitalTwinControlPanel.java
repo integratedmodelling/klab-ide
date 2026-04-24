@@ -2,7 +2,7 @@ package org.integratedmodelling.klab.ide.components;
 
 import atlantafx.base.controls.Breadcrumbs;
 import atlantafx.base.theme.Styles;
-import com.google.common.collect.Maps;
+import java.util.Map;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -17,8 +17,8 @@ import org.integratedmodelling.klab.api.data.Metadata;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedule;
-import org.integratedmodelling.klab.api.provenance.Activity;
 import org.integratedmodelling.klab.ide.IDEContextScope;
+import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
@@ -30,9 +30,6 @@ import org.integratedmodelling.klab.ide.components.treeviews.ObserverTree;
 import org.integratedmodelling.klab.ide.components.treeviews.ScenarioTree;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.kordamp.ikonli.material2.Material2AL;
-
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 /**
  * Controlled by the current DT peer installed in the main IDE controller. Differently from other DT
@@ -47,14 +44,14 @@ import java.util.Map;
 public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinViewer {
 
   private final ProgressIndicator progressIndicator;
-  private final Switcher homeSwitcher;
   private final HBox topBar;
   private final Button resetButton;
   private final Button activitiesButton;
   private final Button scenarioButton;
   private final Button observationButton;
   private final Button observerButton;
-  //  private final Breadcrumbs<Observation> contextPath;
+  private final Button homeButton;
+
   private IDEContextScope scope;
 
   public enum Status {
@@ -91,7 +88,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
     // Create top control bar
     this.topBar = new HBox(0);
-    topBar.setPrefHeight(30);
+    topBar.setPrefHeight(50);
     topBar.setAlignment(Pos.CENTER_LEFT);
     topBar.setStyle("-fx-background-color: -color-neutral-muted;");
 
@@ -121,10 +118,10 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     scenarioTree = new ScenarioTree();
     observerTree = new ObserverTree();
 
-    var activitySearch = new TreeSearchField<>(activityTree, (query, node) -> true);
-    var observationSearch = new TreeSearchField<>(observationTree, (query, node) -> true);
-    var scenarioSearch = new TreeSearchField<>(scenarioTree, (query, node) -> true);
-    var observerSearch = new TreeSearchField<>(observerTree, (query, node) -> true);
+    var activitySearch = new TreeSearchField<>(activityTree, activityTree::matches);
+    var observationSearch = new TreeSearchField<>(observationTree, observationTree::matches);
+    var scenarioSearch = new TreeSearchField<>(scenarioTree, scenarioTree::matches);
+    var observerSearch = new TreeSearchField<>(observerTree, observerTree::matches);
 
     var searchArea =
         new Switcher(
@@ -141,14 +138,16 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     searchArea.show("activities");
 
     //    searchArea.setAlignment(Pos.CENTER_LEFT);
-    var homeButton = new Button("", new IconLabel(Material2AL.HOME, 14, Color.BLACK));
+    this.homeButton = new Button("", new IconLabel(Material2AL.HOME, 14, Color.BLACK));
     homeButton.setOnAction(e -> scope.within(null));
     homeButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
 
     var conceptButton = new Button("", new IconLabel(Theme.WORLDVIEW_ICON, 14, Color.BLACK));
     conceptButton.setOnAction(
         e -> {
-          /* TODO */
+          var button = new Button("Dio È Cane");
+          button.setOnAction(ex -> KlabIDEController.instance().removeModalOverlay());
+          KlabIDEController.instance().showInModalOverlay(button);
         });
     conceptButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
 
@@ -181,17 +180,14 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     //    searchArea.getChildren().addAll(, contextPath);
 
     HBox.setHgrow(searchArea, Priority.ALWAYS);
-    searchArea.setMaxWidth(Double.MAX_VALUE);
+    //    searchArea.setMaxWidth(Double.MAX_VALUE);
 
     // TODO this goes in a switcher pane with the homebutton
     this.progressIndicator = new ProgressIndicator(0);
     progressIndicator.setPrefSize(14, 14);
     progressIndicator.setMaxSize(14, 14);
     progressIndicator.setMinSize(14, 14);
-
-    this.homeSwitcher = new Switcher(Map.of("home", homeButton, "wait", progressIndicator));
-    homeSwitcher.show("home");
-
+    progressIndicator.setVisible(false);
     topBar
         .getChildren()
         .addAll(
@@ -200,7 +196,8 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
             scenarioButton,
             observerButton,
             searchArea,
-            homeSwitcher,
+            progressIndicator,
+            homeButton,
             conceptButton,
             resetButton);
 
@@ -239,8 +236,9 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
         () -> {
           switch (status) {
             case IDLE -> {
+              progressIndicator.setManaged(false);
               progressIndicator.setProgress(0);
-              homeSwitcher.show("home");
+              homeButton.setManaged(true);
               setMainView();
             }
             case RECEIVING -> {
@@ -248,8 +246,9 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
             }
             case COMPUTING -> {
               setMainView();
+              progressIndicator.setManaged(true);
               progressIndicator.setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
-              homeSwitcher.show("wait");
+              homeButton.setManaged(false);
             }
           }
         });
@@ -396,12 +395,12 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
             //            this.contextPath.setSelectedCrumb(null);
             return;
           }
-          var root = new Breadcrumbs.BreadCrumbItem<>(path.getFirst());
-          for (int i = 1; i < path.size(); i++) {
-            var child = new Breadcrumbs.BreadCrumbItem<>(path.get(i));
-            root.getChildren().add(child);
-            root = child;
-          }
+          //          var root = new Breadcrumbs.BreadCrumbItem<>(path.getFirst());
+          //          for (int i = 1; i < path.size(); i++) {
+          //            var child = new Breadcrumbs.BreadCrumbItem<>(path.get(i));
+          //            root.getChildren().add(child);
+          //            root = child;
+          //          }
           //          this.contextPath.setSelectedCrumb(root);
         });
   }

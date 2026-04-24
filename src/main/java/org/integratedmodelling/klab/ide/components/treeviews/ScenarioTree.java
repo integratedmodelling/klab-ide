@@ -9,6 +9,7 @@ import javafx.scene.control.TreeTableColumn;
 import javafx.scene.control.TreeTableView;
 import javafx.scene.layout.HBox;
 import javafx.scene.paint.Color;
+import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.lang.kim.KimNamespace;
 import org.integratedmodelling.klab.ide.Theme;
@@ -51,6 +52,13 @@ public class ScenarioTree extends TreeTableView<KimNamespace> {
 
     getColumns().setAll(descriptionColumn, statusColumn);
     setRoot(new TreeItem<>());
+  }
+
+  public boolean matches(String string, KimNamespace activity) {
+    if (activity == null) {
+      return false;
+    }
+    return activity.getUrn().contains(string);
   }
 
   private HBox scenarioDescriptor(KimNamespace value) {

@@ -1,6 +1,8 @@
 package org.integratedmodelling.klab.ide.pages;
 
 import atlantafx.base.theme.Styles;
+import java.util.HashMap;
+import java.util.Map;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
@@ -8,20 +10,13 @@ import javafx.geometry.Orientation;
 import javafx.geometry.Side;
 import javafx.scene.Node;
 import javafx.scene.control.*;
-import javafx.geometry.Pos;
 import javafx.scene.layout.*;
-import org.integratedmodelling.klab.ide.KlabIDEController;
-import org.integratedmodelling.klab.ide.api.DigitalTwinReactor;
-import org.integratedmodelling.klab.ide.IDEContextScope;
-import org.kordamp.ikonli.javafx.FontIcon;
-import org.kordamp.ikonli.material2.Material2AL;
 import javafx.util.Duration;
+import org.integratedmodelling.klab.ide.IDEContextScope;
+import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
+import org.integratedmodelling.klab.ide.api.DigitalTwinReactor;
 import org.integratedmodelling.klab.ide.components.DigitalTwinControlPanel;
-import org.integratedmodelling.klab.ide.utils.NodeUtils;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Editor for a first-class container - resource, digital twin or workspace. Editor has a treeview
@@ -54,9 +49,6 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
     this.editorTabs = new TabPane();
     this.editorTabs.getStyleClass().add(Styles.TABS_CLASSIC);
     this.editorTabs.setSide(Side.BOTTOM);
-
-    // TODO wrap the editorTabs into a splitpane that can be shown on top of the editors on command,
-    //  to host the semantic bar (or another component chosen by the hosting browseablepage).
 
     SplitPane splitPane = new SplitPane();
     splitPane.setOrientation(Orientation.HORIZONTAL);
