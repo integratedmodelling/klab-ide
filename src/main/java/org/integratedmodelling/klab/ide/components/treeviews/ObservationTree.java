@@ -25,6 +25,7 @@ import org.kordamp.ikonli.material2.Material2AL;
 public class ObservationTree extends TreeTableView<RuntimeAsset> {
 
   private ClientKnowledgeGraph clientKnowledgeGraph;
+  TreeTableColumn<RuntimeAsset, HBox> descriptionColumn;
 
   public ObservationTree() {
 
@@ -32,7 +33,7 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
     getStyleClass().addAll(Styles.DENSE, Tweaks.EDGE_TO_EDGE, Tweaks.NO_HEADER);
     setShowRoot(false);
     setPlaceholder(new Label("No observations available"));
-    TreeTableColumn<RuntimeAsset, HBox> descriptionColumn = new TreeTableColumn<>("Description");
+    descriptionColumn = new TreeTableColumn<>("Description");
     descriptionColumn.setCellValueFactory(
         param -> new SimpleObjectProperty<>(observationDescription(param.getValue().getValue())));
     descriptionColumn.prefWidthProperty().bind(widthProperty().subtract(10));
@@ -110,6 +111,7 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
         if (current != null) {
           var item = findTreeItem(current);
           if (item != null) {
+            var val = descriptionColumn.getCellObservableValue(item).getValue();
             var normalIcon = Theme.getGraphics(current);
             icon.setMaxWidth(24);
             icon.setMinWidth(24);
@@ -146,7 +148,7 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
     }
 
     // Expand the node to ensure children are loaded
-//    current.setExpanded(true);
+    //    current.setExpanded(true);
 
     for (TreeItem<RuntimeAsset> child : current.getChildren()) {
       TreeItem<RuntimeAsset> result = findTreeItemRecursive(child, asset);
