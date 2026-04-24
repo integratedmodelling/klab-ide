@@ -221,6 +221,7 @@ public class TreeModel {
     private final RuntimeAsset focalAsset;
     private final AtomicReference<AssetTreeItem> focus;
     private final int prefillDepth;
+    private boolean updatingChildren = false;
 
     public AssetTreeItem(
         RuntimeAsset asset,
@@ -303,26 +304,35 @@ public class TreeModel {
     @Override
     public ObservableList<TreeItem<RuntimeAsset>> getChildren() {
 
+      if (updatingChildren) {
+        return super.getChildren();
+      }
+
       if (!super.getChildren().isEmpty() && prefillDepth >= 0) {
         return super.getChildren();
       }
 
-      super.getChildren().clear();
-      computeChildren()
-          .forEach(
-              child ->
-                  super.getChildren()
-                      .add(
-                          new AssetTreeItem(
-                              child,
-                              graph,
-                              dynamic,
-                              types,
-                              relationships,
-                              focus,
-                              focalAsset,
-                              prefillDepth - 1,
-                              scope)));
+      updatingChildren = true;
+      try {
+        super.getChildren().clear();
+        computeChildren()
+            .forEach(
+                child ->
+                    super.getChildren()
+                        .add(
+                            new AssetTreeItem(
+                                child,
+                                graph,
+                                dynamic,
+                                types,
+                                relationships,
+                                focus,
+                                focalAsset,
+                                prefillDepth - 1,
+                                scope)));
+      } finally {
+        updatingChildren = false;
+      }
 
       return super.getChildren();
     }
