@@ -7,6 +7,8 @@ import atlantafx.base.util.BBCodeParser;
 import com.google.common.collect.Table;
 import java.util.Collection;
 import java.util.Map;
+
+import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.scene.Node;
 import javafx.scene.control.TableColumn;
@@ -25,6 +27,7 @@ import org.integratedmodelling.klab.api.knowledge.Urn;
 import org.integratedmodelling.klab.api.lang.kim.KimObservable;
 import org.integratedmodelling.klab.api.services.ResourcesService;
 import org.integratedmodelling.klab.ide.KlabIDEController;
+import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.cards.AssetViewComponent;
 import org.integratedmodelling.klab.ide.components.cards.BaseAssetViewComponent;
 import org.integratedmodelling.klab.ide.components.generic.BBCodeRenderer;
@@ -177,20 +180,20 @@ public class CommandResult extends BaseAssetViewComponent {
 
     // Get fields from the first object to determine columns
     Object firstItem = result.iterator().next();
-    Map<String, String> fields = getFieldsFromObject(firstItem);
+    Map<String, Object> fields = getFieldsFromObject(firstItem);
 
     // Create columns without headers
-    for (Map.Entry<String, String> field : fields.entrySet()) {
-      TableColumn<Object, String> column = new TableColumn<>();
+    for (Map.Entry<String, Object> field : fields.entrySet()) {
+      TableColumn<Object, Object> column = new TableColumn<>();
       String fieldName = field.getKey();
 
       column.setCellValueFactory(
           param -> {
             if (param.getValue() != null) {
-              Map<String, String> objectFields = getFieldsFromObject(param.getValue());
-              return new SimpleStringProperty(objectFields.getOrDefault(fieldName, ""));
+              Map<String, Object> objectFields = getFieldsFromObject(param.getValue());
+              return new SimpleObjectProperty<Object>(objectFields.getOrDefault(fieldName, ""));
             }
-            return new SimpleStringProperty("");
+            return new SimpleObjectProperty<>("");
           });
 
       tableView.getColumns().add(column);
@@ -222,20 +225,20 @@ public class CommandResult extends BaseAssetViewComponent {
     treeTableView.setRoot(rootItem);
 
     // Get fields from the first object to determine columns
-    Map<String, String> fields = getFieldsFromObject(result.root());
+    var fields = getFieldsFromObject(result.root());
 
     // Create columns without headers
-    for (Map.Entry<String, String> field : fields.entrySet()) {
-      TreeTableColumn<Object, String> column = new TreeTableColumn<>();
+    for (var field : fields.entrySet()) {
+      TreeTableColumn<Object, Object> column = new TreeTableColumn<>();
       String fieldName = field.getKey();
 
       column.setCellValueFactory(
           param -> {
             if (param.getValue() != null && param.getValue().getValue() != null) {
-              Map<String, String> objectFields = getFieldsFromObject(param.getValue().getValue());
-              return new SimpleStringProperty(objectFields.getOrDefault(fieldName, ""));
+              var objectFields = getFieldsFromObject(param.getValue().getValue());
+              return new SimpleObjectProperty<>(objectFields.getOrDefault(fieldName, ""));
             }
-            return new SimpleStringProperty("");
+            return new SimpleObjectProperty<>("");
           });
 
       treeTableView.getColumns().add(column);
@@ -263,11 +266,11 @@ public class CommandResult extends BaseAssetViewComponent {
    * @param object the object to extract fields from
    * @return a map of field names to their string representations
    */
-  private Map<String, String> getFieldsFromObject(Object object) {
+  private Map<String, Object> getFieldsFromObject(Object object) {
     // Stub implementation - returns a single field with the object's toString()
     if (object == null) {
       return Map.of("Value", "");
     }
-    return Map.of("Value", object.toString());
+    return Map.of("Value", Theme.getDisplayObject(object, Theme.Detail.ONE_LINER));
   }
 }

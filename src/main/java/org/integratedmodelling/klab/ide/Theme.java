@@ -13,15 +13,16 @@ import org.integratedmodelling.klab.api.data.RepositoryState;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.data.Storage;
 import org.integratedmodelling.klab.api.exceptions.KlabInternalErrorException;
-import org.integratedmodelling.klab.api.knowledge.Cohort;
-import org.integratedmodelling.klab.api.knowledge.KlabAsset;
-import org.integratedmodelling.klab.api.knowledge.SemanticType;
+import org.integratedmodelling.klab.api.knowledge.*;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.TimeInstant;
 import org.integratedmodelling.klab.api.knowledge.organization.Project;
 import org.integratedmodelling.klab.api.lang.kim.KimModel;
+import org.integratedmodelling.klab.api.lang.kim.KimObservable;
 import org.integratedmodelling.klab.api.lang.kim.KimSymbolDefinition;
+import org.integratedmodelling.klab.api.lang.kim.style.KimStyle;
 import org.integratedmodelling.klab.api.provenance.Activity;
+import org.integratedmodelling.klab.api.services.ResourcesService;
 import org.integratedmodelling.klab.api.services.runtime.Actuator;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableAsset;
@@ -48,6 +49,12 @@ public enum Theme {
   LIGHT_COOL(false),
   DARK_COOL(true),
   DARK_ALTERNATIVE(true);
+
+  public enum Detail {
+    ONE_LINER,
+    BADGE,
+    CARD
+  }
 
   private boolean dark;
 
@@ -359,7 +366,7 @@ public enum Theme {
       return "CARAJO " + asset;
     }
 
-    return "HOSTIA";
+    return asset.toString();
   }
 
   private static String repositoryStatusPrefix(RepositoryState.Status repositoryStatus) {
@@ -395,5 +402,30 @@ public enum Theme {
       case DARK_COOL -> Color.web("#ECEFF4FF");
       case DARK_ALTERNATIVE -> Color.web("#F8F8F2FF");
     };
+  }
+
+  /**
+   * Return a displayable object that describes the given object at the requested level of detail.
+   * Should return a JavaFX Node. At worst, return a string description.
+   *
+   * @param object
+   * @param detail
+   * @return
+   */
+  public static Object getDisplayObject(Object object, Detail detail) {
+
+    var scope = KlabIDEController.scope();
+    if (object instanceof Semantics concept && scope != null) {
+      var kim =
+          scope
+              .getService(ResourcesService.class)
+              .retrieve(concept.getUrn(), KimObservable.class, scope);
+      if (kim != null) {
+        // TODO
+        return kim.format(new KimStyle.PlainCodeAppender());
+      }
+    }
+
+    return getLabel(object);
   }
 }
