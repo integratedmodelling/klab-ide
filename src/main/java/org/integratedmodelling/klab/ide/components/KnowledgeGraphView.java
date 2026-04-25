@@ -245,7 +245,6 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   private void redrawGraph() {
     if (isGraphViewReady()) {
       for (int i = 0; i < 1; i++) {
-        //        autoLayout = !autoLayout;
         updateGraph();
         graphView.setAutomaticLayout(true);
       }

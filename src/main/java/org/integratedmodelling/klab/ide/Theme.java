@@ -425,7 +425,7 @@ public enum Theme {
               .getService(ResourcesService.class)
               .retrieve(concept.getUrn(), KimObservable.class, scope);
       if (kim != null) {
-        // TODO
+        // TODO investigate caching, this stuff may be done often
         var formatted = kim.format(new KimStyle.KimStylingAppender(scope));
         if (formatted != null) {
           if (detail == Detail.ONE_LINER) {

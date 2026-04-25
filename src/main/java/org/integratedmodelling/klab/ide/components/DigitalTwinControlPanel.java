@@ -144,24 +144,10 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     searchArea.show("activities");
 
     this.homeButton = new Button("", new IconLabel(Material2AL.HOME, 14, Color.BLACK));
-    homeButton.setOnAction(e -> scope.within(null));
+    homeButton.setOnAction(e -> contextScopeAction());
     homeButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
 
-    var homeContextMenu = new ContextMenu();
-    homeContextMenu.setStyle("-fx-font-size: 11px;");
-    var homeMenuItem1 = new MenuItem("TODO: menu item 1");
-    homeMenuItem1.setOnAction(
-        e -> {
-          /* TODO */
-        });
-    var homeMenuItem2 = new MenuItem("TODO: menu item 2");
-    homeMenuItem2.setOnAction(
-        e -> {
-          /* TODO */
-        });
-    homeContextMenu.getItems().addAll(homeMenuItem1, homeMenuItem2);
-    homeButton.setOnContextMenuRequested(
-        e -> homeContextMenu.show(homeButton, e.getScreenX(), e.getScreenY()));
+    homeButton.setOnContextMenuRequested(e -> showContextScopeMenu(e.getScreenX(), e.getScreenY()));
 
     var conceptButton = new Button("", new IconLabel(Theme.WORLDVIEW_ICON, 14, Color.BLACK));
     conceptButton.setOnAction(
@@ -171,7 +157,6 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
           KlabIDEController.instance().showInModalOverlay(button);
         });
     conceptButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
-    //    HBox.setMargin(searchArea, new Insets(5, 5, 5, 5));
     HBox.setHgrow(searchArea, Priority.ALWAYS);
     HBox.setMargin(searchArea, new Insets(5, 0, 0, 0));
 
@@ -203,6 +188,41 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     dropZone.setStyle(
         "-fx-background-color: #F5F5F5; -fx-border-color: grey; -fx-border-width: 5; -fx-border-style: dashed; -fx-border-radius: 10;");
     setCenter(null); // TODO use some idle view
+  }
+
+  /** Action for the home button, which resets the graph to the root of the KG */
+  private void contextScopeAction() {
+    observationTree.update(RuntimeAsset.CONTEXT_ASSET, null, scope);
+  }
+
+  private void showContextScopeMenu(double screenX, double screenY) {
+    var homeContextMenu = new ContextMenu();
+    homeContextMenu.setStyle("-fx-font-size: 11px;");
+    if (scope != null && scope.getContextObservation() != null) {
+      var homeMenuItem1 = new MenuItem("Reset the context observation");
+      homeMenuItem1.setOnAction(
+          e -> {
+            scope.within(null);
+            observationTree.refresh();
+          });
+      homeContextMenu.getItems().add(homeMenuItem1);
+    }
+
+    if (scope != null) {}
+
+    for (var commit : scope.getCommits()) {
+
+      var homeMenuItem2 = new MenuItem(Theme.getLabel(commit.getFirst()));
+      homeMenuItem2.setOnAction(
+          e -> {
+            observationTree.update(commit.getFirst(), null, scope);
+          });
+      homeContextMenu.getItems().addAll(homeMenuItem2);
+    }
+
+    if (!homeContextMenu.getItems().isEmpty()) {
+      homeContextMenu.show(homeButton, screenX, screenY);
+    }
   }
 
   private void setView(View view) {
