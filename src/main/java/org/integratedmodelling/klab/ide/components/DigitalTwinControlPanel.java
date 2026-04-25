@@ -8,9 +8,11 @@ import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
+import javafx.util.Duration;
 import org.integratedmodelling.klab.api.data.KnowledgeGraph;
 import org.integratedmodelling.klab.api.data.Metadata;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
+import org.integratedmodelling.klab.api.knowledge.SemanticType;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedule;
 import org.integratedmodelling.klab.api.lang.kim.KimNamespace;
@@ -305,10 +307,18 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
             (scope == null || scope.getContextObservation() == null)
                 ? Material2AL.HOME
                 : FontAwesomeSolid.HOME,
-            14,
+            (scope == null || scope.getContextObservation() == null) ? 16 : 14,
             (scope == null
                 ? Color.DARKGRAY
-                : (scope.getContextObservation() == null ? Color.BLACK : Color.BLUE))));
+                : (scope.getContextObservation() == null
+                    ? Color.BLACK
+                    : Theme.getColorForType(
+                        SemanticType.fundamentalType(
+                            scope
+                                .getContextObservation()
+                                .getObservable()
+                                .getSemantics()
+                                .getType()))))));
 
     this.resetButton.setGraphic(
         new IconLabel(
@@ -402,18 +412,22 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   public void setContext(Observation observation) {
     Platform.runLater(
         () -> {
-          var path = scope.getContextPath();
-          if (path.isEmpty()) {
-            //            this.contextPath.setSelectedCrumb(null);
-            return;
-          }
-          //          var root = new Breadcrumbs.BreadCrumbItem<>(path.getFirst());
-          //          for (int i = 1; i < path.size(); i++) {
-          //            var child = new Breadcrumbs.BreadCrumbItem<>(path.get(i));
-          //            root.getChildren().add(child);
-          //            root = child;
-          //          }
-          //          this.contextPath.setSelectedCrumb(root);
+          homeButton.setGraphic(
+              observation == null
+                  ? new IconLabel(Material2AL.HOME, 16, Color.BLACK)
+                  : new IconLabel(
+                      FontAwesomeSolid.HOME,
+                      14,
+                      Theme.getColorForType(
+                          SemanticType.fundamentalType(
+                              observation.getObservable().getSemantics().getType()))));
+          var tooltip =
+              new Tooltip(
+                  observation == null
+                      ? "No context observation set"
+                      : "Context observation set to " + Theme.getLabel(observation));
+          tooltip.setShowDelay(Duration.millis(200));
+          homeButton.setTooltip(tooltip);
         });
   }
 

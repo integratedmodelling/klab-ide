@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Set;
 import javafx.application.Platform;
 import javafx.collections.ObservableList;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 import javafx.scene.text.Text;
@@ -15,10 +17,19 @@ import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedule;
+import org.integratedmodelling.klab.api.lang.kim.KlabDocument;
 import org.integratedmodelling.klab.api.scope.ContextScope;
+import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableAsset;
+import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableDocument;
 import org.integratedmodelling.klab.ide.KlabIDEController;
+import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.integratedmodelling.klab.ide.IDEContextScope;
+import org.integratedmodelling.klab.ide.components.DigitalTwinEditor;
+import org.integratedmodelling.klab.ide.components.WorkspaceEditor;
+import org.integratedmodelling.klab.modeler.model.NavigableKimConceptStatement;
+import org.integratedmodelling.klab.modeler.model.NavigableKimModel;
+import org.integratedmodelling.klab.modeler.model.NavigableProject;
 
 public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements DigitalTwinViewer {
 
@@ -26,6 +37,57 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
   private ClientKnowledgeGraph clientKnowledgeGraph;
   private TreeModel.AssetTreeItem root;
   private IDEContextScope scope;
+  private DigitalTwinEditor editor;
+
+  private static final class AssetTreeCell extends TreeCell<RuntimeAsset> {
+
+    DigitalTwinEditor editor;
+
+    public AssetTreeCell(DigitalTwinEditor workspaceEditor) {
+      this.editor = workspaceEditor;
+    }
+
+    @Override
+    protected void updateItem(RuntimeAsset asset, boolean empty) {
+      super.updateItem(asset, empty);
+      if (asset != null && !empty) {
+        setText(Theme.getLabel(asset));
+        setGraphic(Theme.getGraphics(asset));
+        setOnContextMenuRequested(
+            event -> {
+              var contextMenu = new ContextMenu();
+              contextMenu.setAutoHide(true);
+              editor.setupAssetMenu(contextMenu, asset);
+              contextMenu.show(this, event.getScreenX(), event.getScreenY());
+            });
+        switch (asset) {
+          // TODO these never match, left for reference - set up as needed
+          case NavigableProject navigableProject -> {
+            if (navigableProject.isLocked()) {
+              setStyle("-fx-text-fill: -color-success-fg;");
+            }
+          }
+          case NavigableDocument navigableProject -> {
+            // leave these - there is an unclear style "leaking" phenomenon otherwise
+            setStyle(null);
+          }
+          case NavigableKimConceptStatement navigableProject -> {
+            setStyle(null);
+          }
+          case NavigableKimModel navigableProject -> {
+            setStyle(null);
+          }
+          default -> {
+            setStyle(null);
+          }
+        }
+
+      } else {
+        setText(null);
+        setGraphic(null);
+      }
+    }
+  }
 
   public TreeItem<RuntimeAsset> findItemById(long id) {
     return findItemById(root, id);
@@ -49,14 +111,14 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
     return this.scope.getId().equals(scope.getId());
   }
 
-  public KnowledgeGraphTree() {
+  public KnowledgeGraphTree(
+      DigitalTwinEditor editor, RuntimeAsset rootAsset, ContextScope contextScope) {
     super();
-  }
-
-  public KnowledgeGraphTree(RuntimeAsset rootAsset, ContextScope contextScope) {
-    super();
+    this.editor = editor;
     this.scope = KlabIDEController.instance().requireDigitalTwinPeer(contextScope, this);
     this.clientKnowledgeGraph = this.scope.getDigitalTwin().getKnowledgeGraph();
+    setCellFactory(p -> new AssetTreeCell(editor));
+
     var pair = TreeModel.createTree(rootAsset, null, scope);
     setRoot(pair.getFirst());
     if (pair.getSecond() != null) {
@@ -90,6 +152,7 @@ public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements Digita
 
   @Override
   public void setContext(Observation observation) {
+
     // DO NOT call scope.within(observation) here - it causes infinite recursion
     // The context change should be initiated externally, and this method
     // should only react to the notification

@@ -25,6 +25,7 @@ import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.SemanticType;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedule;
+import org.integratedmodelling.klab.api.knowledge.organization.ProjectStorage;
 import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.api.scope.Persistence;
 import org.integratedmodelling.klab.api.services.RuntimeService;
@@ -86,54 +87,12 @@ public class DigitalTwinEditor extends EditorPage<IDEContextScope, RuntimeAsset>
   @Override
   protected TreeView<RuntimeAsset> createContentTree() {
 
-    treeView = new KnowledgeGraphTree(this.context, contextScope);
-    treeView.setCellFactory(p -> new AssetTreeCell());
+    treeView = new KnowledgeGraphTree(this, this.context, contextScope);
     treeView.getStyleClass().addAll(Tweaks.EDGE_TO_EDGE, Styles.DENSE);
     treeView.setShowRoot(false);
     treeView.setPrefWidth(340);
-    // FIXME the context menu remains on the scene until clicked or escaped, and moves around
-    // FIXME bring this within KnowledgeGraphTree
-    treeView.setOnContextMenuRequested(
-        event -> {
-          TreeItem<RuntimeAsset> item = treeView.getSelectionModel().getSelectedItem();
-          if (item != null && item.getValue() != null && isContextMenuShown(item.getValue())) {
-            if (activeContextMenu != null) {
-              activeContextMenu.hide();
-            }
-            activeContextMenu = new ContextMenu();
-            activeContextMenu.setAutoHide(true);
-            List<Pair<String, Consumer<RuntimeAsset>>> entries =
-                getContextMenuEntries(item.getValue());
-            for (Pair<String, Consumer<RuntimeAsset>> entry : entries) {
-              MenuItem menuItem = new MenuItem(entry.getFirst());
-              menuItem.setOnAction(e -> entry.getSecond().accept(item.getValue()));
-              activeContextMenu.getItems().add(menuItem);
-            }
-            activeContextMenu.show(treeView, event.getScreenX(), event.getScreenY());
-            event.consume();
-          }
-        });
     this.knowledgeGraphView.setDigitalTwin(contextScope, true);
     return treeView;
-  }
-
-  protected boolean isContextMenuShown(RuntimeAsset asset) {
-    return asset instanceof Observation observation;
-  }
-
-  protected List<Pair<String, Consumer<RuntimeAsset>>> getContextMenuEntries(RuntimeAsset asset) {
-
-    var ret = new ArrayList<Pair<String, Consumer<RuntimeAsset>>>();
-    ret.add(Pair.of("Open detailed view", this::showDetails));
-
-    if (asset instanceof Observation observation) {
-      if (observation.getObservable().is(SemanticType.QUALITY)) {
-        ret.add(Pair.of("Export to filesystem", this::exportToFilesystem));
-      } else if (observation.getObservable().is(SemanticType.SUBJECT)) {
-        ret.add(Pair.of("Set as context", o -> setAsContext(observation)));
-      }
-    }
-    return ret;
   }
 
   void showDetails(RuntimeAsset asset) {
@@ -148,13 +107,6 @@ public class DigitalTwinEditor extends EditorPage<IDEContextScope, RuntimeAsset>
 
   void setAsContext(Observation observation) {
     contextScope.within(observation);
-  }
-
-  private void initializeContextMenu() {
-    setOnMouseClicked(
-        event -> {
-          if (event.isSecondaryButtonDown()) {}
-        });
   }
 
   @Override
@@ -269,29 +221,6 @@ public class DigitalTwinEditor extends EditorPage<IDEContextScope, RuntimeAsset>
     return treeView;
   }
 
-  private static final class AssetTreeCell extends TreeCell<RuntimeAsset> {
-    @Override
-    protected void updateItem(RuntimeAsset asset, boolean empty) {
-      super.updateItem(asset, empty);
-
-      if (empty || asset == null) {
-        // Cell is empty or asset is null - clear everything
-        setText(null);
-        setGraphic(null);
-        setStyle(null);
-      } else {
-        // Cell has valid content
-        setText(Theme.getLabel(asset));
-        setGraphic(Theme.getGraphics(asset));
-        switch (asset) {
-          default -> {
-            setStyle(null);
-          }
-        }
-      }
-    }
-  }
-
   @Override
   public boolean isAffectedBy(IDEContextScope scope) {
     return this.contextScope.getId().equals(scope.getId());
@@ -311,8 +240,6 @@ public class DigitalTwinEditor extends EditorPage<IDEContextScope, RuntimeAsset>
       // TODO start timeout counter, add a notification (scope ... will be removed in xxxx if not
       // used again)
     }
-    // Removed the circular call that was causing the StackOverflowError
-    // The view.removeDigitalTwin() call is handled by the caller (DigitalTwinView)
     knowledgeGraphView.close();
     treeView.close();
     digitalTwinControlPanel.close();
@@ -332,6 +259,28 @@ public class DigitalTwinEditor extends EditorPage<IDEContextScope, RuntimeAsset>
   public void unsetDigitalTwin(IDEContextScope focalScope) {
     if (this.contextScope.getId().equals(focalScope.getId())) {
       this.view.removeDigitalTwin(focalScope);
+    }
+  }
+
+  public void setupAssetMenu(ContextMenu contextMenu, RuntimeAsset asset) {
+
+    contextMenu.getItems().clear();
+
+    var showDetails = new MenuItem("Open detailed view");
+    showDetails.setOnAction(event -> showDetails(asset));
+
+    contextMenu.getItems().add(showDetails);
+
+    if (asset instanceof Observation observation) {
+      if (observation.getObservable().is(SemanticType.QUALITY)) {
+        var exportMenu = new MenuItem("Export to filesystem...");
+        exportMenu.setOnAction(event -> exportToFilesystem(asset));
+        contextMenu.getItems().add(exportMenu);
+      } else if (observation.getObservable().is(SemanticType.SUBJECT)) {
+        var setAsContext = new MenuItem("Set as context");
+        setAsContext.setOnAction(event -> setAsContext(observation));
+        contextMenu.getItems().add(setAsContext);
+      }
     }
   }
 }

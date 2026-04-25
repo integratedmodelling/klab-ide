@@ -302,7 +302,7 @@ public enum Theme {
     return new IconLabel(icon, 18, color);
   }
 
-  private static Color getColorForType(SemanticType semanticType) {
+  public static Color getColorForType(SemanticType semanticType) {
     return switch (semanticType) {
       case SUBJECT, AGENT -> SUBJECT_COLOR;
       case QUALITY -> QUALITY_COLOR;

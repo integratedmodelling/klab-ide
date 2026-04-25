@@ -52,9 +52,16 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
     if (scope != null) {
       current = scope.getContextObservation();
     }
+
+    var color =
+        observation instanceof Observation obs
+            ? Theme.getColorForType(
+                SemanticType.fundamentalType(obs.getObservable().getSemantics().getType()))
+            : Color.BLACK;
+
     var icon =
         current != null && current.getId() == observation.getId()
-            ? new IconLabel(Material2AL.HOME, 14, Color.BLUE)
+            ? new IconLabel(Material2AL.HOME, 16, color)
             : Theme.getGraphics(observation);
 
     icon.setMaxWidth(24);
@@ -94,7 +101,7 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
     icon.setOnMouseClicked(
         mouseEvent -> {
           if (attemptSettingContext(observation, icon)) {
-            icon.set(Material2AL.HOME, 16, Color.BLUE);
+            refresh();
           }
         });
 
@@ -109,17 +116,9 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
       if (scope != null) {
         var current = scope.getContextObservation();
         if (current != null) {
-          var item = findTreeItem(current);
-          if (item != null) {
-            var val = descriptionColumn.getCellObservableValue(item).getValue();
-            var normalIcon = Theme.getGraphics(current);
-            icon.setMaxWidth(24);
-            icon.setMinWidth(24);
-            item.setGraphic(normalIcon);
-          }
           if (current.getId() == obs.getId()) {
             scope.within(null);
-            return false;
+            return true;
           }
         }
         scope.within(obs);
@@ -129,36 +128,33 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
     return false;
   }
 
-  private TreeItem<RuntimeAsset> findTreeItem(RuntimeAsset asset) {
-    if (asset == null || getRoot() == null) {
-      return null;
-    }
-    return findTreeItemRecursive(getRoot(), asset);
-  }
-
-  private TreeItem<RuntimeAsset> findTreeItemRecursive(
-      TreeItem<RuntimeAsset> current, RuntimeAsset asset) {
-    if (current == null) {
-      return null;
-    }
-
-    RuntimeAsset currentAsset = current.getValue();
-    if (currentAsset != null && currentAsset.getId() == asset.getId()) {
-      return current;
-    }
-
-    // Expand the node to ensure children are loaded
-    //    current.setExpanded(true);
-
-    for (TreeItem<RuntimeAsset> child : current.getChildren()) {
-      TreeItem<RuntimeAsset> result = findTreeItemRecursive(child, asset);
-      if (result != null) {
-        return result;
-      }
-    }
-
-    return null;
-  }
+//  private TreeItem<RuntimeAsset> findTreeItem(RuntimeAsset asset) {
+//    if (asset == null || getRoot() == null) {
+//      return null;
+//    }
+//    return findTreeItemRecursive(getRoot(), asset);
+//  }
+//
+//  private TreeItem<RuntimeAsset> findTreeItemRecursive(
+//      TreeItem<RuntimeAsset> current, RuntimeAsset asset) {
+//    if (current == null) {
+//      return null;
+//    }
+//
+//    RuntimeAsset currentAsset = current.getValue();
+//    if (currentAsset != null && currentAsset.getId() == asset.getId()) {
+//      return current;
+//    }
+//
+//    for (TreeItem<RuntimeAsset> child : current.getChildren()) {
+//      TreeItem<RuntimeAsset> result = findTreeItemRecursive(child, asset);
+//      if (result != null) {
+//        return result;
+//      }
+//    }
+//
+//    return null;
+//  }
 
   public void update(RuntimeAsset rootAsset, RuntimeAsset focalAsset, IDEContextScope scope) {
     var root = TreeModel.createTree(rootAsset, focalAsset, scope);

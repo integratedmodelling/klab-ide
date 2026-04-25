@@ -414,9 +414,6 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         setGraphic(Theme.getGraphics(asset));
         setOnContextMenuRequested(
             event -> {
-              //                  TreeItem<NavigableAsset> item =
-              // treeView.getSelectionModel().getSelectedItem();
-              //                  if (item != null) {
               var contextMenu = new ContextMenu();
               contextMenu.setAutoHide(true);
               switch (asset) {
