@@ -119,6 +119,21 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     observerButton.setOnAction(click -> setView(View.OBSERVERS));
     scenarioButton.setOnAction(click -> setView(View.SCENARIOS));
 
+    var aTooltip = new Tooltip("Activities");
+    var oTooltip = new Tooltip("Observations");
+    var sTooltip = new Tooltip("Scenarios");
+    var bTooltip = new Tooltip("Observers");
+
+    aTooltip.setShowDelay(Duration.millis(200));
+    oTooltip.setShowDelay(Duration.millis(200));
+    sTooltip.setShowDelay(Duration.millis(200));
+    bTooltip.setShowDelay(Duration.millis(200));
+
+    activitiesButton.setTooltip(aTooltip);
+    observationButton.setTooltip(oTooltip);
+    observerButton.setTooltip(bTooltip);
+    scenarioButton.setTooltip(sTooltip);
+
     activityTree = new ActivityTree();
     observationTree = new ObservationTree();
     scenarioTree = new ScenarioTree();
@@ -148,6 +163,11 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     homeButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
 
     homeButton.setOnContextMenuRequested(e -> showContextScopeMenu(e.getScreenX(), e.getScreenY()));
+
+    var hbTooltip =
+        new Tooltip("Click to bring the whole graph into view. Right-click to recontextualize.");
+    hbTooltip.setShowDelay(Duration.millis(200));
+    homeButton.setTooltip(hbTooltip);
 
     var conceptButton = new Button("", new IconLabel(Theme.WORLDVIEW_ICON, 14, Color.BLACK));
     conceptButton.setOnAction(
@@ -208,16 +228,15 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
       homeContextMenu.getItems().add(homeMenuItem1);
     }
 
-    if (scope != null) {}
-
-    for (var commit : scope.getCommits()) {
-
-      var homeMenuItem2 = new MenuItem(Theme.getLabel(commit.getFirst()));
-      homeMenuItem2.setOnAction(
-          e -> {
-            observationTree.update(commit.getFirst(), null, scope);
-          });
-      homeContextMenu.getItems().addAll(homeMenuItem2);
+    if (scope != null) {
+      for (var commit : scope.getCommits()) {
+        var homeMenuItem2 = new MenuItem(Theme.getLabel(commit.getFirst()));
+        homeMenuItem2.setOnAction(
+            e -> {
+              observationTree.update(commit.getFirst(), null, scope);
+            });
+        homeContextMenu.getItems().addAll(homeMenuItem2);
+      }
     }
 
     if (!homeContextMenu.getItems().isEmpty()) {
