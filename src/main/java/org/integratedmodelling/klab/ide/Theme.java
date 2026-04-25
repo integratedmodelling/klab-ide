@@ -1,10 +1,13 @@
 package org.integratedmodelling.klab.ide;
 
 import atlantafx.base.theme.*;
+import atlantafx.base.util.BBCodeParser;
 import javafx.application.Platform;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tooltip;
+import javafx.scene.layout.Region;
 import javafx.scene.paint.Color;
+import javafx.scene.text.TextAlignment;
 import org.atteo.evo.inflector.English;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.branding.Branding;
@@ -28,6 +31,7 @@ import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableAsset;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableFolder;
 import org.integratedmodelling.klab.ide.components.Asset;
+import org.integratedmodelling.klab.ide.components.generic.BBCodeRenderer;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.modeler.model.NavigableKimConceptStatement;
 import org.integratedmodelling.klab.modeler.model.NavigableKimNamespace;
@@ -422,7 +426,17 @@ public enum Theme {
               .retrieve(concept.getUrn(), KimObservable.class, scope);
       if (kim != null) {
         // TODO
-        return kim.format(new KimStyle.PlainCodeAppender());
+        var formatted = kim.format(new KimStyle.KimStylingAppender(scope));
+        if (formatted != null) {
+          if (detail == Detail.ONE_LINER) {
+            var txt = formatted.render(BBCodeRenderer.INSTANCE);
+            var ret = BBCodeParser.createFormattedText(txt);
+            ret.setMaxWidth(Region.USE_COMPUTED_SIZE);
+            ret.setPrefHeight(32);
+            ret.setTextAlignment(TextAlignment.LEFT);
+            return ret;
+          }
+        }
       }
     }
 

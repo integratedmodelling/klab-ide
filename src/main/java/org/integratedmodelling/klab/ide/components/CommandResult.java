@@ -230,17 +230,54 @@ public class CommandResult extends BaseAssetViewComponent {
     // Create columns without headers
     for (var field : fields.entrySet()) {
       TreeTableColumn<Object, Object> column = new TreeTableColumn<>();
+      column.setPrefWidth(1200);
+      column.setMaxWidth(Double.MAX_VALUE);
       String fieldName = field.getKey();
-
+      
       column.setCellValueFactory(
           param -> {
             if (param.getValue() != null && param.getValue().getValue() != null) {
               var objectFields = getFieldsFromObject(param.getValue().getValue());
-              return new SimpleObjectProperty<>(objectFields.getOrDefault(fieldName, ""));
+              var value = objectFields.getOrDefault(fieldName, "");
+              if (value instanceof Region region) {
+                region.maxWidthProperty().bind(column.widthProperty().subtract(6));
+              }
+              return new SimpleObjectProperty<>(value);
             }
             return new SimpleObjectProperty<>("");
           });
 
+      column.setCellFactory(
+          param ->
+              new javafx.scene.control.TreeTableCell<>() {
+                @Override
+                protected void updateItem(Object item, boolean empty) {
+                  super.updateItem(item, empty);
+                  if (empty || item == null) {
+                    setGraphic(null);
+                    setText(null);
+                  } else if (item instanceof Region region) {
+                    setGraphic(region);
+                    setText(null);
+                    region
+                        .prefHeightProperty()
+                        .addListener(
+                            (obs, oldVal, newVal) -> {
+                              if (newVal != null) {
+                                setMaxHeight(newVal.doubleValue());
+                                setPrefHeight(newVal.doubleValue());
+                              }
+                            });
+                    if (region.getPrefHeight() > 0) {
+                      setMaxHeight(region.getPrefHeight());
+                      setPrefHeight(region.getPrefHeight());
+                    }
+                  } else {
+                    setGraphic(null);
+                    setText(item.toString());
+                  }
+                }
+              });
       treeTableView.getColumns().add(column);
     }
 
@@ -249,11 +286,9 @@ public class CommandResult extends BaseAssetViewComponent {
 
   private TreeItem<Object> createTreeItem(Object value, Tree<Object> tree) {
     TreeItem<Object> item = new TreeItem<>(value);
-
     for (var child : tree.children(value)) {
       item.getChildren().add(createTreeItem(child, tree));
     }
-
     item.setExpanded(true);
     return item;
   }

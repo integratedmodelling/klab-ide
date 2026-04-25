@@ -1,6 +1,7 @@
 package org.integratedmodelling.klab.ide.components.cards;
 
 import devtoolsfx.gui.GUI;
+import javafx.application.HostServices;
 import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.control.Tab;
@@ -9,6 +10,7 @@ import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.configuration.Setting;
 import org.integratedmodelling.klab.ide.KlabIDEApplication;
 import org.integratedmodelling.klab.ide.KlabIDEController;
+import org.integratedmodelling.klab.ide.utils.AppContext;
 import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.evaicons.Evaicons;
 
@@ -55,6 +57,11 @@ public class SettingsViewComponent extends BaseAssetViewComponent {
                           KlabIDEApplication.instance().getHostServices(),
                           "DevToolsFX");
                     });
+              } else if (setting == Setting.LAUNCH_DATABASE_INSPECTOR) {
+                HostServices hs = AppContext.getHostServices();
+                if (hs != null) {
+                  hs.showDocument("https://browser.neo4j.io/");
+                }
               } else {
                 KlabIDEController.instance()
                     .engine()
