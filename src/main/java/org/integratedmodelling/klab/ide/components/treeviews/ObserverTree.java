@@ -60,4 +60,8 @@ public class ObserverTree extends TreeTableView<Observation> {
     var ret = new HBox();
     return ret;
   }
+
+  public void reset() {
+    setRoot(new TreeItem<>());
+  }
 }

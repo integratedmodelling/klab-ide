@@ -65,4 +65,8 @@ public class ScenarioTree extends TreeTableView<KimNamespace> {
     var ret = new HBox();
     return ret;
   }
+
+  public void reset() {
+    setRoot(new TreeItem<>());
+  }
 }

@@ -128,33 +128,33 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
     return false;
   }
 
-//  private TreeItem<RuntimeAsset> findTreeItem(RuntimeAsset asset) {
-//    if (asset == null || getRoot() == null) {
-//      return null;
-//    }
-//    return findTreeItemRecursive(getRoot(), asset);
-//  }
-//
-//  private TreeItem<RuntimeAsset> findTreeItemRecursive(
-//      TreeItem<RuntimeAsset> current, RuntimeAsset asset) {
-//    if (current == null) {
-//      return null;
-//    }
-//
-//    RuntimeAsset currentAsset = current.getValue();
-//    if (currentAsset != null && currentAsset.getId() == asset.getId()) {
-//      return current;
-//    }
-//
-//    for (TreeItem<RuntimeAsset> child : current.getChildren()) {
-//      TreeItem<RuntimeAsset> result = findTreeItemRecursive(child, asset);
-//      if (result != null) {
-//        return result;
-//      }
-//    }
-//
-//    return null;
-//  }
+  //  private TreeItem<RuntimeAsset> findTreeItem(RuntimeAsset asset) {
+  //    if (asset == null || getRoot() == null) {
+  //      return null;
+  //    }
+  //    return findTreeItemRecursive(getRoot(), asset);
+  //  }
+  //
+  //  private TreeItem<RuntimeAsset> findTreeItemRecursive(
+  //      TreeItem<RuntimeAsset> current, RuntimeAsset asset) {
+  //    if (current == null) {
+  //      return null;
+  //    }
+  //
+  //    RuntimeAsset currentAsset = current.getValue();
+  //    if (currentAsset != null && currentAsset.getId() == asset.getId()) {
+  //      return current;
+  //    }
+  //
+  //    for (TreeItem<RuntimeAsset> child : current.getChildren()) {
+  //      TreeItem<RuntimeAsset> result = findTreeItemRecursive(child, asset);
+  //      if (result != null) {
+  //        return result;
+  //      }
+  //    }
+  //
+  //    return null;
+  //  }
 
   public void update(RuntimeAsset rootAsset, RuntimeAsset focalAsset, IDEContextScope scope) {
     var root = TreeModel.createTree(rootAsset, focalAsset, scope);
@@ -162,5 +162,9 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
     if (root.getSecond() != null) {
       getSelectionModel().select(root.getSecond());
     }
+  }
+
+  public void reset() {
+    setRoot(new TreeItem<>());
   }
 }

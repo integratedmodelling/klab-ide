@@ -451,6 +451,16 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   public void setContext(Observation observation) {
     Platform.runLater(
         () -> {
+          if (observation == null) {
+            observationTree.reset();
+            activityTree.reset();
+            scenarioTree.reset();
+            observerTree.reset();
+          } else {
+            observationTree.update(RuntimeAsset.CONTEXT_ASSET, observation, scope);
+            activityTree.reset();
+            // TODO fill up scenarios and observers
+          }
           homeButton.setGraphic(
               observation == null
                   ? new IconLabel(Material2AL.HOME, 16, Color.BLACK)

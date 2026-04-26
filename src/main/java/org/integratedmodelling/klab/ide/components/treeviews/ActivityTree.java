@@ -150,4 +150,8 @@ public class ActivityTree extends TreeTableView<Activity> {
     }
     return ret;
   }
+
+  public void reset() {
+    setRoot(new TreeItem<>());
+  }
 }
