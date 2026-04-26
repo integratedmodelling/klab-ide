@@ -55,8 +55,14 @@ public enum Theme {
   DARK_ALTERNATIVE(true);
 
   public enum Detail {
+    /** Must fit on one line or equivalent. */
     ONE_LINER,
+    /** Suitable for a tooltip or a carousel */
     BADGE,
+    /**
+     * Suitable for a complete description in the inspector or in a notebook item, potentially with
+     * internal "link" buttons to substitute the contents.
+     */
     CARD
   }
 
