@@ -196,6 +196,38 @@ public class CommandResult extends BaseAssetViewComponent {
             return new SimpleObjectProperty<>("");
           });
 
+      column.setCellFactory(
+          param ->
+              new javafx.scene.control.TableCell<>() {
+                @Override
+                protected void updateItem(Object item, boolean empty) {
+                  super.updateItem(item, empty);
+                  if (empty || item == null) {
+                    setGraphic(null);
+                    setText(null);
+                  } else if (item instanceof Region region) {
+                    setGraphic(region);
+                    setText(null);
+                    region
+                        .prefHeightProperty()
+                        .addListener(
+                            (obs, oldVal, newVal) -> {
+                              if (newVal != null) {
+                                setMaxHeight(newVal.doubleValue());
+                                setPrefHeight(newVal.doubleValue());
+                              }
+                            });
+                    if (region.getPrefHeight() > 0) {
+                      setMaxHeight(region.getPrefHeight());
+                      setPrefHeight(region.getPrefHeight());
+                    }
+                  } else {
+                    setGraphic(null);
+                    setText(item.toString());
+                  }
+                }
+              });
+
       tableView.getColumns().add(column);
     }
 
@@ -233,7 +265,7 @@ public class CommandResult extends BaseAssetViewComponent {
       column.setPrefWidth(1200);
       column.setMaxWidth(Double.MAX_VALUE);
       String fieldName = field.getKey();
-      
+
       column.setCellValueFactory(
           param -> {
             if (param.getValue() != null && param.getValue().getValue() != null) {
