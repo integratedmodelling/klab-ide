@@ -58,6 +58,8 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   private final TreeSearchField<Observation> observerSearch;
   private final TreeSearchField<KimNamespace> scenarioSearch;
 
+  @Deprecated
+  // FIXME don't copy, carry over from the modeler
   private IDEContextScope scope;
 
   public enum Status {
@@ -279,6 +281,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
             }
             case COMPUTING -> {
               setMainView();
+              setView(View.ACTIVITIES);
               homeButton.setManaged(false);
               homeButton.setVisible(false);
               progressIndicator.setManaged(true);
@@ -394,6 +397,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   @Override
   public void close() {
+    reset();
     if (this.scope != null) {
       scope.removeViewer(this);
     }
@@ -402,6 +406,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   @Override
   public void closeDigitalTwin(IDEContextScope ideContextScope) {
     if (this.scope != null && this.scope.getId().equals(ideContextScope.getId())) {
+      reset();
       this.scope = null;
       this.status = Status.IDLE;
       this.setMainView();
@@ -447,20 +452,27 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
         });
   }
 
-  @Override
-  public void setContext(Observation observation) {
+  public void reset() {
     Platform.runLater(
         () -> {
-          if (observation == null) {
+          if (scope == null) {
             observationTree.reset();
             activityTree.reset();
             scenarioTree.reset();
             observerTree.reset();
           } else {
-            observationTree.update(RuntimeAsset.CONTEXT_ASSET, observation, scope);
+            observationTree.update(
+                RuntimeAsset.CONTEXT_ASSET, scope.getContextObservation(), scope);
             activityTree.reset();
             // TODO fill up scenarios and observers
           }
+        });
+  }
+
+  @Override
+  public void setContext(Observation observation) {
+    Platform.runLater(
+        () -> {
           homeButton.setGraphic(
               observation == null
                   ? new IconLabel(Material2AL.HOME, 16, Color.BLACK)
