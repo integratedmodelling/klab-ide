@@ -1,11 +1,7 @@
 package org.integratedmodelling.klab.ide.components.treeviews;
 
-import com.jcraft.jsch.HASH;
-import jakarta.annotation.Nullable;
 import javafx.collections.ObservableList;
-import javafx.scene.control.Label;
 import javafx.scene.control.TreeItem;
-import org.integratedmodelling.cli.Test;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
 import org.integratedmodelling.klab.api.collections.Pair;
 import org.integratedmodelling.klab.api.data.KnowledgeGraph;
@@ -15,14 +11,12 @@ import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
 import org.integratedmodelling.klab.api.knowledge.Cohort;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.ide.IDEContextScope;
-import org.integratedmodelling.klab.ide.Theme;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultDirectedGraph;
 
-import javax.management.relation.RelationType;
+import javax.annotation.Nullable;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 public class TreeModel {
 
@@ -34,7 +28,7 @@ public class TreeModel {
    * @return a new AssetTreeItem root
    */
   public static Pair<AssetTreeItem, AssetTreeItem> createTree(
-      RuntimeAsset asset, @Nullable RuntimeAsset focus, IDEContextScope scope) {
+          RuntimeAsset asset, @Nullable RuntimeAsset focus, IDEContextScope scope) {
 
     var types = Set.of(RuntimeAsset.Type.OBSERVATION, RuntimeAsset.Type.COHORT);
     var relationships =

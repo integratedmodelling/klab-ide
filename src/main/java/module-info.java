@@ -5,7 +5,6 @@ module org.integratedmodelling.klab.ide {
     requires org.kordamp.ikonli.javafx;
     requires klab.core.api;
     requires klab.modeler;
-    requires jakarta.annotation;
     requires atlantafx.base;
     requires klab.core.common;
     requires org.kordamp.ikonli.core;
@@ -18,7 +17,6 @@ module org.integratedmodelling.klab.ide {
     requires com.google.common;
     requires org.jline;
     requires com.brunomnsilva.smartgraph;
-    requires spring.boot.autoconfigure;
     requires org.jgrapht.core;
     requires org.checkerframework.checker.qual;
     requires klab.cli;
@@ -39,6 +37,7 @@ module org.integratedmodelling.klab.ide {
     requires org.slf4j;
     requires commons.collections;
     requires org.eclipse.lsp4j;
+    requires jsr305;
 
     opens org.integratedmodelling.klab.ide to javafx.fxml;
     opens org.integratedmodelling.klab.ide.components to javafx.fxml;
