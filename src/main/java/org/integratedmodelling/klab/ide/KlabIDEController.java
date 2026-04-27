@@ -711,19 +711,56 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   }
 
   public void showInModalOverlay(Node node) {
+
     Platform.runLater(
         () -> {
           if (modalPane == null) {
             modalPane = new ModalPane();
             modalPane.setAlignment(Pos.CENTER);
-            mainArea.getChildren().add(modalPane);
+            // Ensure the modal pane is added at the top of the z-order
+            if (!mainArea.getChildren().contains(modalPane)) {
+              mainArea.getChildren().add(modalPane);
+            }
           }
+
+          // Ensure the modal pane is at the front
+          if (mainArea.getChildren().contains(modalPane)) {
+            modalPane.toFront();
+          }
+
+          // Add event filter before showing
           if (mainArea.getScene() != null) {
             mainArea.getScene().addEventFilter(KeyEvent.KEY_PRESSED, escHandler);
           }
+
+          // Force layout pass before showing to ensure proper rendering
+          modalPane.layout();
+
+          // Use requestLayout to ensure the modal pane is properly sized
+          modalPane.requestLayout();
+
+          // Show the modal with the content
           modalPane.show(node);
+
+          // Request focus to ensure visibility
+          modalPane.requestFocus();
         });
   }
+
+  //    Platform.runLater(
+  //        () -> {
+  //          if (modalPane == null) {
+  //
+  //            modalPane = new ModalPane();
+  //            modalPane.setAlignment(Pos.CENTER);
+  //            mainArea.getChildren().add(modalPane);
+  //          }
+  //          if (mainArea.getScene() != null) {
+  //            mainArea.getScene().addEventFilter(KeyEvent.KEY_PRESSED, escHandler);
+  //          }
+  //          modalPane.show(node);
+  //        });
+  //  }
 
   public void removeModalOverlay() {
     Platform.runLater(

@@ -13,11 +13,9 @@ import javafx.scene.control.TabPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import org.integratedmodelling.klab.api.engine.Engine;
 import org.integratedmodelling.klab.api.view.View;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
-import org.jline.reader.Editor;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2MZ;
 
@@ -49,6 +47,7 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
     this.browserArea.setAlignment(Pos.TOP_CENTER);
     this.browserArea.setPadding(new Insets(2.0));
     this.tabPane = new TabPane();
+    this.tabPane.getStyleClass().addAll(Styles.DENSE, Styles.SMALL);
     var menuTab = new Tab("");
     menuTab.setGraphic(
         new IconLabel(Material2MZ.MENU, 24, Theme.CURRENT_THEME.getDefaultTextColor()));
