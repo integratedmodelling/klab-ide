@@ -21,7 +21,7 @@ public class ActivityCard extends BaseCard<Activity> {
     tile.setDescription(asset.getDescription());
     tile.setBorder(Border.EMPTY);
     tile.setGraphic(Theme.getGraphics(asset));
-    tile.setEffect(null);
+//    tile.setEffect(null);
 //    getStyleClass().add(Styles.ELEVATED_4);
     setHeader(tile);
   }

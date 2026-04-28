@@ -7,15 +7,18 @@ import javafx.application.Platform;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.util.Duration;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.provenance.Activity;
 import org.integratedmodelling.klab.ide.IDEContextScope;
+import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.cards.ActivityCard;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
+import org.integratedmodelling.klab.ide.utils.DoubleClickHandler;
 import org.kordamp.ikonli.bootstrapicons.BootstrapIcons;
 import org.kordamp.ikonli.carbonicons.CarbonIcons;
 import org.kordamp.ikonli.evaicons.Evaicons;
@@ -98,6 +101,27 @@ public class ActivityTree extends TreeTableView<Activity> {
     tooltip.setGraphic(new ActivityCard(activity, false));
     tooltip.setShowDelay(Duration.millis(300));
     Tooltip.install(ret, tooltip);
+
+    ret.addEventHandler(
+        MouseEvent.MOUSE_CLICKED,
+        new DoubleClickHandler<>(
+                activity,
+                a -> {
+                  if (KlabIDEController.instance().isInspectorShown()) {
+                    KlabIDEController.instance().getInspector().inspect(a);
+                  }
+                },
+                a -> {
+                  if (KlabIDEController.instance().getInspector().getCurrentObject() != a) {
+                    if (!KlabIDEController.instance().isInspectorShown()) {
+                      KlabIDEController.instance().showInspector();
+                    }
+                    KlabIDEController.instance().getInspector().inspect(a);
+                  } else if (KlabIDEController.instance().isInspectorShown()) {
+                    KlabIDEController.instance().hideInspector();
+                  }
+                })
+            .getHandler());
 
     return ret;
   }

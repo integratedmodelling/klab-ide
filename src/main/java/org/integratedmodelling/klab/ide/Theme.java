@@ -31,6 +31,8 @@ import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableAsset;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableFolder;
 import org.integratedmodelling.klab.ide.components.Asset;
+import org.integratedmodelling.klab.ide.components.cards.ActivityCard;
+import org.integratedmodelling.klab.ide.components.cards.ObservableCard;
 import org.integratedmodelling.klab.ide.components.generic.BBCodeRenderer;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.modeler.model.NavigableKimConceptStatement;
@@ -426,23 +428,33 @@ public enum Theme {
 
     var scope = KlabIDEController.scope();
     if (object instanceof Semantics concept && scope != null) {
-      var kim =
-          scope
-              .getService(ResourcesService.class)
-              .retrieve(concept.getUrn(), KimObservable.class, scope);
-      if (kim != null) {
-        // TODO investigate caching, this stuff may be done often
-        var formatted = kim.format(new KimStyle.KimStylingAppender(scope));
-        if (formatted != null) {
-          if (detail == Detail.ONE_LINER) {
-            var txt = formatted.render(BBCodeRenderer.INSTANCE);
-            var ret = BBCodeParser.createFormattedText(txt);
-            ret.setMaxWidth(Region.USE_COMPUTED_SIZE);
-            ret.setPrefHeight(32);
-            ret.setTextAlignment(TextAlignment.LEFT);
-            return ret;
+      if (detail == Detail.CARD) {
+        return new ObservableCard(Observable.promote(concept), true);
+      } else {
+        var kim =
+            scope
+                .getService(ResourcesService.class)
+                .retrieve(concept.getUrn(), KimObservable.class, scope);
+        if (kim != null) {
+          // TODO investigate caching, this stuff may be done often
+          var formatted = kim.format(new KimStyle.KimStylingAppender(scope));
+          if (formatted != null) {
+            if (detail == Detail.ONE_LINER) {
+              var txt = formatted.render(BBCodeRenderer.INSTANCE);
+              var ret = BBCodeParser.createFormattedText(txt);
+              ret.setMaxWidth(Region.USE_COMPUTED_SIZE);
+              ret.setPrefHeight(32);
+              ret.setTextAlignment(TextAlignment.LEFT);
+              return ret;
+            }
           }
         }
+      }
+    } else if (object instanceof Activity activity) {
+      if (detail == Detail.CARD) {
+        return new ActivityCard(activity, true);
+      } else if (detail == Detail.BADGE) {
+        return new ActivityCard(activity, false);
       }
     }
 

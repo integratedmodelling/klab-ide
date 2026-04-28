@@ -747,21 +747,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         });
   }
 
-  //    Platform.runLater(
-  //        () -> {
-  //          if (modalPane == null) {
-  //
-  //            modalPane = new ModalPane();
-  //            modalPane.setAlignment(Pos.CENTER);
-  //            mainArea.getChildren().add(modalPane);
-  //          }
-  //          if (mainArea.getScene() != null) {
-  //            mainArea.getScene().addEventFilter(KeyEvent.KEY_PRESSED, escHandler);
-  //          }
-  //          modalPane.show(node);
-  //        });
-  //  }
-
   public void removeModalOverlay() {
     Platform.runLater(
         () -> {
@@ -961,20 +946,37 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
             ? "Click to show the knowledge inspector"
             : "Click to hide the knowledge inspector");
 
+    if (inspectorIsOn) {
+      hideInspector();
+    } else {
+      showInspector();
+    }
+  }
+
+  public InspectorView showInspector() {
     Platform.runLater(
         () -> {
-          if (inspectorIsOn) {
-            inspectorArea.getChildren().removeAll(inspectorView);
-            inspectorIsOn = false;
-            KlabIDEApplication.instance().setInspectorShown(false);
-            NodeUtils.toggleVisibility(inspectorArea, false);
-          } else {
-            inspectorArea.getChildren().add(inspectorView);
-            inspectorIsOn = true;
-            KlabIDEApplication.instance().setInspectorShown(true);
-            NodeUtils.toggleVisibility(inspectorArea, true);
-          }
+          HBox.setHgrow(inspectorView, Priority.ALWAYS);
+          inspectorArea.getChildren().add(inspectorView);
+          inspectorIsOn = true;
+          KlabIDEApplication.instance().setInspectorShown(true);
+          NodeUtils.toggleVisibility(inspectorArea, true);
         });
+    return inspectorView;
+  }
+
+  public void hideInspector() {
+    Platform.runLater(
+        () -> {
+          inspectorArea.getChildren().removeAll(inspectorView);
+          inspectorIsOn = false;
+          KlabIDEApplication.instance().setInspectorShown(false);
+          NodeUtils.toggleVisibility(inspectorArea, false);
+        });
+  }
+
+  public boolean isInspectorShown() {
+    return inspectorIsOn;
   }
 
   public InspectorView getInspector() {
