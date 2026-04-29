@@ -118,6 +118,8 @@ public class ActivityTree extends TreeTableView<Activity> {
                     }
                     KlabIDEController.instance().getInspector().inspect(a);
                   } else if (KlabIDEController.instance().isInspectorShown()) {
+                    // reset to enable repetition
+                    KlabIDEController.instance().getInspector().inspect(null);
                     KlabIDEController.instance().hideInspector();
                   }
                 })
