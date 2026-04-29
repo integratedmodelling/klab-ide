@@ -58,7 +58,7 @@ public class AssetViewer extends BorderPane {
   private Node createHeader(RuntimeAsset asset) {
     HBox header = new HBox(8);
     header.setAlignment(Pos.CENTER_LEFT);
-    header.setPadding(new Insets(6, 10, 6, 10));
+//    header.setPadding(new Insets(6, 10, 6, 10));
 
     Node icon = Theme.getGraphics(asset);
 

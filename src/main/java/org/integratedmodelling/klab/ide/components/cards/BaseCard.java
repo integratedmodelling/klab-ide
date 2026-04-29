@@ -19,7 +19,7 @@ public abstract class BaseCard<T> extends Card {
   protected BaseCard(T asset, boolean extended) {
     this.asset = asset;
     this.extended = extended;
-    setBorder(Border.EMPTY);
+//    setBorder(Border.EMPTY);
     setMinSize(extended ? 800 : 300, extended ? 400 : 220);
     setMaxSize(extended ? Double.MAX_VALUE : 300, extended ? 400 : 220);
     drawContent();

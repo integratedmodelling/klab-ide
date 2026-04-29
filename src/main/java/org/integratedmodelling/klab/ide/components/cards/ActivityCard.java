@@ -19,7 +19,7 @@ public class ActivityCard extends BaseCard<Activity> {
     var tile = new Tile();
     tile.setTitle("Activity");
     tile.setDescription(asset.getDescription());
-    tile.setBorder(Border.EMPTY);
+//    tile.setBorder(Border.EMPTY);
     tile.setGraphic(Theme.getGraphics(asset));
 //    tile.setEffect(null);
 //    getStyleClass().add(Styles.ELEVATED_4);
