@@ -3,14 +3,11 @@ package org.integratedmodelling.klab.ide;
 import java.io.Serializable;
 import java.net.URL;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
-
-import org.apache.commons.collections.list.SynchronizedList;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientDigitalTwin;
 import org.integratedmodelling.common.services.client.scope.ClientContextScope;
 import org.integratedmodelling.klab.api.collections.Pair;
@@ -109,7 +106,7 @@ public class IDEContextScope implements ContextScope {
   }
 
   public void setGraphDepth(int newDepth) {
-    if (newDepth >= 1 && newDepth <= 5) {
+    if (newDepth >= 1 && newDepth <= 4) {
       this.graphDepth = newDepth;
     }
   }
@@ -133,11 +130,14 @@ public class IDEContextScope implements ContextScope {
       }
       case ActivityFinished -> {
         var activity = message.getPayload(Activity.class);
-        // update the existing activity in the graph
+        // update the existing activity in the graph instead of substituting it
         var existingActivity = activities.get(activity.getTransientId());
         if (existingActivity instanceof ActivityImpl impl) {
+          impl.setStackTrace(activity.getStackTrace());
+          impl.setObservationUrn(activity.getObservationUrn());
           impl.setEnd(activity.getEnd());
           impl.setOutcome(activity.getOutcome());
+          impl.getMetadata().putAll(activity.getMetadata());
         }
         executor.execute(() -> viewers.forEach(DigitalTwinViewer::activitiesModified));
       }

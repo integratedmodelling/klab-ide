@@ -7,16 +7,13 @@ import com.brunomnsilva.smartgraph.graph.DigraphEdgeList;
 import com.brunomnsilva.smartgraph.graphview.ForceDirectedSpringGravityLayoutStrategy;
 import com.brunomnsilva.smartgraph.graphview.SmartCircularSortedPlacementStrategy;
 import com.brunomnsilva.smartgraph.graphview.SmartGraphPanel;
-
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import javafx.application.Platform;
 import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
-import org.integratedmodelling.cli.Test;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
 import org.integratedmodelling.klab.api.data.KnowledgeGraph;
@@ -26,16 +23,15 @@ import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedule;
 import org.integratedmodelling.klab.api.scope.ContextScope;
+import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
-import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.components.generic.Timeline;
 import org.integratedmodelling.klab.ide.components.treeviews.TreeModel;
 import org.kordamp.ikonli.evaicons.Evaicons;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
-import org.kordamp.ikonli.material2.Material2MZ;
 
 public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer {
 
@@ -105,7 +101,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
           updateGraphSafely();
         });
 
-    Spinner<Integer> spinner = new Spinner<>(1, 5, 2);
+    Spinner<Integer> spinner = new Spinner<>(1, 4, 2);
     spinner.setPrefWidth(100);
     IntegerStringConverter.createFor(spinner);
     spinner.setEditable(false);
@@ -474,9 +470,9 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   // Safely update the graph on the JavaFX application thread
   private void updateGraphSafely() {
     if (Platform.isFxApplicationThread()) {
-      updateGraph(/*scope.getFocalAssets()*/ );
+      updateGraph();
     } else {
-      Platform.runLater(() -> updateGraph(/*scope.getFocalAssets()*/ ));
+        Platform.runLater(this::updateGraph);
     }
   }
 
