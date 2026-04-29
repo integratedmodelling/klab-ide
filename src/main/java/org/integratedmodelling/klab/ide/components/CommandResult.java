@@ -22,6 +22,7 @@ import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.cli.FormattedString;
 import org.integratedmodelling.klab.api.configuration.Setting;
 import org.integratedmodelling.klab.api.exceptions.KlabCommandLineError;
+import org.integratedmodelling.klab.api.knowledge.Concept;
 import org.integratedmodelling.klab.api.knowledge.Resource;
 import org.integratedmodelling.klab.api.knowledge.Urn;
 import org.integratedmodelling.klab.api.lang.kim.KimObservable;
@@ -142,6 +143,8 @@ public class CommandResult extends BaseAssetViewComponent {
               // TODO implement table view
               yield null;
             }
+            case Concept concept ->
+                (Region) Theme.getDisplayObject(concept, Theme.Detail.ONE_LINER);
             //      case Tree tree ->
             //          content.getChildren().add(new TreeView(tree));
             //      case Collection collection ->
