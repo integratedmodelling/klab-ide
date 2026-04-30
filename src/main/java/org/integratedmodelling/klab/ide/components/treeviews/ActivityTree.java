@@ -7,6 +7,7 @@ import javafx.application.Platform;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
+import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
@@ -56,6 +57,16 @@ public class ActivityTree extends TreeTableView<Activity> {
           var icon = new IconLabel(ikon, 14, color);
           return new SimpleObjectProperty<>(icon);
         });
+
+    // Prevent double-click from expanding/collapsing tree nodes - doesn't work, and suppresses
+    // the OTHER behavior
+//    addEventFilter(
+//        MouseEvent.MOUSE_CLICKED,
+//        event -> {
+//          if (event.getClickCount() == 2 && event.getButton() == MouseButton.PRIMARY) {
+//            event.consume();
+//          }
+//        });
 
     descriptionColumn.prefWidthProperty().bind(widthProperty().subtract(40));
 
