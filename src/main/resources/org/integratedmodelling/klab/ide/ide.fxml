@@ -146,8 +146,9 @@
                         </StackPane>
                     </center>
                     <bottom>
-                        <Pane fx:id="inspectorArea" BorderPane.alignment="CENTER"
-                              style="-fx-background-color: -color-neutral-muted;"/>
+                        <!--style="-fx-background-color: -color-neutral-muted;"-->
+                        <StackPane fx:id="inspectorArea" prefHeight="300" visible="false" managed="false"
+                        />
                     </bottom>
                 </BorderPane>
             </center>

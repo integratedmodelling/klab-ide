@@ -956,8 +956,8 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   public InspectorView showInspector() {
     Platform.runLater(
         () -> {
-          HBox.setHgrow(inspectorView, Priority.ALWAYS);
-          inspectorArea.getChildren().add(inspectorView);
+//          HBox.setHgrow(inspectorView, Priority.ALWAYS);
+          inspectorArea.getChildren().setAll(inspectorView);
           inspectorIsOn = true;
           KlabIDEApplication.instance().setInspectorShown(true);
           NodeUtils.toggleVisibility(inspectorArea, true);
@@ -968,7 +968,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   public void hideInspector() {
     Platform.runLater(
         () -> {
-          inspectorArea.getChildren().removeAll(inspectorView);
+          inspectorArea.getChildren().clear();
           inspectorIsOn = false;
           KlabIDEApplication.instance().setInspectorShown(false);
           NodeUtils.toggleVisibility(inspectorArea, false);

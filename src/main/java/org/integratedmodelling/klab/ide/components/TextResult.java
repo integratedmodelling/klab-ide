@@ -3,9 +3,11 @@ package org.integratedmodelling.klab.ide.components;
 import atlantafx.base.controls.Message;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
@@ -29,6 +31,15 @@ public class TextResult extends VBox {
 
     this.message = new Message(title, text);
     this.message.setId("message");
+    this.message.setMaxWidth(Double.MAX_VALUE);
+
+    var scroller = new ScrollPane(this.message);
+    scroller.setFitToWidth(true);
+    scroller.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+    scroller.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+    scroller.setMinSize(0, 0);
+    scroller.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+    scroller.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
 
     var copy = new IconLabel(Material2AL.CONTENT_COPY, 12, Color.DARKGRAY);
     copy.setId("copy");
@@ -43,10 +54,17 @@ public class TextResult extends VBox {
           clipboard.setContent(ct);
         });
 
-    var content = new StackPane(this.message, copy);
+    var content = new StackPane(scroller, copy);
+    content.setMinSize(0, 0);
+    content.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
     StackPane.setAlignment(copy, Pos.TOP_RIGHT);
-    StackPane.setMargin(copy, new Insets(6, 8, 0, 0));
+    StackPane.setMargin(copy, new Insets(6, 20, 0, 0));
     getChildren().add(content);
+    setMinSize(0, 0);
+    setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+    HBox.setHgrow(this, Priority.ALWAYS);
+    VBox.setVgrow(this, Priority.ALWAYS);
+    HBox.setHgrow(content, Priority.ALWAYS);
     VBox.setVgrow(content, Priority.ALWAYS);
   }
 }
