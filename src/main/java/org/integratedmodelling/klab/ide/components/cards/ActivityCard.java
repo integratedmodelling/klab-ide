@@ -39,6 +39,13 @@ public class ActivityCard extends BaseCard<Activity> {
 
   private Node createBody() {
     if (extended) {
+      if (asset.getStackTrace() != null) {
+        var ret = new TextResult(asset.getStackTrace());
+        ret.setPrefHeight(230);
+        ret.setMaxHeight(230);
+        ret.setMessageStyle(Styles.BORDERED, Styles.DANGER, Styles.SMALL);
+        return ret;
+      }
       if (asset.getMetadata().containsKey("dataflow")) {
         var ret = new TextResult(asset.getMetadata().get("dataflow", String.class));
         ret.setPrefHeight(230);
