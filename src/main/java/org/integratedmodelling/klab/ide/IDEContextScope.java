@@ -33,10 +33,7 @@ import org.integratedmodelling.klab.api.scope.SessionScope;
 import org.integratedmodelling.klab.api.services.KlabService;
 import org.integratedmodelling.klab.api.services.RuntimeService;
 import org.integratedmodelling.klab.api.services.resolver.ResolutionConstraint;
-import org.integratedmodelling.klab.api.services.runtime.Channel;
-import org.integratedmodelling.klab.api.services.runtime.Dataflow;
-import org.integratedmodelling.klab.api.services.runtime.Message;
-import org.integratedmodelling.klab.api.services.runtime.Report;
+import org.integratedmodelling.klab.api.services.runtime.*;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultDirectedGraph;
@@ -205,6 +202,16 @@ public class IDEContextScope implements ContextScope {
   @Override
   public ContextScope createContext(DigitalTwin.Configuration configuration) {
     return delegate.createContext(configuration);
+  }
+
+  @Override
+  public boolean isEmpty() {
+    return delegate.isEmpty();
+  }
+
+  @Override
+  public Collection<Notification> getNotifications() {
+    return delegate.getNotifications();
   }
 
   @Override

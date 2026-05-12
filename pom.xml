@@ -33,6 +33,12 @@
                 </dependency>
         -->
         <dependency>
+            <groupId>com.dlsc.formsfx</groupId>
+            <artifactId>formsfx-core</artifactId>
+            <version>11.3.2</version>
+        </dependency>
+
+        <dependency>
             <groupId>io.github.mkpaz</groupId>
             <artifactId>devtoolsfx-gui</artifactId>
             <version>1.0.1</version>
