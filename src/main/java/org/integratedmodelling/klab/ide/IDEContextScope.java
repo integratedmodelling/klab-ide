@@ -237,8 +237,8 @@ public class IDEContextScope implements ContextScope {
 
   @Override
   public <T extends KlabService> Optional<T> findService(
-      Class<T> serviceClass, Predicate<T>... selectors) {
-    return delegate.findService(serviceClass, selectors);
+      Class<T> serviceClass, Predicate<T> selector) {
+    return delegate.findService(serviceClass, selector);
   }
 
   @Override
