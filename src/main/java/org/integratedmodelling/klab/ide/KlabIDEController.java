@@ -133,6 +133,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private IconLabel langIcon;
   private final KlabCommandLine cli =
       new ModelerCommandLine(() -> focalScope == null ? modeler().engine().getOwner() : focalScope);
+  private boolean knowledgeInitialized;
 
   private Map<KlabService, KlabService.ServiceStatus> serviceStatus = new ConcurrentHashMap<>() {};
   private ModalPane modalPane;
@@ -956,7 +957,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   public InspectorView showInspector() {
     Platform.runLater(
         () -> {
-//          HBox.setHgrow(inspectorView, Priority.ALWAYS);
+          //          HBox.setHgrow(inspectorView, Priority.ALWAYS);
           inspectorArea.getChildren().setAll(inspectorView);
           inspectorIsOn = true;
           KlabIDEApplication.instance().setInspectorShown(true);
@@ -1197,6 +1198,14 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
       var tooltip = serviceName; // FIXME use meaningful tooltip based on provision
 
       setButton(button, icon, 16, color, tooltip);
+    }
+
+    if (!knowledgeInitialized
+        && (status.getCondition() == Engine.Status.EngineCondition.ACTIVE_LOCAL_AND_REMOTE
+            || status.getCondition() == Engine.Status.EngineCondition.ACTIVE_LOCAL_ONLY)) {
+      knowledgeInitialized = true;
+//      var worldview = user.getWorldview();
+//      System.out.println("HAHA");
     }
   }
 
@@ -1501,12 +1510,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     return modeler.visualize(
         asset, event, mediaType, contextScope, visualizationOptions, outputType);
   }
-
-  //  @Override
-  //  public List<ContextScope> getOpenContexts() {
-  //    // TODO use focal scopes
-  //    return modeler.getOpenContexts();
-  //  }
 
   @Override
   public synchronized ContextScope createDefaultContext() {
