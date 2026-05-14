@@ -1204,8 +1204,10 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         && (status.getCondition() == Engine.Status.EngineCondition.ACTIVE_LOCAL_AND_REMOTE
             || status.getCondition() == Engine.Status.EngineCondition.ACTIVE_LOCAL_ONLY)) {
       knowledgeInitialized = true;
-//      var worldview = user.getWorldview();
-//      System.out.println("HAHA");
+      if (engine() instanceof EngineImpl engine) {
+        // ensure the next worldview request gets the local version
+        engine.resetWorldview();
+      }
     }
   }
 
