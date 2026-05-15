@@ -174,7 +174,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     var conceptButton = new Button("", new IconLabel(Theme.WORLDVIEW_ICON, 14, Color.BLACK));
     conceptButton.setOnAction(
         e -> {
-          var button = new Button("Dio è Porco. Click to agree");
+          var button = new Button("Dio è un MAIALE. Click to agree");
           button.setOnAction(ex -> KlabIDEController.instance().removeModalOverlay());
           KlabIDEController.instance().showInModalOverlay(button);
         });
