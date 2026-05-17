@@ -2,9 +2,7 @@ package org.integratedmodelling.klab.ide.components;
 
 import atlantafx.base.theme.Styles;
 import atlantafx.base.theme.Tweaks;
-
 import java.util.*;
-
 import javafx.application.Platform;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -30,17 +28,17 @@ import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableAsset;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableDocument;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableFolder;
+import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.KlabIDEApplication;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
-import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.ide.components.generic.TreeSearchField;
-import org.integratedmodelling.klab.ide.lsp.DiagnosticsService;
-import org.integratedmodelling.klab.ide.lsp.KlabLspService;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.integratedmodelling.klab.modeler.model.*;
 import org.integratedmodelling.klabeditor.MonacoEditorView;
+import org.integratedmodelling.klabeditor.lsp.DiagnosticsService;
+import org.integratedmodelling.klabeditor.lsp.KlabLspService;
 import org.kordamp.ikonli.bootstrapicons.BootstrapIcons;
 import org.kordamp.ikonli.carbonicons.CarbonIcons;
 import org.kordamp.ikonli.material2.Material2AL;
@@ -475,7 +473,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       // 1. LSP init for this workspace
       //      Path workspaceRoot = Paths.get(System.getProperty("user.home") + "/git/klab-ide");
       //      try {
-      if (!KlabLspService.getInstance().ensureInitialized()) {
+      if (!KlabLspService.getInstance()
+          .ensureInitialized(
+              KlabIDEController.instance().getLanguageServer(),
+              KlabIDEController.instance().user())) {
         KlabIDEController.instance()
             .handleNotification(
                 Notification.error("LSP Server is not running: no edit support available"));

@@ -233,6 +233,7 @@ public enum Theme {
       case CONCEPT_STATEMENT -> CONCEPT_DEFINITION_ICON;
       case SERVICE_IMPLEMENTATION -> COMPONENT_ICON;
       case OBSERVATION -> OBSERVATION_ICON;
+      case INFORMATION -> null; // shouldn't happen
     };
   }
 
