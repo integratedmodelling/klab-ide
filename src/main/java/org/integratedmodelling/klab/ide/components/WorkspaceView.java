@@ -233,7 +233,7 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
       NavigableContainer changedContainer,
       ResourceSet changes,
       Collection<NavigableAsset> changedAssets) {
-    System.out.println("Workspace modified: " + changedContainer);
+//    System.out.println("Workspace modified: " + changedContainer);
     var editor = openEditors.get(changedContainer.getUrn());
     if (editor != null && changedContainer instanceof NavigableWorkspace workspace) {
       editor.updateWorkspace(workspace, changes, changedAssets);

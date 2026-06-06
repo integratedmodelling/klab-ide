@@ -572,7 +572,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   private void saveDocument(String text, NavigableAsset asset) {
-    Logging.INSTANCE.info("Save document requested: " + asset.getUrn());
+//    Logging.INSTANCE.info("Save document requested: " + asset.getUrn());
     if (asset instanceof KlabDocument<?> document) {
       KlabIDEController.instance()
           .updateDocument(
