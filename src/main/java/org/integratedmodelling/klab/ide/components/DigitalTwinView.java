@@ -103,9 +103,10 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
     }
     // select whatever remains in the editor. When closing X with just X in the editor, X for some
     // reason remains selected, hence the check
-    var nextAsset = getSelectedAsset();
-    if (nextAsset != null && !nextAsset.getId().equals(asset.getEditedAsset().getId())) {
-      assetEditorSelected(asset);
+    var nextEditor = getSelectedEditor();
+    if (nextEditor instanceof DigitalTwinEditor digitalTwinEditor
+        && !digitalTwinEditor.getEditedAsset().getId().equals(asset.getEditedAsset().getId())) {
+      assetEditorSelected(digitalTwinEditor);
     } else {
       KlabIDEController.instance().setFocalScope(null, false);
     }

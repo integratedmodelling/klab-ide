@@ -729,7 +729,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   @Override
   public boolean isAffectedBy(IDEContextScope scope) {
-    return this.digitalTwinControlPanel.isAffectedBy(scope);
+    return this.digitalTwinControlPanel != null && this.digitalTwinControlPanel.isAffectedBy(scope);
   }
 
   @Override

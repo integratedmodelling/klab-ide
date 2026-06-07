@@ -143,6 +143,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
           if (KlabIDEController.instance().getFocalScope() != null) {
             setDigitalTwin(KlabIDEController.instance().getFocalScope(), true);
           }
+          KlabIDEController.instance().digitalTwinPanelStateChanged(this);
         });
   }
 
@@ -159,14 +160,18 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
     //    if (!digitalTwinControlPanel.isVisible()) {
     Platform.runLater(
         () -> {
+          if (!hasDigitalTwinControlPanel()) {
+            KlabIDEController.instance().digitalTwinPanelStateChanged(this);
+            return;
+          }
           //            NodeUtils.toggleVisibility(digitalTwinControlPanel, true);
           //            NodeUtils.toggleVisibility(
           //                digitalTwinControlPanel.getParent().getChildrenUnmodifiable().get(0),
           // false);
           if (!container.getChildren().contains(digitalTwinControlPanel)) {
             this.container.getChildren().add(digitalTwinControlPanel);
-            KlabIDEController.instance().digitalTwinPanelShown(this, digitalTwinControlPanel);
           }
+          KlabIDEController.instance().digitalTwinPanelShown(this, digitalTwinControlPanel);
         });
     //    }
   }
@@ -175,22 +180,38 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
     //    if (digitalTwinControlPanel.isVisible()) {
     Platform.runLater(
         () -> {
+          if (!hasDigitalTwinControlPanel()) {
+            KlabIDEController.instance().digitalTwinPanelStateChanged(this);
+            return;
+          }
           //          digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.IDLE);
           //          NodeUtils.toggleVisibility(digitalTwinControlPanel, false);
           if (container.getChildren().contains(digitalTwinControlPanel)) {
             this.container.getChildren().remove(digitalTwinControlPanel);
-            KlabIDEController.instance().digitalTwinPanelHidden(this, digitalTwinControlPanel);
           }
+          KlabIDEController.instance().digitalTwinPanelHidden(this, digitalTwinControlPanel);
         });
     //    }
   }
 
   public void toggleDigitalTwinControlPanel() {
-    if (container.getChildren().contains(digitalTwinControlPanel)) {
+    if (!hasDigitalTwinControlPanel()) {
+      return;
+    }
+    if (isDigitalTwinControlPanelShown()) {
       hideDigitalTwinControlPanel();
     } else {
       showDigitalTwinControlPanel();
     }
+  }
+
+  public boolean hasDigitalTwinControlPanel() {
+    return container != null && digitalTwinControlPanel != null;
+  }
+
+  public boolean isDigitalTwinControlPanelShown() {
+    return hasDigitalTwinControlPanel()
+        && container.getChildren().contains(digitalTwinControlPanel);
   }
 
   public void edit(T asset) {
@@ -230,7 +251,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
   @Override
   public void setDigitalTwin(IDEContextScope contextScope, boolean focus) {
     // TODO should have a switcher if not dedicated.
-    if (focus) {
+    if (hasDigitalTwinControlPanel() && (focus || contextScope == null)) {
       digitalTwinControlPanel.setDigitalTwin(contextScope, focus);
       //      digitalTwinLabel.setText(contextScope == null ? "" : contextScope.getName());
     }

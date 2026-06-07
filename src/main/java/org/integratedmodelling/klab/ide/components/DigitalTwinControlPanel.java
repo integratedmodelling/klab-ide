@@ -174,7 +174,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     var conceptButton = new Button("", new IconLabel(Theme.WORLDVIEW_ICON, 14, Color.BLACK));
     conceptButton.setOnAction(
         e -> {
-          var button = new Button("Dio è un MAIALE. Click to agree");
+          var button = new Button("PLACEHOLDER FOR FUTURE CONCEPT SEARCH");
           button.setOnAction(ex -> KlabIDEController.instance().removeModalOverlay());
           KlabIDEController.instance().showInModalOverlay(button);
         });
@@ -505,7 +505,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   @Override
   public boolean isAffectedBy(IDEContextScope scope) {
-    return this.scope.getId().equals(scope.getId());
+    return this.scope != null && scope != null && this.scope.getId().equals(scope.getId());
   }
 
   @Override

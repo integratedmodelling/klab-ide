@@ -46,7 +46,6 @@ import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.Klab;
 import org.integratedmodelling.klab.api.authentication.ExternalAuthenticationCredentials;
 import org.integratedmodelling.klab.api.cli.CLI;
-import org.integratedmodelling.klab.api.collections.Pair;
 import org.integratedmodelling.klab.api.configuration.Setting;
 import org.integratedmodelling.klab.api.data.RepositoryState;
 import org.integratedmodelling.klab.api.data.Version;
@@ -123,8 +122,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private Button digitalTwinButton;
   //  private Label digitalTwinLabel;
   private EditorPage<?, ?> currentEditorPage; // keep this to interact with the DT
-  private Pair<EditorPage<?, ?>, DigitalTwinControlPanel> digitalTwinPanelShown =
-      Pair.of(null, null);
   private Button dtResetButton;
   private Button dtSwitchButton;
   private MenuButton digitalTwinSwitcher;
@@ -137,6 +134,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   private Map<KlabService, KlabService.ServiceStatus> serviceStatus = new ConcurrentHashMap<>() {};
   private ModalPane modalPane;
+  private boolean modalEscHandlerInstalled;
   private final EventHandler<KeyEvent> escHandler =
       event -> {
         if (event.getCode() == KeyCode.ESCAPE) {
@@ -151,34 +149,33 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   public <T, A> void digitalTwinPanelShown(
       EditorPage<A, T> atEditorPage, DigitalTwinControlPanel digitalTwinControlPanel) {
-    digitalTwinPanelShown = Pair.of(atEditorPage, digitalTwinControlPanel);
-    digitalTwinButton.setDisable(false);
-    dtSwitchButton.setDisable(false);
-    digitalTwinButton.setGraphic(
-        new IconLabel(FontAwesomeSolid.ARROW_CIRCLE_DOWN, 14, Color.DARKGREEN));
-    dtResetButton.setGraphic(new IconLabel(FontAwesomeSolid.TIMES_CIRCLE, 14, Color.DARKRED));
+    digitalTwinPanelStateChanged(atEditorPage);
     //    digitalTwinLabel.getSelectionModel().select(digitalTwinControlPanel.getScope());
   }
 
   public <T, A> void digitalTwinPanelHidden(
       EditorPage<A, T> atEditorPage, DigitalTwinControlPanel digitalTwinControlPanel) {
-    digitalTwinButton.setDisable(false);
-    dtSwitchButton.setDisable(false);
-    digitalTwinPanelShown = Pair.of(null, null);
-    digitalTwinButton.setGraphic(
-        new IconLabel(FontAwesomeSolid.ARROW_CIRCLE_UP, 14, Color.DARKGREEN));
-    dtResetButton.setGraphic(new IconLabel(FontAwesomeSolid.TIMES_CIRCLE, 14, Color.DARKRED));
+    digitalTwinPanelStateChanged(atEditorPage);
     //      digitalTwinLabel.setText(digitalTwinControlPanel.getScope().getName());
+  }
+
+  public void digitalTwinPanelStateChanged(EditorPage<?, ?> editorPage) {
+    refreshDigitalTwinControls();
   }
 
   public void setFocalEditor(EditorPage<?, ?> editorPage, boolean visible) {
     if (visible) {
       Logging.INSTANCE.info("Setting focal editor to " + editorPage.getEditedAsset());
+      if (isSelectedEditorInCurrentView(editorPage)) {
+        this.currentEditorPage = editorPage;
+      }
     } else {
       Logging.INSTANCE.info("Removing focal editor for " + editorPage.getEditedAsset());
+      if (this.currentEditorPage == editorPage) {
+        this.currentEditorPage = getSelectedEditorInCurrentView();
+      }
     }
-    // TODO set status bar based on whether there is a DT
-    this.currentEditorPage = editorPage;
+    refreshDigitalTwinControls();
   }
 
   public LocalInstance getInstance(KlabService service) {
@@ -255,7 +252,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     this.focalScope = focalScope;
     synchronized (this.digitalTwinReactors) {
       for (var reactor : this.digitalTwinReactors) {
-        reactor.setDigitalTwin(focalScope, isLocal);
+        reactor.setDigitalTwin(focalScope, focalScope != null);
       }
     }
     updateDigitalTwinChoices();
@@ -292,7 +289,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
           digitalTwinSwitcher.setText(
               focalScope == null ? "No digital twin" : focalScope.getName());
-          digitalTwinButton.setDisable(focalScope == null);
           dtResetButton.setDisable(focalScope == null);
           dtSwitchButton.setDisable(focalScope == null);
           digitalTwinSwitcher.setTooltip(
@@ -301,7 +297,73 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
           if (focalScope != null) {
             digitalTwinView.showDigitalTwin(focalScope);
           }
+          refreshDigitalTwinControls();
         });
+  }
+
+  private void refreshDigitalTwinControls() {
+    if (digitalTwinButton == null || dtResetButton == null || dtSwitchButton == null) {
+      return;
+    }
+
+    Runnable update =
+        () -> {
+          currentEditorPage = getSelectedEditorInCurrentView();
+          var panelReady =
+              currentEditorPage != null && currentEditorPage.hasDigitalTwinControlPanel();
+          var panelShown =
+              panelReady && currentEditorPage.isDigitalTwinControlPanelShown();
+          var hasFocalScope = focalScope != null;
+
+          digitalTwinButton.setDisable(!hasFocalScope || !panelReady);
+          digitalTwinButton.setGraphic(
+              new IconLabel(
+                  panelShown
+                      ? FontAwesomeSolid.ARROW_CIRCLE_DOWN
+                      : FontAwesomeSolid.ARROW_CIRCLE_UP,
+                  14,
+                  Color.DARKGREEN));
+          digitalTwinButton.setTooltip(
+              new Tooltip(
+                  panelShown
+                      ? "Hide Digital Twin Control Panel"
+                      : "Show Digital Twin Control Panel"));
+
+          dtResetButton.setDisable(!hasFocalScope);
+          dtResetButton.setGraphic(new IconLabel(FontAwesomeSolid.TIMES_CIRCLE, 14, Color.DARKRED));
+          dtSwitchButton.setDisable(!hasFocalScope);
+        };
+
+    if (Platform.isFxApplicationThread()) {
+      update.run();
+    } else {
+      Platform.runLater(update);
+    }
+  }
+
+  private EditorPage<?, ?> getSelectedEditorInCurrentView() {
+    var currentUI = getViewNode(currentView);
+    return currentUI instanceof BrowsablePage<?, ?> browsablePage
+        ? browsablePage.getSelectedEditor()
+        : null;
+  }
+
+  private boolean isSelectedEditorInCurrentView(EditorPage<?, ?> editorPage) {
+    return editorPage != null && editorPage == getSelectedEditorInCurrentView();
+  }
+
+  private Node getViewNode(View view) {
+    if (view == null) {
+      return null;
+    }
+    return switch (view) {
+      case NOTEBOOK -> notebook;
+      case RESOURCES -> resourcesView;
+      case DIGITAL_TWINS -> digitalTwinView;
+      case WORKSPACES -> workspaceView;
+      case APPLICATIONS -> applicationView;
+      case WORLDVIEW -> ontologyView;
+    };
   }
 
   public IDEContextScope getFocalScope() {
@@ -479,21 +541,21 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
       }
     }
 
-    var ui =
-        switch (view) {
-          case NOTEBOOK -> notebook;
-          case RESOURCES -> resourcesView;
-          case DIGITAL_TWINS -> digitalTwinView;
-          case WORKSPACES -> workspaceView;
-          case APPLICATIONS -> applicationView;
-          case WORLDVIEW -> ontologyView;
-        };
+    var ui = getViewNode(view);
+
+    currentEditorPage = getSelectedEditorInCurrentView();
+    refreshDigitalTwinControls();
 
     // switch the main area to the requested view.
     Platform.runLater(
         () -> {
-          mainArea.getChildren().remove(0, mainArea.getChildren().size());
-          mainArea.getChildren().add(ui);
+          mainArea.getChildren().removeIf(child -> child != modalPane);
+          mainArea.getChildren().add(0, ui);
+          if (modalPane != null) {
+            ensureModalPaneAttached();
+          }
+          currentEditorPage = getSelectedEditorInCurrentView();
+          refreshDigitalTwinControls();
           // If it's a browser and it's empty with no tabs open, open the browser
           if (ui instanceof BrowsablePage<?, ?> browsablePage && browsablePage.isEmpty()) {
             // FIXME not working - the browser won't show in every view but the UI will hang.
@@ -596,6 +658,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     }
 
     setStatusBar();
+    ensureModalPaneAttached();
 
     this.dbIcon = new IconLabel(MaterialDesign.MDI_DATABASE, 11, Color.DARKGRAY);
     this.langIcon = new IconLabel(CarbonIcons.LANGUAGE, 11, Color.DARKGRAY);
@@ -715,55 +778,59 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
     Platform.runLater(
         () -> {
-          if (modalPane == null) {
-            modalPane = new ModalPane();
-            modalPane.setAlignment(Pos.CENTER);
-            // Ensure the modal pane is added at the top of the z-order
-            if (!mainArea.getChildren().contains(modalPane)) {
-              mainArea.getChildren().add(modalPane);
-            }
-          }
-
-          // Ensure the modal pane is at the front
-          if (mainArea.getChildren().contains(modalPane)) {
-            modalPane.toFront();
-          }
-
-          // Add event filter before showing
-          if (mainArea.getScene() != null) {
+          ensureModalPaneAttached();
+          if (!modalEscHandlerInstalled && mainArea.getScene() != null) {
             mainArea.getScene().addEventFilter(KeyEvent.KEY_PRESSED, escHandler);
+            modalEscHandlerInstalled = true;
           }
 
-          // Force layout pass before showing to ensure proper rendering
+          mainArea.applyCss();
+          modalPane.applyCss();
+          mainArea.layout();
           modalPane.layout();
-
-          // Use requestLayout to ensure the modal pane is properly sized
-          modalPane.requestLayout();
-
-          // Show the modal with the content
           modalPane.show(node);
-
-          // Request focus to ensure visibility
+          modalPane.toFront();
           modalPane.requestFocus();
         });
+  }
+
+  private void ensureModalPaneAttached() {
+    if (modalPane == null) {
+      modalPane = new ModalPane();
+      modalPane.setAlignment(Pos.CENTER);
+      modalPane.setPickOnBounds(true);
+      modalPane.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+      modalPane.prefWidthProperty().bind(mainArea.widthProperty());
+      modalPane.prefHeightProperty().bind(mainArea.heightProperty());
+      if (mainArea instanceof StackPane) {
+        StackPane.setAlignment(modalPane, Pos.CENTER);
+      }
+    }
+    if (!mainArea.getChildren().contains(modalPane)) {
+      mainArea.getChildren().add(modalPane);
+    }
+    modalPane.toFront();
   }
 
   public void removeModalOverlay() {
     Platform.runLater(
         () -> {
           if (modalPane != null) {
-            if (mainArea.getScene() != null) {
+            if (modalEscHandlerInstalled && mainArea.getScene() != null) {
               mainArea.getScene().removeEventFilter(KeyEvent.KEY_PRESSED, escHandler);
             }
+            modalEscHandlerInstalled = false;
             modalPane.hide();
           }
         });
   }
 
   private void toggleDigitalTwinControlPanel() {
+    currentEditorPage = getSelectedEditorInCurrentView();
     if (currentEditorPage != null) {
       currentEditorPage.toggleDigitalTwinControlPanel();
     }
+    refreshDigitalTwinControls();
   }
 
   private void handleStartButtonPress() {
