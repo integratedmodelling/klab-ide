@@ -32,18 +32,27 @@ import org.integratedmodelling.klab.ide.components.treeviews.TreeModel;
 import org.kordamp.ikonli.evaicons.Evaicons;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
+import org.kordamp.ikonli.material2.Material2MZ;
 
 public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer {
+
+  private record GraphViewState(RuntimeAsset root, RuntimeAsset focus) {}
 
   private final ClientKnowledgeGraph knowledgeGraph;
   private final IDEContextScope scope;
   private final DigitalTwinEditor editor;
   private final MenuButton homeButton;
+  private final Button backButton;
+  private final Button forwardButton;
   private SmartGraphPanel<RuntimeAsset, ClientKnowledgeGraph.Relationship> graphView;
   private Set<GraphModel.Relationship> visibleRelationships =
       EnumSet.of(GraphModel.Relationship.HAS_CHILD, GraphModel.Relationship.HAS_MEMBER);
   private Set<RuntimeAsset.Type> visibleTypes =
       EnumSet.of(RuntimeAsset.Type.OBSERVATION, RuntimeAsset.Type.COHORT);
+  private RuntimeAsset localGraphRoot;
+  private RuntimeAsset localGraphFocus;
+  private final Deque<GraphViewState> backStates = new ArrayDeque<>();
+  private final Deque<GraphViewState> forwardStates = new ArrayDeque<>();
 
   // Queue to store pending updates until the graph is ready
   private List<RuntimeAsset> pendingFocalAssets = null;
@@ -61,6 +70,8 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     this.scope = KlabIDEController.instance().requireDigitalTwinPeer(contextScope, this);
     this.knowledgeGraph = knowledgeGraph;
     this.editor = editor;
+    this.localGraphRoot = defaultGraphRoot(scope.getFocalRoot());
+    this.localGraphFocus = scope.getFocalAsset();
 
     HBox controls = new HBox(2);
     controls.getStyleClass().add(Styles.SMALL);
@@ -97,9 +108,21 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
           homeButton.setGraphic(new FontIcon(Material2AL.HOME));
           scope.setFocalAssets(RuntimeAsset.CONTEXT_ASSET, null);
           editor.getKnowledgeTree().update(RuntimeAsset.CONTEXT_ASSET, null);
-          graphView.setAutomaticLayout(true);
-          updateGraphSafely();
+          resetGraphNavigation(RuntimeAsset.CONTEXT_ASSET, null);
         });
+
+    this.backButton = new Button();
+    backButton.setGraphic(new FontIcon(Material2MZ.NAVIGATE_BEFORE));
+    backButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT, Styles.SMALL);
+    backButton.setTooltip(new Tooltip("Previous graph view"));
+    backButton.setOnAction(event -> showPreviousGraphView());
+
+    this.forwardButton = new Button();
+    forwardButton.setGraphic(new FontIcon(Material2MZ.NAVIGATE_NEXT));
+    forwardButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT, Styles.SMALL);
+    forwardButton.setTooltip(new Tooltip("Next graph view"));
+    forwardButton.setOnAction(event -> showNextGraphView());
+    updateNavigationButtons();
 
     Spinner<Integer> spinner = new Spinner<>(1, 4, 2);
     spinner.setPrefWidth(100);
@@ -122,8 +145,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
         .addListener(
             (observable, oldValue, newValue) -> {
               scope.setGraphDepth(newValue);
-              graphView.setAutomaticLayout(true);
-              updateGraphSafely();
+              requestGraphRedraw();
             });
     redrawButton.setOnAction(
         event -> {
@@ -138,8 +160,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
               } else {
                 visibleRelationships.remove(GraphModel.Relationship.AFFECTS);
               }
-              graphView.setAutomaticLayout(true);
-              updateGraphSafely();
+              requestGraphRedraw();
             });
     dataSwitch
         .selectedProperty()
@@ -149,11 +170,10 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
                 visibleTypes.add(RuntimeAsset.Type.DATA);
                 visibleRelationships.add(GraphModel.Relationship.HAS_DATA);
               } else {
-                visibleTypes.add(RuntimeAsset.Type.DATA);
+                visibleTypes.remove(RuntimeAsset.Type.DATA);
                 visibleRelationships.remove(GraphModel.Relationship.HAS_DATA);
               }
-              graphView.setAutomaticLayout(true);
-              updateGraphSafely();
+              requestGraphRedraw();
             });
     activitiesSwitch
         .selectedProperty()
@@ -174,8 +194,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
                 visibleRelationships.remove(GraphModel.Relationship.TRIGGERED);
                 visibleRelationships.remove(GraphModel.Relationship.HAS_PROVENANCE);
               }
-              graphView.setAutomaticLayout(true);
-              updateGraphSafely();
+              requestGraphRedraw();
             });
     actuatorsSwitch
         .selectedProperty()
@@ -194,8 +213,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
                 visibleRelationships.remove(GraphModel.Relationship.HAS_PLAN);
                 visibleRelationships.remove(GraphModel.Relationship.HAS_DATAFLOW);
               }
-              graphView.setAutomaticLayout(true);
-              updateGraphSafely();
+              requestGraphRedraw();
             });
     cohortsSwitch
         .selectedProperty()
@@ -208,14 +226,13 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
                 visibleRelationships.remove(GraphModel.Relationship.CREATED);
                 visibleTypes.remove(RuntimeAsset.Type.COHORT);
               }
-              graphView.setAutomaticLayout(true);
-              updateGraphSafely();
+              requestGraphRedraw();
             });
 
     switchesBox
         .getChildren()
         .addAll(affectedSwitch, dataSwitch, activitiesSwitch, actuatorsSwitch, cohortsSwitch);
-    HBox spinnerBox = new HBox(homeButton, spinner, redrawButton);
+    HBox spinnerBox = new HBox(backButton, forwardButton, homeButton, spinner, redrawButton);
     HBox.setHgrow(spinnerBox, javafx.scene.layout.Priority.ALWAYS);
     controls.getChildren().addAll(spinnerBox, switchesBox);
     this.setTop(controls);
@@ -241,11 +258,11 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   private void redrawGraph() {
     if (isGraphViewReady()) {
       for (int i = 0; i < 1; i++) {
-        updateGraph();
         graphView.setAutomaticLayout(true);
+        updateGraph();
       }
     } else {
-      // TODO enqueue event for when graph comes into view
+      changePending.set(true);
     }
   }
 
@@ -271,8 +288,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
             if (asset instanceof Asset wrapper) {
               asset = wrapper.getDelegate();
             }
-            //            this.editor.selectAsset(asset);
-            this.scope.setFocalAssets(this.scope.getFocalRoot(), asset);
+            showGraphCenteredOn(asset);
           });
 
       graphView.setEdgeDoubleClickAction(
@@ -368,12 +384,12 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     clear();
     var graph =
         TreeModel.createGraph(
-            scope.getFocalRoot(),
+            currentGraphRoot(),
             scope.getGraphDepth(),
             scope,
             visibleTypes,
             visibleRelationships,
-            scope.getFocalAsset());
+            currentGraphFocus());
 
     var cache = new HashMap<Long, Asset>();
     for (var vertex : graph.vertexSet()) {
@@ -407,6 +423,10 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
 
   @Override
   public void submissionFinished(Observation observation) {
+    Platform.runLater(() -> handleSubmissionFinished(observation));
+  }
+
+  private void handleSubmissionFinished(Observation observation) {
     var root =
         observation.getMetadata().containsKey(Metadata.IM_COMMIT)
             ? observation.getMetadata().get(Metadata.IM_COMMIT, KnowledgeGraph.Commit.class)
@@ -419,12 +439,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
           homeButton.setGraphic(new FontIcon(Evaicons.DOWNLOAD));
           scope.setFocalAssets(root, observation);
           editor.getKnowledgeTree().update(root, observation);
-          if (graphView == null) {
-            this.changePending.set(true);
-          } else {
-            graphView.setAutomaticLayout(true);
-            updateGraphSafely();
-          }
+          resetGraphNavigation(root, observation);
         });
     homeMenuItem.fire();
   }
@@ -467,12 +482,100 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     this.graphViewReady = graphViewReady;
   }
 
+  private RuntimeAsset defaultGraphRoot(RuntimeAsset root) {
+    return root == null ? RuntimeAsset.CONTEXT_ASSET : root;
+  }
+
+  private RuntimeAsset currentGraphRoot() {
+    return defaultGraphRoot(localGraphRoot);
+  }
+
+  private RuntimeAsset currentGraphFocus() {
+    return localGraphFocus;
+  }
+
+  private GraphViewState currentGraphViewState() {
+    return new GraphViewState(currentGraphRoot(), currentGraphFocus());
+  }
+
+  private void resetGraphNavigation(RuntimeAsset root, RuntimeAsset focus) {
+    this.localGraphRoot = defaultGraphRoot(root);
+    this.localGraphFocus = focus;
+    this.backStates.clear();
+    this.forwardStates.clear();
+    updateNavigationButtons();
+    requestGraphRedraw();
+  }
+
+  private void showGraphCenteredOn(RuntimeAsset asset) {
+    if (asset == null) {
+      return;
+    }
+    if (sameAsset(currentGraphRoot(), asset)) {
+      requestGraphRedraw();
+      return;
+    }
+    backStates.push(currentGraphViewState());
+    forwardStates.clear();
+    localGraphRoot = asset;
+    localGraphFocus = asset;
+    updateNavigationButtons();
+    requestGraphRedraw();
+  }
+
+  private void showPreviousGraphView() {
+    if (backStates.isEmpty()) {
+      return;
+    }
+    forwardStates.push(currentGraphViewState());
+    applyGraphViewState(backStates.pop());
+    requestGraphRedraw();
+  }
+
+  private void showNextGraphView() {
+    if (forwardStates.isEmpty()) {
+      return;
+    }
+    backStates.push(currentGraphViewState());
+    applyGraphViewState(forwardStates.pop());
+    requestGraphRedraw();
+  }
+
+  private void applyGraphViewState(GraphViewState state) {
+    this.localGraphRoot = defaultGraphRoot(state.root());
+    this.localGraphFocus = state.focus();
+    updateNavigationButtons();
+  }
+
+  private boolean sameAsset(RuntimeAsset first, RuntimeAsset second) {
+    if (first == second) {
+      return true;
+    }
+    if (first == null || second == null) {
+      return false;
+    }
+    return first.getId() == second.getId() && first.classify() == second.classify();
+  }
+
+  private void updateNavigationButtons() {
+    backButton.setDisable(backStates.isEmpty());
+    forwardButton.setDisable(forwardStates.isEmpty());
+  }
+
+  private void requestGraphRedraw() {
+    if (Platform.isFxApplicationThread()) {
+      redrawGraph();
+    } else {
+      Platform.runLater(this::redrawGraph);
+    }
+  }
+
   // Safely update the graph on the JavaFX application thread
   private void updateGraphSafely() {
     if (Platform.isFxApplicationThread()) {
       updateGraph();
     } else {
-        Platform.runLater(this::updateGraph);
+      Platform.runLater(this::updateGraph);
     }
   }
 
