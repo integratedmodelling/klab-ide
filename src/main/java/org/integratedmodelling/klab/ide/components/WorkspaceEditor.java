@@ -229,11 +229,13 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                 op.description(),
                 new IconLabel(
                     switch (op) {
-                      case FETCH_COMMIT_AND_PUSH -> MaterialDesign.MDI_CLOUD_SYNC;
-                      case FETCH_AND_MERGE -> MaterialDesign.MDI_CLOUD_DOWNLOAD;
+                      case SYNC_AND_PUBLISH -> MaterialDesign.MDI_CLOUD_SYNC;
+                      case GET_LATEST -> MaterialDesign.MDI_CLOUD_DOWNLOAD;
                       case COMMIT_AND_SWITCH -> MaterialDesign.MDI_SOURCE_BRANCH;
-                      case HARD_RESET -> MaterialDesign.MDI_RELOAD;
+                      case DISCARD_LOCAL_CHANGES -> MaterialDesign.MDI_RELOAD;
                       case MERGE_CHANGES_FROM -> MaterialDesign.MDI_GIT;
+                      case PUBLISH_CHANGES -> MaterialDesign.MDI_CLOUD_UPLOAD;
+                      case SAVE_CHANGES -> MaterialDesign.MDI_CONTENT_SAVE;
                     },
                     16,
                     Theme.FOREGROUND_COLOR));
@@ -572,7 +574,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   private void saveDocument(String text, NavigableAsset asset) {
-//    Logging.INSTANCE.info("Save document requested: " + asset.getUrn());
+    //    Logging.INSTANCE.info("Save document requested: " + asset.getUrn());
     if (asset instanceof KlabDocument<?> document) {
       KlabIDEController.instance()
           .updateDocument(
