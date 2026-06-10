@@ -12,9 +12,9 @@ import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
-import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.authentication.CRUDOperation;
+import org.integratedmodelling.klab.api.configuration.Setting;
 import org.integratedmodelling.klab.api.data.RepositoryState;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
@@ -224,6 +224,17 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     } else {
 
       for (var op : RepositoryState.Operation.values()) {
+
+        // these are confusing unless you know what they do
+        if (!KlabIDEController.instance()
+                .engine()
+                .getSettings()
+                .get(Setting.LIST_LOCAL_COMMIT_OPERATIONS, Boolean.class)
+            && (op == RepositoryState.Operation.PUBLISH_CHANGES
+                || op == RepositoryState.Operation.SAVE_CHANGES)) {
+          continue;
+        }
+
         var teamOperation =
             new MenuItem(
                 op.description(),

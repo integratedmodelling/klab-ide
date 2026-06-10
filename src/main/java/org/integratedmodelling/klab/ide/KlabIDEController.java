@@ -131,6 +131,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private final KlabCommandLine cli =
       new ModelerCommandLine(() -> focalScope == null ? modeler().engine().getOwner() : focalScope);
   private boolean knowledgeInitialized;
+  private final AtomicBoolean localServiceActionRunning = new AtomicBoolean(false);
 
   private Map<KlabService, KlabService.ServiceStatus> serviceStatus = new ConcurrentHashMap<>() {};
   private ModalPane modalPane;
@@ -311,8 +312,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
           currentEditorPage = getSelectedEditorInCurrentView();
           var panelReady =
               currentEditorPage != null && currentEditorPage.hasDigitalTwinControlPanel();
-          var panelShown =
-              panelReady && currentEditorPage.isDigitalTwinControlPanelShown();
+          var panelShown = panelReady && currentEditorPage.isDigitalTwinControlPanelShown();
           var hasFocalScope = focalScope != null;
 
           digitalTwinButton.setDisable(!hasFocalScope || !panelReady);
@@ -840,13 +840,54 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
             ? Engine.Status.EngineCondition.INOPERATIVE
             : engineStatus.get().getCondition();
 
-    switch (condition) {
-      case INOPERATIVE, ACTIVE_REMOTE_ONLY ->
-          KlabIDEController.modeler().engine().startLocalServices();
-      case ACTIVE_LOCAL_ONLY, ACTIVE_LOCAL_AND_REMOTE ->
-          KlabIDEController.modeler().engine().stopLocalServices();
-      case TRANSITIONING -> Toolkit.getDefaultToolkit().beep();
+    if (condition == Engine.Status.EngineCondition.TRANSITIONING
+        || !localServiceActionRunning.compareAndSet(false, true)) {
+      Toolkit.getDefaultToolkit().beep();
+      return;
     }
+
+    setButton(
+        startButton,
+        BootstrapIcons.CLOCK,
+        16,
+        Color.DARKGOLDENROD,
+        "Local services are starting or stopping. Wait until status changes.");
+    setStartButtonDisabled(true);
+
+    Thread.ofVirtual()
+        .name("klab-local-services-action")
+        .start(
+            () -> {
+              try {
+                switch (condition) {
+                  case INOPERATIVE, ACTIVE_REMOTE_ONLY ->
+                      KlabIDEController.modeler().engine().startLocalServices();
+                  case ACTIVE_LOCAL_ONLY, ACTIVE_LOCAL_AND_REMOTE ->
+                      KlabIDEController.modeler().engine().stopLocalServices();
+                  case TRANSITIONING -> {
+                    // Already handled before starting the worker.
+                  }
+                }
+              } catch (Throwable throwable) {
+                Logging.INSTANCE.error(throwable);
+              } finally {
+                var currentStatus = engineStatus.get();
+                if (currentStatus == null
+                    || currentStatus.getCondition()
+                        != Engine.Status.EngineCondition.TRANSITIONING) {
+                  localServiceActionRunning.set(false);
+                }
+                if (currentStatus != null) {
+                  engineStatusChanged(currentStatus);
+                } else {
+                  setStartButtonDisabled(false);
+                }
+              }
+            });
+  }
+
+  private void setStartButtonDisabled(boolean disabled) {
+    Platform.runLater(() -> startButton.setDisable(disabled));
   }
 
   public boolean handleNotification(Notification notification) {
@@ -1084,15 +1125,21 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     engineStatus.set(status);
 
     switch (status.getCondition()) {
-      case TRANSITIONING ->
-          setButton(
-              startButton,
-              BootstrapIcons.CLOCK,
-              16,
-              Color.DARKGOLDENROD,
-              "Local services are starting or stopping. Wait until status changes.");
+      case TRANSITIONING -> {
+        localServiceActionRunning.set(true);
+        setStartButtonDisabled(true);
+        setButton(
+            startButton,
+            BootstrapIcons.CLOCK,
+            16,
+            Color.DARKGOLDENROD,
+            "Local services are starting or stopping. Wait until status changes.");
+      }
       case INOPERATIVE, ACTIVE_REMOTE_ONLY -> {
-        if (engine().hasValidSoftwareStack()) {
+        localServiceActionRunning.set(false);
+        var hasValidSoftwareStack = engine().hasValidSoftwareStack();
+        setStartButtonDisabled(!hasValidSoftwareStack);
+        if (hasValidSoftwareStack) {
           setButton(
               startButton,
               BootstrapIcons.POWER,
@@ -1109,6 +1156,8 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         }
       }
       case ACTIVE_LOCAL_ONLY, ACTIVE_LOCAL_AND_REMOTE -> {
+        localServiceActionRunning.set(false);
+        setStartButtonDisabled(false);
         setButton(
             startButton,
             BootstrapIcons.STOP,
@@ -1448,6 +1497,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
       icon = BootstrapIcons.LAPTOP;
       tooltip = "Using locally available source k.LAB distribution";
       startTooltip = "Start local k.LAB services";
+      startButton.setDisable(false);
 
     } else {
 
