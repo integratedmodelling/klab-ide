@@ -1,8 +1,9 @@
 package org.integratedmodelling.klab.ide;
 
 import java.io.IOException;
-
+import java.util.concurrent.atomic.AtomicBoolean;
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
 import javafx.scene.image.Image;
@@ -19,6 +20,8 @@ public class KlabIDEApplication extends Application {
 
   private boolean inspectorShown;
   private static Stage primaryStage;
+  private KlabIDEController controller;
+  private final AtomicBoolean shutdownRequested = new AtomicBoolean(false);
 
   @Override
   public void start(Stage stage) throws IOException {
@@ -37,18 +40,32 @@ public class KlabIDEApplication extends Application {
 
     FXMLLoader fxmlLoader = new FXMLLoader(KlabIDEApplication.class.getResource("ide.fxml"));
     scene = new Scene(fxmlLoader.load(), 1480, 1060);
+    controller = fxmlLoader.getController();
+    Runtime.getRuntime()
+        .addShutdownHook(new Thread(this::shutdownController, "klab-ide-shutdown"));
     scene.getStylesheets().add(getClass().getResource("custom.css").toExternalForm());
     stage.setTitle("k.LAB Modeler :: v1.0 pre-alpha :: © 2025 Integrated Modelling Partnership");
     stage.setOnCloseRequest(
         event -> {
-          /* TODO save status, ask to stop engine etc. */
-          System.exit(0);
+          Platform.exit();
         });
     stage.setScene(scene);
     //    // Initialize the notification manager
     //    this.notificationManager = new NotificationManager(scene);
 
     stage.show();
+  }
+
+  @Override
+  public void stop() {
+    shutdownController();
+    System.exit(0);
+  }
+
+  private void shutdownController() {
+    if (shutdownRequested.compareAndSet(false, true) && controller != null) {
+      controller.shutdown(false);
+    }
   }
 
   public static Stage primaryStage() {

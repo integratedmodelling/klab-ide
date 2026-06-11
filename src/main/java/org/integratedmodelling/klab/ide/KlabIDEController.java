@@ -1138,7 +1138,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
       case INOPERATIVE, ACTIVE_REMOTE_ONLY -> {
         localServiceActionRunning.set(false);
         var hasValidSoftwareStack = engine().hasValidSoftwareStack();
-        setStartButtonDisabled(!hasValidSoftwareStack);
+        setStartButtonDisabled(false);
         if (hasValidSoftwareStack) {
           setButton(
               startButton,
@@ -1483,7 +1483,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   public void initializeSoftwareStack() {
 
-    otherServices.getChildren().addAll(dbIcon, langIcon, messIcon);
+    if (!otherServices.getChildren().contains(dbIcon)) {
+      otherServices.getChildren().addAll(dbIcon, langIcon, messIcon);
+    }
 
     Ikon icon = BootstrapIcons.DOWNLOAD;
     var color = Color.GREEN;
@@ -1650,7 +1652,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   @Override
   public boolean shutdown(boolean shutdownLocalServices) {
-    return modeler.shutdown(shutdownLocalServices);
+    return modeler == null || modeler.shutdown(shutdownLocalServices);
   }
 
   @Override
