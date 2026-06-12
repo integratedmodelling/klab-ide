@@ -221,7 +221,7 @@ public class CarouselBoxTest extends Application {
     card.setBody(cardBody);
     card.setFooter(footer);
     card.setPrefWidth(180);
-    card.setPrefHeight(174);
+    card.setPrefHeight(170);
     card.setUserData(title);
 
     return card;

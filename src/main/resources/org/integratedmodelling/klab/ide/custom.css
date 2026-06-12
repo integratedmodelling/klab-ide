@@ -72,8 +72,23 @@
     -fx-icon-color: -color-fg-muted;
 }
 
+/* Plain StackPane wrapper around each item. The 3px padding creates a gap
+   between the item's edge and the selection border so the border is not
+   obscured by the item's own background/skin. */
+.carousel-item-wrapper {
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 2;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+}
+
+/* Applied to the wrapper (not the item) so CSS borders are never masked
+   by a skinned control's background. */
 .carousel-selected {
     -fx-border-color: -color-accent-5;
     -fx-border-width: 2;
+    -fx-border-radius: 6;
     -fx-border-insets: 0;
 }

@@ -14,7 +14,9 @@ import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -24,8 +26,8 @@ import java.util.function.Consumer;
  * left-aligned (horizontal) or top-aligned (vertical) sequence. When the children overflow the
  * container, thin navigation strips appear on the relevant sides; clicking a strip slides the
  * adjacent item into view with a smooth animation. Clicking any item selects it (shown as a thin
- * accent border via the {@code carousel-selected} CSS class); selection changes are reported
- * through a {@link Consumer} listener.
+ * accent border via the {@code carousel-selected} CSS class on an item wrapper); selection changes
+ * are reported through a {@link Consumer} listener.
  *
  * <p>All items are expected to share the same cross-axis size (height for horizontal orientation,
  * width for vertical). The container's cross-axis dimension is considered fixed by the parent.
@@ -33,14 +35,17 @@ import java.util.function.Consumer;
  * <p>Internal structure:
  * <pre>
  *   CarouselBox (Region)
- *   ├── clipView  (Pane, sized to content area, owns the clip rectangle)
+ *   ├── clipView     (Pane, sized to content area, owns the clip rectangle)
  *   │   └── contentPane (Pane, full content width/height, receives translateX/Y)
- *   │       └── [items...]
+ *   │       └── [ItemWrapper (StackPane, carries carousel-selected) ...]
+ *   │           └── [item node]
  *   ├── prevStrip (StackPane)
  *   └── nextStrip (StackPane)
  * </pre>
- * The clip is on {@code clipView} so that items' positions in {@code clipView}'s local coordinate
- * space correctly fall in or out of the clip as {@code contentPane} is translated.
+ * The selection border is applied to {@code ItemWrapper} — a plain {@link StackPane} with no
+ * skin — so CSS {@code -fx-border-*} properties work predictably regardless of what control
+ * is used as an item (e.g. AtlantaFX {@code Card}, whose skin would otherwise mask a border
+ * applied directly to it).
  */
 public class CarouselBox extends Region {
 
@@ -52,23 +57,35 @@ public class CarouselBox extends Region {
   /** Duration of the slide animation in milliseconds. */
   private static final double ANIMATION_MS = 220.0;
 
-  /** CSS style-class applied to the currently selected item. */
+  /** CSS style-class applied to the wrapper of the currently selected item. */
   private static final String SELECTED_STYLE_CLASS = "carousel-selected";
+
+  /** CSS style-class always present on every item wrapper. */
+  private static final String WRAPPER_STYLE_CLASS = "carousel-item-wrapper";
 
   // ── State ─────────────────────────────────────────────────────────────────────
 
   private final Orientation orientation;
+
+  /** Ordered list of the actual item nodes supplied by the caller. */
   private final List<Node> items = new ArrayList<>();
 
   /**
-   * Outer clip container, sized to the visible content area. The clip rectangle is applied here
-   * so that items in {@code contentPane} are masked as they scroll in/out of view.
+   * Maps each item node to its enclosing {@link StackPane} wrapper. The wrapper is what lives
+   * inside {@code contentPane} and carries the selection CSS class.
+   */
+  private final Map<Node, StackPane> wrappers = new LinkedHashMap<>();
+
+  /**
+   * Outer clip container sized to the visible content area. The clip rectangle lives here so
+   * that items' positions in this node's local space shift correctly in/out of the clip as
+   * {@code contentPane} is translated.
    */
   private final Pane clipView = new Pane();
 
   /**
-   * Inner pane holding all items at their natural sequential positions. Scrolling is achieved by
-   * translating this pane; the clip on {@code clipView} does the masking.
+   * Inner pane holding all item wrappers at their natural sequential positions. Scrolling is
+   * achieved by translating this pane; {@code clipView}'s clip does the masking.
    */
   private final Pane contentPane = new Pane();
 
@@ -93,7 +110,6 @@ public class CarouselBox extends Region {
   public CarouselBox(Orientation orientation) {
     this.orientation = orientation;
 
-    // clipView owns the clip; contentPane is an unclipped child that scrolls inside it
     clipView.setClip(new Rectangle());
     clipView.getStyleClass().add("carousel-clip-view");
     clipView.getChildren().add(contentPane);
@@ -145,7 +161,6 @@ public class CarouselBox extends Region {
     if (idx < 0) return;
     detachItem(item);
     items.remove(idx);
-    contentPane.getChildren().remove(item);
     if (firstVisibleIndex >= items.size()) {
       firstVisibleIndex = Math.max(0, items.size() - 1);
     }
@@ -191,7 +206,8 @@ public class CarouselBox extends Region {
    */
   public void clearSelection() {
     if (selectedItem != null) {
-      selectedItem.getStyleClass().remove(SELECTED_STYLE_CLASS);
+      StackPane w = wrappers.get(selectedItem);
+      if (w != null) w.getStyleClass().remove(SELECTED_STYLE_CLASS);
       selectedItem = null;
     }
   }
@@ -227,19 +243,31 @@ public class CarouselBox extends Region {
   }
 
   private void addItemInternal(Node item) {
-    items.add(item);
-    contentPane.getChildren().add(item);
-    item.setCursor(Cursor.HAND);
-    item.setOnMouseClicked(e -> {
+    // Wrap the item in a plain StackPane so the selection border is applied to a
+    // skin-free node — CSS borders on skinned controls (e.g. AtlantaFX Card) are
+    // typically obscured by the skin's own background rendering.
+    StackPane wrapper = new StackPane(item);
+    wrapper.getStyleClass().add(WRAPPER_STYLE_CLASS);
+    wrapper.setAlignment(Pos.CENTER);
+    wrapper.setCursor(Cursor.HAND);
+    wrapper.setOnMouseClicked(e -> {
       applySelection(item);
       e.consume();
     });
+
+    items.add(item);
+    wrappers.put(item, wrapper);
+    contentPane.getChildren().add(wrapper);
   }
 
   private void detachItem(Node item) {
-    item.setOnMouseClicked(null);
-    item.setCursor(Cursor.DEFAULT);
-    item.getStyleClass().remove(SELECTED_STYLE_CLASS);
+    StackPane wrapper = wrappers.remove(item);
+    if (wrapper != null) {
+      wrapper.setOnMouseClicked(null);
+      wrapper.setCursor(Cursor.DEFAULT);
+      wrapper.getStyleClass().remove(SELECTED_STYLE_CLASS);
+      contentPane.getChildren().remove(wrapper);
+    }
     if (item == selectedItem) {
       selectedItem = null;
       if (selectionListener != null) selectionListener.accept(null);
@@ -247,12 +275,12 @@ public class CarouselBox extends Region {
   }
 
   private void clearAllItems() {
-    items.forEach(item -> {
-      item.setOnMouseClicked(null);
-      item.setCursor(Cursor.DEFAULT);
-      item.getStyleClass().remove(SELECTED_STYLE_CLASS);
+    wrappers.forEach((item, wrapper) -> {
+      wrapper.setOnMouseClicked(null);
+      wrapper.setCursor(Cursor.DEFAULT);
     });
     items.clear();
+    wrappers.clear();
     contentPane.getChildren().clear();
     selectedItem = null;
     firstVisibleIndex = 0;
@@ -262,10 +290,16 @@ public class CarouselBox extends Region {
 
   private void applySelection(Node item) {
     if (item == selectedItem) return;
-    if (selectedItem != null) selectedItem.getStyleClass().remove(SELECTED_STYLE_CLASS);
+    // Remove border from previously selected wrapper
+    if (selectedItem != null) {
+      StackPane oldWrapper = wrappers.get(selectedItem);
+      if (oldWrapper != null) oldWrapper.getStyleClass().remove(SELECTED_STYLE_CLASS);
+    }
     selectedItem = item;
-    if (!item.getStyleClass().contains(SELECTED_STYLE_CLASS)) {
-      item.getStyleClass().add(SELECTED_STYLE_CLASS);
+    // Apply border to new wrapper
+    StackPane newWrapper = wrappers.get(item);
+    if (newWrapper != null && !newWrapper.getStyleClass().contains(SELECTED_STYLE_CLASS)) {
+      newWrapper.getStyleClass().add(SELECTED_STYLE_CLASS);
     }
     if (selectionListener != null) selectionListener.accept(item);
   }
@@ -277,22 +311,21 @@ public class CarouselBox extends Region {
   }
 
   private void navigateNext() {
-    // Guard: do not advance past the last item, and only navigate when there
-    // are items genuinely hidden beyond the current view.
     if (firstVisibleIndex >= items.size() - 1 || !hasHiddenTrailingItems()) return;
     firstVisibleIndex++;
     animateToOffset(leadingEdge(firstVisibleIndex));
   }
 
   /**
-   * Returns the layout-space leading coordinate ({@code layoutX} or {@code layoutY}) of the item
-   * at {@code index} within {@code contentPane}. Assumes {@link #layoutChildren()} has already
-   * run and positioned items.
+   * Returns the layout-space leading coordinate ({@code layoutX} or {@code layoutY}) of the
+   * wrapper at {@code index} within {@code contentPane}.
    */
   private double leadingEdge(int index) {
     if (index <= 0 || items.isEmpty()) return 0.0;
     Node item = items.get(Math.min(index, items.size() - 1));
-    return orientation == Orientation.HORIZONTAL ? item.getLayoutX() : item.getLayoutY();
+    StackPane wrapper = wrappers.get(item);
+    if (wrapper == null) return 0.0;
+    return orientation == Orientation.HORIZONTAL ? wrapper.getLayoutX() : wrapper.getLayoutY();
   }
 
   private void animateToOffset(double targetOffset) {
@@ -312,7 +345,6 @@ public class CarouselBox extends Region {
     tt.play();
   }
 
-  /** Updates navigation strip visibility based on the current scroll position. */
   private void refreshNavStrips() {
     if (!overflows) {
       prevStrip.setVisible(false);
@@ -326,9 +358,6 @@ public class CarouselBox extends Region {
   /**
    * Returns {@code true} when at least one item extends beyond the trailing edge of the content
    * area for the current {@code firstVisibleIndex}.
-   *
-   * <p>The content area size is always {@code containerSize - 2 * NAV_STRIP_SIZE} when overflowing
-   * (both sides are always reserved so the layout stays stable during animation).
    */
   private boolean hasHiddenTrailingItems() {
     if (items.isEmpty()) return false;
@@ -342,11 +371,13 @@ public class CarouselBox extends Region {
 
   private double totalContentSize() {
     if (items.isEmpty()) return 0.0;
-    Node last = items.get(items.size() - 1);
+    Node lastItem = items.get(items.size() - 1);
+    StackPane lastWrapper = wrappers.get(lastItem);
+    if (lastWrapper == null) return 0.0;
     if (orientation == Orientation.HORIZONTAL) {
-      return last.getLayoutX() + last.getBoundsInLocal().getWidth();
+      return lastWrapper.getLayoutX() + lastWrapper.getBoundsInLocal().getWidth();
     } else {
-      return last.getLayoutY() + last.getBoundsInLocal().getHeight();
+      return lastWrapper.getLayoutY() + lastWrapper.getBoundsInLocal().getHeight();
     }
   }
 
@@ -363,26 +394,24 @@ public class CarouselBox extends Region {
       return;
     }
 
-    // ── 1. Position items sequentially inside contentPane ─────────────────────
-    // Items are placed at their natural positions (0 → totalContent) in contentPane's
-    // local coordinate space. The translate on contentPane then moves them relative to
-    // clipView, and clipView's clip does the masking.
+    // ── 1. Position wrappers sequentially inside contentPane ──────────────────
     double pos = 0.0;
     for (Node item : items) {
+      StackPane wrapper = wrappers.get(item);
+      if (wrapper == null) continue;
       if (orientation == Orientation.HORIZONTAL) {
-        double itemW =
-            item instanceof Region r ? r.prefWidth(h) : item.getBoundsInLocal().getWidth();
-        item.resize(itemW, h);
-        item.setLayoutX(pos);
-        item.setLayoutY(0);
-        pos += itemW;
+        // Ask the wrapper for its preferred width (which in turn queries the item).
+        double wrapperW = wrapper.prefWidth(h);
+        wrapper.resize(wrapperW, h);
+        wrapper.setLayoutX(pos);
+        wrapper.setLayoutY(0);
+        pos += wrapperW;
       } else {
-        double itemH =
-            item instanceof Region r ? r.prefHeight(w) : item.getBoundsInLocal().getHeight();
-        item.resize(w, itemH);
-        item.setLayoutX(0);
-        item.setLayoutY(pos);
-        pos += itemH;
+        double wrapperH = wrapper.prefHeight(w);
+        wrapper.resize(w, wrapperH);
+        wrapper.setLayoutX(0);
+        wrapper.setLayoutY(pos);
+        pos += wrapperH;
       }
     }
 
@@ -390,8 +419,6 @@ public class CarouselBox extends Region {
     overflows = pos > containerSize + 0.5;
 
     // ── 2. Size and position clipView and nav strips ───────────────────────────
-    // When overflowing, always reserve NAV_STRIP_SIZE on each side so the layout
-    // stays stable regardless of which strips are currently visible.
     double contentStart = overflows ? NAV_STRIP_SIZE : 0.0;
     double contentSize = overflows ? containerSize - 2 * NAV_STRIP_SIZE : containerSize;
 
@@ -406,8 +433,6 @@ public class CarouselBox extends Region {
     }
 
     // ── 3. Update clip to match clipView's visible bounds ─────────────────────
-    // The clip is in clipView's local space. As contentPane is translated, items'
-    // positions in that same space shift in/out of [0, contentSize].
     Rectangle clip = (Rectangle) clipView.getClip();
     clip.setWidth(clipView.getWidth());
     clip.setHeight(clipView.getHeight());
