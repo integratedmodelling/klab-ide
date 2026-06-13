@@ -20,6 +20,12 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class TreeModel {
 
+  private record AssetKey(RuntimeAsset.Type type, long id) {
+    static AssetKey of(RuntimeAsset asset) {
+      return new AssetKey(asset.classify(), asset.getId());
+    }
+  }
+
   /**
    * Create a new AssetTreeItem for the given runtime asset and IDE context scope.
    *
@@ -74,10 +80,35 @@ public class TreeModel {
       Set<RuntimeAsset.Type> types,
       Set<GraphModel.Relationship> relationships,
       RuntimeAsset focus) {
+    return createGraph(asset, depth, scope, types, relationships, focus, false);
+  }
+
+  public static Graph<RuntimeAsset, ClientKnowledgeGraph.Relationship> createGraph(
+      RuntimeAsset asset,
+      int depth,
+      IDEContextScope scope,
+      Set<RuntimeAsset.Type> types,
+      Set<GraphModel.Relationship> relationships,
+      RuntimeAsset focus,
+      boolean followAllRelationshipDirections) {
     var ret =
         new DefaultDirectedGraph<RuntimeAsset, ClientKnowledgeGraph.Relationship>(
             ClientKnowledgeGraph.Relationship.class);
-    createGraph(asset, depth, scope, types, relationships, ret, focus);
+    var recursiveDirections =
+        followAllRelationshipDirections
+            ? EnumSet.allOf(GraphModel.Relationship.Direction.class)
+            : EnumSet.of(GraphModel.Relationship.Direction.OUTGOING);
+    createGraph(
+        asset,
+        depth,
+        scope,
+        types,
+        relationships,
+        ret,
+        focus,
+        recursiveDirections,
+        new HashMap<>(),
+        new HashMap<>());
     return ret;
   }
 
@@ -88,34 +119,87 @@ public class TreeModel {
       Set<RuntimeAsset.Type> types,
       Set<GraphModel.Relationship> relationships,
       Graph<RuntimeAsset, ClientKnowledgeGraph.Relationship> graph,
-      RuntimeAsset focus) {
+      RuntimeAsset focus,
+      Set<GraphModel.Relationship.Direction> recursiveDirections,
+      Map<AssetKey, Integer> expandedDepths,
+      Map<AssetKey, RuntimeAsset> graphAssets) {
+    asset = graphAsset(asset, graphAssets);
     graph.addVertex(asset);
+    var assetKey = AssetKey.of(asset);
+    var expandedDepth = expandedDepths.get(assetKey);
+    if (expandedDepth != null && expandedDepth >= depth) {
+      return false;
+    }
+    expandedDepths.put(assetKey, depth);
+
     var ret = false;
     if (depth > 0) {
       for (var child : getChildren(asset, scope, types, relationships, focus)) {
-        if (asset == child.getFirst()) {
+        var childAsset = graphAsset(child.getFirst(), graphAssets);
+        if (sameAsset(asset, childAsset)) {
           // shouldn't happen, but happens
           continue;
         }
         ret = true;
         if (child.getSecond().direction() == GraphModel.Relationship.Direction.OUTGOING) {
-          createGraph(child.getFirst(), depth - 1, scope, types, relationships, graph, focus);
-          graph.addEdge(
+          graph.addVertex(childAsset);
+          addEdge(
+              graph,
               asset,
-              child.getFirst(),
-              new ClientKnowledgeGraph.Relationship(
-                  child.getSecond(), asset.getId(), child.getFirst().getId(), Metadata.create()));
+              childAsset,
+              child.getSecond());
         } else {
-          graph.addVertex(child.getFirst());
-          graph.addEdge(
-              child.getFirst(),
+          graph.addVertex(childAsset);
+          addEdge(
+              graph,
+              childAsset,
               asset,
-              new ClientKnowledgeGraph.Relationship(
-                  child.getSecond(), child.getFirst().getId(), asset.getId(), Metadata.create()));
+              child.getSecond());
+        }
+        if (recursiveDirections.contains(child.getSecond().direction())) {
+          createGraph(
+              childAsset,
+              depth - 1,
+              scope,
+              types,
+              relationships,
+              graph,
+              focus,
+              recursiveDirections,
+              expandedDepths,
+              graphAssets);
         }
       }
     }
     return ret;
+  }
+
+  private static RuntimeAsset graphAsset(
+      RuntimeAsset asset, Map<AssetKey, RuntimeAsset> graphAssets) {
+    return graphAssets.computeIfAbsent(AssetKey.of(asset), key -> asset);
+  }
+
+  private static boolean sameAsset(RuntimeAsset first, RuntimeAsset second) {
+    if (first == second) {
+      return true;
+    }
+    if (first == null || second == null) {
+      return false;
+    }
+    return first.getId() == second.getId() && first.classify() == second.classify();
+  }
+
+  private static void addEdge(
+      Graph<RuntimeAsset, ClientKnowledgeGraph.Relationship> graph,
+      RuntimeAsset source,
+      RuntimeAsset target,
+      GraphModel.Relationship relationship) {
+    var edge =
+        new ClientKnowledgeGraph.Relationship(
+            relationship, source.getId(), target.getId(), Metadata.create());
+    if (!graph.containsEdge(edge) && !graph.containsEdge(source, target)) {
+      graph.addEdge(source, target, edge);
+    }
   }
 
   /**

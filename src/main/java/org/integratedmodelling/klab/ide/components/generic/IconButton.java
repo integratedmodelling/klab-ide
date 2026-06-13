@@ -2,10 +2,13 @@ package org.integratedmodelling.klab.ide.components.generic;
 
 import java.util.concurrent.Callable;
 import javafx.scene.Cursor;
+import javafx.scene.control.Tooltip;
 import javafx.scene.paint.Color;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.kordamp.ikonli.Ikon;
+
+import javax.swing.*;
 
 public abstract class IconButton extends IconLabel {
 
@@ -75,7 +78,7 @@ public abstract class IconButton extends IconLabel {
   }
 
   public void setToggled(boolean toggled) {
-    // TODO adjust colors
+
     if (onCssColor != null) {
       if (toggled) {
         setStyle("-fx-background-color: " + onCssColor);
@@ -106,6 +109,18 @@ public abstract class IconButton extends IconLabel {
     initializeInteraction();
   }
 
+  public IconButton styleClass(String... styles) {
+    this.getStyleClass().addAll(styles);
+    return this;
+  }
+
+  public IconButton tooltip(String tooltip) {
+    var tool = new Tooltip(tooltip);
+    tool.setShowDelay(new javafx.util.Duration(100));
+    Tooltip.install(this, tool);
+    return this;
+  }
+
   private void initializeInteraction() {
     setOnMouseEntered(event -> setOpacity(0.8));
     setOnMouseExited(event -> setOpacity(1.0));
@@ -121,4 +136,9 @@ public abstract class IconButton extends IconLabel {
   }
 
   protected abstract void action();
+
+  public IconButton enabled(boolean b) {
+    setDisable(!b);
+    return this;
+  }
 }

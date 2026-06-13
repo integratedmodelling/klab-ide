@@ -389,7 +389,8 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
             scope,
             visibleTypes,
             visibleRelationships,
-            currentGraphFocus());
+            currentGraphFocus(),
+            true);
 
     var cache = new HashMap<Long, Asset>();
     for (var vertex : graph.vertexSet()) {
