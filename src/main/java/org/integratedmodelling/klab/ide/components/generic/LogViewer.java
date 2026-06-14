@@ -21,8 +21,8 @@ import java.util.concurrent.*;
 import java.util.regex.*;
 
 /**
- * A JavaFX component that tails a log file, parsing its contents and displaying them as a
- * {@link TableView}. Supports the k.LAB / Logback log format:
+ * A JavaFX component that tails a log file, parsing its contents and displaying them as a {@link
+ * TableView}. Supports the k.LAB / Logback log format:
  *
  * <pre>
  * [2026-04-05 11:51:31.384] - 11360 INFO  [main] --- o.i.k.s.MyClass: message text
@@ -73,23 +73,18 @@ public class LogViewer extends VBox {
               + "\\[([^\\]]+)\\]\\s+---\\s+(\\S+):\\s+(.*)$");
 
   // ── Row CSS – uses AtlantaFX looked-up color variables so rows adapt to any theme ──
-  private static final String STYLE_TRACE =
-      "-fx-background-color: -color-bg-subtle;";
-  private static final String STYLE_DEBUG =
-      "-fx-background-color: -color-accent-subtle;";
+  private static final String STYLE_TRACE = "-fx-background-color: -color-bg-subtle;";
+  private static final String STYLE_DEBUG = "-fx-background-color: -color-accent-subtle;";
   // INFO rows use the theme default (no override)
-  private static final String STYLE_WARN =
-      "-fx-background-color: -color-warning-subtle;";
-  private static final String STYLE_ERROR =
-      "-fx-background-color: -color-danger-subtle;";
-  private static final String STYLE_FATAL =
-      "-fx-background-color: -color-danger-muted;";
+  private static final String STYLE_WARN = "-fx-background-color: -color-warning-subtle;";
+  private static final String STYLE_ERROR = "-fx-background-color: -color-danger-subtle;";
+  private static final String STYLE_FATAL = "-fx-background-color: -color-danger-muted;";
 
   // ── Public API types ──────────────────────────────────────────────────────────
 
   /**
-   * The columns available in the viewer. Pass a {@link Set} of these values to
-   * {@link #setVisibleColumns(Set)} to control which columns are displayed.
+   * The columns available in the viewer. Pass a {@link Set} of these values to {@link
+   * #setVisibleColumns(Set)} to control which columns are displayed.
    */
   public enum Column {
     TIME("Time", 180),
@@ -129,12 +124,7 @@ public class LogViewer extends VBox {
     private final SimpleStringProperty message;
 
     public LogEntry(
-        String time,
-        String level,
-        String pid,
-        String thread,
-        String logger,
-        String message) {
+        String time, String level, String pid, String thread, String logger, String message) {
       this.time = new SimpleStringProperty(time);
       this.level = new SimpleStringProperty(level);
       this.pid = new SimpleStringProperty(pid);
@@ -143,19 +133,53 @@ public class LogViewer extends VBox {
       this.message = new SimpleStringProperty(message);
     }
 
-    public SimpleStringProperty timeProperty() { return time; }
-    public SimpleStringProperty levelProperty() { return level; }
-    public SimpleStringProperty pidProperty() { return pid; }
-    public SimpleStringProperty threadProperty() { return thread; }
-    public SimpleStringProperty loggerProperty() { return logger; }
-    public SimpleStringProperty messageProperty() { return message; }
+    public SimpleStringProperty timeProperty() {
+      return time;
+    }
 
-    public String getTime() { return time.get(); }
-    public String getLevel() { return level.get(); }
-    public String getPid() { return pid.get(); }
-    public String getThread() { return thread.get(); }
-    public String getLogger() { return logger.get(); }
-    public String getMessage() { return message.get(); }
+    public SimpleStringProperty levelProperty() {
+      return level;
+    }
+
+    public SimpleStringProperty pidProperty() {
+      return pid;
+    }
+
+    public SimpleStringProperty threadProperty() {
+      return thread;
+    }
+
+    public SimpleStringProperty loggerProperty() {
+      return logger;
+    }
+
+    public SimpleStringProperty messageProperty() {
+      return message;
+    }
+
+    public String getTime() {
+      return time.get();
+    }
+
+    public String getLevel() {
+      return level.get();
+    }
+
+    public String getPid() {
+      return pid.get();
+    }
+
+    public String getThread() {
+      return thread.get();
+    }
+
+    public String getLogger() {
+      return logger.get();
+    }
+
+    public String getMessage() {
+      return message.get();
+    }
 
     /** Appends a continuation line to this entry's message (for multi-line log events). */
     void appendMessage(String continuation) {
@@ -171,8 +195,8 @@ public class LogViewer extends VBox {
   private final Map<Column, TableColumn<LogEntry, String>> columnMap = new LinkedHashMap<>();
 
   /**
-   * The most recently parsed entry on the watcher thread; used to detect continuation lines.
-   * Also used (and reset) on the FX thread during initial load.
+   * The most recently parsed entry on the watcher thread; used to detect continuation lines. Also
+   * used (and reset) on the FX thread during initial load.
    */
   private LogEntry lastParsedEntry = null;
 
@@ -183,9 +207,9 @@ public class LogViewer extends VBox {
   private volatile long lastReadPosition = 0;
 
   /**
-   * Whether the view should auto-scroll to the bottom when new entries arrive.
-   * Starts {@code true}; set to {@code false} when the user scrolls up; restored to {@code true}
-   * when the user scrolls back to the bottom.
+   * Whether the view should auto-scroll to the bottom when new entries arrive. Starts {@code true};
+   * set to {@code false} when the user scrolls up; restored to {@code true} when the user scrolls
+   * back to the bottom.
    */
   private volatile boolean autoScroll = true;
 
@@ -205,7 +229,7 @@ public class LogViewer extends VBox {
   /**
    * Creates a new {@code LogViewer} for the specified file with a custom initial column set.
    *
-   * @param logFile        path to the log file to tail (need not exist yet)
+   * @param logFile path to the log file to tail (need not exist yet)
    * @param visibleColumns the columns to display on construction
    */
   public LogViewer(Path logFile, Set<Column> visibleColumns) {
@@ -216,9 +240,12 @@ public class LogViewer extends VBox {
     setVisibleColumns(visibleColumns);
 
     // Attach scroll detection once the skin (and thus the ScrollBar nodes) exist
-    tableView.skinProperty().addListener((obs, oldSkin, newSkin) -> {
-      if (newSkin != null) setupScrollDetection();
-    });
+    tableView
+        .skinProperty()
+        .addListener(
+            (obs, oldSkin, newSkin) -> {
+              if (newSkin != null) setupScrollDetection();
+            });
 
     VBox.setVgrow(tableView, Priority.ALWAYS);
     getChildren().add(tableView);
@@ -252,8 +279,8 @@ public class LogViewer extends VBox {
   }
 
   /**
-   * Clears all displayed entries. Must be called on the FX thread (or via
-   * {@link Platform#runLater}).
+   * Clears all displayed entries. Must be called on the FX thread (or via {@link
+   * Platform#runLater}).
    */
   public void clear() {
     entries.clear();
@@ -261,8 +288,8 @@ public class LogViewer extends VBox {
   }
 
   /**
-   * Replaces the watched file and restarts tailing from the beginning of the new file.
-   * Must be called on the FX thread.
+   * Replaces the watched file and restarts tailing from the beginning of the new file. Must be
+   * called on the FX thread.
    *
    * @param newFile path to the new log file
    */
@@ -296,29 +323,32 @@ public class LogViewer extends VBox {
     tableView.getStyleClass().add("log-viewer");
 
     // Colour rows by log level
-    tableView.setRowFactory(tv -> new TableRow<>() {
-      @Override
-      protected void updateItem(LogEntry entry, boolean empty) {
-        super.updateItem(entry, empty);
-        setStyle(empty || entry == null ? "" : styleForLevel(entry.getLevel()));
-      }
-    });
+    tableView.setRowFactory(
+        tv ->
+            new TableRow<>() {
+              @Override
+              protected void updateItem(LogEntry entry, boolean empty) {
+                super.updateItem(entry, empty);
+                setStyle(empty || entry == null ? "" : styleForLevel(entry.getLevel()));
+              }
+            });
   }
 
   private void buildColumns() {
     for (Column col : Column.values()) {
       TableColumn<LogEntry, String> tc = new TableColumn<>(col.getLabel());
-      tc.setCellValueFactory(data -> {
-        LogEntry e = data.getValue();
-        return switch (col) {
-          case TIME    -> e.timeProperty();
-          case LEVEL   -> e.levelProperty();
-          case PID     -> e.pidProperty();
-          case THREAD  -> e.threadProperty();
-          case LOGGER  -> e.loggerProperty();
-          case MESSAGE -> e.messageProperty();
-        };
-      });
+      tc.setCellValueFactory(
+          data -> {
+            LogEntry e = data.getValue();
+            return switch (col) {
+              case TIME -> e.timeProperty();
+              case LEVEL -> e.levelProperty();
+              case PID -> e.pidProperty();
+              case THREAD -> e.threadProperty();
+              case LOGGER -> e.loggerProperty();
+              case MESSAGE -> e.messageProperty();
+            };
+          });
       if (col.getPrefWidth() > 0) {
         tc.setPrefWidth(col.getPrefWidth());
         tc.setMinWidth(col.getPrefWidth());
@@ -353,12 +383,12 @@ public class LogViewer extends VBox {
     /** Max chars shown in the summary line before the cell is considered expandable. */
     private static final int PREVIEW_CHARS = 200;
 
-    private final Button   expandBtn    = new Button("▶");
-    private final Label    summaryLabel = new Label();
-    private final Button   copyBtn      = new Button("⎘");
-    private final TextArea fullArea     = new TextArea();
-    private final HBox     topRow;
-    private final VBox     container;
+    private final Button expandBtn = new Button("▶");
+    private final Label summaryLabel = new Label();
+    private final Button copyBtn = new Button("⎘");
+    private final TextArea fullArea = new TextArea();
+    private final HBox topRow;
+    private final VBox container;
     private boolean expanded = false;
 
     MessageCell() {
@@ -375,14 +405,15 @@ public class LogViewer extends VBox {
       copyBtn.setFocusTraversable(false);
       copyBtn.setOpacity(0);
       copyBtn.setTooltip(new Tooltip("Copy message to clipboard"));
-      copyBtn.setOnAction(e -> {
-        String msg = getItem();
-        if (msg != null) {
-          ClipboardContent cc = new ClipboardContent();
-          cc.putString(msg);
-          Clipboard.getSystemClipboard().setContent(cc);
-        }
-      });
+      copyBtn.setOnAction(
+          e -> {
+            String msg = getItem();
+            if (msg != null) {
+              ClipboardContent cc = new ClipboardContent();
+              cc.putString(msg);
+              Clipboard.getSystemClipboard().setContent(cc);
+            }
+          });
 
       topRow = new HBox(4, expandBtn, summaryLabel, copyBtn);
       topRow.setAlignment(Pos.CENTER_LEFT);
@@ -398,7 +429,7 @@ public class LogViewer extends VBox {
       container = new VBox(2, topRow, fullArea);
       container.setMaxWidth(Double.MAX_VALUE);
       container.setOnMouseEntered(e -> copyBtn.setOpacity(1));
-      container.setOnMouseExited(e ->  copyBtn.setOpacity(0));
+      container.setOnMouseExited(e -> copyBtn.setOpacity(0));
 
       setText(null);
       setGraphic(container);
@@ -442,24 +473,26 @@ public class LogViewer extends VBox {
     for (Column col : Column.values()) {
       CheckMenuItem item = new CheckMenuItem(col.getLabel());
       item.setSelected(tableView.getColumns().contains(columnMap.get(col)));
-      item.selectedProperty().addListener((obs, was, isNow) -> {
-        TableColumn<LogEntry, String> tc = columnMap.get(col);
-        if (isNow) {
-          if (!tableView.getColumns().contains(tc)) {
-            // Insert at the ordinal position among currently visible columns
-            int insertAt = 0;
-            for (Column c : Column.values()) {
-              if (c == col) break;
-              if (tableView.getColumns().contains(columnMap.get(c))) insertAt++;
-            }
-            tableView.getColumns().add(insertAt, tc);
-          }
-        } else {
-          tableView.getColumns().remove(tc);
-        }
-        // Re-sync check states across all header menus
-        refreshHeaderMenus();
-      });
+      item.selectedProperty()
+          .addListener(
+              (obs, was, isNow) -> {
+                TableColumn<LogEntry, String> tc = columnMap.get(col);
+                if (isNow) {
+                  if (!tableView.getColumns().contains(tc)) {
+                    // Insert at the ordinal position among currently visible columns
+                    int insertAt = 0;
+                    for (Column c : Column.values()) {
+                      if (c == col) break;
+                      if (tableView.getColumns().contains(columnMap.get(c))) insertAt++;
+                    }
+                    tableView.getColumns().add(insertAt, tc);
+                  }
+                } else {
+                  tableView.getColumns().remove(tc);
+                }
+                // Re-sync check states across all header menus
+                refreshHeaderMenus();
+              });
       menu.getItems().add(item);
     }
     return menu;
@@ -475,22 +508,27 @@ public class LogViewer extends VBox {
   // ── Scroll detection ──────────────────────────────────────────────────────────
 
   private void setupScrollDetection() {
-    tableView.lookupAll(".scroll-bar").forEach(node -> {
-      if (node instanceof ScrollBar sb
-          && sb.getOrientation() == javafx.geometry.Orientation.VERTICAL) {
-        sb.valueProperty().addListener((obs, oldVal, newVal) -> {
-          double max = sb.getMax();
-          double val = newVal.doubleValue();
-          if (max <= sb.getMin()) {
-            autoScroll = true;                       // nothing to scroll
-          } else if (val < oldVal.doubleValue() - 1e-9) {
-            autoScroll = false;                      // user scrolled up
-          } else if (Math.abs(val - max) < 1e-9) {
-            autoScroll = true;                       // user reached the bottom again
-          }
-        });
-      }
-    });
+    tableView
+        .lookupAll(".scroll-bar")
+        .forEach(
+            node -> {
+              if (node instanceof ScrollBar sb
+                  && sb.getOrientation() == javafx.geometry.Orientation.VERTICAL) {
+                sb.valueProperty()
+                    .addListener(
+                        (obs, oldVal, newVal) -> {
+                          double max = sb.getMax();
+                          double val = newVal.doubleValue();
+                          if (max <= sb.getMin()) {
+                            autoScroll = true; // nothing to scroll
+                          } else if (val < oldVal.doubleValue() - 1e-9) {
+                            autoScroll = false; // user scrolled up
+                          } else if (Math.abs(val - max) < 1e-9) {
+                            autoScroll = true; // user reached the bottom again
+                          }
+                        });
+              }
+            });
   }
 
   // ── Initial file load ─────────────────────────────────────────────────────────
@@ -509,10 +547,11 @@ public class LogViewer extends VBox {
       String content = new String(bytes, 0, (int) lastReadPosition, StandardCharsets.UTF_8);
       List<LogEntry> batch = parseLines(content.split("\r?\n", -1), true);
 
-      Platform.runLater(() -> {
-        entries.addAll(batch);
-        scrollToBottom();
-      });
+      Platform.runLater(
+          () -> {
+            entries.addAll(batch);
+            scrollToBottom();
+          });
     } catch (IOException e) {
       // File unreadable – will retry once the watcher fires
     }
@@ -521,11 +560,13 @@ public class LogViewer extends VBox {
   // ── File watching ─────────────────────────────────────────────────────────────
 
   private void startWatching() {
-    watcherService = Executors.newSingleThreadExecutor(r -> {
-      Thread t = new Thread(r, "LogViewer[" + logFile.getFileName() + "]");
-      t.setDaemon(true);
-      return t;
-    });
+    watcherService =
+        Executors.newSingleThreadExecutor(
+            r -> {
+              Thread t = new Thread(r, "LogViewer[" + logFile.getFileName() + "]");
+              t.setDaemon(true);
+              return t;
+            });
     watcherService.submit(this::watchLoop);
   }
 
@@ -534,9 +575,8 @@ public class LogViewer extends VBox {
     if (parent == null) parent = Path.of(".");
 
     try (WatchService watcher = FileSystems.getDefault().newWatchService()) {
-      parent.register(watcher,
-          StandardWatchEventKinds.ENTRY_CREATE,
-          StandardWatchEventKinds.ENTRY_MODIFY);
+      parent.register(
+          watcher, StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_MODIFY);
 
       while (!Thread.currentThread().isInterrupted()) {
         WatchKey key;
@@ -607,10 +647,11 @@ public class LogViewer extends VBox {
       if (batch.isEmpty()) return;
 
       boolean shouldScroll = autoScroll;
-      Platform.runLater(() -> {
-        entries.addAll(batch);
-        if (shouldScroll) scrollToBottom();
-      });
+      Platform.runLater(
+          () -> {
+            entries.addAll(batch);
+            if (shouldScroll) scrollToBottom();
+          });
 
     } catch (IOException e) {
       // Transient read error – will retry on the next modification event
@@ -620,10 +661,10 @@ public class LogViewer extends VBox {
   // ── Log parsing ───────────────────────────────────────────────────────────────
 
   /**
-   * Parses an array of raw text lines into {@link LogEntry} objects. Continuation lines (lines
-   * that do not match the log pattern) are appended to the most recently parsed entry's message.
+   * Parses an array of raw text lines into {@link LogEntry} objects. Continuation lines (lines that
+   * do not match the log pattern) are appended to the most recently parsed entry's message.
    *
-   * @param lines        lines to parse
+   * @param lines lines to parse
    * @param resetContext {@code true} to clear the continuation-line tracking first (initial load)
    * @return list of newly created entries (continuation lines do not produce new entries)
    */
@@ -634,8 +675,8 @@ public class LogViewer extends VBox {
       if (line.isBlank()) continue;
       Matcher m = LOG_PATTERN.matcher(line);
       if (m.matches()) {
-        LogEntry entry = new LogEntry(
-            m.group(1), m.group(3), m.group(2), m.group(4), m.group(5), m.group(6));
+        LogEntry entry =
+            new LogEntry(m.group(1), m.group(3), m.group(2), m.group(4), m.group(5), m.group(6));
         batch.add(entry);
         lastParsedEntry = entry;
       } else if (lastParsedEntry != null) {
@@ -658,10 +699,10 @@ public class LogViewer extends VBox {
     return switch (level) {
       case "TRACE" -> STYLE_TRACE;
       case "DEBUG" -> STYLE_DEBUG;
-      case "WARN"  -> STYLE_WARN;
+      case "WARN" -> STYLE_WARN;
       case "ERROR" -> STYLE_ERROR;
       case "FATAL" -> STYLE_FATAL;
-      default      -> ""; // INFO – use the theme default
+      default -> ""; // INFO – use the theme default
     };
   }
 }

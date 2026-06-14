@@ -71,8 +71,8 @@ public class AutoCompleteTextField extends TextField {
   private boolean isCycling = false;
 
   /**
-   * Returns the string to be inserted into the text field when a suggestion is selected.
-   * Default implementation returns the suggestion as-is.
+   * Returns the string to be inserted into the text field when a suggestion is selected. Default
+   * implementation returns the suggestion as-is.
    *
    * @param suggestion the suggestion string from the provider.
    * @return the string to insert.

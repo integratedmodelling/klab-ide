@@ -37,9 +37,8 @@ import org.kordamp.ikonli.material2.Material2AL;
  * When {@code allowAddition} is {@code true}, the key field becomes editable and an "add" icon
  * appears in the top-right corner of the table to append new rows.
  *
- * TODO validation is missing or not working correctly
- * TODO column sizing is not correct
- * TODO consider using a TreeTableView for hierarchical properties
+ * <p>TODO validation is missing or not working correctly TODO column sizing is not correct TODO
+ * consider using a TreeTableView for hierarchical properties
  */
 public class PropertyEditor extends StackPane {
 
@@ -326,16 +325,14 @@ public class PropertyEditor extends StackPane {
                 .addListener(
                     (obs, oldText, newText) -> {
                       if (updatingKey) return;
-                      PropertyEntry entry =
-                          getTableRow() != null ? getTableRow().getItem() : null;
+                      PropertyEntry entry = getTableRow() != null ? getTableRow().getItem() : null;
                       if (entry == null || newText.equals(entry.getKey())) return;
                       String oldActualKey = findActualKey(entry.getKey());
                       String newActualKey = findActualKey(newText);
                       // Move the stored value to the new key; fall back to the entry's
                       // current displayed value so the value field is never blanked.
                       Object stored = targetProperties.remove(oldActualKey);
-                      String valueToKeep =
-                          stored != null ? stored.toString() : entry.getValue();
+                      String valueToKeep = stored != null ? stored.toString() : entry.getValue();
                       targetProperties.put(newActualKey, valueToKeep);
                       updatingKey = true;
                       entry.setKey(newText);

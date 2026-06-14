@@ -33,6 +33,7 @@ import java.util.function.Consumer;
  * width for vertical). The container's cross-axis dimension is considered fixed by the parent.
  *
  * <p>Internal structure:
+ *
  * <pre>
  *   CarouselBox (Region)
  *   ├── clipView     (Pane, sized to content area, owns the clip rectangle)
@@ -42,10 +43,11 @@ import java.util.function.Consumer;
  *   ├── prevStrip (StackPane)
  *   └── nextStrip (StackPane)
  * </pre>
- * The selection border is applied to {@code ItemWrapper} — a plain {@link StackPane} with no
- * skin — so CSS {@code -fx-border-*} properties work predictably regardless of what control
- * is used as an item (e.g. AtlantaFX {@code Card}, whose skin would otherwise mask a border
- * applied directly to it).
+ *
+ * The selection border is applied to {@code ItemWrapper} — a plain {@link StackPane} with no skin —
+ * so CSS {@code -fx-border-*} properties work predictably regardless of what control is used as an
+ * item (e.g. AtlantaFX {@code Card}, whose skin would otherwise mask a border applied directly to
+ * it).
  */
 public class CarouselBox extends Region {
 
@@ -77,9 +79,9 @@ public class CarouselBox extends Region {
   private final Map<Node, StackPane> wrappers = new LinkedHashMap<>();
 
   /**
-   * Outer clip container sized to the visible content area. The clip rectangle lives here so
-   * that items' positions in this node's local space shift correctly in/out of the clip as
-   * {@code contentPane} is translated.
+   * Outer clip container sized to the visible content area. The clip rectangle lives here so that
+   * items' positions in this node's local space shift correctly in/out of the clip as {@code
+   * contentPane} is translated.
    */
   private final Pane clipView = new Pane();
 
@@ -151,8 +153,8 @@ public class CarouselBox extends Region {
   }
 
   /**
-   * Removes a single item from the carousel. If the item was selected the listener receives
-   * {@code null}.
+   * Removes a single item from the carousel. If the item was selected the listener receives {@code
+   * null}.
    *
    * @param item node to remove
    */
@@ -201,9 +203,7 @@ public class CarouselBox extends Region {
     if (items.contains(item)) applySelection(item);
   }
 
-  /**
-   * Clears the current selection silently (listener is not notified).
-   */
+  /** Clears the current selection silently (listener is not notified). */
   public void clearSelection() {
     if (selectedItem != null) {
       StackPane w = wrappers.get(selectedItem);
@@ -232,12 +232,13 @@ public class CarouselBox extends Region {
 
     strip.setOnMouseEntered(e -> strip.setOpacity(1.0));
     strip.setOnMouseExited(e -> strip.setOpacity(0.50));
-    strip.setOnMouseClicked(e -> {
-      if (!animating) {
-        if (isPrev) navigatePrev();
-        else navigateNext();
-      }
-    });
+    strip.setOnMouseClicked(
+        e -> {
+          if (!animating) {
+            if (isPrev) navigatePrev();
+            else navigateNext();
+          }
+        });
 
     return strip;
   }
@@ -250,10 +251,11 @@ public class CarouselBox extends Region {
     wrapper.getStyleClass().add(WRAPPER_STYLE_CLASS);
     wrapper.setAlignment(Pos.CENTER);
     wrapper.setCursor(Cursor.HAND);
-    wrapper.setOnMouseClicked(e -> {
-      applySelection(item);
-      e.consume();
-    });
+    wrapper.setOnMouseClicked(
+        e -> {
+          applySelection(item);
+          e.consume();
+        });
 
     items.add(item);
     wrappers.put(item, wrapper);
@@ -275,10 +277,11 @@ public class CarouselBox extends Region {
   }
 
   private void clearAllItems() {
-    wrappers.forEach((item, wrapper) -> {
-      wrapper.setOnMouseClicked(null);
-      wrapper.setCursor(Cursor.DEFAULT);
-    });
+    wrappers.forEach(
+        (item, wrapper) -> {
+          wrapper.setOnMouseClicked(null);
+          wrapper.setCursor(Cursor.DEFAULT);
+        });
     items.clear();
     wrappers.clear();
     contentPane.getChildren().clear();
@@ -317,8 +320,8 @@ public class CarouselBox extends Region {
   }
 
   /**
-   * Returns the layout-space leading coordinate ({@code layoutX} or {@code layoutY}) of the
-   * wrapper at {@code index} within {@code contentPane}.
+   * Returns the layout-space leading coordinate ({@code layoutX} or {@code layoutY}) of the wrapper
+   * at {@code index} within {@code contentPane}.
    */
   private double leadingEdge(int index) {
     if (index <= 0 || items.isEmpty()) return 0.0;
@@ -329,18 +332,18 @@ public class CarouselBox extends Region {
   }
 
   private void animateToOffset(double targetOffset) {
-    TranslateTransition tt =
-        new TranslateTransition(Duration.millis(ANIMATION_MS), contentPane);
+    TranslateTransition tt = new TranslateTransition(Duration.millis(ANIMATION_MS), contentPane);
     if (orientation == Orientation.HORIZONTAL) {
       tt.setToX(-targetOffset);
     } else {
       tt.setToY(-targetOffset);
     }
     animating = true;
-    tt.setOnFinished(e -> {
-      animating = false;
-      refreshNavStrips();
-    });
+    tt.setOnFinished(
+        e -> {
+          animating = false;
+          refreshNavStrips();
+        });
     refreshNavStrips();
     tt.play();
   }
@@ -362,8 +365,7 @@ public class CarouselBox extends Region {
   private boolean hasHiddenTrailingItems() {
     if (items.isEmpty()) return false;
     double contentAreaSize =
-        (orientation == Orientation.HORIZONTAL ? getWidth() : getHeight())
-            - 2 * NAV_STRIP_SIZE;
+        (orientation == Orientation.HORIZONTAL ? getWidth() : getHeight()) - 2 * NAV_STRIP_SIZE;
     double visibleStart = leadingEdge(firstVisibleIndex);
     double totalTrailing = totalContentSize() - visibleStart;
     return totalTrailing > contentAreaSize + 0.5;

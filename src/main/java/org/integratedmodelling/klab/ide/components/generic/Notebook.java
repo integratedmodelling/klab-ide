@@ -381,7 +381,9 @@ public class Notebook extends BorderPane {
       resizeHandle.setMaxWidth(Double.MAX_VALUE);
       resizeHandle.setStyle("-fx-cursor: s-resize; -fx-background-color: transparent;");
       resizeHandle.setOnMouseEntered(
-          e -> resizeHandle.setStyle("-fx-cursor: s-resize; -fx-background-color: -color-border-default;"));
+          e ->
+              resizeHandle.setStyle(
+                  "-fx-cursor: s-resize; -fx-background-color: -color-border-default;"));
       resizeHandle.setOnMouseExited(
           e -> resizeHandle.setStyle("-fx-cursor: s-resize; -fx-background-color: transparent;"));
 
