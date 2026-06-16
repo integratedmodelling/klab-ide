@@ -17,6 +17,10 @@ public abstract class BaseCard<T> extends BorderPane {
   protected final boolean extended;
 
   protected BaseCard(T asset, boolean extended) {
+    this(asset, extended, true);
+  }
+
+  protected BaseCard(T asset, boolean extended, boolean initialize) {
     this.asset = asset;
     this.extended = extended;
     if (extended) {
@@ -27,7 +31,9 @@ public abstract class BaseCard<T> extends BorderPane {
     } else {
       setPrefSize(300, 220);
     }
-    drawContent();
+    if (initialize) {
+      drawContent();
+    }
   }
 
   protected abstract void drawContent();
