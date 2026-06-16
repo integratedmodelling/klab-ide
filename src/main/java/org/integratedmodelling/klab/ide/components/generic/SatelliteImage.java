@@ -17,7 +17,9 @@ public class SatelliteImage extends ImageView {
 
   public SatelliteImage(
       double minX, double minY, double maxX, double maxY, int viewportWidth, int viewportHeight) {
-    super(url(minX, minY, maxX, maxY));
+    super(url(minX, minY, maxX, maxY, viewportWidth, viewportHeight));
+    setPreserveRatio(true);
+    setSmooth(true);
   }
 
   static {
@@ -35,6 +37,17 @@ public class SatelliteImage extends ImageView {
   }
 
   private static String url(double minX, double minY, double maxX, double maxY) {
+    return url(
+        minX,
+        minY,
+        maxX,
+        maxY,
+        (int) pixelResolutionLinear,
+        (int) pixelResolutionLinear);
+  }
+
+  private static String url(
+      double minX, double minY, double maxX, double maxY, int viewportWidth, int viewportHeight) {
 
     var key = generateKey(minX, minY, maxX, maxY);
     // Round coordinates to 2 decimal places
@@ -57,18 +70,24 @@ public class SatelliteImage extends ImageView {
       // fall through to remote fetch
     }
 
-    // Compute requested image size guided by pixelResolutionLinear while preserving aspect ratio
+    // Compute requested image size guided by the intended viewport while preserving aspect ratio.
     double dx = Math.max(1e-9, rMaxX - rMinX);
     double dy = Math.max(1e-9, rMaxY - rMinY);
     double ratio = dx / dy;
+    double requestedLinear =
+        Math.max(
+            128,
+            Math.min(
+                1024,
+                Math.max(pixelResolutionLinear, Math.max(viewportWidth, viewportHeight))));
     int width;
     int height;
     if (ratio >= 1.0) {
-      width = (int) Math.max(1, Math.round(pixelResolutionLinear));
-      height = (int) Math.max(1, Math.round(pixelResolutionLinear / ratio));
+      width = (int) Math.max(1, Math.round(requestedLinear));
+      height = (int) Math.max(1, Math.round(requestedLinear / ratio));
     } else {
-      height = (int) Math.max(1, Math.round(pixelResolutionLinear));
-      width = (int) Math.max(1, Math.round(pixelResolutionLinear * ratio));
+      height = (int) Math.max(1, Math.round(requestedLinear));
+      width = (int) Math.max(1, Math.round(requestedLinear * ratio));
     }
 
     // Build WMS GetMap URL (EOX s2cloudless layer), WMS 1.1.1, EPSG:4326

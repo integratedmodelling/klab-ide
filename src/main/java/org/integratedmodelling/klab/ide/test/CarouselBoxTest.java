@@ -139,7 +139,7 @@ public class CarouselBoxTest extends Application {
     VBox.setVgrow(verticalCarousel, Priority.ALWAYS);
 
     for (int i = 0; i < 6; i++) {
-      verticalCarousel.addItem(makeVerticalCard(i));
+      verticalCarousel.addItem(makeTagControl(i));
     }
     verticalCarousel.setSelectionListener(this::reportSelection);
 
@@ -230,7 +230,7 @@ public class CarouselBoxTest extends Application {
   /**
    * Builds a compact row-style card for the vertical carousel (full width, fixed ~90 px height).
    */
-  private Card makeVerticalCard(int index) {
+  private Card makeTagControl(int index) {
     int shifted = (index + 3) % TITLES.length;
     String title = TITLES[shifted];
     String color = ACCENT_COLORS[shifted % ACCENT_COLORS.length];
