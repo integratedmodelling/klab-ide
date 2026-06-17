@@ -8,6 +8,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeTableColumn;
 import javafx.scene.control.TreeTableView;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.paint.Color;
@@ -20,6 +21,7 @@ import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
+import org.integratedmodelling.klab.ide.utils.DoubleClickHandler;
 import org.kordamp.ikonli.material2.Material2AL;
 
 public class ObservationTree extends TreeTableView<RuntimeAsset> {
@@ -104,6 +106,29 @@ public class ObservationTree extends TreeTableView<RuntimeAsset> {
             refresh();
           }
         });
+
+    ret.addEventHandler(
+        MouseEvent.MOUSE_CLICKED,
+        new DoubleClickHandler<>(
+                observation,
+                a -> {
+                  if (KlabIDEController.instance().isInspectorShown()) {
+                    KlabIDEController.instance().getInspector().inspect(a);
+                  }
+                },
+                a -> {
+                  if (KlabIDEController.instance().getInspector().getCurrentObject() != a) {
+                    if (!KlabIDEController.instance().isInspectorShown()) {
+                      KlabIDEController.instance().showInspector();
+                    }
+                    KlabIDEController.instance().getInspector().inspect(a);
+                  } else if (KlabIDEController.instance().isInspectorShown()) {
+                    // reset to enable repetition
+                    KlabIDEController.instance().getInspector().inspect(null);
+                    KlabIDEController.instance().hideInspector();
+                  }
+                })
+            .getHandler());
 
     return ret;
   }

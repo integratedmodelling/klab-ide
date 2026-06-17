@@ -33,6 +33,7 @@ import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableFolder;
 import org.integratedmodelling.klab.ide.components.Asset;
 import org.integratedmodelling.klab.ide.components.cards.ActivityCard;
 import org.integratedmodelling.klab.ide.components.cards.ObservableCard;
+import org.integratedmodelling.klab.ide.components.cards.ObservationCard;
 import org.integratedmodelling.klab.ide.components.generic.BBCodeRenderer;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.modeler.model.NavigableKimConceptStatement;
@@ -457,8 +458,19 @@ public enum Theme {
       } else if (detail == Detail.BADGE) {
         return new ActivityCard(activity, false);
       }
+    } else if (object instanceof Observation observation) {
+      if (detail == Detail.CARD) {
+        return new ObservationCard(observation, true);
+      } else if (detail == Detail.BADGE) {
+        return new ObservationCard(observation, false);
+      }
     }
 
     return getLabel(object);
+  }
+
+  public static String getDescription(Observation asset) {
+    // TODO temporary
+    return "Description: " + getLabel(asset);
   }
 }

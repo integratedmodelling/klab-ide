@@ -26,6 +26,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -35,6 +36,7 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
+import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
 import org.integratedmodelling.common.commandline.KlabCommandLine;
@@ -234,6 +236,8 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private ResourcesView resourcesView;
   private DigitalTwinView digitalTwinView;
   private InspectorView inspectorView;
+  private Stage detachedInspectorStage;
+  private boolean inspectorDocked = true;
   private SessionView applicationView;
   private OntologyView ontologyView;
 
@@ -473,6 +477,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     workspaceView = new WorkspaceView();
     resourcesView = new ResourcesView();
     inspectorView = new InspectorView();
+    inspectorView.setDockingActions(this::undockInspector, this::dockInspector);
     applicationView = new SessionView();
     ontologyView = new OntologyView();
 
@@ -591,6 +596,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         new IconLabel(FontAwesomeSolid.COG, 24, Theme.CURRENT_THEME.getDefaultTextColor()));
     inspectorButton.setGraphic(
         new IconLabel(Theme.INSPECTOR_ICON, 24, Theme.CURRENT_THEME.getDefaultTextColor()));
+    updateInspectorButton();
     profileButton.setGraphic(new IconLabel(FontAwesomeSolid.USER_CIRCLE, 32, Color.GREY));
 
     viewButtons.put(View.NOTEBOOK, homeButton);
@@ -1045,16 +1051,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   }
 
   private void toggleInspector() {
-
-    setButton(
-        inspectorButton,
-        Theme.INSPECTOR_ICON,
-        24,
-        inspectorIsOn ? Theme.CURRENT_THEME.getDefaultTextColor() : Color.GOLDENROD,
-        inspectorIsOn
-            ? "Click to show the knowledge inspector"
-            : "Click to hide the knowledge inspector");
-
     if (inspectorIsOn) {
       hideInspector();
     } else {
@@ -1065,11 +1061,19 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   public InspectorView showInspector() {
     Platform.runLater(
         () -> {
-          //          HBox.setHgrow(inspectorView, Priority.ALWAYS);
-          inspectorArea.getChildren().setAll(inspectorView);
+          if (inspectorDocked) {
+            inspectorView.setDocked(true);
+            inspectorArea.getChildren().setAll(inspectorView);
+            NodeUtils.toggleVisibility(inspectorArea, true);
+          } else {
+            ensureDetachedInspectorStage();
+            detachedInspectorStage.show();
+            detachedInspectorStage.toFront();
+            NodeUtils.toggleVisibility(inspectorArea, false);
+          }
           inspectorIsOn = true;
           KlabIDEApplication.instance().setInspectorShown(true);
-          NodeUtils.toggleVisibility(inspectorArea, true);
+          updateInspectorButton();
         });
     return inspectorView;
   }
@@ -1077,11 +1081,102 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   public void hideInspector() {
     Platform.runLater(
         () -> {
-          inspectorArea.getChildren().clear();
+          if (inspectorDocked) {
+            inspectorArea.getChildren().clear();
+            NodeUtils.toggleVisibility(inspectorArea, false);
+          } else if (detachedInspectorStage != null) {
+            detachedInspectorStage.hide();
+          }
           inspectorIsOn = false;
           KlabIDEApplication.instance().setInspectorShown(false);
-          NodeUtils.toggleVisibility(inspectorArea, false);
+          updateInspectorButton();
         });
+  }
+
+  public void undockInspector() {
+    Platform.runLater(
+        () -> {
+          if (!inspectorDocked) {
+            showInspector();
+            return;
+          }
+          inspectorDocked = false;
+          inspectorView.setDocked(false);
+          inspectorArea.getChildren().remove(inspectorView);
+          NodeUtils.toggleVisibility(inspectorArea, false);
+          ensureDetachedInspectorStage();
+          detachedInspectorStage.show();
+          detachedInspectorStage.toFront();
+          inspectorIsOn = true;
+          KlabIDEApplication.instance().setInspectorShown(true);
+          updateInspectorButton();
+        });
+  }
+
+  public void dockInspector() {
+    Platform.runLater(
+        () -> {
+          boolean shouldShow =
+              inspectorIsOn || (detachedInspectorStage != null && detachedInspectorStage.isShowing());
+          if (detachedInspectorStage != null) {
+            if (detachedInspectorStage.getScene() != null
+                && detachedInspectorStage.getScene().getRoot() instanceof Pane pane) {
+              pane.getChildren().remove(inspectorView);
+            }
+            detachedInspectorStage.hide();
+          }
+          inspectorDocked = true;
+          inspectorView.setDocked(true);
+          if (shouldShow) {
+            inspectorArea.getChildren().setAll(inspectorView);
+            NodeUtils.toggleVisibility(inspectorArea, true);
+            inspectorIsOn = true;
+          } else {
+            inspectorArea.getChildren().clear();
+            NodeUtils.toggleVisibility(inspectorArea, false);
+            inspectorIsOn = false;
+          }
+          KlabIDEApplication.instance().setInspectorShown(inspectorIsOn);
+          updateInspectorButton();
+        });
+  }
+
+  private void ensureDetachedInspectorStage() {
+    if (detachedInspectorStage == null) {
+      StackPane root = new StackPane();
+      root.getStyleClass().add("inspector-window-root");
+      Scene scene = new Scene(root, 640, 380);
+      if (KlabIDEApplication.scene() != null) {
+        scene.getStylesheets().setAll(KlabIDEApplication.scene().getStylesheets());
+      }
+      detachedInspectorStage = new Stage(StageStyle.DECORATED);
+      detachedInspectorStage.setTitle("k.LAB Inspector");
+      if (KlabIDEApplication.primaryStage() != null) {
+        detachedInspectorStage.initOwner(KlabIDEApplication.primaryStage());
+      }
+      detachedInspectorStage.setScene(scene);
+      detachedInspectorStage.setOnCloseRequest(
+          event -> {
+            event.consume();
+            hideInspector();
+          });
+    }
+
+    if (detachedInspectorStage.getScene().getRoot() instanceof Pane pane
+        && !pane.getChildren().contains(inspectorView)) {
+      pane.getChildren().setAll(inspectorView);
+    }
+  }
+
+  private void updateInspectorButton() {
+    setButton(
+        inspectorButton,
+        Theme.INSPECTOR_ICON,
+        24,
+        inspectorIsOn ? Color.GOLDENROD : Theme.CURRENT_THEME.getDefaultTextColor(),
+        inspectorIsOn
+            ? (inspectorDocked ? "Click to hide the knowledge inspector" : "Click to hide the detached knowledge inspector")
+            : (inspectorDocked ? "Click to show the knowledge inspector" : "Click to show the detached knowledge inspector"));
   }
 
   public boolean isInspectorShown() {
