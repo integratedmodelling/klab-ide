@@ -27,8 +27,8 @@ public abstract class BaseCard<T> extends BorderPane {
       setMinSize(0, 0);
       setPrefSize(Region.USE_COMPUTED_SIZE, Region.USE_COMPUTED_SIZE);
       setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
-      getStyleClass().add("inspector-card");
     } else {
+      getStyleClass().add("inspector-card");
       setPrefSize(300, 220);
     }
     if (initialize) {
