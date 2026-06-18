@@ -41,7 +41,7 @@ public class ObservationCard extends BaseCard<Observation> {
     ret.setSpacing(10);
     ret.setPadding(new Insets(10));
 
-    ret.getChildren().add(new AssetIdentityCard(asset, true));
+//    ret.getChildren().add(new AssetIdentityCard(asset, true));
 
     var geom = new GeometryCard(asset.getGeometry(), true);
     geom.setPrefWidth(200);
