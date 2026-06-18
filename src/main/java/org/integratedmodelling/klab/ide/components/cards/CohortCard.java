@@ -5,11 +5,12 @@ import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
-import org.integratedmodelling.klab.api.knowledge.observation.Observation;
+import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
+import org.integratedmodelling.klab.api.knowledge.Cohort;
 
-public class ObservationCard extends BaseCard<Observation> {
+public class CohortCard extends BaseCard<Cohort> {
 
-  public ObservationCard(Observation asset, boolean extended) {
+  public CohortCard(Cohort asset, boolean extended) {
     super(asset, extended);
   }
 
@@ -17,16 +18,16 @@ public class ObservationCard extends BaseCard<Observation> {
   protected void drawContent() {
     var tile = new Tile();
 
-//    tile.setTitle("Observation " + Theme.getLabel(asset));
-//    tile.setDescription(Theme.getDescription(asset));
-//    tile.setGraphic(Theme.getGraphics(asset));
-//    setTop(tile);
+    //    tile.setTitle("Observation " + Theme.getLabel(asset));
+    //    tile.setDescription(Theme.getDescription(asset));
+    //    tile.setGraphic(Theme.getGraphics(asset));
+    //    setTop(tile);
     setCenter(createBody());
-//    setBottom(createFooter());
-//    if (extended) {
-//      getStyleClass().add(Styles.ELEVATED_2);
-//      setPadding(new Insets(2, 10, 4, 10));
-//    }
+    //    setBottom(createFooter());
+    //    if (extended) {
+    //      getStyleClass().add(Styles.ELEVATED_2);
+    //      setPadding(new Insets(2, 10, 4, 10));
+    //    }
   }
 
   private Node createFooter() {
@@ -40,14 +41,11 @@ public class ObservationCard extends BaseCard<Observation> {
     var ret = new HBox();
     ret.setSpacing(10);
     ret.setPadding(new Insets(10));
-
-    ret.getChildren().add(new AssetIdentityCard(asset, true));
-
     var geom = new GeometryCard(asset.getGeometry(), true);
     geom.setPrefWidth(200);
     geom.setPrefHeight(200);
     ret.getChildren().add(geom);
-    var value = new ValueCard(asset, true);
+    var value = new RelatedCard(asset, GraphModel.Relationship.Direction.OUTGOING);
     value.setPrefHeight(200);
     HBox.setHgrow(value, Priority.ALWAYS);
     ret.getChildren().add(value);

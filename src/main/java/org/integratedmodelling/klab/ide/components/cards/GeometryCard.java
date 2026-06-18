@@ -69,6 +69,22 @@ public class GeometryCard extends BaseCard<Geometry> {
       setPrefSize(Region.USE_COMPUTED_SIZE, Region.USE_COMPUTED_SIZE);
     } else {
       setPrefSize(DEFAULT_SIZE, DEFAULT_SIZE);
+      widthProperty()
+          .addListener(
+              (obs, oldVal, newVal) -> {
+                double val = newVal.doubleValue();
+                if (val > 0 && Math.abs(val - getHeight()) > 1.0) {
+                  setPrefHeight(val);
+                }
+              });
+      heightProperty()
+          .addListener(
+              (obs, oldVal, newVal) -> {
+                double val = newVal.doubleValue();
+                if (val > 0 && Math.abs(val - getWidth()) > 1.0) {
+                  setPrefWidth(val);
+                }
+              });
     }
 
     SpatialSummary spatial = SpatialSummary.from(asset.dimension(Dimension.Type.SPACE));

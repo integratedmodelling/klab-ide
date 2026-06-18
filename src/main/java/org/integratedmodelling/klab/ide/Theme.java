@@ -32,6 +32,7 @@ import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableAsset;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableFolder;
 import org.integratedmodelling.klab.ide.components.Asset;
 import org.integratedmodelling.klab.ide.components.cards.ActivityCard;
+import org.integratedmodelling.klab.ide.components.cards.CohortCard;
 import org.integratedmodelling.klab.ide.components.cards.ObservableCard;
 import org.integratedmodelling.klab.ide.components.cards.ObservationCard;
 import org.integratedmodelling.klab.ide.components.generic.BBCodeRenderer;
@@ -463,6 +464,12 @@ public enum Theme {
         return new ObservationCard(observation, true);
       } else if (detail == Detail.BADGE) {
         return new ObservationCard(observation, false);
+      }
+    } else if (object instanceof Cohort cohort) {
+      if (detail == Detail.CARD) {
+        return new CohortCard(cohort, true);
+      } else if (detail == Detail.BADGE) {
+        return new CohortCard(cohort, false);
       }
     }
 
