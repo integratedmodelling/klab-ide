@@ -11,13 +11,14 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.function.Consumer;
 import javafx.beans.value.ChangeListener;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
-import javafx.scene.Cursor;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.OverrunStyle;
@@ -51,21 +52,69 @@ import org.kordamp.ikonli.material2.Material2AL;
  *
  * <p>Alternatively, I also found bboxfinder quite nice:
  * http://bboxfinder.com/#-16.636192,-69.433594,-1.581830,-51.503906
+ *
+ * <p>Timeline event marks can be supplied with {@link #setTimelineMarks(Collection)}. When a {@link
+ * #setTimelineMarkClickHandler(Consumer)} handler is configured, clicking the timeline calls it with
+ * the nearest visible mark to the left of the click position.
  */
 public class GeometryCard extends BaseCard<Geometry> {
 
   private static final double DEFAULT_SIZE = 320;
+  private static final double TIMELINE_HORIZONTAL_PADDING = 8;
+  private static final double TIMELINE_BAR_Y = 13;
+  private static final double TIMELINE_BAR_HEIGHT = 6;
   private static final DateTimeFormatter DATE_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneId.systemDefault());
   private static final DecimalFormat COORDINATE_FORMAT =
       new DecimalFormat("0.###", DecimalFormatSymbols.getInstance(Locale.US));
+
+  private final List<Long> timelineMarks = new ArrayList<>();
+  private Consumer<Long> timelineMarkClickHandler;
+  private Canvas timelineCanvas;
+  private StackPane timelineTrack;
+  private TimeSummary timelineSummary;
 
   public GeometryCard(Geometry geometry) {
     this(geometry, false);
   }
 
   public GeometryCard(Geometry geometry, boolean extended) {
-    super(geometry == null ? Geometry.EMPTY : geometry, extended);
+    super(geometry == null ? Geometry.EMPTY : geometry, extended, false);
+    drawContent();
+  }
+
+  /**
+   * Set visible event/change markers for the temporal extent.
+   *
+   * <p>Values are epoch milliseconds. Marks outside the visible temporal span are kept but not drawn
+   * or selected until the card is used with a compatible geometry. Null values are ignored.
+   */
+  public void setTimelineMarks(Collection<Long> epochMilliseconds) {
+    timelineMarks.clear();
+    if (epochMilliseconds != null) {
+      epochMilliseconds.stream()
+          .filter(Objects::nonNull)
+          .distinct()
+          .sorted()
+          .forEach(timelineMarks::add);
+    }
+    redrawTimeline();
+  }
+
+  /** Return the currently configured timeline marks as epoch milliseconds. */
+  public List<Long> getTimelineMarks() {
+    return List.copyOf(timelineMarks);
+  }
+
+  /**
+   * Set the callback invoked when the user clicks on the timeline bar.
+   *
+   * <p>The callback receives the nearest visible mark at or to the left of the click. Clicks before
+   * the first visible mark do not invoke the callback.
+   */
+  public void setTimelineMarkClickHandler(Consumer<Long> timelineMarkClickHandler) {
+    this.timelineMarkClickHandler = timelineMarkClickHandler;
+    updateTimelineInteractivity();
   }
 
   @Override
@@ -309,17 +358,28 @@ public class GeometryCard extends BaseCard<Geometry> {
     track.setMinHeight(30);
     track.setPrefHeight(30);
     track.setMaxHeight(30);
+    track.setPickOnBounds(true);
 
     Canvas canvas = new Canvas();
     canvas.setManaged(false);
     canvas.setMouseTransparent(true);
+    timelineTrack = track;
+    timelineCanvas = canvas;
+    timelineSummary = summary;
     ChangeListener<Number> redraw =
         (obs, oldValue, newValue) -> {
-          layoutUnmanagedCanvas(canvas, track);
-          drawTimeline(canvas, summary);
+          redrawTimeline();
         };
     track.widthProperty().addListener(redraw);
     track.heightProperty().addListener(redraw);
+    track.setOnMouseClicked(
+        event -> {
+          Long mark = nearestTimelineMarkToLeft(event.getX());
+          if (mark != null && timelineMarkClickHandler != null) {
+            timelineMarkClickHandler.accept(mark);
+            event.consume();
+          }
+        });
     track.getChildren().add(canvas);
 
     Label start = caption(summary.startLabel());
@@ -335,7 +395,17 @@ public class GeometryCard extends BaseCard<Geometry> {
     labels.setAlignment(Pos.CENTER);
     box.getChildren().addAll(track, labels);
     Tooltip.install(box, new Tooltip(summary.tooltip()));
+    updateTimelineInteractivity();
     return box;
+  }
+
+  private void redrawTimeline() {
+    if (timelineCanvas == null || timelineTrack == null || timelineSummary == null) {
+      return;
+    }
+    layoutUnmanagedCanvas(timelineCanvas, timelineTrack);
+    drawTimeline(timelineCanvas, timelineSummary);
+    updateTimelineInteractivity();
   }
 
   private void drawTimeline(Canvas canvas, TimeSummary summary) {
@@ -347,11 +417,11 @@ public class GeometryCard extends BaseCard<Geometry> {
       return;
     }
 
-    double left = 8;
-    double right = width - 8;
+    double left = TIMELINE_HORIZONTAL_PADDING;
+    double right = width - TIMELINE_HORIZONTAL_PADDING;
     double trackWidth = Math.max(1, right - left);
-    double y = 13;
-    double trackHeight = 6;
+    double y = TIMELINE_BAR_Y;
+    double trackHeight = TIMELINE_BAR_HEIGHT;
 
     gc.setFill(Color.web("#e6e8ec"));
     gc.fillRoundRect(left, y, trackWidth, trackHeight, 6, 6);
@@ -370,6 +440,7 @@ public class GeometryCard extends BaseCard<Geometry> {
 
     if (summary.hasLocatedSpan()) {
       drawTransitionTicks(gc, summary, left, right, y, trackHeight);
+      drawTimelineMarks(gc, summary, left, right, y, trackHeight);
     } else {
       gc.setStroke(Color.web("#2f7f6f"));
       gc.setLineWidth(1.2);
@@ -415,6 +486,98 @@ public class GeometryCard extends BaseCard<Geometry> {
         gc.strokeLine(x, y - 3, x, y + height + 3);
       }
     }
+  }
+
+  private void drawTimelineMarks(
+      GraphicsContext gc, TimeSummary summary, double left, double right, double y, double height) {
+    List<Long> visibleMarks = visibleTimelineMarks(summary);
+    if (visibleMarks.isEmpty()) {
+      return;
+    }
+
+    gc.setStroke(Color.rgb(255, 255, 255, 0.92));
+    gc.setLineWidth(3.0);
+    for (long mark : visibleMarks) {
+      double x = timelineX(summary, mark, left, right);
+      gc.strokeLine(x, y - 6, x, y + height + 8);
+    }
+
+    gc.setStroke(Color.web("#9a3412"));
+    gc.setLineWidth(1.2);
+    for (long mark : visibleMarks) {
+      double x = timelineX(summary, mark, left, right);
+      gc.strokeLine(x, y - 6, x, y + height + 8);
+    }
+
+    gc.setFill(Color.web("#f97316"));
+    gc.setStroke(Color.WHITE);
+    gc.setLineWidth(1.0);
+    for (long mark : visibleMarks) {
+      double x = timelineX(summary, mark, left, right);
+      double[] xs = {x, x + 3.8, x, x - 3.8};
+      double[] ys = {y - 8, y - 4, y, y - 4};
+      gc.fillPolygon(xs, ys, 4);
+      gc.strokePolygon(xs, ys, 4);
+    }
+  }
+
+  private List<Long> visibleTimelineMarks(TimeSummary summary) {
+    if (!summary.hasLocatedSpan() || timelineMarks.isEmpty()) {
+      return List.of();
+    }
+    List<Long> ret = new ArrayList<>();
+    for (Long mark : timelineMarks) {
+      if (mark >= summary.start() && mark <= summary.end()) {
+        ret.add(mark);
+      }
+    }
+    return ret;
+  }
+
+  private double timelineX(TimeSummary summary, long epochMilliseconds, double left, double right) {
+    long duration = summary.end() - summary.start();
+    if (duration <= 0) {
+      return left;
+    }
+    double fraction = (double) (epochMilliseconds - summary.start()) / duration;
+    return left + fraction * (right - left);
+  }
+
+  private Long nearestTimelineMarkToLeft(double x) {
+    if (timelineTrack == null
+        || timelineSummary == null
+        || timelineMarkClickHandler == null
+        || !timelineSummary.hasLocatedSpan()) {
+      return null;
+    }
+    double left = TIMELINE_HORIZONTAL_PADDING;
+    double right = Math.max(left + 1, timelineTrack.getWidth() - TIMELINE_HORIZONTAL_PADDING);
+    if (x < left) {
+      return null;
+    }
+
+    double clampedX = Math.min(x, right);
+    double fraction = (clampedX - left) / (right - left);
+    double clickedEpoch =
+        timelineSummary.start() + fraction * (timelineSummary.end() - timelineSummary.start());
+    Long selected = null;
+    for (long mark : visibleTimelineMarks(timelineSummary)) {
+      if (mark <= clickedEpoch) {
+        selected = mark;
+      } else {
+        break;
+      }
+    }
+    return selected;
+  }
+
+  private void updateTimelineInteractivity() {
+    if (timelineTrack == null || timelineSummary == null) {
+      return;
+    }
+    boolean clickable =
+        timelineMarkClickHandler != null && !visibleTimelineMarks(timelineSummary).isEmpty();
+    timelineTrack.setCursor(clickable ? Cursor.HAND : Cursor.DEFAULT);
   }
 
   private FlowPane createTags(SpatialSummary spatial, TimeSummary temporal) {

@@ -7,9 +7,9 @@ import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
  * TODO shows the related assets from the knowledge graph, optionally filtered by direction, along
  * with the relationship type.
  */
-public class RelatedCard extends BaseCard<RuntimeAsset> {
+public class RelationshipCard extends BaseCard<RuntimeAsset> {
 
-  public RelatedCard(RuntimeAsset asset, GraphModel.Relationship.Direction... directions) {
+  public RelationshipCard(RuntimeAsset asset, GraphModel.Relationship.Direction... directions) {
     super(asset, true);
   }
 

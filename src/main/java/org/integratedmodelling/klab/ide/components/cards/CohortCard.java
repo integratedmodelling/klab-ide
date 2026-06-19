@@ -45,7 +45,7 @@ public class CohortCard extends BaseCard<Cohort> {
     geom.setPrefWidth(200);
     geom.setPrefHeight(200);
     ret.getChildren().add(geom);
-    var value = new RelatedCard(asset, GraphModel.Relationship.Direction.OUTGOING);
+    var value = new RelationshipCard(asset, GraphModel.Relationship.Direction.OUTGOING);
     value.setPrefHeight(200);
     HBox.setHgrow(value, Priority.ALWAYS);
     ret.getChildren().add(value);

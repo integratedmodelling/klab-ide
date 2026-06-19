@@ -2,6 +2,7 @@ package org.integratedmodelling.klab.ide.components.generic;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.function.Consumer;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
@@ -53,6 +54,8 @@ public class AutoCompleteTextField extends TextField {
   public interface EntryProvider {
     List<String> getSuggestions(String text);
   }
+
+  private Consumer<AutoCompleteTextField> ctrlSpaceHandler = null;
 
   /** The callback for getting autocomplete entries. */
   private final EntryProvider entryProvider;
@@ -129,6 +132,13 @@ public class AutoCompleteTextField extends TextField {
     this.addEventFilter(
         KeyEvent.KEY_PRESSED,
         event -> {
+          if (event.getCode() == KeyCode.SPACE
+              && event.isControlDown()
+              && ctrlSpaceHandler != null) {
+            ctrlSpaceHandler.accept(this);
+            event.consume();
+            return;
+          }
           if (event.getCode() == KeyCode.TAB) {
             if (entriesPopup.isShowing() && !filteredEntries.isEmpty()) {
               if (event.isShiftDown()) {
@@ -217,6 +227,10 @@ public class AutoCompleteTextField extends TextField {
                 entriesPopup.hide();
               }
             });
+  }
+
+  public void setCtrlSpaceHandler(Consumer<AutoCompleteTextField> ctrlSpaceHandler) {
+    this.ctrlSpaceHandler = ctrlSpaceHandler;
   }
 
   /**

@@ -17,16 +17,16 @@ public class ObservationCard extends BaseCard<Observation> {
   protected void drawContent() {
     var tile = new Tile();
 
-//    tile.setTitle("Observation " + Theme.getLabel(asset));
-//    tile.setDescription(Theme.getDescription(asset));
-//    tile.setGraphic(Theme.getGraphics(asset));
-//    setTop(tile);
+    //    tile.setTitle("Observation " + Theme.getLabel(asset));
+    //    tile.setDescription(Theme.getDescription(asset));
+    //    tile.setGraphic(Theme.getGraphics(asset));
+    //    setTop(tile);
     setCenter(createBody());
-//    setBottom(createFooter());
-//    if (extended) {
-//      getStyleClass().add(Styles.ELEVATED_2);
-//      setPadding(new Insets(2, 10, 4, 10));
-//    }
+    //    setBottom(createFooter());
+    //    if (extended) {
+    //      getStyleClass().add(Styles.ELEVATED_2);
+    //      setPadding(new Insets(2, 10, 4, 10));
+    //    }
   }
 
   private Node createFooter() {
@@ -41,7 +41,7 @@ public class ObservationCard extends BaseCard<Observation> {
     ret.setSpacing(10);
     ret.setPadding(new Insets(10));
 
-//    ret.getChildren().add(new AssetIdentityCard(asset, true));
+    //    ret.getChildren().add(new AssetIdentityCard(asset, true));
 
     var geom = new GeometryCard(asset.getGeometry(), true);
     geom.setPrefWidth(200);
@@ -51,7 +51,11 @@ public class ObservationCard extends BaseCard<Observation> {
     value.setPrefHeight(200);
     HBox.setHgrow(value, Priority.ALWAYS);
     ret.getChildren().add(value);
-    ret.getChildren().add(new MetadataCard(asset.getMetadata()));
+    ret.getChildren()
+        .add(
+            new MetadataCard(
+                asset.getMetadata(),
+                new MetadataCard.Options().title("Metadata").emptyTitle("Empty metadata")));
     return ret;
   }
 }

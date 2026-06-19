@@ -2,10 +2,14 @@ package org.integratedmodelling.klab.ide.test;
 
 import atlantafx.base.theme.PrimerLight;
 import java.time.Instant;
+import java.util.List;
 import javafx.application.Application;
+import javafx.geometry.Insets;
 import javafx.scene.Scene;
+import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import org.integratedmodelling.klab.api.geometry.Geometry;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Time;
@@ -18,19 +22,36 @@ public class GeometryCardTest extends Application {
   public void start(Stage stage) {
     Application.setUserAgentStylesheet(new PrimerLight().getUserAgentStylesheet());
 
+    Label selectedMark = new Label("Click a marked timeline to select the nearest mark to the left.");
+    selectedMark.getStyleClass().add("geometry-card-chip");
+
     GridPane cards = new GridPane();
     cards.setHgap(16);
     cards.setVgap(16);
-    cards.setStyle("-fx-padding: 16; -fx-background-color: -color-bg-subtle;");
+    cards.setStyle("-fx-background-color: -color-bg-subtle;");
 
     GeometryCard regional = new GeometryCard(regionalGrid());
     regional.setPrefSize(320, 320);
 
     GeometryCard city = new GeometryCard(cityGrid());
     city.setPrefSize(280, 280);
+    city.setTimelineMarks(
+        List.of(
+            Instant.parse("2024-03-01T00:00:00Z").toEpochMilli(),
+            Instant.parse("2024-06-15T00:00:00Z").toEpochMilli(),
+            Instant.parse("2024-10-01T00:00:00Z").toEpochMilli()));
+    city.setTimelineMarkClickHandler(
+        mark -> selectedMark.setText("City mark: " + Instant.ofEpochMilli(mark)));
 
     GeometryCard temporal = new GeometryCard(Geometry.builder().years(1980, 2030).build());
     temporal.setPrefSize(260, 240);
+    temporal.setTimelineMarks(
+        List.of(
+            Instant.parse("1990-01-01T00:00:00Z").toEpochMilli(),
+            Instant.parse("2005-01-01T00:00:00Z").toEpochMilli(),
+            Instant.parse("2020-01-01T00:00:00Z").toEpochMilli()));
+    temporal.setTimelineMarkClickHandler(
+        mark -> selectedMark.setText("Temporal mark: " + Instant.ofEpochMilli(mark)));
 
     GeometryCard abstractGrid = new GeometryCard(Geometry.create("S2(64,32)"));
     abstractGrid.setPrefSize(240, 220);
@@ -40,7 +61,11 @@ public class GeometryCardTest extends Application {
     cards.add(temporal, 0, 1);
     cards.add(abstractGrid, 1, 1);
 
-    ScrollPane scrollPane = new ScrollPane(cards);
+    VBox content = new VBox(12, selectedMark, cards);
+    content.setPadding(new Insets(16));
+    content.setStyle("-fx-background-color: -color-bg-subtle;");
+
+    ScrollPane scrollPane = new ScrollPane(content);
     scrollPane.setFitToWidth(false);
     scrollPane.setFitToHeight(false);
     scrollPane.setStyle("-fx-background-color: -color-bg-subtle;");
