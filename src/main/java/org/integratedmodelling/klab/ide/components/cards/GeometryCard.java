@@ -42,6 +42,15 @@ import org.kordamp.ikonli.material2.Material2AL;
 /**
  * Compact visualization for a k.LAB {@link Geometry}, focused on the spatial and temporal extents
  * that define observation scale and resolution.
+ *
+ * <p>TODO add on click (should check projection or alternatively, find the lat/lon bbox in
+ *  metadata)
+ *
+ * <p>This will let you enter and display a bounding box on an OSM background:
+ * https://linestrings.com/bbox/#12,52,14,53 (add bbox as url hash to share map with box)
+ *
+ * <p>Alternatively, I also found bboxfinder quite nice:
+ * http://bboxfinder.com/#-16.636192,-69.433594,-1.581830,-51.503906
  */
 public class GeometryCard extends BaseCard<Geometry> {
 
@@ -164,12 +173,7 @@ public class GeometryCard extends BaseCard<Geometry> {
       imageAspect = mapBounds.aspectRatio();
       image =
           new SatelliteImage(
-              mapBounds.minX(),
-              mapBounds.minY(),
-              mapBounds.maxX(),
-              mapBounds.maxY(),
-              640,
-              640);
+              mapBounds.minX(), mapBounds.minY(), mapBounds.maxX(), mapBounds.maxY(), 640, 640);
       image.setPreserveRatio(true);
       image.setSmooth(true);
       image.setManaged(false);
@@ -203,7 +207,8 @@ public class GeometryCard extends BaseCard<Geometry> {
   }
 
   private void layoutSpatialImage(ImageView image, Region frame, double aspectRatio) {
-    Rect area = imageArea(Math.max(1, frame.getWidth()), Math.max(1, frame.getHeight()), aspectRatio);
+    Rect area =
+        imageArea(Math.max(1, frame.getWidth()), Math.max(1, frame.getHeight()), aspectRatio);
     image.setFitWidth(area.width());
     image.setFitHeight(area.height());
     image.setLayoutX(area.x());
@@ -669,7 +674,8 @@ public class GeometryCard extends BaseCard<Geometry> {
 
       Long start = readFirstLong(dimension.getParameters().get(GeometryImpl.PARAMETER_TIME_START));
       Long end = readFirstLong(dimension.getParameters().get(GeometryImpl.PARAMETER_TIME_END));
-      List<Long> period = readLongs(dimension.getParameters().get(GeometryImpl.PARAMETER_TIME_PERIOD));
+      List<Long> period =
+          readLongs(dimension.getParameters().get(GeometryImpl.PARAMETER_TIME_PERIOD));
       if (period.size() >= 2) {
         start = period.get(0);
         end = period.get(1);
@@ -704,8 +710,7 @@ public class GeometryCard extends BaseCard<Geometry> {
           Objects.toString(
               dimension.getParameters().get(GeometryImpl.PARAMETER_TIME_REPRESENTATION), "");
 
-      return new TimeSummary(
-          dimension, start, end, steps, transitions, representation, resolution);
+      return new TimeSummary(dimension, start, end, steps, transitions, representation, resolution);
     }
 
     boolean present() {
@@ -739,7 +744,9 @@ public class GeometryCard extends BaseCard<Geometry> {
       if (steps > 1) {
         return steps + " steps";
       }
-      return representation == null || representation.isBlank() ? "" : representation.toLowerCase(Locale.ROOT);
+      return representation == null || representation.isBlank()
+          ? ""
+          : representation.toLowerCase(Locale.ROOT);
     }
 
     String tooltip() {
@@ -774,7 +781,8 @@ public class GeometryCard extends BaseCard<Geometry> {
   private record BoundingBox(double minX, double maxX, double minY, double maxY) {
 
     static BoundingBox of(double x1, double x2, double y1, double y2) {
-      return new BoundingBox(Math.min(x1, x2), Math.max(x1, x2), Math.min(y1, y2), Math.max(y1, y2));
+      return new BoundingBox(
+          Math.min(x1, x2), Math.max(x1, x2), Math.min(y1, y2), Math.max(y1, y2));
     }
 
     double width() {
