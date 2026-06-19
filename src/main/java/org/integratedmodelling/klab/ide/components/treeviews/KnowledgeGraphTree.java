@@ -31,7 +31,7 @@ import org.integratedmodelling.klab.modeler.model.NavigableKimConceptStatement;
 import org.integratedmodelling.klab.modeler.model.NavigableKimModel;
 import org.integratedmodelling.klab.modeler.model.NavigableProject;
 
-public class KnowledgeGraphTree extends TreeView<RuntimeAsset> implements DigitalTwinViewer {
+public class KnowledgeGraphTree extends KlabTreeView<RuntimeAsset> implements DigitalTwinViewer {
 
   private TreeModel.AssetTreeItem previousBoldItem;
   private ClientKnowledgeGraph clientKnowledgeGraph;

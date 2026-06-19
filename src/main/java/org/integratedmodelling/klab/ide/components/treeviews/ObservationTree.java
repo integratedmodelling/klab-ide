@@ -24,7 +24,7 @@ import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.ide.utils.DoubleClickHandler;
 import org.kordamp.ikonli.material2.Material2AL;
 
-public class ObservationTree extends TreeTableView<RuntimeAsset> {
+public class ObservationTree extends KlabTreeTableView<RuntimeAsset> {
 
   private ClientKnowledgeGraph clientKnowledgeGraph;
   TreeTableColumn<RuntimeAsset, HBox> descriptionColumn;

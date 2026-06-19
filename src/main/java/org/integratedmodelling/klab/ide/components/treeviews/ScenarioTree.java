@@ -15,7 +15,7 @@ import org.integratedmodelling.klab.api.lang.kim.KimNamespace;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 
-public class ScenarioTree extends TreeTableView<KimNamespace> {
+public class ScenarioTree extends KlabTreeTableView<KimNamespace> {
 
   public ScenarioTree() {
 

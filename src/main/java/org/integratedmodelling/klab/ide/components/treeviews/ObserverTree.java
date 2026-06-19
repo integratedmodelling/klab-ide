@@ -13,7 +13,7 @@ import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 
-public class ObserverTree extends TreeTableView<Observation> {
+public class ObserverTree extends KlabTreeTableView<Observation> {
 
   public ObserverTree() {
 

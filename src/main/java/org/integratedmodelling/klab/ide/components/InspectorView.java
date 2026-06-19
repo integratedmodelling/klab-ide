@@ -24,6 +24,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.shape.Rectangle;
 import javafx.util.Duration;
 import org.integratedmodelling.common.utils.Utils;
+import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.kordamp.ikonli.Ikon;
@@ -44,7 +45,8 @@ public class InspectorView extends BorderPane {
   private ScrollPane breadcrumbScroll;
   private final Button backButton = iconButton(CarbonIcons.PREVIOUS_OUTLINE, "Back");
   private final Button forwardButton = iconButton(CarbonIcons.NEXT_OUTLINE, "Forward");
-  private final Button closeAllButton = iconButton(Material2AL.CLOSE, "Close all inspector components");
+  private final Button closeAllButton =
+      iconButton(Material2AL.CLOSE, "Close all inspector components");
   private final Button dockButton = iconButton(Material2MZ.OPEN_IN_NEW, "Undock inspector");
   private int currentIndex = -1;
   private boolean docked = true;
@@ -59,7 +61,11 @@ public class InspectorView extends BorderPane {
 
     backButton.setOnAction(event -> navigate(-1));
     forwardButton.setOnAction(event -> navigate(1));
-    closeAllButton.setOnAction(event -> clear());
+    closeAllButton.setOnAction(
+        event -> {
+          clear();
+          KlabIDEController.instance().hideInspector();
+        });
     dockButton.setOnAction(
         event -> {
           if (docked) {
@@ -437,8 +443,7 @@ public class InspectorView extends BorderPane {
           if (chipBounds.getMinX() < currentLeft + padding) {
             targetLeft = Math.max(0, chipBounds.getMinX() - padding);
           } else if (chipBounds.getMaxX() > currentRight - padding) {
-            targetLeft =
-                Math.min(scrollableWidth, chipBounds.getMaxX() - viewportWidth + padding);
+            targetLeft = Math.min(scrollableWidth, chipBounds.getMaxX() - viewportWidth + padding);
           }
 
           breadcrumbScroll.setHvalue(targetLeft / scrollableWidth);

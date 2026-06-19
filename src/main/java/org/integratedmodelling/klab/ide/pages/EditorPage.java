@@ -17,6 +17,7 @@ import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.api.DigitalTwinReactor;
 import org.integratedmodelling.klab.ide.components.DigitalTwinControlPanel;
+import org.integratedmodelling.klab.ide.components.treeviews.TreeViewClickBehavior;
 
 /**
  * Editor for a first-class container - resource, digital twin or workspace. Editor has a treeview
@@ -89,6 +90,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
     Platform.runLater(
         () -> {
           this.tree = createContentTree();
+          TreeViewClickBehavior.disableBranchToggleOnDoubleClick(this.tree);
           this.tree.setOnMouseClicked(
               event -> {
                 // painful
