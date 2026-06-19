@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 import javafx.application.Platform;
+import javafx.geometry.Bounds;
 import javafx.geometry.Pos;
 import javafx.scene.Cursor;
 import javafx.scene.Node;
@@ -40,8 +41,10 @@ public class InspectorView extends BorderPane {
   private final List<InspectorItem> stack = new ArrayList<>();
   private final StackPane contentArea = new StackPane();
   private final HBox breadcrumbStrip = new HBox(3);
+  private ScrollPane breadcrumbScroll;
   private final Button backButton = iconButton(CarbonIcons.PREVIOUS_OUTLINE, "Back");
   private final Button forwardButton = iconButton(CarbonIcons.NEXT_OUTLINE, "Forward");
+  private final Button closeAllButton = iconButton(Material2AL.CLOSE, "Close all inspector components");
   private final Button dockButton = iconButton(Material2MZ.OPEN_IN_NEW, "Undock inspector");
   private int currentIndex = -1;
   private boolean docked = true;
@@ -56,6 +59,7 @@ public class InspectorView extends BorderPane {
 
     backButton.setOnAction(event -> navigate(-1));
     forwardButton.setOnAction(event -> navigate(1));
+    closeAllButton.setOnAction(event -> clear());
     dockButton.setOnAction(
         event -> {
           if (docked) {
@@ -200,18 +204,25 @@ public class InspectorView extends BorderPane {
     breadcrumbStrip.getStyleClass().add("inspector-breadcrumb-strip");
     breadcrumbStrip.setAlignment(Pos.CENTER_LEFT);
 
-    ScrollPane breadcrumbs = new ScrollPane(breadcrumbStrip);
-    breadcrumbs.getStyleClass().add("inspector-breadcrumbs");
-    breadcrumbs.setFitToHeight(true);
-    breadcrumbs.setPannable(true);
-    breadcrumbs.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-    breadcrumbs.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-    breadcrumbs.setMinHeight(22);
-    breadcrumbs.setPrefHeight(22);
-    breadcrumbs.setMaxHeight(22);
-    HBox.setHgrow(breadcrumbs, Priority.ALWAYS);
+    breadcrumbScroll = new ScrollPane(breadcrumbStrip);
+    breadcrumbScroll.getStyleClass().add("inspector-breadcrumbs");
+    breadcrumbScroll.setFitToHeight(true);
+    breadcrumbScroll.setPannable(true);
+    breadcrumbScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+    breadcrumbScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+    breadcrumbScroll.setMinHeight(22);
+    breadcrumbScroll.setPrefHeight(22);
+    breadcrumbScroll.setMaxHeight(22);
+    breadcrumbScroll
+        .viewportBoundsProperty()
+        .addListener((observable, oldValue, newValue) -> scrollCurrentBreadcrumbIntoView());
+    breadcrumbStrip
+        .widthProperty()
+        .addListener((observable, oldValue, newValue) -> scrollCurrentBreadcrumbIntoView());
+    HBox.setHgrow(breadcrumbScroll, Priority.ALWAYS);
 
-    HBox toolbar = new HBox(4, backButton, forwardButton, breadcrumbs, dockButton);
+    HBox toolbar =
+        new HBox(4, backButton, forwardButton, breadcrumbScroll, closeAllButton, dockButton);
     toolbar.getStyleClass().add("inspector-toolbar");
     toolbar.setAlignment(Pos.CENTER_LEFT);
     return toolbar;
@@ -318,6 +329,7 @@ public class InspectorView extends BorderPane {
   private void updateToolbar() {
     backButton.setDisable(currentIndex <= 0);
     forwardButton.setDisable(currentIndex < 0 || currentIndex >= stack.size() - 1);
+    closeAllButton.setDisable(stack.isEmpty());
     updateDockButton();
     updateBreadcrumbs();
   }
@@ -340,6 +352,9 @@ public class InspectorView extends BorderPane {
       Label empty = new Label("Inspector");
       empty.getStyleClass().add("inspector-breadcrumb-empty");
       breadcrumbStrip.getChildren().add(empty);
+      if (breadcrumbScroll != null) {
+        breadcrumbScroll.setHvalue(0);
+      }
       return;
     }
 
@@ -388,6 +403,46 @@ public class InspectorView extends BorderPane {
       chip.getChildren().addAll(chipLabel, close);
       breadcrumbStrip.getChildren().add(chip);
     }
+    scrollCurrentBreadcrumbIntoView();
+  }
+
+  private void scrollCurrentBreadcrumbIntoView() {
+    if (breadcrumbScroll == null || currentIndex < 0) {
+      return;
+    }
+
+    Platform.runLater(
+        () -> {
+          if (breadcrumbScroll == null
+              || currentIndex < 0
+              || currentIndex >= breadcrumbStrip.getChildren().size()) {
+            return;
+          }
+
+          double viewportWidth = breadcrumbScroll.getViewportBounds().getWidth();
+          double contentWidth = breadcrumbStrip.getBoundsInLocal().getWidth();
+          if (viewportWidth <= 0 || contentWidth <= viewportWidth) {
+            breadcrumbScroll.setHvalue(0);
+            return;
+          }
+
+          Node currentChip = breadcrumbStrip.getChildren().get(currentIndex);
+          Bounds chipBounds = currentChip.getBoundsInParent();
+          double scrollableWidth = contentWidth - viewportWidth;
+          double currentLeft = breadcrumbScroll.getHvalue() * scrollableWidth;
+          double currentRight = currentLeft + viewportWidth;
+          double padding = 14;
+          double targetLeft = currentLeft;
+
+          if (chipBounds.getMinX() < currentLeft + padding) {
+            targetLeft = Math.max(0, chipBounds.getMinX() - padding);
+          } else if (chipBounds.getMaxX() > currentRight - padding) {
+            targetLeft =
+                Math.min(scrollableWidth, chipBounds.getMaxX() - viewportWidth + padding);
+          }
+
+          breadcrumbScroll.setHvalue(targetLeft / scrollableWidth);
+        });
   }
 
   private void configureInspectableNode(Node node) {

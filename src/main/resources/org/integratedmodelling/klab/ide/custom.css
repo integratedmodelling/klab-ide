@@ -410,6 +410,11 @@
     -fx-background-color: transparent;
 }
 
+.metadata-card-group {
+    -fx-font-size: 9px;
+    -fx-text-fill: -color-fg-muted;
+}
+
 .metadata-card-chip {
     -fx-background-color: -color-bg-subtle;
     -fx-background-radius: 5;
@@ -421,9 +426,15 @@
     -fx-text-fill: -color-fg-muted;
 }
 
-.metadata-card-group {
-    -fx-font-size: 9px;
-    -fx-text-fill: -color-fg-muted;
+.metadata-card-header-button {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 5;
+    -fx-padding: 2;
+}
+
+.metadata-card-header-button:hover {
+    -fx-background-color: -color-neutral-muted;
 }
 
 .metadata-card-empty {

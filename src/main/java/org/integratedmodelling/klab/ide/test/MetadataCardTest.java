@@ -26,7 +26,7 @@ public class MetadataCardTest extends Application {
     Application.setUserAgentStylesheet(new PrimerLight().getUserAgentStylesheet());
 
     Metadata metadata = sampleMetadata();
-    Label status = new Label("Tree values can be edited with Enter or Tab.");
+    Label status = new Label("Editable values can be confirmed with Enter or Tab.");
     status.getStyleClass().add("metadata-card-chip");
 
     MetadataCard flat =
@@ -34,6 +34,11 @@ public class MetadataCardTest extends Application {
             metadata,
             new MetadataCard.Options()
                 .unsupportedValuePolicy(MetadataCard.UnsupportedValuePolicy.SHOW_AS_STRING)
+                .editHandler(
+                    (key, oldValue, editedValue) -> {
+                      status.setText(key + ": " + oldValue + " -> " + editedValue + " (accepted)");
+                      return true;
+                    })
                 .inlineStringLimit(58));
     flat.setPrefSize(330, 230);
 

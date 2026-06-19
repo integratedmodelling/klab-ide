@@ -16,14 +16,15 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Cursor;
 import javafx.scene.Node;
+import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.OverrunStyle;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
-import javafx.scene.control.Tooltip;
 import javafx.scene.control.ToggleButton;
+import javafx.scene.control.Tooltip;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
@@ -34,6 +35,10 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Popup;
 import org.integratedmodelling.klab.api.collections.Parameters;
 import org.integratedmodelling.klab.api.data.Metadata;
+import org.integratedmodelling.klab.ide.components.generic.IconLabel;
+import org.kordamp.ikonli.carbonicons.CarbonIcons;
+import org.kordamp.ikonli.material2.Material2AL;
+import org.kordamp.ikonli.material2.Material2MZ;
 
 /**
  * Compact card visualization and optional editor for k.LAB {@link Parameters}.
@@ -65,9 +70,10 @@ import org.integratedmodelling.klab.api.data.Metadata;
  *       values without a custom renderer are skipped or shown as red string values.
  *   <li>{@link Options#complexValueRenderer(ComplexValueRenderer)} lets callers supply a JavaFX
  *       node for complex values. Returning {@code null} delegates to the unsupported-value policy.
- *   <li>{@link Options#editHandler(EditHandler)} enables inline editing in tree mode. The card
- *       never mutates the backing {@link Parameters}; it reports confirmed edits through the callback
- *       and updates its displayed value only when the callback returns {@code true}.
+ *   <li>{@link Options#editHandler(EditHandler)} enables inline editing of plain data values in
+ *       either flat or tree mode. The card never mutates the backing {@link Parameters}; it reports
+ *       confirmed edits through the callback and updates its displayed value only when the callback
+ *       returns {@code true}.
  *   <li>{@link Options#inlineStringLimit(int)} controls how many characters are shown inline before
  *       long strings are clipped and made available through a popup text viewer.
  *   <li>{@link Options#stringPopupSize(double, double)} controls the size of the long-string popup
@@ -91,8 +97,8 @@ public class MetadataCard extends BaseCard<Parameters<?>> {
   private final Set<String> collapsedPaths = new TreeSet<>();
   private final Map<String, Object> acceptedEdits = new LinkedHashMap<>();
   private VBox rows;
-  private Label countLabel;
-  private Label modeLabel;
+  private Button treeExpansionButton;
+  private Button viewToggleButton;
 
   public MetadataCard(Parameters<?> metadata) {
     this(metadata, new Options());
@@ -160,36 +166,96 @@ public class MetadataCard extends BaseCard<Parameters<?>> {
   }
 
   private Node createHeader() {
-    Label title = new Label("Metadata");
+    Label title = new Label(options.title);
     title.getStyleClass().add("metadata-card-title");
-
-    countLabel = chip("");
-    modeLabel = chip("");
 
     HBox spacer = new HBox();
     HBox.setHgrow(spacer, Priority.ALWAYS);
+    treeExpansionButton = createTreeExpansionButton();
+    viewToggleButton = createViewToggleButton();
 
-    HBox header = new HBox(5, title, spacer, modeLabel, countLabel);
+    HBox header = new HBox(5, title, spacer, treeExpansionButton, viewToggleButton);
     header.setAlignment(Pos.CENTER_LEFT);
     header.setMinHeight(22);
     return header;
   }
 
-  private Label chip(String text) {
-    Label label = new Label(text);
-    label.getStyleClass().add("metadata-card-chip");
-    label.setTextOverrun(OverrunStyle.ELLIPSIS);
-    label.setMinWidth(Region.USE_PREF_SIZE);
-    return label;
+  private Button createTreeExpansionButton() {
+    Button button = createHeaderIconButton();
+    button.setOnAction(event -> toggleTreeExpansion());
+    return button;
+  }
+
+  private Button createViewToggleButton() {
+    Button button = createHeaderIconButton();
+    button.setOnAction(event -> setPathTree(!options.pathTree()));
+    return button;
+  }
+
+  private Button createHeaderIconButton() {
+    Button button = new Button();
+    button.getStyleClass().add("metadata-card-header-button");
+    button.setCursor(Cursor.HAND);
+    button.setFocusTraversable(false);
+    button.setMinSize(22, 22);
+    button.setPrefSize(22, 22);
+    button.setMaxSize(22, 22);
+    return button;
   }
 
   private void updateHeader() {
-    if (countLabel == null) {
+    if (viewToggleButton == null) {
       return;
     }
-    int visibleEntries = visibleEntries().size();
-    countLabel.setText(visibleEntries + (visibleEntries == 1 ? " item" : " items"));
-    modeLabel.setText(options.pathTree() ? "tree" : "flat");
+    boolean tree = options.pathTree();
+    updateTreeExpansionButton(tree);
+    viewToggleButton.setGraphic(
+        new IconLabel(
+            tree ? Material2MZ.VIEW_LIST : Material2AL.ACCOUNT_TREE, 13, "-color-fg-muted"));
+    String action = tree ? "Switch to flat view" : "Switch to tree view";
+    viewToggleButton.setTooltip(new Tooltip(action));
+    viewToggleButton.setAccessibleText(action);
+  }
+
+  private void updateTreeExpansionButton(boolean tree) {
+    if (treeExpansionButton == null) {
+      return;
+    }
+    treeExpansionButton.setVisible(tree);
+    treeExpansionButton.setManaged(tree);
+    if (!tree) {
+      return;
+    }
+    Set<String> collapsiblePaths = collapsibleTreePaths();
+    boolean allCollapsed =
+        !collapsiblePaths.isEmpty() && collapsedPaths.containsAll(collapsiblePaths);
+    String action = allCollapsed ? "Expand all paths" : "Collapse all paths";
+    treeExpansionButton.setGraphic(
+        new IconLabel(
+            allCollapsed ? CarbonIcons.EXPAND_ALL : CarbonIcons.COLLAPSE_ALL,
+            13,
+            "-color-fg-muted"));
+    treeExpansionButton.setTooltip(new Tooltip(action));
+    treeExpansionButton.setAccessibleText(action);
+    treeExpansionButton.setDisable(collapsiblePaths.isEmpty());
+  }
+
+  private void toggleTreeExpansion() {
+    if (!options.pathTree()) {
+      return;
+    }
+    Set<String> collapsiblePaths = collapsibleTreePaths();
+    if (collapsiblePaths.isEmpty()) {
+      return;
+    }
+    if (collapsedPaths.containsAll(collapsiblePaths)) {
+      collapsedPaths.clear();
+    } else {
+      collapsedPaths.clear();
+      collapsedPaths.addAll(collapsiblePaths);
+    }
+    renderRows();
+    updateHeader();
   }
 
   private void renderRows() {
@@ -199,7 +265,7 @@ public class MetadataCard extends BaseCard<Parameters<?>> {
     rows.getChildren().clear();
     List<Entry> entries = visibleEntries();
     if (entries.isEmpty()) {
-      Label empty = new Label("No metadata");
+      Label empty = new Label(options.emptyTitle);
       empty.getStyleClass().addAll("metadata-card-empty", "metadata-value-null");
       rows.getChildren().add(empty);
       return;
@@ -218,7 +284,8 @@ public class MetadataCard extends BaseCard<Parameters<?>> {
     List<Entry> entries = new ArrayList<>();
     for (Map.Entry<?, ?> entry : asset.entrySet()) {
       String key = entry.getKey().toString();
-      Object value = acceptedEdits.containsKey(key) ? acceptedEdits.get(key) : asset.get(entry.getKey());
+      Object value =
+          acceptedEdits.containsKey(key) ? acceptedEdits.get(key) : asset.get(entry.getKey());
       Entry metadataEntry = Entry.of(key, value);
       if (metadataEntry.kind() == ValueKind.COMPLEX
           && options.complexValueRenderer().render(key, value) == null
@@ -240,7 +307,7 @@ public class MetadataCard extends BaseCard<Parameters<?>> {
     key.setPrefWidth(118);
     key.setMaxWidth(118);
 
-    Node value = valueNode(entry, false);
+    Node value = valueNode(entry, true);
     constrainValueColumn(value);
     HBox.setHgrow(value, Priority.ALWAYS);
     row.getChildren().addAll(key, value);
@@ -248,12 +315,32 @@ public class MetadataCard extends BaseCard<Parameters<?>> {
   }
 
   private void renderTree(List<Entry> entries) {
-    TreeItem root = new TreeItem("", "");
-    entries.forEach(root::add);
+    TreeItem root = treeRoot(entries);
     List<TreeItem> children = root.children();
     children.sort(Comparator.comparing(TreeItem::name));
     for (TreeItem child : children) {
       renderTreeItem(child, 0);
+    }
+  }
+
+  private TreeItem treeRoot(List<Entry> entries) {
+    TreeItem root = new TreeItem("", "");
+    entries.forEach(root::add);
+    return root;
+  }
+
+  private Set<String> collapsibleTreePaths() {
+    Set<String> paths = new TreeSet<>();
+    collectCollapsibleTreePaths(treeRoot(visibleEntries()), paths);
+    return paths;
+  }
+
+  private void collectCollapsibleTreePaths(TreeItem item, Set<String> paths) {
+    if (!item.path().isBlank() && !item.children().isEmpty()) {
+      paths.add(item.path());
+    }
+    for (TreeItem child : item.children()) {
+      collectCollapsibleTreePaths(child, paths);
     }
   }
 
@@ -324,6 +411,7 @@ public class MetadataCard extends BaseCard<Parameters<?>> {
               collapsedPaths.add(item.path());
             }
             renderRows();
+            updateHeader();
           });
     }
 
@@ -368,7 +456,7 @@ public class MetadataCard extends BaseCard<Parameters<?>> {
     return label;
   }
 
-  private Node valueNode(Entry entry, boolean editableInTree) {
+  private Node valueNode(Entry entry, boolean editable) {
     if (entry.kind() == ValueKind.COMPLEX) {
       Node rendered = options.complexValueRenderer().render(entry.key(), entry.value());
       if (rendered != null) {
@@ -394,7 +482,7 @@ public class MetadataCard extends BaseCard<Parameters<?>> {
     if (longString) {
       value.setTooltip(
           new Tooltip(
-              (editableInTree && options.editHandler() != null
+              (editable && options.editHandler() != null
                       ? "Click to edit; right-click to view full string"
                       : "Click to view full string")
                   + "\n"
@@ -410,7 +498,7 @@ public class MetadataCard extends BaseCard<Parameters<?>> {
       wrapper.setCursor(Cursor.HAND);
       wrapper.setOnMouseClicked(
           event -> {
-            if (editableInTree
+            if (editable
                 && options.editHandler() != null
                 && event.getButton() == MouseButton.PRIMARY) {
               beginEdit(wrapper, entry);
@@ -419,7 +507,7 @@ public class MetadataCard extends BaseCard<Parameters<?>> {
               showStringPopup(wrapper, entry);
             }
           });
-    } else if (editableInTree && entry.isPod() && options.editHandler() != null) {
+    } else if (editable && entry.isPod() && options.editHandler() != null) {
       wrapper.setCursor(entry.kind() == ValueKind.BOOLEAN ? Cursor.HAND : Cursor.TEXT);
       wrapper.setOnMouseClicked(
           event -> {
@@ -742,6 +830,8 @@ public class MetadataCard extends BaseCard<Parameters<?>> {
     private int inlineStringLimit = 64;
     private double stringPopupWidth = 360;
     private double stringPopupHeight = 220;
+    private String title = "Parameters";
+    private String emptyTitle = "Nothing to show";
 
     public Options() {}
 
@@ -755,6 +845,8 @@ public class MetadataCard extends BaseCard<Parameters<?>> {
         this.inlineStringLimit = other.inlineStringLimit;
         this.stringPopupWidth = other.stringPopupWidth;
         this.stringPopupHeight = other.stringPopupHeight;
+        this.title = other.title;
+        this.emptyTitle = other.emptyTitle;
       }
     }
 
@@ -778,9 +870,21 @@ public class MetadataCard extends BaseCard<Parameters<?>> {
       return this;
     }
 
-    /** Enable inline editing in tree mode and receive confirmed edits through the callback. */
+    /**
+     * Enable inline editing in flat and tree mode and receive confirmed edits through the callback.
+     */
     public Options editHandler(EditHandler editHandler) {
       this.editHandler = editHandler;
+      return this;
+    }
+
+    public Options title(String title) {
+      this.title = title;
+      return this;
+    }
+
+    public Options emptyTitle(String emptyTitle) {
+      this.emptyTitle = emptyTitle;
       return this;
     }
 
