@@ -7,11 +7,13 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
 import org.integratedmodelling.klab.api.knowledge.Cohort;
+import org.integratedmodelling.klab.ide.IDEContextScope;
+import org.integratedmodelling.klab.ide.KlabIDEController;
 
 public class CohortCard extends BaseCard<Cohort> {
 
-  public CohortCard(Cohort asset, boolean extended) {
-    super(asset, extended);
+  public CohortCard(Cohort asset, IDEContextScope scope, boolean extended) {
+    super(asset, scope, extended);
   }
 
   @Override
@@ -45,7 +47,13 @@ public class CohortCard extends BaseCard<Cohort> {
     geom.setPrefWidth(200);
     geom.setPrefHeight(200);
     ret.getChildren().add(geom);
-    var value = new RelationshipCard(asset, GraphModel.Relationship.Direction.OUTGOING);
+    var value =
+        new RelationshipCard(
+            asset,
+            KlabIDEController.instance() == null
+                ? null
+                : KlabIDEController.instance().getFocalScope(),
+            GraphModel.Relationship.Direction.OUTGOING);
     value.setPrefHeight(200);
     HBox.setHgrow(value, Priority.ALWAYS);
     ret.getChildren().add(value);

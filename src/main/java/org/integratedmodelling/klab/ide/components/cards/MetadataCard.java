@@ -109,7 +109,7 @@ public class MetadataCard extends BaseCard<Parameters<?>> {
   }
 
   public MetadataCard(Parameters<?> metadata, Options options, boolean extended) {
-    super(metadata == null ? Metadata.create() : metadata, extended, false);
+    super(metadata == null ? Metadata.create() : metadata, null, extended, false);
     this.options = new Options(options);
     drawContent();
   }

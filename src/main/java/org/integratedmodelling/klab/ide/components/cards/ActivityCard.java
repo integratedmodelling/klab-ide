@@ -7,13 +7,14 @@ import javafx.scene.Node;
 import javafx.scene.control.Label;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.TimeInstant;
 import org.integratedmodelling.klab.api.provenance.Activity;
+import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.TextResult;
 
 public class ActivityCard extends BaseCard<Activity> {
 
-  public ActivityCard(Activity asset, boolean extended) {
-    super(asset, extended);
+  public ActivityCard(Activity asset, IDEContextScope scope, boolean extended) {
+    super(asset, scope, extended);
   }
 
   @Override

@@ -455,21 +455,21 @@ public enum Theme {
       }
     } else if (object instanceof Activity activity) {
       if (detail == Detail.CARD) {
-        return new ActivityCard(activity, true);
+        return new ActivityCard(activity, KlabIDEController.instance().getFocalScope(), true);
       } else if (detail == Detail.BADGE) {
-        return new ActivityCard(activity, false);
+        return new ActivityCard(activity, KlabIDEController.instance().getFocalScope(), false);
       }
     } else if (object instanceof Observation observation) {
       if (detail == Detail.CARD) {
-        return new ObservationCard(observation, true);
+        return new ObservationCard(observation, KlabIDEController.instance().getFocalScope(), true);
       } else if (detail == Detail.BADGE) {
-        return new ObservationCard(observation, false);
+        return new ObservationCard(observation, KlabIDEController.instance().getFocalScope(), false);
       }
     } else if (object instanceof Cohort cohort) {
       if (detail == Detail.CARD) {
-        return new CohortCard(cohort, true);
+        return new CohortCard(cohort, KlabIDEController.instance().getFocalScope(), true);
       } else if (detail == Detail.BADGE) {
-        return new CohortCard(cohort, false);
+        return new CohortCard(cohort, KlabIDEController.instance().getFocalScope(), false);
       }
     }
 

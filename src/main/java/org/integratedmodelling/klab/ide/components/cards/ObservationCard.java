@@ -5,12 +5,15 @@ import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
+import org.integratedmodelling.klab.ide.IDEContextScope;
+import org.integratedmodelling.klab.ide.KlabIDEController;
 
 public class ObservationCard extends BaseCard<Observation> {
 
-  public ObservationCard(Observation asset, boolean extended) {
-    super(asset, extended);
+  public ObservationCard(Observation asset, IDEContextScope scope, boolean extended) {
+    super(asset, scope, extended);
   }
 
   @Override
@@ -47,7 +50,12 @@ public class ObservationCard extends BaseCard<Observation> {
     geom.setPrefWidth(200);
     geom.setPrefHeight(200);
     ret.getChildren().add(geom);
-    var value = new ValueCard(asset, true);
+    var value =
+        new RelationshipCard(
+            asset,
+            KlabIDEController.instance().getFocalScope(),
+            GraphModel.Relationship.Direction.INCOMING,
+            GraphModel.Relationship.Direction.OUTGOING);
     value.setPrefHeight(200);
     HBox.setHgrow(value, Priority.ALWAYS);
     ret.getChildren().add(value);

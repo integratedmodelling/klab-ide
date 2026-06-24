@@ -5,7 +5,7 @@ import org.integratedmodelling.klab.api.knowledge.Observable;
 public class ObservableCard extends BaseCard<Observable> {
 
   public ObservableCard(Observable asset, boolean extended) {
-    super(asset, extended);
+    super(asset, null, extended);
   }
 
   @Override

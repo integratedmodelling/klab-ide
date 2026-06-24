@@ -79,7 +79,7 @@ public class GeometryCard extends BaseCard<Geometry> {
   }
 
   public GeometryCard(Geometry geometry, boolean extended) {
-    super(geometry == null ? Geometry.EMPTY : geometry, extended, false);
+    super(geometry == null ? Geometry.EMPTY : geometry, null, extended, false);
     drawContent();
   }
 

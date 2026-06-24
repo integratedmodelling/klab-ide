@@ -69,7 +69,7 @@ public class HistogramCard extends BaseCard<Histogram> {
   }
 
   public HistogramCard(Histogram histogram, Options options, boolean extended) {
-    super(histogram == null ? Histogram.empty() : histogram, extended, false);
+    super(histogram == null ? Histogram.empty() : histogram, null, extended, false);
     this.options = new Options(options);
     drawContent();
   }

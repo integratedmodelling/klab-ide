@@ -11,6 +11,7 @@ import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.knowledge.Cohort;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.provenance.Activity;
+import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.Theme;
 
 public class AssetIdentityCard extends BaseCard<RuntimeAsset> {
@@ -18,8 +19,8 @@ public class AssetIdentityCard extends BaseCard<RuntimeAsset> {
   private static final double DEFAULT_WIDTH = 320;
   private static final double DEFAULT_HEIGHT = 220;
 
-  protected AssetIdentityCard(RuntimeAsset asset, boolean extended) {
-    super(asset, extended);
+  protected AssetIdentityCard(RuntimeAsset asset, IDEContextScope scope, boolean extended) {
+    super(asset, scope, extended);
   }
 
   @Override
