@@ -53,14 +53,14 @@ public class RelationshipCard extends BaseCard<RuntimeAsset> {
   private static final double ARROW_HEIGHT = 30;
   private static final double TARGET_LABEL_WIDTH = 142;
   private static final Color[] RELATIONSHIP_COLORS = {
-    Color.web("#2f7f6f"),
-    Color.web("#0550ae"),
-    Color.web("#9a3412"),
-    Color.web("#8250df"),
-    Color.web("#1f6feb"),
-    Color.web("#bf3989"),
-    Color.web("#57606a"),
-    Color.web("#116329")
+    Color.web("#2f7f6f40"),
+    Color.web("#0550ae40"),
+    Color.web("#9a341240"),
+    Color.web("#8250df40"),
+    Color.web("#1f6feb40"),
+    Color.web("#bf398940"),
+    Color.web("#57606a40"),
+    Color.web("#11632940")
   };
 
   private final IDEContextScope scope;
@@ -346,44 +346,45 @@ public class RelationshipCard extends BaseCard<RuntimeAsset> {
     double mid = height / 2.0;
     double y1 = 5;
     double y2 = height - 5;
-    double notch = Math.clamp(width * 0.16, 7, 13);
+    double notch = Math.clamp(width * 0.16, 7, 13) + 4;
     double bodyInset = Math.clamp(width * 0.22, 14, 23);
     double head = Math.clamp(width * 0.2, 13, 19);
-    double headBase = direction == GraphModel.Relationship.Direction.OUTGOING ? width - head : head;
-    double headTip = direction == GraphModel.Relationship.Direction.OUTGOING ? width - 4 : 4;
+    double headBase = /* direction == GraphModel.Relationship.Direction.OUTGOING ? */
+        width - head /*: head*/;
+    double headTip = /* direction == GraphModel.Relationship.Direction.OUTGOING ?*/
+        width - 4 /*: 4*/;
     Color fill = relationshipColor(relationship);
 
     gc.setFill(fill);
     if (direction == GraphModel.Relationship.Direction.OUTGOING) {
       gc.fillPolygon(
-          new double[] {3, bodyInset, headBase, headTip, headBase, bodyInset},
+          new double[] {notch, 0, headBase, headTip, headBase, 0},
           new double[] {mid, y1, y1, mid, y2, y2},
           6);
-      gc.setStroke(fill.darker());
-      gc.strokePolyline(
-          new double[] {3, bodyInset, headBase, headTip, headBase, bodyInset, 3},
-          new double[] {mid, y1, y1, mid, y2, y2, mid},
-          7);
+      //      gc.setStroke(fill.darker());
+      //      gc.strokePolyline(
+      //          new double[] {3, bodyInset, headBase, headTip, headBase, bodyInset, 3},
+      //          new double[] {mid, y1, y1, mid, y2, y2, mid},
+      //          7);
     } else {
       gc.fillPolygon(
-          new double[] {
-            headTip, headBase, width - bodyInset, width - 3, width - bodyInset, headBase
-          },
+          new double[] {0, notch, headTip, headBase, headTip, notch},
           new double[] {mid, y1, y1, mid, y2, y2},
           6);
-      gc.setStroke(fill.darker());
-      gc.strokePolyline(
-          new double[] {
-            headTip, headBase, width - bodyInset, width - 3, width - bodyInset, headBase, headTip
-          },
-          new double[] {mid, y1, y1, mid, y2, y2, mid},
-          7);
+      //      gc.setStroke(fill.darker());
+      //      gc.strokePolyline(
+      //          new double[] {
+      //            headTip, headBase, width - bodyInset, width - 3, width - bodyInset, headBase,
+      // headTip
+      //          },
+      //          new double[] {mid, y1, y1, mid, y2, y2, mid},
+      //          7);
     }
 
-    String label = relationship.name();
+    String label = relationship.name().toLowerCase();
     Font font = fittingFont(label, width - notch - 36);
     gc.setFont(font);
-    gc.setFill(Color.rgb(255, 255, 255, 0.96));
+    gc.setFill(Color.rgb(0, 0, 0, 0.96));
     double textWidth = textWidth(label, font);
     double x = Math.max(10, (width - textWidth) / 2.0);
     double y = mid + 3.2;
@@ -412,12 +413,12 @@ public class RelationshipCard extends BaseCard<RuntimeAsset> {
     }
     return switch (relationship.name()) {
       case "HAS_CHILD", "HAS_MEMBER", "HAS_CONTEXT", "CONTEXTUALIZED", "CONTEXTUALIZED_BY" ->
-          Color.web("#2f7f6f");
-      case "AFFECTS", "TRIGGERED", "CONTRIBUTED_TO" -> Color.web("#9a3412");
-      case "HAS_DATA", "HAS_GEOMETRY", "HAS_DATAFLOW" -> Color.web("#0550ae");
+          Color.web("#2f7f6f40");
+      case "AFFECTS", "TRIGGERED", "CONTRIBUTED_TO" -> Color.web("#9a341240");
+      case "HAS_DATA", "HAS_GEOMETRY", "HAS_DATAFLOW" -> Color.web("#0550ae40");
       case "HAS_PROVENANCE", "HAS_ACTIVITY", "BY_AGENT", "CREATED", "EMERGED_FROM", "RESOLVED" ->
-          Color.web("#8250df");
-      case "HAS_RELATIONSHIP_SOURCE", "HAS_RELATIONSHIP_TARGET" -> Color.web("#bf3989");
+          Color.web("#8250df40");
+      case "HAS_RELATIONSHIP_SOURCE", "HAS_RELATIONSHIP_TARGET" -> Color.web("#bf398940");
       default -> RELATIONSHIP_COLORS[relationship.ordinal() % RELATIONSHIP_COLORS.length];
     };
   }
