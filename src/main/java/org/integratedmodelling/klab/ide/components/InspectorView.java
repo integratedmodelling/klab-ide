@@ -21,7 +21,6 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import javafx.scene.shape.Rectangle;
 import javafx.util.Duration;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.ide.KlabIDEController;
@@ -41,6 +40,7 @@ public class InspectorView extends BorderPane {
 
   private final List<InspectorItem> stack = new ArrayList<>();
   private final StackPane contentArea = new StackPane();
+  private final ScrollPane contentScroll = new ScrollPane(contentArea);
   private final HBox breadcrumbStrip = new HBox(3);
   private ScrollPane breadcrumbScroll;
   private final Button backButton = iconButton(CarbonIcons.PREVIOUS_OUTLINE, "Back");
@@ -76,13 +76,24 @@ public class InspectorView extends BorderPane {
         });
 
     contentArea.getStyleClass().add("inspector-content");
-    var clip = new Rectangle();
-    clip.widthProperty().bind(contentArea.widthProperty());
-    clip.heightProperty().bind(contentArea.heightProperty());
-    contentArea.setClip(clip);
+    contentArea.setAlignment(Pos.TOP_CENTER);
+    contentArea.setMinSize(0, 0);
+    contentArea.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+
+    contentScroll.getStyleClass().add("inspector-content-scroll");
+    contentScroll.setFitToWidth(true);
+    contentScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+    contentScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+    contentScroll.setPannable(true);
+    contentScroll.setMinSize(0, 0);
+    contentScroll.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+    contentScroll
+        .viewportBoundsProperty()
+        .addListener(
+            (observable, oldValue, newValue) -> contentArea.setMinHeight(newValue.getHeight()));
 
     setTop(createToolbar());
-    setCenter(contentArea);
+    setCenter(contentScroll);
     showEmptyState();
     updateToolbar();
   }
@@ -318,11 +329,13 @@ public class InspectorView extends BorderPane {
       configureInspectableNode(node);
       contentArea.getChildren().setAll(node);
     }
+    resetContentScroll();
     updateToolbar();
   }
 
   private void showEmptyState() {
     contentArea.getChildren().setAll(createEmptyState("No inspection target"));
+    resetContentScroll();
   }
 
   private Node createEmptyState(String text) {
@@ -458,6 +471,11 @@ public class InspectorView extends BorderPane {
       region.setMinSize(0, 0);
       region.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
     }
+  }
+
+  private void resetContentScroll() {
+    contentScroll.setHvalue(0);
+    contentScroll.setVvalue(0);
   }
 
   private static String labelFor(Object value) {

@@ -8,7 +8,9 @@ import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import javafx.beans.binding.Bindings;
 import javafx.beans.property.ReadOnlyObjectWrapper;
+import javafx.beans.value.ObservableDoubleValue;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -49,9 +51,20 @@ public class RelationshipCard extends BaseCard<RuntimeAsset> {
 
   private static final double DEFAULT_WIDTH = 320;
   private static final double DEFAULT_HEIGHT = 220;
+  private static final double MIN_CELL_HEIGHT = 28;
+  private static final double DEFAULT_CELL_HEIGHT = 38;
   private static final double DEFAULT_ARROW_WIDTH = 154;
-  private static final double ARROW_HEIGHT = 30;
+  private static final double MIN_ARROW_WIDTH = 44;
+  private static final double MIN_ARROW_HEIGHT = 20;
+  private static final double DEFAULT_ARROW_HEIGHT = 30;
+  private static final double MIN_TARGET_BUTTON_SIZE = 22;
+  private static final double DEFAULT_TARGET_BUTTON_SIZE = 28;
+  private static final double MIN_TARGET_ICON_SIZE = 14;
+  private static final double DEFAULT_TARGET_ICON_SIZE = 18;
+  private static final double MIN_TARGET_LABEL_WIDTH = 52;
   private static final double TARGET_LABEL_WIDTH = 142;
+  private static final double MIN_ROW_GAP = 4;
+  private static final double DEFAULT_ROW_GAP = 6;
   private static final Color[] RELATIONSHIP_COLORS = {
     Color.web("#2f7f6f40"),
     Color.web("#0550ae40"),
@@ -121,7 +134,11 @@ public class RelationshipCard extends BaseCard<RuntimeAsset> {
         .addAll("relationship-card-table", Styles.DENSE, Tweaks.EDGE_TO_EDGE, Tweaks.NO_HEADER);
     table.setColumnResizePolicy(TableView.UNCONSTRAINED_RESIZE_POLICY);
     table.setFocusTraversable(false);
-    table.setFixedCellSize(38);
+    table
+        .fixedCellSizeProperty()
+        .bind(
+            Bindings.createDoubleBinding(
+                () -> cellHeightFor(table.getHeight()), table.heightProperty()));
     table.setPlaceholder(createEmptyState());
 
     TableColumn<RelationshipRow, RelationshipRow> relationshipColumn =
@@ -255,43 +272,101 @@ public class RelationshipCard extends BaseCard<RuntimeAsset> {
     return ret.isEmpty() ? EnumSet.allOf(GraphModel.Relationship.Direction.class) : ret;
   }
 
-  private Node relationshipGraphic(RelationshipRow row) {
-    HBox graphic = new HBox(6);
+  private static double cellHeightFor(double tableHeight) {
+    if (tableHeight <= 0) {
+      return DEFAULT_CELL_HEIGHT;
+    }
+    return Math.clamp(tableHeight / 4.2, MIN_CELL_HEIGHT, DEFAULT_CELL_HEIGHT);
+  }
+
+  private static double arrowHeightFor(double cellHeight) {
+    return Math.clamp(cellHeight - 8, MIN_ARROW_HEIGHT, DEFAULT_ARROW_HEIGHT);
+  }
+
+  private static double targetButtonSizeFor(double cellHeight) {
+    return Math.clamp(cellHeight - 10, MIN_TARGET_BUTTON_SIZE, DEFAULT_TARGET_BUTTON_SIZE);
+  }
+
+  private static double targetIconSizeFor(double cellHeight) {
+    return Math.clamp(
+        targetButtonSizeFor(cellHeight) - 8, MIN_TARGET_ICON_SIZE, DEFAULT_TARGET_ICON_SIZE);
+  }
+
+  private static double rowGapFor(double cellHeight) {
+    return Math.clamp(cellHeight / 6.2, MIN_ROW_GAP, DEFAULT_ROW_GAP);
+  }
+
+  private static double targetLabelWidthFor(double rowWidth, double cellHeight) {
+    if (rowWidth <= 0) {
+      return TARGET_LABEL_WIDTH;
+    }
+    double contentWidth = Math.max(0, rowWidth - 8);
+    double reservedWidth =
+        MIN_ARROW_WIDTH + targetButtonSizeFor(cellHeight) + (2 * rowGapFor(cellHeight));
+    return Math.clamp(contentWidth - reservedWidth, MIN_TARGET_LABEL_WIDTH, TARGET_LABEL_WIDTH);
+  }
+
+  private Node relationshipGraphic(
+      RelationshipRow row, ObservableDoubleValue cellHeight, ObservableDoubleValue cellWidth) {
+    HBox graphic = new HBox(DEFAULT_ROW_GAP);
     graphic.getStyleClass().add("relationship-card-row-content");
     graphic.setAlignment(Pos.CENTER_LEFT);
+    graphic
+        .spacingProperty()
+        .bind(
+            Bindings.createDoubleBinding(
+                () -> rowGapFor(cellHeight.get()), cellHeight));
 
-    Node arrow = arrowView(row);
-    Button icon = targetButton(row.connectedAsset());
-    Label target = connectedAssetLabel(row.connectedAsset());
+    Node arrow = arrowView(row, cellHeight);
+    Button icon = targetButton(row.connectedAsset(), cellHeight);
+    Label target = connectedAssetLabel(row.connectedAsset(), cellHeight, cellWidth);
 
     graphic.getChildren().addAll(arrow, icon, target);
     HBox.setHgrow(arrow, Priority.ALWAYS);
     return graphic;
   }
 
-  private Button targetButton(RuntimeAsset target) {
+  private Button targetButton(RuntimeAsset target, ObservableDoubleValue cellHeight) {
     IconLabel graphic = Theme.getGraphics(target);
+    String iconFontFamily = graphic.getFont().getFamily();
+    graphic
+        .fontProperty()
+        .bind(
+            Bindings.createObjectBinding(
+                () -> Font.font(iconFontFamily, targetIconSizeFor(cellHeight.get())),
+                cellHeight));
+
     Button button = new Button(null, graphic);
     button.getStyleClass().add("relationship-card-target-button");
     button.setCursor(Cursor.HAND);
     button.setFocusTraversable(false);
     button.setTooltip(new Tooltip("Inspect " + labelFor(target)));
     button.setAccessibleText("Inspect " + labelFor(target));
-    button.setMinSize(28, 28);
-    button.setPrefSize(28, 28);
-    button.setMaxSize(28, 28);
+    var buttonSize =
+        Bindings.createDoubleBinding(
+            () -> targetButtonSizeFor(cellHeight.get()), cellHeight);
+    button.minWidthProperty().bind(buttonSize);
+    button.prefWidthProperty().bind(buttonSize);
+    button.maxWidthProperty().bind(buttonSize);
+    button.minHeightProperty().bind(buttonSize);
+    button.prefHeightProperty().bind(buttonSize);
+    button.maxHeightProperty().bind(buttonSize);
     button.setOnAction(event -> inspect(target));
     return button;
   }
 
-  private Label connectedAssetLabel(RuntimeAsset target) {
+  private Label connectedAssetLabel(
+      RuntimeAsset target, ObservableDoubleValue cellHeight, ObservableDoubleValue cellWidth) {
     String label = labelFor(target);
     Label ret = new Label(label);
     ret.getStyleClass().add("relationship-card-target");
     ret.setTextOverrun(OverrunStyle.ELLIPSIS);
-    ret.setMinWidth(74);
-    ret.setPrefWidth(TARGET_LABEL_WIDTH);
-    ret.setMaxWidth(TARGET_LABEL_WIDTH);
+    ret.setMinWidth(MIN_TARGET_LABEL_WIDTH);
+    var labelWidth =
+        Bindings.createDoubleBinding(
+            () -> targetLabelWidthFor(cellWidth.get(), cellHeight.get()), cellWidth, cellHeight);
+    ret.prefWidthProperty().bind(labelWidth);
+    ret.maxWidthProperty().bind(labelWidth);
     ret.setTooltip(new Tooltip(label));
     return ret;
   }
@@ -303,19 +378,21 @@ public class RelationshipCard extends BaseCard<RuntimeAsset> {
     KlabIDEController.instance().showInspector().inspect(target);
   }
 
-  private Node arrowView(RelationshipRow row) {
+  private Node arrowView(RelationshipRow row, ObservableDoubleValue cellHeight) {
 
-    Canvas canvas = new Canvas(DEFAULT_ARROW_WIDTH, ARROW_HEIGHT);
+    Canvas canvas = new Canvas(DEFAULT_ARROW_WIDTH, DEFAULT_ARROW_HEIGHT);
     canvas.setMouseTransparent(true);
 
     StackPane track = new StackPane(canvas);
     track.getStyleClass().add("relationship-card-arrow-track");
-    track.setMinWidth(74);
+    track.setMinWidth(MIN_ARROW_WIDTH);
     track.setPrefWidth(DEFAULT_ARROW_WIDTH);
     track.setMaxWidth(Double.MAX_VALUE);
-    track.setMinHeight(ARROW_HEIGHT);
-    track.setPrefHeight(ARROW_HEIGHT);
-    track.setMaxHeight(ARROW_HEIGHT);
+    var arrowHeight =
+        Bindings.createDoubleBinding(() -> arrowHeightFor(cellHeight.get()), cellHeight);
+    track.minHeightProperty().bind(arrowHeight);
+    track.prefHeightProperty().bind(arrowHeight);
+    track.maxHeightProperty().bind(arrowHeight);
 
     canvas.widthProperty().bind(track.widthProperty());
     canvas.heightProperty().bind(track.heightProperty());
@@ -361,27 +438,14 @@ public class RelationshipCard extends BaseCard<RuntimeAsset> {
           new double[] {notch, 0, headBase, headTip, headBase, 0},
           new double[] {mid, y1, y1, mid, y2, y2},
           6);
-      //      gc.setStroke(fill.darker());
-      //      gc.strokePolyline(
-      //          new double[] {3, bodyInset, headBase, headTip, headBase, bodyInset, 3},
-      //          new double[] {mid, y1, y1, mid, y2, y2, mid},
-      //          7);
     } else {
       gc.fillPolygon(
           new double[] {0, notch, headTip, headBase, headTip, notch},
           new double[] {mid, y1, y1, mid, y2, y2},
           6);
-      //      gc.setStroke(fill.darker());
-      //      gc.strokePolyline(
-      //          new double[] {
-      //            headTip, headBase, width - bodyInset, width - 3, width - bodyInset, headBase,
-      // headTip
-      //          },
-      //          new double[] {mid, y1, y1, mid, y2, y2, mid},
-      //          7);
     }
 
-    String label = relationship.name().toLowerCase();
+    String label = relationship.name().toLowerCase().replace("_", " ");
     Font font = fittingFont(label, width - notch - 36);
     gc.setFont(font);
     gc.setFill(Color.rgb(0, 0, 0, 0.96));
@@ -447,7 +511,10 @@ public class RelationshipCard extends BaseCard<RuntimeAsset> {
     protected void updateItem(RelationshipRow row, boolean empty) {
       super.updateItem(row, empty);
       setText(null);
-      Node graphic = empty || row == null ? null : relationshipGraphic(row);
+      Node graphic =
+          empty || row == null
+              ? null
+              : relationshipGraphic(row, getTableView().fixedCellSizeProperty(), widthProperty());
       if (graphic instanceof Region region) {
         region.setMaxWidth(Double.MAX_VALUE);
         region.prefWidthProperty().bind(widthProperty().subtract(8));

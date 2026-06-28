@@ -55,6 +55,17 @@
 .inspector-content {
     -fx-padding: 8px;
     -fx-background-color: -color-bg-default;
+    -fx-alignment: top-center;
+}
+
+.inspector-content-scroll {
+    -fx-background-color: -color-bg-default;
+    -fx-background: -color-bg-default;
+    -fx-padding: 0;
+}
+
+.inspector-content-scroll > .viewport {
+    -fx-background-color: -color-bg-default;
 }
 
 .inspector-toolbar {
@@ -549,7 +560,6 @@
 
 .relationship-card-table .table-row-cell {
     -fx-background-color: transparent;
-    -fx-cell-size: 38px;
 }
 
 .relationship-card-table .table-row-cell:hover {

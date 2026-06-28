@@ -57,7 +57,11 @@ public class CohortCard extends BaseCard<Cohort> {
     value.setPrefHeight(200);
     HBox.setHgrow(value, Priority.ALWAYS);
     ret.getChildren().add(value);
-    ret.getChildren().add(new MetadataCard(asset.getMetadata()));
+    ret.getChildren()
+        .add(
+            new MetadataCard(
+                asset.getMetadata(),
+                new MetadataCard.Options().title("Metadata").emptyTitle("Empty metadata")));
     return ret;
   }
 }

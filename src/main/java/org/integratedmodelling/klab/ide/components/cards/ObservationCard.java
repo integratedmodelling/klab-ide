@@ -5,6 +5,7 @@ import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.VBox;
 import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.ide.IDEContextScope;
@@ -19,17 +20,7 @@ public class ObservationCard extends BaseCard<Observation> {
   @Override
   protected void drawContent() {
     var tile = new Tile();
-
-    //    tile.setTitle("Observation " + Theme.getLabel(asset));
-    //    tile.setDescription(Theme.getDescription(asset));
-    //    tile.setGraphic(Theme.getGraphics(asset));
-    //    setTop(tile);
     setCenter(createBody());
-    //    setBottom(createFooter());
-    //    if (extended) {
-    //      getStyleClass().add(Styles.ELEVATED_2);
-    //      setPadding(new Insets(2, 10, 4, 10));
-    //    }
   }
 
   private Node createFooter() {
@@ -45,19 +36,25 @@ public class ObservationCard extends BaseCard<Observation> {
     ret.setPadding(new Insets(10));
 
     //    ret.getChildren().add(new AssetIdentityCard(asset, true));
-
+    var leftBox = new VBox();
     var geom = new GeometryCard(asset.getGeometry(), true);
     geom.setPrefWidth(200);
     geom.setPrefHeight(200);
-    ret.getChildren().add(geom);
-    var value =
+    leftBox.getChildren().add(geom);
+    var relationshipCard =
         new RelationshipCard(
             asset,
             KlabIDEController.instance().getFocalScope(),
             GraphModel.Relationship.Direction.INCOMING,
             GraphModel.Relationship.Direction.OUTGOING);
-    value.setPrefHeight(200);
+    relationshipCard.setPrefWidth(200);
+    VBox.setVgrow(relationshipCard, Priority.ALWAYS);
+    leftBox.getChildren().add(relationshipCard);
+    var value = new HBox(); // ValueCard(asset, KlabIDEController.instance().getFocalScope(), true);
+
     HBox.setHgrow(value, Priority.ALWAYS);
+    VBox.setVgrow(value, Priority.ALWAYS);
+    ret.getChildren().add(leftBox);
     ret.getChildren().add(value);
     ret.getChildren()
         .add(
