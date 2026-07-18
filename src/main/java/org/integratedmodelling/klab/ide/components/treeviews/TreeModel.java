@@ -26,6 +26,11 @@ public class TreeModel {
     }
   }
 
+  private record AssetTraversal(
+      RuntimeAsset asset,
+      GraphModel.Relationship relationship,
+      GraphModel.Relationship.Direction direction) {}
+
   /**
    * Create a new AssetTreeItem for the given runtime asset and IDE context scope.
    *
@@ -134,29 +139,36 @@ public class TreeModel {
 
     var ret = false;
     if (depth > 0) {
-      for (var child : getChildren(asset, scope, types, relationships, focus)) {
-        var childAsset = graphAsset(child.getFirst(), graphAssets);
+      for (var child :
+          getTraversals(
+              asset,
+              scope,
+              types,
+              relationships,
+              focus,
+              recursiveDirections.size() > 1)) {
+        var childAsset = graphAsset(child.asset(), graphAssets);
         if (sameAsset(asset, childAsset)) {
           // shouldn't happen, but happens
           continue;
         }
         ret = true;
-        if (child.getSecond().direction() == GraphModel.Relationship.Direction.OUTGOING) {
+        if (child.direction() == GraphModel.Relationship.Direction.OUTGOING) {
           graph.addVertex(childAsset);
           addEdge(
               graph,
               asset,
               childAsset,
-              child.getSecond());
+              child.relationship());
         } else {
           graph.addVertex(childAsset);
           addEdge(
               graph,
               childAsset,
               asset,
-              child.getSecond());
+              child.relationship());
         }
-        if (recursiveDirections.contains(child.getSecond().direction())) {
+        if (recursiveDirections.contains(child.direction())) {
           createGraph(
               childAsset,
               depth - 1,
@@ -221,8 +233,21 @@ public class TreeModel {
       Set<GraphModel.Relationship> relationships,
       RuntimeAsset focus) {
 
+    return getTraversals(asset, scope, types, relationships, focus, false).stream()
+        .map(traversal -> Pair.of(traversal.asset(), traversal.relationship()))
+        .toList();
+  }
+
+  private static List<AssetTraversal> getTraversals(
+      RuntimeAsset asset,
+      IDEContextScope scope,
+      Set<RuntimeAsset.Type> types,
+      Set<GraphModel.Relationship> relationships,
+      RuntimeAsset focus,
+      boolean includeBothDirections) {
+
     var kg = scope.getDigitalTwin().getKnowledgeGraph();
-    var ret = new ArrayList<Pair<RuntimeAsset, GraphModel.Relationship>>();
+    var ret = new ArrayList<AssetTraversal>();
 
     /*
      * This can only happen at root level, as the commit is not stored in the KG
@@ -249,7 +274,11 @@ public class TreeModel {
           isRoot |= (focus != null && observation.equals(focus.getId()));
 
           if (isRoot) {
-            ret.add(Pair.of(observationAsset, GraphModel.Relationship.CREATED));
+            ret.add(
+                new AssetTraversal(
+                    observationAsset,
+                    GraphModel.Relationship.CREATED,
+                    GraphModel.Relationship.Direction.OUTGOING));
           }
         }
       }
@@ -257,7 +286,11 @@ public class TreeModel {
         for (var cohort : commit.getAddedCohorts()) {
           var cohortAsset = kg.getAsset(cohort, scope, Cohort.class);
           if (cohortAsset != null) {
-            ret.add(Pair.of(cohortAsset, GraphModel.Relationship.CREATED));
+            ret.add(
+                new AssetTraversal(
+                    cohortAsset,
+                    GraphModel.Relationship.CREATED,
+                    GraphModel.Relationship.Direction.OUTGOING));
           }
         }
       }
@@ -269,8 +302,12 @@ public class TreeModel {
               GraphModel.Relationship.Direction.OUTGOING,
               scope,
               relationships.toArray(GraphModel.Relationship[]::new))) {
-        if (types.contains(link.target().classify())) {
-          ret.add(Pair.of(link.target(), link.type()));
+        if (includesTraversal(
+                link.type(), GraphModel.Relationship.Direction.OUTGOING, includeBothDirections)
+            && types.contains(link.target().classify())) {
+          ret.add(
+              new AssetTraversal(
+                  link.target(), link.type(), GraphModel.Relationship.Direction.OUTGOING));
         }
       }
 
@@ -280,13 +317,29 @@ public class TreeModel {
               GraphModel.Relationship.Direction.INCOMING,
               scope,
               relationships.toArray(GraphModel.Relationship[]::new))) {
-        if (types.contains(link.source().classify())) {
-          ret.add(Pair.of(link.source(), link.type()));
+        if (includesTraversal(
+                link.type(), GraphModel.Relationship.Direction.INCOMING, includeBothDirections)
+            && types.contains(link.source().classify())) {
+          ret.add(
+              new AssetTraversal(
+                  link.source(), link.type(), GraphModel.Relationship.Direction.INCOMING));
         }
       }
     }
 
     return ret;
+  }
+
+  static boolean followsPreferredDirection(
+      GraphModel.Relationship relationship, GraphModel.Relationship.Direction traversalDirection) {
+    return relationship.direction() == traversalDirection;
+  }
+
+  static boolean includesTraversal(
+      GraphModel.Relationship relationship,
+      GraphModel.Relationship.Direction traversalDirection,
+      boolean includeBothDirections) {
+    return includeBothDirections || followsPreferredDirection(relationship, traversalDirection);
   }
 
   static class AssetTreeItem extends TreeItem<RuntimeAsset> {
@@ -372,6 +425,7 @@ public class TreeModel {
                 asset.target(),
                 new ClientKnowledgeGraph.Relationship(
                     asset.type(), getValue().getId(), asset.target().getId(), Map.of()));
+            ret.add(asset.target());
           }
         }
       }

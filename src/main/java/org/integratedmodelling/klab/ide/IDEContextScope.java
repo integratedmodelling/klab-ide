@@ -116,7 +116,6 @@ public class IDEContextScope implements ContextScope {
       //      case ObservationSubmissionStarted -> {}
       case ObservationSubmissionFinished -> {
         var observation = message.getPayload(Observation.class);
-        executor.execute(() -> viewers.forEach(v -> v.submissionFinished(observation)));
         var root =
             observation.getMetadata().containsKey(Metadata.IM_COMMIT)
                 ? observation.getMetadata().get(Metadata.IM_COMMIT, KnowledgeGraph.Commit.class)
@@ -125,6 +124,11 @@ public class IDEContextScope implements ContextScope {
           addCommit(Pair.of(commit, observation));
         }
         this.setFocus(root, observation);
+        notifyViewers(
+            viewer -> {
+              viewer.submissionFinished(observation);
+              viewer.knowledgeGraphModified();
+            });
       }
       case ActivityFinished -> {
         var activity = message.getPayload(Activity.class);
@@ -163,6 +167,12 @@ public class IDEContextScope implements ContextScope {
 
   private void addCommit(Pair<KnowledgeGraph.Commit, Observation> of) {
     commits.add(of);
+  }
+
+  private void notifyViewers(java.util.function.Consumer<DigitalTwinViewer> notification) {
+    synchronized (viewers) {
+      viewers.forEach(notification);
+    }
   }
 
   public Graph<Activity, DefaultEdge> getActivityGraph() {

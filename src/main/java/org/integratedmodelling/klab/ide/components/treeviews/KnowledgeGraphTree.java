@@ -3,6 +3,7 @@ package org.integratedmodelling.klab.ide.components.treeviews;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javafx.application.Platform;
 import javafx.collections.ObservableList;
 import javafx.scene.control.ContextMenu;
@@ -11,8 +12,6 @@ import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 import javafx.scene.text.Text;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
-import org.integratedmodelling.klab.api.data.KnowledgeGraph;
-import org.integratedmodelling.klab.api.data.Metadata;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
@@ -38,6 +37,7 @@ public class KnowledgeGraphTree extends KlabTreeView<RuntimeAsset> implements Di
   private TreeModel.AssetTreeItem root;
   private IDEContextScope scope;
   private DigitalTwinEditor editor;
+  private final AtomicBoolean graphRefreshPending = new AtomicBoolean();
 
   private static final class AssetTreeCell extends TreeCell<RuntimeAsset> {
 
@@ -134,11 +134,7 @@ public class KnowledgeGraphTree extends KlabTreeView<RuntimeAsset> implements Di
 
   @Override
   public void submissionFinished(Observation observation) {
-    var root =
-        observation.getMetadata().containsKey(Metadata.IM_COMMIT)
-            ? observation.getMetadata().get(Metadata.IM_COMMIT, KnowledgeGraph.Commit.class)
-            : RuntimeAsset.CONTEXT_ASSET;
-    update(root, observation);
+    requestGraphRefresh();
   }
 
   public void update(RuntimeAsset rootAsset, RuntimeAsset focus) {
@@ -211,7 +207,22 @@ public class KnowledgeGraphTree extends KlabTreeView<RuntimeAsset> implements Di
   public void setObserver(Observation observation) {}
 
   @Override
-  public void knowledgeGraphModified() {}
+  public void knowledgeGraphModified() {
+    requestGraphRefresh();
+  }
+
+  private void requestGraphRefresh() {
+    if (graphRefreshPending.compareAndSet(false, true)) {
+      Platform.runLater(
+          () -> {
+            try {
+              update(scope.getFocalRoot(), scope.getFocalAsset());
+            } finally {
+              graphRefreshPending.set(false);
+            }
+          });
+    }
+  }
 
   @Override
   public void scheduleModified(Schedule schedule) {}

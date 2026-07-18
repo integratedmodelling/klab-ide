@@ -452,7 +452,9 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   public void setObserver(Observation observation) {}
 
   @Override
-  public void knowledgeGraphModified() {}
+  public void knowledgeGraphModified() {
+    requestGraphRedraw();
+  }
 
   @Override
   public void activitiesModified() {}
