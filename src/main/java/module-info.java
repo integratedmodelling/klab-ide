@@ -33,6 +33,7 @@ module org.integratedmodelling.klab.ide {
     requires org.eclipse.lsp4j.jsonrpc;
     requires evo.inflector;
     requires java.management;
+    requires java.prefs;
     requires com.jcraft.jsch;
     requires org.slf4j;
     requires commons.collections;

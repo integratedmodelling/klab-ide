@@ -1,0 +1,5 @@
+behavior ${name}
+    "Describe this behavior"
+
+action main:
+    // Add behavior statements here

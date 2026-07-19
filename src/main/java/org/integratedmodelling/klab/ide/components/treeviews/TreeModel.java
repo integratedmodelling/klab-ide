@@ -39,7 +39,7 @@ public class TreeModel {
    * @return a new AssetTreeItem root
    */
   public static Pair<AssetTreeItem, AssetTreeItem> createTree(
-          RuntimeAsset asset, @Nullable RuntimeAsset focus, IDEContextScope scope) {
+      RuntimeAsset asset, @Nullable RuntimeAsset focus, IDEContextScope scope) {
 
     var types = Set.of(RuntimeAsset.Type.OBSERVATION, RuntimeAsset.Type.COHORT);
     var relationships =
@@ -141,12 +141,7 @@ public class TreeModel {
     if (depth > 0) {
       for (var child :
           getTraversals(
-              asset,
-              scope,
-              types,
-              relationships,
-              focus,
-              recursiveDirections.size() > 1)) {
+              asset, scope, types, relationships, focus, recursiveDirections.size() > 1)) {
         var childAsset = graphAsset(child.asset(), graphAssets);
         if (sameAsset(asset, childAsset)) {
           // shouldn't happen, but happens
@@ -155,18 +150,10 @@ public class TreeModel {
         ret = true;
         if (child.direction() == GraphModel.Relationship.Direction.OUTGOING) {
           graph.addVertex(childAsset);
-          addEdge(
-              graph,
-              asset,
-              childAsset,
-              child.relationship());
+          addEdge(graph, asset, childAsset, child.relationship());
         } else {
           graph.addVertex(childAsset);
-          addEdge(
-              graph,
-              childAsset,
-              asset,
-              child.relationship());
+          addEdge(graph, childAsset, asset, child.relationship());
         }
         if (recursiveDirections.contains(child.direction())) {
           createGraph(
@@ -217,8 +204,8 @@ public class TreeModel {
   /**
    * Get the outgoing related objects of the given asset filtering for the specified types and
    * relationships. Walk the knowledge graph from the scope unless the passed asset is a commit, in
-   * which case the strategy picks the results that have been committed and arranges them for best
-   * visibility.
+   * which case the strategy picks the results that have been committed and arranges them for the
+   * best visibility.
    *
    * @param asset
    * @param scope

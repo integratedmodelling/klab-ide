@@ -7,6 +7,7 @@ import com.google.common.collect.Queues;
 import java.awt.*;
 import java.io.File;
 import java.net.URL;
+import java.nio.file.Path;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
@@ -567,6 +568,21 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
             //            browsablePage.showBrowser();
           }
         });
+  }
+
+  /** Open a standalone k.Actors file in the Sessions page from another IDE action. */
+  public void openBehaviorFile(Path file) {
+    if (file == null || applicationView == null) return;
+    Platform.runLater(
+        () -> {
+          selectView(View.APPLICATIONS);
+          applicationView.openFile(file);
+        });
+  }
+
+  /** Convenience overload for JavaFX and legacy callers that work with {@link File}. */
+  public void openBehaviorFile(File file) {
+    if (file != null) openBehaviorFile(file.toPath());
   }
 
   public View selectedView() {

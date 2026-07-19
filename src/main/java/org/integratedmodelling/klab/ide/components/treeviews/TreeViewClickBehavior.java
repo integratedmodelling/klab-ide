@@ -36,8 +36,7 @@ public final class TreeViewClickBehavior {
     treeControl.getProperties().put(DISABLE_BRANCH_DOUBLE_CLICK_TOGGLE_KEY, Boolean.TRUE);
     // JavaFX toggles branch expansion from the second mouse press, before clicked handlers run.
     treeControl.addEventFilter(
-        MouseEvent.MOUSE_PRESSED,
-        event -> consumeBranchBodyDoubleClick(event, treeItemResolver));
+        MouseEvent.MOUSE_PRESSED, event -> consumeBranchBodyDoubleClick(event, treeItemResolver));
   }
 
   private static void consumeBranchBodyDoubleClick(

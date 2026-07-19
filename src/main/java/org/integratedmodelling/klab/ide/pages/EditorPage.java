@@ -120,12 +120,15 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
               });
 
           this.container = new VBox();
-          VBox.setVgrow(tree, Priority.ALWAYS);
+          Node browsingContent = createBrowsingContent(tree);
+          VBox.setVgrow(browsingContent, Priority.ALWAYS);
           container.setMaxWidth(Double.MAX_VALUE);
-          tree.setMaxWidth(Double.MAX_VALUE);
+          if (browsingContent instanceof Region region) {
+            region.setMaxWidth(Double.MAX_VALUE);
+          }
           digitalTwinControlPanel =
-              new DigitalTwinControlPanel(tree.widthProperty().intValue(), this);
-          digitalTwinControlPanel.prefWidthProperty().bind(tree.widthProperty());
+              new DigitalTwinControlPanel(browsingArea.widthProperty().intValue(), this);
+          digitalTwinControlPanel.prefWidthProperty().bind(browsingArea.widthProperty());
           digitalTwinControlPanel
               .prefHeightProperty()
               .bind(digitalTwinControlPanel.widthProperty());
@@ -133,7 +136,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
           //          var dtContainer = new StackPane();
           // dtContainer.getChildren().addAll(digitalTwinControlPanel /*, toggleBar*/);
 
-          container.getChildren().addAll(tree);
+          container.getChildren().add(browsingContent);
 
           var topMenu = createTopMenu();
           if (topMenu != null) {
@@ -147,6 +150,14 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
           }
           KlabIDEController.instance().digitalTwinPanelStateChanged(this);
         });
+  }
+
+  /**
+   * Build the right-hand browsing area. Editors that need more than a tree may override this and
+   * compose the supplied tree with metadata, debugger, or other auxiliary panes.
+   */
+  protected Node createBrowsingContent(TreeView<T> tree) {
+    return tree;
   }
 
   /**
