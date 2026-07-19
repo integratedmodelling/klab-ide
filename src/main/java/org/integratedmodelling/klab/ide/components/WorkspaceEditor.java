@@ -521,8 +521,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       DiagnosticsService diagnosticsService = DiagnosticsService.getInstance();
       ret.setCursorPositionListener(
           offset -> {
-            for (var ass : document.getAssetsAt(offset)) {
-              System.out.println("Cursor position " + offset + " within asset: " + ass);
+            if (isEditorSelected(document)) {
+              focusTreeOn(document.getAssetsAt(offset));
             }
           });
       ret.setOnDirtyChanged(
@@ -737,7 +737,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     if (KlabIDEApplication.instance().isInspectorShown()) {
       KlabIDEController.instance().getInspector().inspect(value);
     }
-    System.out.println("clicked on " + value + "");
+    navigateToAsset(value, false);
   }
 
   @Override
@@ -755,10 +755,74 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   @Override
   protected void onDoubleClickItemSelection(NavigableAsset value) {
-    if (value instanceof KlabDocument<?> document) {
-      edit(value);
-    } else if (value instanceof KlabStatement statement) {
-      // TODO show editor and set the cursor there
+    navigateToAsset(value, true);
+  }
+
+  private void navigateToAsset(NavigableAsset asset, boolean activateDocument) {
+    var document = containingDocument(asset);
+    if (document == null) {
+      return;
+    }
+
+    if (activateDocument) {
+      edit(document);
+    } else if (!isEditorSelected(document)) {
+      return;
+    }
+
+    if (isEditorSelected(document) && getEditor(document) instanceof MonacoEditorView editor) {
+      int offset = asset instanceof KlabStatement statement ? statement.getOffsetInDocument() : 0;
+      if (offset >= 0) {
+        editor.setCursorPosition(offset);
+        editor.requestEditorFocus();
+      }
+    }
+  }
+
+  private NavigableKlabDocument<?, ?> containingDocument(NavigableAsset asset) {
+    if (asset instanceof NavigableKlabDocument<?, ?> document) {
+      return document;
+    }
+    if (asset instanceof NavigableKlabStatement<?> statement) {
+      return statement.document();
+    }
+    return null;
+  }
+
+  private void focusTreeOn(List<NavigableAsset> assets) {
+    if (treeView == null || assets == null || assets.isEmpty()) {
+      return;
+    }
+    // getAssetsAt() returns the path from the document to the most specific containing asset.
+    var item = findTreeItem(root, assets.getLast());
+    if (item == null) {
+      return;
+    }
+    expandAncestors(item);
+    treeView.getSelectionModel().clearAndSelect(treeView.getRow(item));
+    treeView.scrollTo(treeView.getRow(item));
+  }
+
+  private TreeItem<NavigableAsset> findTreeItem(
+      TreeItem<NavigableAsset> candidate, NavigableAsset asset) {
+    if (candidate == null) {
+      return null;
+    }
+    if (candidate.getValue() == asset || Objects.equals(candidate.getValue(), asset)) {
+      return candidate;
+    }
+    for (var child : candidate.getChildren()) {
+      var found = findTreeItem(child, asset);
+      if (found != null) {
+        return found;
+      }
+    }
+    return null;
+  }
+
+  private void expandAncestors(TreeItem<NavigableAsset> item) {
+    for (var parent = item.getParent(); parent != null; parent = parent.getParent()) {
+      parent.setExpanded(true);
     }
   }
 

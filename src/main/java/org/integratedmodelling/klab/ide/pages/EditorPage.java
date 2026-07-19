@@ -233,6 +233,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
       if (editor != null) {
         var tab = new Tab(Theme.getLabel(asset), editor);
         tab.setGraphic(Theme.getGraphics(asset));
+        tab.setOnClosed(event -> assetEditors.remove(asset, tab));
         editorTabs.getTabs().add(tab);
         assetEditors.put(asset, tab);
         editorTabs.getSelectionModel().select(tab);
@@ -241,6 +242,18 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
     if (assetEditors.containsKey(asset)) {
       editorTabs.getSelectionModel().select(assetEditors.get(asset));
     }
+  }
+
+  /** Return the editor node for an asset, or {@code null} when the asset is not open. */
+  protected Node getEditor(T asset) {
+    var tab = assetEditors.get(asset);
+    return tab == null ? null : tab.getContent();
+  }
+
+  /** Return true when the asset is open in the current foreground editor tab. */
+  protected boolean isEditorSelected(T asset) {
+    var tab = assetEditors.get(asset);
+    return tab != null && editorTabs.getSelectionModel().getSelectedItem() == tab;
   }
 
   /**
