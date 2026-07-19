@@ -219,8 +219,8 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   @Override
   protected Node createBrowsingContent(TreeView<Object> tree) {
     VBox.setVgrow(tree, Priority.ALWAYS);
-    var metadata = reserved("Behavior metadata", "Metadata cards will appear here");
-    var debugger = reserved("Debugger", "Debugger output will appear here");
+    var metadata = reserved("Interaction", "Message-sending UI");
+    var debugger = reserved("Debugger", "Debugger UI");
     return new VBox(tree, new Separator(), metadata, debugger);
   }
 
