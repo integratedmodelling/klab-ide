@@ -6,9 +6,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.IdentityHashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Consumer;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -22,17 +20,18 @@ import javafx.scene.control.Tooltip;
 import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
-import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
-import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
-import org.integratedmodelling.klab.api.knowledge.observation.Observation;
+import org.integratedmodelling.common.logging.Logging;
+import org.integratedmodelling.klab.api.actors.Agent;
 import org.integratedmodelling.klab.api.knowledge.SemanticType;
+import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.lang.kactors.KActorsAction;
 import org.integratedmodelling.klab.api.lang.kactors.KActorsBehavior;
+import org.integratedmodelling.klab.api.services.ResourcesService;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.KlabIDEController;
@@ -65,6 +64,8 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   private MonacoEditorView monacoEditor;
   private Label statusLabel;
   private String documentUri;
+  private boolean stale = false;
+  private Set<Agent> agents = Collections.synchronizedSet(new LinkedHashSet<>());
 
   public BehaviorEditor(Path file, KActorsBehavior asset, Consumer<Path> savedCallback) {
     super(new NavigableKActorsBehavior(asset, null));
@@ -101,8 +102,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     var lsp = KlabLspService.getInstance();
     if (lsp.ensureInitialized(
         KlabIDEController.instance().getLanguageServer(), KlabIDEController.instance().user())) {
-      var session =
-          new LspDocumentSession(monacoEditor, languageId, behavior.getSourceCode());
+      var session = new LspDocumentSession(monacoEditor, languageId, behavior.getSourceCode());
 
       VBox editor = new VBox(createEditorToolbar(), monacoEditor, createStatusBar());
       VBox.setVgrow(monacoEditor, Priority.ALWAYS);
@@ -124,8 +124,8 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   }
 
   private Node createEditorToolbar() {
-    var type = new Label(behavior.getBehaviorType().name());
-    type.setGraphic(new IconLabel(Theme.BEHAVIOR_ICON, 16, Theme.FOREGROUND_COLOR));
+    var type = new Label(/*behavior.getBehaviorType().name()*/ );
+    type.setGraphic(Theme.getGraphics(behavior));
     type.setTooltip(new Tooltip(file.toString()));
     var location = new Label(file.getFileName().toString());
     location.setTooltip(new Tooltip(file.toString()));
@@ -160,14 +160,53 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     return bar;
   }
 
+  /**
+   * Revise the UI based on the current behavior status, running agents, linked scopes/observations
+   * and agent state. Called after save and after any remote agent event.
+   */
+  private void updateStatus() {
+    // Set the stale/clean behavior status
+    // Activate and select the buttons for the current status:
+    //   - if behavior, can always span another
+    //   - if session-bound, set based on the agent reference
+    //   - setup notification pane with indicators
+    //   - activate/deactivate messaging UI
+  }
+
   private void save(String contents) {
     try {
       Files.writeString(file, contents, StandardCharsets.UTF_8);
-      behavior = new NavigableKActorsBehavior(LocalBehavior.parse(file, contents), null);
+      var parsed =
+          KlabIDEController.instance()
+              .user()
+              .getService(ResourcesService.class)
+              .readBehavior(file.toUri().toURL(), KlabIDEController.instance().user());
+
+      this.stale = false;
+      if (parsed == null) {
+        // syntax errors cause this. Do not submit and return. FIXME At this point the
+        //  loaded behavior has diverged from the source code: we should either null it
+        //  or record an obsolete state that should prevent compilation.
+        this.stale = true;
+        return;
+      }
+
+      this.behavior = new NavigableKActorsBehavior(parsed, null);
+      for (var notification : behavior.getNotifications()) {
+        // TODO send to editor to show. Needs a notification method that only consumes those with
+        //  lexical context
+        Logging.INSTANCE.notifications(notification);
+        if (notification.getLevel().severity >= Notification.Level.Error.severity) {
+          this.stale = true;
+        }
+      }
       if (treeView != null) treeView.setRoot(createTreeRoot());
       if (savedCallback != null) savedCallback.accept(file);
+
     } catch (IOException e) {
-      KlabIDEController.instance().handleNotification(Notification.error(e));
+      KlabIDEController.instance()
+          .handleNotification(Notification.error("Error saving behavior", e));
+      this.stale = true;
     }
   }
 
@@ -197,7 +236,8 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     var root = new TreeItem<Object>();
     var behaviorItem = new TreeItem<Object>(behavior);
     behaviorItem.setExpanded(true);
-    for (var action : behavior.getStatements()) behaviorItem.getChildren().add(new TreeItem<>(action));
+    for (var action : behavior.getStatements())
+      behaviorItem.getChildren().add(new TreeItem<>(action));
     root.getChildren().add(behaviorItem);
 
     var agents = new TreeItem<Object>(new AgentGroup("Agents"));
@@ -262,12 +302,12 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       setText(observation.getName() == null ? observation.getUrn() : observation.getName());
       var dot =
           new IconLabel(
-              Material2AL.FIBER_MANUAL_RECORD,
-              11,
-              associated && running ? Color.GREEN : Color.RED);
+              Material2AL.FIBER_MANUAL_RECORD, 11, associated && running ? Color.GREEN : Color.RED);
       dot.setTooltip(
           new Tooltip(
-              !associated ? "No behavior associated" : running ? "Running; click to stop" : "Stopped; click to start"));
+              !associated
+                  ? "No behavior associated"
+                  : running ? "Running; click to stop" : "Stopped; click to start"));
       dot.setOnMouseClicked(
           event -> {
             if (associated) {
@@ -279,7 +319,8 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       setGraphic(dot);
 
       var menu = new ContextMenu();
-      var apply = new MenuItem("Apply behavior", new IconLabel(Theme.BEHAVIOR_ICON, 14, Color.GREEN));
+      var apply =
+          new MenuItem("Apply behavior", new IconLabel(Theme.BEHAVIOR_ICON, 14, Color.GREEN));
       apply.setDisable(associated);
       apply.setOnAction(
           event -> {
@@ -292,7 +333,10 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
         var toggle =
             new MenuItem(
                 running ? "Stop behavior" : "Start behavior",
-                new IconLabel(running ? Material2MZ.STOP : Material2MZ.PLAY_ARROW, 14, running ? Color.RED : Color.GREEN));
+                new IconLabel(
+                    running ? Material2MZ.STOP : Material2MZ.PLAY_ARROW,
+                    14,
+                    running ? Color.RED : Color.GREEN));
         toggle.setOnAction(
             event -> {
               runningAgents.put(key, !running);

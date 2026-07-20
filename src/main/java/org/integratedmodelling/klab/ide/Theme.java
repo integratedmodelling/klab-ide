@@ -20,6 +20,7 @@ import org.integratedmodelling.klab.api.knowledge.*;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.TimeInstant;
 import org.integratedmodelling.klab.api.knowledge.organization.Project;
+import org.integratedmodelling.klab.api.lang.kactors.KActorsBehavior;
 import org.integratedmodelling.klab.api.lang.kim.KimModel;
 import org.integratedmodelling.klab.api.lang.kim.KimObservable;
 import org.integratedmodelling.klab.api.lang.kim.KimSymbolDefinition;
@@ -248,6 +249,10 @@ public enum Theme {
 
     if (asset instanceof Asset runtimeAsset) {
       asset = runtimeAsset.getDelegate();
+    }
+
+    if (asset instanceof KActorsBehavior) {
+      return switch
     }
 
     if (asset instanceof NavigableAsset navigableAsset) {

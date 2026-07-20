@@ -1,6 +1,5 @@
 package org.integratedmodelling.klab.ide;
 
-import java.io.Serializable;
 import java.net.URL;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -10,6 +9,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientDigitalTwin;
 import org.integratedmodelling.common.services.client.scope.ClientContextScope;
+import org.integratedmodelling.klab.api.actors.Agent;
 import org.integratedmodelling.klab.api.collections.Pair;
 import org.integratedmodelling.klab.api.collections.Parameters;
 import org.integratedmodelling.klab.api.data.Data;
@@ -196,13 +196,8 @@ public class IDEContextScope implements ContextScope {
   }
 
   @Override
-  public KActorsBehavior.Ref getAgent() {
+  public Agent getAgent() {
     return delegate.getAgent();
-  }
-
-  @Override
-  public <T extends Serializable> T ask(Class<T> resultClass, Object... messageArgs) {
-    return delegate.ask(resultClass, messageArgs);
   }
 
   @Override
@@ -307,8 +302,8 @@ public class IDEContextScope implements ContextScope {
   }
 
   @Override
-  public SessionScope run(KActorsBehavior behavior, RuntimeService hostService) {
-    return delegate.run(behavior, hostService);
+  public SessionScope run(KActorsBehavior behavior) {
+    return delegate.run(behavior);
   }
 
   @Override
