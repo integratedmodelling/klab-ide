@@ -251,8 +251,15 @@ public enum Theme {
       asset = runtimeAsset.getDelegate();
     }
 
-    if (asset instanceof KActorsBehavior) {
-      return switch
+    if (asset instanceof KActorsBehavior behavior) {
+      return switch (behavior.getBehaviorType()) {
+        // TODO proper icons
+        case BEHAVIOR, USER -> new IconLabel(APPLICATION_VIEW_ICON, 16, Color.GREY);
+        case APP -> new IconLabel(APP_ICON, 16, Color.GREY);
+        case COMPONENT, TRAITS -> new IconLabel(BEHAVIOR_ICON, 16, Color.GREY);
+        case UNITTEST -> new IconLabel(BEHAVIOR_ICON, 16, Color.GREY);
+        case SCRIPT, TASK -> new IconLabel(BEHAVIOR_ICON, 16, Color.GREY);
+      };
     }
 
     if (asset instanceof NavigableAsset navigableAsset) {
@@ -468,7 +475,8 @@ public enum Theme {
       if (detail == Detail.CARD) {
         return new ObservationCard(observation, KlabIDEController.instance().getFocalScope(), true);
       } else if (detail == Detail.BADGE) {
-        return new ObservationCard(observation, KlabIDEController.instance().getFocalScope(), false);
+        return new ObservationCard(
+            observation, KlabIDEController.instance().getFocalScope(), false);
       }
     } else if (object instanceof Cohort cohort) {
       if (detail == Detail.CARD) {
