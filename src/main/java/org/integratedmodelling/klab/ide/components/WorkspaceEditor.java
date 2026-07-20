@@ -37,8 +37,8 @@ import org.integratedmodelling.klab.ide.components.generic.TreeSearchField;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.integratedmodelling.klab.modeler.model.*;
 import org.integratedmodelling.klabeditor.MonacoEditorView;
-import org.integratedmodelling.klabeditor.lsp.DiagnosticsService;
 import org.integratedmodelling.klabeditor.lsp.KlabLspService;
+import org.integratedmodelling.klabeditor.lsp.LspDocumentSession;
 import org.kordamp.ikonli.bootstrapicons.BootstrapIcons;
 import org.kordamp.ikonli.carbonicons.CarbonIcons;
 import org.kordamp.ikonli.material2.Material2AL;
@@ -53,8 +53,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private TreeItem<NavigableAsset> root;
   private ProgressBar progressBar;
   private TreeView<NavigableAsset> treeView;
-
-  private final DiagnosticsService diagnosticsService = DiagnosticsService.getInstance();
+  private final Map<Node, LspDocumentSession> lspSessions = new IdentityHashMap<>();
 
   public WorkspaceEditor(ResourcesService service, ResourceInfo resourceInfo, WorkspaceView view) {
     super(
@@ -486,10 +485,12 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       // 1. LSP init for this workspace
       //      Path workspaceRoot = Paths.get(System.getProperty("user.home") + "/git/klab-ide");
       //      try {
-      if (!KlabLspService.getInstance()
-          .ensureInitialized(
-              KlabIDEController.instance().getLanguageServer(),
-              KlabIDEController.instance().user())) {
+      boolean lspAvailable =
+          KlabLspService.getInstance()
+              .ensureInitialized(
+                  KlabIDEController.instance().getLanguageServer(),
+                  KlabIDEController.instance().user());
+      if (!lspAvailable) {
         KlabIDEController.instance()
             .handleNotification(
                 Notification.error("LSP Server is not running: no edit support available"));
@@ -513,12 +514,6 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
       ret.loadEditor(document.getSourceCode(), languageId, theme);
 
-      KlabLspService lsp = KlabLspService.getInstance();
-
-      System.out.println("[WorkspaceEditor] Opening LSP document " + documentUri);
-      lsp.openDocument(documentUri, languageId, document.getSourceCode());
-
-      DiagnosticsService diagnosticsService = DiagnosticsService.getInstance();
       ret.setCursorPositionListener(
           offset -> {
             if (isEditorSelected(document)) {
@@ -529,59 +524,22 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           dirty -> {
             // TODO change the tab title with the asterisk on top
           });
-      DiagnosticsService.Listener listener =
-          (uri, diagnostics) -> {
-            System.out.println(
-                "[WorkspaceEditor] Listener fired for URI = "
-                    + uri
-                    + ", expected = "
-                    + documentUri
-                    + ", count = "
-                    + diagnostics.size());
-
-            if (documentUri.equals(uri)) {
-              Platform.runLater(
-                  () -> {
-                    System.out.println(
-                        "[WorkspaceEditor] Forwarding diagnostics to MonacoEditorView");
-                    ret.setDiagnostics(diagnostics);
-                  });
-            } else {
-              System.out.println("[WorkspaceEditor] Ignoring diagnostics for " + uri);
-            }
-          };
-
-      diagnosticsService.addListener(listener);
-
-      // Initialize with any diagnostics already present for this URI
-      var existing = diagnosticsService.getDiagnostics(documentUri);
-      if (!existing.isEmpty()) {
-        ret.setDiagnostics(existing);
+      if (lspAvailable) {
+        var session =
+            new LspDocumentSession(ret, languageId, document.getSourceCode());
+        lspSessions.put(ret, session);
       }
-
-      ret.setChangeListener(
-          newText -> {
-            try {
-              // Send to LSP. This does not happen reliably.
-              System.err.println("[WorkspaceEditor] Sending changes for " + documentUri);
-              lsp.changeDocument(documentUri, newText);
-            } catch (Exception e) {
-              System.err.println("[WorkspaceEditor] Failed didChange for " + documentUri);
-              e.printStackTrace();
-            }
-          });
-      // 5. Automatic cleanup: when editor node is detached from scene, remove listener
-      ret.sceneProperty()
-          .addListener(
-              (obs, oldScene, newScene) -> {
-                if (newScene == null) {
-                  diagnosticsService.removeListener(listener);
-                  lsp.closeDocument(documentUri);
-                }
-              });
       return ret;
     }
     return null;
+  }
+
+  @Override
+  protected void disposeEditor(NavigableAsset asset, Node editor) {
+    var session = lspSessions.remove(editor);
+    if (session != null) {
+      session.close();
+    }
   }
 
   private void saveDocument(String text, NavigableAsset asset) {

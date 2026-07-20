@@ -57,6 +57,7 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
   protected void assetEditorClosed(WorkspaceEditor editor) {
     workspaces.remove(editor.getEditedAsset().getUrn());
     openEditors.remove(editor.getEditedAsset().getUrn());
+    editor.close();
   }
 
   @Override

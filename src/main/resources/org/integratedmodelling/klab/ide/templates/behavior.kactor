@@ -1,5 +1,17 @@
+// use `behavior`, `script`, `application`, `library`, `testcase` or `component`
 behavior ${name}
     "Describe this behavior"
+    // version number is mandatory. Do not forget to change it when the actor changes API.
+    version 1.0
+    // declare all imported agents here
+    using klab.core.console as console
 
+action init:
+    // here you define the global agent's state, if any is needed. You can only use
+    // the `def` verb in the `init` action. The global state is visible to other agents.
+    def name "${name}"
+
+// the main action is optional: it will execute automatically (after 'init') if present
 action main:
-    // Add behavior statements here
+    // Add behavior statements here. At least one statement is mandatory
+    console.println("Hello world")

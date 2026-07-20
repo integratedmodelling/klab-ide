@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 import javafx.application.Platform;
@@ -41,8 +42,8 @@ import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.integratedmodelling.klab.modeler.model.NavigableKActorsBehavior;
 import org.integratedmodelling.klabeditor.MonacoEditorView;
-import org.integratedmodelling.klabeditor.lsp.DiagnosticsService;
 import org.integratedmodelling.klabeditor.lsp.KlabLspService;
+import org.integratedmodelling.klabeditor.lsp.LspDocumentSession;
 import org.kordamp.ikonli.carbonicons.CarbonIcons;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
@@ -57,6 +58,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   private final Consumer<Path> savedCallback;
   private final Map<String, Boolean> runningAgents = new HashMap<>();
   private final Map<String, Boolean> associatedAgents = new HashMap<>();
+  private final Map<Node, LspDocumentSession> lspSessions = new IdentityHashMap<>();
   private NavigableKActorsBehavior behavior;
   private IDEContextScope contextScope;
   private TreeView<Object> treeView;
@@ -99,31 +101,26 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     var lsp = KlabLspService.getInstance();
     if (lsp.ensureInitialized(
         KlabIDEController.instance().getLanguageServer(), KlabIDEController.instance().user())) {
-      lsp.openDocument(documentUri, languageId, behavior.getSourceCode());
-      monacoEditor.setChangeListener(text -> lsp.changeDocument(documentUri, text));
-    }
+      var session =
+          new LspDocumentSession(monacoEditor, languageId, behavior.getSourceCode());
 
-    var diagnostics = DiagnosticsService.getInstance();
-    DiagnosticsService.Listener listener =
-        (uri, entries) -> {
-          if (documentUri.equals(uri)) Platform.runLater(() -> monacoEditor.setDiagnostics(entries));
-        };
-    diagnostics.addListener(listener);
-    var existing = diagnostics.getDiagnostics(documentUri);
-    if (!existing.isEmpty()) monacoEditor.setDiagnostics(existing);
-    monacoEditor
-        .sceneProperty()
-        .addListener(
-            (observable, oldScene, newScene) -> {
-              if (newScene == null) {
-                diagnostics.removeListener(listener);
-                lsp.closeDocument(documentUri);
-              }
-            });
+      VBox editor = new VBox(createEditorToolbar(), monacoEditor, createStatusBar());
+      VBox.setVgrow(monacoEditor, Priority.ALWAYS);
+      lspSessions.put(editor, session);
+      return editor;
+    }
 
     VBox editor = new VBox(createEditorToolbar(), monacoEditor, createStatusBar());
     VBox.setVgrow(monacoEditor, Priority.ALWAYS);
     return editor;
+  }
+
+  @Override
+  protected void disposeEditor(Object asset, Node editor) {
+    var session = lspSessions.remove(editor);
+    if (session != null) {
+      session.close();
+    }
   }
 
   private Node createEditorToolbar() {

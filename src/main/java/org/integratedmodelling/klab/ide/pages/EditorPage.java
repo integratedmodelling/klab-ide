@@ -233,7 +233,12 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
       if (editor != null) {
         var tab = new Tab(Theme.getLabel(asset), editor);
         tab.setGraphic(Theme.getGraphics(asset));
-        tab.setOnClosed(event -> assetEditors.remove(asset, tab));
+        tab.setOnClosed(
+            event -> {
+              if (assetEditors.remove(asset, tab)) {
+                disposeEditor(asset, editor);
+              }
+            });
         editorTabs.getTabs().add(tab);
         assetEditors.put(asset, tab);
         editorTabs.getSelectionModel().select(tab);
@@ -266,6 +271,12 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
   }
 
   protected abstract Node createEditor(T asset);
+
+  /**
+   * Release resources owned by an individual editor. This is called only when its tab is actually
+   * closed, not when JavaFX temporarily detaches the tab content from a scene.
+   */
+  protected void disposeEditor(T asset, Node editor) {}
 
   /**
    * Handle a single click in the browse tree. Note: runs inside the platform UI thread
@@ -315,7 +326,16 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
 
   @Override
   public void close() {
-    digitalTwinControlPanel.close();
+    for (var entry : Map.copyOf(assetEditors).entrySet()) {
+      var editor = entry.getValue().getContent();
+      if (editor != null) {
+        disposeEditor(entry.getKey(), editor);
+      }
+    }
+    assetEditors.clear();
+    if (digitalTwinControlPanel != null) {
+      digitalTwinControlPanel.close();
+    }
     KlabIDEController.instance().unregisterDigitalTwinReactor(this);
   }
 }
