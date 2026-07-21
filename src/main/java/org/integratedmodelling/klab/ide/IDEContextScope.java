@@ -302,8 +302,8 @@ public class IDEContextScope implements ContextScope {
   }
 
   @Override
-  public SessionScope run(KActorsBehavior behavior) {
-    return delegate.run(behavior);
+  public SessionScope run(KActorsBehavior behavior, RuntimeService service) {
+    return delegate.run(behavior, service);
   }
 
   @Override
