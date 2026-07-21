@@ -28,7 +28,7 @@ import org.integratedmodelling.klab.modeler.model.NavigableKActorsBehavior;
 import org.kordamp.ikonli.javafx.FontIcon;
 
 /** Browser and editor host for standalone k.Actors behaviors. */
-public class SessionView extends BrowsablePage<BehaviorEditor, NavigableKActorsBehavior> {
+public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBehavior> {
 
   private static final int MAX_RECENT_FILES = 12;
   private static final String RECENTS_KEY = "recentBehaviorFiles";
@@ -36,12 +36,12 @@ public class SessionView extends BrowsablePage<BehaviorEditor, NavigableKActorsB
   private static final String TEMPLATE_RESOURCE =
       "/org/integratedmodelling/klab/ide/templates/behavior.kactor";
 
-  private final Preferences preferences = Preferences.userNodeForPackage(SessionView.class);
+  private final Preferences preferences = Preferences.userNodeForPackage(AgentView.class);
   private final Map<Path, BehaviorEditor> openEditors = new LinkedHashMap<>();
   private final List<Path> recentFiles = new ArrayList<>();
   private final List<Node> components = new ArrayList<>();
 
-  public SessionView() {
+  public AgentView() {
     super(
         "Choose or create a behavior using the top-left menu",
         "Behaviors, scripts, applications and test cases are created locally; they can be imported into projects once tested");
@@ -157,7 +157,7 @@ public class SessionView extends BrowsablePage<BehaviorEditor, NavigableKActorsB
   }
 
   private String templateFor(String behaviorName) throws IOException {
-    try (var input = SessionView.class.getResourceAsStream(TEMPLATE_RESOURCE)) {
+    try (var input = AgentView.class.getResourceAsStream(TEMPLATE_RESOURCE)) {
       if (input == null) throw new IOException("Missing behavior template " + TEMPLATE_RESOURCE);
       return new String(input.readAllBytes(), StandardCharsets.UTF_8)
           .replace("${name}", behaviorName);

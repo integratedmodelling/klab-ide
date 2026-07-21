@@ -239,7 +239,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private InspectorView inspectorView;
   private Stage detachedInspectorStage;
   private boolean inspectorDocked = true;
-  private SessionView applicationView;
+  private AgentView applicationView;
   private OntologyView ontologyView;
 
   public KlabIDEController() {
@@ -479,7 +479,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     resourcesView = new ResourcesView();
     inspectorView = new InspectorView();
     inspectorView.setDockingActions(this::undockInspector, this::dockInspector);
-    applicationView = new SessionView();
+    applicationView = new AgentView();
     ontologyView = new OntologyView();
 
     Logging.INSTANCE.info("Modeler initialized");

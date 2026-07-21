@@ -278,7 +278,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
             monacoEditor.markNotifications(behavior.getNotifications());
 
             // compile and run depend on errors
-            if (errors == 0) {
+            if (errors == 0 && !this.stale) {
               this.compile.enabled(true);
             }
           }
