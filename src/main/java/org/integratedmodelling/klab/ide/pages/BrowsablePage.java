@@ -3,11 +3,13 @@ package org.integratedmodelling.klab.ide.pages;
 import atlantafx.base.controls.ModalPane;
 import atlantafx.base.theme.Styles;
 import javafx.application.Platform;
+import javafx.beans.binding.Bindings;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Side;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
+import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.layout.HBox;
@@ -24,6 +26,8 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
 
   protected static final int BROWSER_WIDTH = 280;
   private final TabPane tabPane;
+  private final Label messageLabel;
+  private final Label descriptionLabel;
 
   private static class Dialog extends VBox {
 
@@ -42,12 +46,42 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
   private Dialog browserArea;
 
   protected BrowsablePage() {
+    this("", "");
+  }
+
+  protected BrowsablePage(String message) {
+    this(message, "");
+  }
+
+  protected BrowsablePage(String message, String description) {
     super();
     this.browserArea = new Dialog(BROWSER_WIDTH, -1);
     this.browserArea.setAlignment(Pos.TOP_CENTER);
     this.browserArea.setPadding(new Insets(2.0));
     this.tabPane = new TabPane();
     this.tabPane.getStyleClass().addAll(Styles.DENSE, Styles.SMALL);
+    this.messageLabel = new Label(message == null ? "" : message);
+    this.messageLabel.getStyleClass().add(Styles.TITLE_2);
+    this.messageLabel.setMaxWidth(Double.MAX_VALUE);
+    this.messageLabel.setAlignment(Pos.CENTER);
+    this.messageLabel.setPadding(new Insets(10, 10, 0, 10));
+    this.messageLabel.setStyle("-fx-text-fill: -color-fg-subtle; -fx-opacity: 0.65;");
+    this.descriptionLabel = new Label(description == null ? "" : description);
+    this.descriptionLabel.getStyleClass().addAll(Styles.TEXT_SMALL, Styles.TEXT_MUTED);
+    this.descriptionLabel.setMaxWidth(Double.MAX_VALUE);
+    this.descriptionLabel.setAlignment(Pos.CENTER);
+    this.descriptionLabel.setPadding(new Insets(0, 10, 10, 10));
+    this.descriptionLabel.setWrapText(true);
+    this.descriptionLabel.setStyle("-fx-opacity: 0.65;");
+    var noEditors = Bindings.size(this.tabPane.getTabs()).isEqualTo(1);
+    this.messageLabel
+        .visibleProperty()
+        .bind(this.messageLabel.textProperty().isNotEmpty().and(noEditors));
+    this.messageLabel.managedProperty().bind(this.messageLabel.visibleProperty());
+    this.descriptionLabel
+        .visibleProperty()
+        .bind(this.descriptionLabel.textProperty().isNotEmpty().and(noEditors));
+    this.descriptionLabel.managedProperty().bind(this.descriptionLabel.visibleProperty());
     var menuTab = new Tab("");
     menuTab.setGraphic(
         new IconLabel(Material2MZ.MENU, 24, Theme.CURRENT_THEME.getDefaultTextColor()));
@@ -79,7 +113,32 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
                 onTabSelected(newValue);
               }
             });
-    getChildren().addAll(tabPane, modalPane);
+    var messageOverlay = new VBox(6, messageLabel, descriptionLabel);
+    messageOverlay.setAlignment(Pos.CENTER);
+    messageOverlay.setMouseTransparent(true);
+    messageOverlay
+        .visibleProperty()
+        .bind(messageLabel.visibleProperty().or(descriptionLabel.visibleProperty()));
+    messageOverlay.managedProperty().bind(messageOverlay.visibleProperty());
+    var editorArea = new StackPane(tabPane, messageOverlay);
+    StackPane.setAlignment(messageOverlay, Pos.CENTER);
+    getChildren().addAll(editorArea, modalPane);
+  }
+
+  public String getMessage() {
+    return messageLabel.getText();
+  }
+
+  public void setMessage(String message) {
+    messageLabel.setText(message == null ? "" : message);
+  }
+
+  public String getDescription() {
+    return descriptionLabel.getText();
+  }
+
+  public void setDescription(String description) {
+    descriptionLabel.setText(description == null ? "" : description);
   }
 
   protected void onTabClosed(Tab closedTab) {

@@ -2,6 +2,8 @@ package org.integratedmodelling.klab.ide.components.generic;
 
 import atlantafx.base.theme.Styles;
 import javafx.application.Platform;
+import javafx.beans.property.ReadOnlyBooleanProperty;
+import javafx.beans.property.ReadOnlyBooleanWrapper;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -59,6 +61,7 @@ public class Notebook extends BorderPane {
   // ---- state ----
 
   private final List<CardEntry> cards = new ArrayList<>();
+  private final ReadOnlyBooleanWrapper empty = new ReadOnlyBooleanWrapper(this, "empty", true);
 
   /** Holds pinned cards; sits above the scroll pane and does not move when scrolling. */
   private final VBox pinnedContainer;
@@ -159,6 +162,14 @@ public class Notebook extends BorderPane {
     return cards.stream().anyMatch(e -> e.id.equals(id));
   }
 
+  public boolean isEmpty() {
+    return empty.get();
+  }
+
+  public ReadOnlyBooleanProperty emptyProperty() {
+    return empty.getReadOnlyProperty();
+  }
+
   /**
    * Scrolls the card with the given id into view so that the top of the card aligns with the top of
    * the notebook's visible area. Marks the card as active and expands it if it was collapsed.
@@ -246,6 +257,7 @@ public class Notebook extends BorderPane {
   }
 
   private void refreshView() {
+    empty.set(cards.isEmpty());
     pinnedContainer.getChildren().clear();
     cardContainer.getChildren().clear();
     indexContainer.getChildren().clear();

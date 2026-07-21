@@ -45,6 +45,9 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
   private Node workspaceDialog;
 
   public WorkspaceView() {
+    super(
+        "Choose or create a Workspace from the top-left menu",
+        "Workspaces are hosted by the connected Resources services");
     this.controller =
         KlabIDEController.instance().viewController(ResourcesNavigatorController.class);
     this.controller.registerView(this);
@@ -112,7 +115,8 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
       components.add(workspaceDialog);
     }
     for (var workspace : getWorkspaceList()) {
-      components.add(new ResourceSmallViewComponent(workspace, this::raiseWorkspace, /* TODO */ null));
+      components.add(
+          new ResourceSmallViewComponent(workspace, this::raiseWorkspace, /* TODO */ null));
     }
     browserComponents.getChildren().addAll(components);
   }
@@ -194,12 +198,12 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
   }
 
   private void createWorkspace(String workspaceName, String description, ResourcesService service) {
-      if (!service.createWorkspace(
-          workspaceName,
-          Metadata.create(Metadata.DC_COMMENT, description),
-          KlabIDEController.instance().user())) {
-        KlabIDEController.instance().alert(Notification.error("Workspace creation failed"));
-      }
+    if (!service.createWorkspace(
+        workspaceName,
+        Metadata.create(Metadata.DC_COMMENT, description),
+        KlabIDEController.instance().user())) {
+      KlabIDEController.instance().alert(Notification.error("Workspace creation failed"));
+    }
   }
 
   private void raiseWorkspace(ResourceInfo resourceInfo) {
@@ -234,7 +238,7 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
       NavigableContainer changedContainer,
       ResourceSet changes,
       Collection<NavigableAsset> changedAssets) {
-//    System.out.println("Workspace modified: " + changedContainer);
+    //    System.out.println("Workspace modified: " + changedContainer);
     var editor = openEditors.get(changedContainer.getUrn());
     if (editor != null && changedContainer instanceof NavigableWorkspace workspace) {
       editor.updateWorkspace(workspace, changes, changedAssets);

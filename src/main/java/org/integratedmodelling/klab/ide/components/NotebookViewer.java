@@ -1,10 +1,13 @@
 package org.integratedmodelling.klab.ide.components;
 
+import atlantafx.base.theme.Styles;
 import java.io.File;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Parent;
+import javafx.scene.control.Label;
 import javafx.scene.layout.*;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.utils.Utils;
@@ -22,14 +25,54 @@ public class NotebookViewer extends BorderPane implements Page {
 
   private final REPLTextField inputBox;
   private final Notebook notebook;
+  private final Label messageLabel;
+  private final Label descriptionLabel;
   private final Map<AssetViewComponent.Type, AssetViewComponent> componentMap = new LinkedHashMap<>();
   private DashboardTerminal terminal;
   private final DashboardLineReader lineReader;
 
   public NotebookViewer() {
+    this("Notebook view", "Here you can...");
+  }
+
+  public NotebookViewer(String message) {
+    this(message, "");
+  }
+
+  public NotebookViewer(String message, String description) {
 
     this.notebook = new Notebook();
-    this.setCenter(this.notebook);
+    this.messageLabel = new Label(message == null ? "" : message);
+    this.messageLabel.getStyleClass().add(Styles.TITLE_2);
+    this.messageLabel.setMaxWidth(Double.MAX_VALUE);
+    this.messageLabel.setAlignment(Pos.CENTER);
+    this.messageLabel.setPadding(new Insets(10, 10, 0, 10));
+    this.messageLabel.setStyle("-fx-text-fill: -color-fg-subtle; -fx-opacity: 0.65;");
+    this.messageLabel.visibleProperty().bind(this.messageLabel.textProperty().isNotEmpty());
+    this.messageLabel.managedProperty().bind(this.messageLabel.visibleProperty());
+
+    this.descriptionLabel = new Label(description == null ? "" : description);
+    this.descriptionLabel.getStyleClass().addAll(Styles.TEXT_SMALL, Styles.TEXT_MUTED);
+    this.descriptionLabel.setMaxWidth(Double.MAX_VALUE);
+    this.descriptionLabel.setAlignment(Pos.CENTER);
+    this.descriptionLabel.setPadding(new Insets(0, 10, 10, 10));
+    this.descriptionLabel.setWrapText(true);
+    this.descriptionLabel.setStyle("-fx-opacity: 0.65;");
+    this.descriptionLabel.visibleProperty().bind(this.descriptionLabel.textProperty().isNotEmpty());
+    this.descriptionLabel.managedProperty().bind(this.descriptionLabel.visibleProperty());
+
+    var messageOverlay = new VBox(6, messageLabel, descriptionLabel);
+    messageOverlay.setAlignment(Pos.CENTER);
+    messageOverlay.setMouseTransparent(true);
+    messageOverlay
+        .visibleProperty()
+        .bind(
+            messageLabel
+                .visibleProperty()
+                .or(descriptionLabel.visibleProperty())
+                .and(notebook.emptyProperty()));
+    messageOverlay.managedProperty().bind(messageOverlay.visibleProperty());
+    this.setCenter(new StackPane(this.notebook, messageOverlay));
     var inputArea = new HBox();
     // Path for temporary history
     var historyPath = new File(Configuration.INSTANCE.getDataPath(), "history.txt").toPath();
@@ -50,7 +93,6 @@ public class NotebookViewer extends BorderPane implements Page {
     HBox.setHgrow(inputArea, Priority.ALWAYS);
 
     this.setBottom(inputArea);
-    this.setCenter(this.notebook);
 
     this.lineReader =
         new DashboardLineReader(
@@ -68,6 +110,22 @@ public class NotebookViewer extends BorderPane implements Page {
             });
 
     addComponent(new AboutViewComponent());
+  }
+
+  public String getMessage() {
+    return messageLabel.getText();
+  }
+
+  public void setMessage(String message) {
+    messageLabel.setText(message == null ? "" : message);
+  }
+
+  public String getDescription() {
+    return descriptionLabel.getText();
+  }
+
+  public void setDescription(String description) {
+    descriptionLabel.setText(description == null ? "" : description);
   }
 
   public void addComponent(BaseAssetViewComponent component) {
