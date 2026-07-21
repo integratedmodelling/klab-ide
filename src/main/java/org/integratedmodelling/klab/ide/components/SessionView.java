@@ -42,6 +42,10 @@ public class SessionView extends BrowsablePage<BehaviorEditor, NavigableKActorsB
   private final List<Node> components = new ArrayList<>();
 
   public SessionView() {
+    super(
+        "Choose or create a behavior using the top-left menu",
+        "Behaviors, scripts, applications and test cases are created locally; they can be imported into projects once tested");
+
     loadRecents();
   }
 
@@ -135,7 +139,9 @@ public class SessionView extends BrowsablePage<BehaviorEditor, NavigableKActorsB
       if (confirmation.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.YES) return;
     }
     try {
-      String name = LocalBehavior.stripExtension(path.getFileName().toString()).replaceAll("[^A-Za-z0-9_.]", "_");
+      String name =
+          LocalBehavior.stripExtension(path.getFileName().toString())
+              .replaceAll("[^A-Za-z0-9_.]", "_");
       Files.writeString(path, templateFor(name), StandardCharsets.UTF_8);
       openFile(path);
     } catch (IOException e) {
@@ -222,6 +228,7 @@ public class SessionView extends BrowsablePage<BehaviorEditor, NavigableKActorsB
   }
 
   private void saveRecents() {
-    preferences.put(RECENTS_KEY, String.join("\n", recentFiles.stream().map(Path::toString).toList()));
+    preferences.put(
+        RECENTS_KEY, String.join("\n", recentFiles.stream().map(Path::toString).toList()));
   }
 }

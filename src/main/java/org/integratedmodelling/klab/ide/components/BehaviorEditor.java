@@ -7,9 +7,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.function.Consumer;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
+import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.ContextMenu;
@@ -27,11 +29,14 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.klab.api.actors.Agent;
+import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.SemanticType;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.lang.kactors.KActorsAction;
 import org.integratedmodelling.klab.api.lang.kactors.KActorsBehavior;
+import org.integratedmodelling.klab.api.services.KlabService;
 import org.integratedmodelling.klab.api.services.ResourcesService;
+import org.integratedmodelling.klab.api.services.RuntimeService;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.KlabIDEController;
@@ -50,6 +55,13 @@ import org.kordamp.ikonli.materialdesign.MaterialDesign;
 
 /** Editor for one standalone {@code .kactor} file. */
 public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object> {
+
+  private IconButton debug;
+  private IconButton compile;
+  private IconButton run;
+  private IconButton stop;
+  private IconButton publish;
+  private IconLabel typeLabel;
 
   private record AgentGroup(String label) {}
 
@@ -82,6 +94,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   protected void showContent() {
     super.showContent();
     Platform.runLater(() -> edit(behavior));
+    updateStatus();
   }
 
   @Override
@@ -124,27 +137,99 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   }
 
   private Node createEditorToolbar() {
-    var type = new Label(/*behavior.getBehaviorType().name()*/ );
-    type.setGraphic(Theme.getGraphics(behavior));
-    type.setTooltip(new Tooltip(file.toString()));
-    var location = new Label(file.getFileName().toString());
+
+    this.typeLabel = new IconLabel(Theme.getIcon(getBehaviorClass(behavior)), 16, Color.GREY);
+    typeLabel.setTooltip(new Tooltip(file.toString()));
+    var location = new Label(file.getFileName().toString(), null);
     location.setTooltip(new Tooltip(file.toString()));
 
     Region spacer = new Region();
     HBox.setHgrow(spacer, Priority.ALWAYS);
-    var debug = icon(CarbonIcons.DEBUG, "Debug behavior", false);
-    var run = icon(Material2MZ.PLAY_ARROW, "Run behavior", false);
-    var stop = icon(Material2MZ.STOP, "Stop behavior", false);
-    var publish = icon(MaterialDesign.MDI_CLOUD_UPLOAD, "Publish to an open workspace", false);
-    var toolbar = new HBox(8, type, location, spacer, debug, run, stop, publish);
+    this.debug = icon(CarbonIcons.DEBUG, "Debug behavior", false, this::doDebug);
+    this.compile =
+        icon(
+            CarbonIcons.CHECKMARK_OUTLINE_WARNING,
+            "Compile and check for errors",
+            false,
+            this::doCompile);
+    this.run = icon(Material2MZ.PLAY_ARROW, "Run behavior", false, this::doRun);
+    this.stop = icon(Material2MZ.STOP, "Stop behavior", false, this::doStop);
+    this.publish =
+        icon(
+            MaterialDesign.MDI_CLOUD_UPLOAD,
+            "Publish to an open workspace",
+            false,
+            this::doPublish);
+    var toolbar =
+        new HBox(
+            8,
+            typeLabel,
+            location,
+            spacer,
+            publish,
+            compile,
+            new Separator(Orientation.VERTICAL),
+            debug,
+            run,
+            stop);
     toolbar.setAlignment(Pos.CENTER_LEFT);
     toolbar.setPadding(new Insets(5, 8, 5, 8));
     toolbar.getStyleClass().add(Styles.DENSE);
     return toolbar;
   }
 
-  private IconButton icon(org.kordamp.ikonli.Ikon icon, String tooltip, boolean enabled) {
-    return IconButton.of(icon, 18, Theme.FOREGROUND_COLOR, Color.GRAY, () -> true)
+  private boolean doCompile() {
+    var localRuntime =
+        KlabIDEController.instance().user().getServices(RuntimeService.class).stream()
+            .filter(KlabService::isLocal)
+            .findFirst();
+
+    if (localRuntime.isEmpty() || this.behavior == null) {
+      return false;
+    }
+
+    // TODO submit this to a single-threaded executor
+    var agent =
+        localRuntime
+            .get()
+            .runAgent(this.behavior, "Al Caprone", true, KlabIDEController.instance().user());
+
+    return true;
+  }
+
+  private boolean doRun() {
+    Logging.INSTANCE.info("CORREME HOSTIA");
+    return false;
+  }
+
+  private boolean doDebug() {
+    Logging.INSTANCE.info("DEBUGGAME HOSTIA");
+    return false;
+  }
+
+  private boolean doStop() {
+    Logging.INSTANCE.info("PARAME HOSTIA");
+    return false;
+  }
+
+  private boolean doPublish() {
+    Logging.INSTANCE.info("PUBLICAME HOSTIA");
+    return false;
+  }
+
+  private KlabAsset.KnowledgeClass getBehaviorClass(KActorsBehavior behavior) {
+    return switch (behavior.getBehaviorType()) {
+      case BEHAVIOR, USER -> KlabAsset.KnowledgeClass.BEHAVIOR;
+      case APP -> KlabAsset.KnowledgeClass.APPLICATION;
+      case TRAITS, COMPONENT -> KlabAsset.KnowledgeClass.COMPONENT;
+      case UNITTEST -> KlabAsset.KnowledgeClass.TESTCASE;
+      case SCRIPT, TASK -> KlabAsset.KnowledgeClass.SCRIPT;
+    };
+  }
+
+  private IconButton icon(
+      org.kordamp.ikonli.Ikon icon, String tooltip, boolean enabled, Callable<Boolean> action) {
+    return IconButton.of(icon, 18, Theme.FOREGROUND_COLOR, Color.GRAY, action)
         .tooltip(tooltip)
         .enabled(enabled);
   }
@@ -165,12 +250,54 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
    * and agent state. Called after save and after any remote agent event.
    */
   private void updateStatus() {
-    // Set the stale/clean behavior status
-    // Activate and select the buttons for the current status:
-    //   - if behavior, can always span another
-    //   - if session-bound, set based on the agent reference
-    //   - setup notification pane with indicators
-    //   - activate/deactivate messaging UI
+    Platform.runLater(
+        () -> {
+          var localRuntime =
+              KlabIDEController.instance().user().getServices(RuntimeService.class).stream()
+                  .filter(KlabService::isLocal)
+                  .findFirst();
+
+          if (localRuntime.isEmpty() || this.behavior == null) {
+            // everything is disabled
+            this.debug.enabled(false);
+            this.compile.enabled(false);
+            this.run.enabled(false);
+            this.stop.enabled(false);
+            this.publish.enabled(false);
+          } else {
+            typeLabel.setGraphic(Theme.getGraphics(behavior));
+            var warnings = 0;
+            var errors = 0;
+            for (var notification : behavior.getNotifications()) {
+              if (notification.getLevel().severity >= Notification.Level.Error.severity) {
+                errors++;
+              } else if (notification.getLevel().severity >= Notification.Level.Warning.severity) {
+                warnings++;
+              }
+            }
+            monacoEditor.markNotifications(behavior.getNotifications());
+
+            // compile and run depend on errors
+            if (errors == 0) {
+              this.compile.enabled(true);
+            }
+          }
+
+          // Set the stale/clean behavior status
+          // Check the main behavior icon and tooltip:
+          //   - use proper icon and tooltip for type (which may have changed)
+          //   - use color depending on annotations - red (errors), yellow (warnings), green
+          // (OK/info)
+          //   - rewrite label based on URN
+          // Activate and select the buttons for the current status:
+          //   - if behavior, can always span another: use "Spawn" icon and tooltip, color depends
+          // on
+          //     already having live agents of this type
+          //   - if session-bound, set based on the agent reference
+          //   - setup notification pane with indicators
+          //   - activate/deactivate messaging UI
+
+        });
   }
 
   private void save(String contents) {
@@ -208,6 +335,8 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
           .handleNotification(Notification.error("Error saving behavior", e));
       this.stale = true;
     }
+
+    updateStatus();
   }
 
   @Override
@@ -283,7 +412,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
 
       if (item instanceof NavigableKActorsBehavior b) {
         setText(b.getUrn());
-        setGraphic(new IconLabel(Theme.BEHAVIOR_ICON, 15, Theme.FOREGROUND_COLOR));
+        setGraphic(Theme.getGraphics(b.getDelegate()));
       } else if (item instanceof KActorsAction action) {
         setText(action.getUrn());
         setGraphic(new IconLabel(Theme.ACTION_ICON, 15, Theme.FOREGROUND_COLOR));

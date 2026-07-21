@@ -45,11 +45,15 @@ import org.integratedmodelling.klab.modeler.model.NavigableProject;
 import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.bootstrapicons.BootstrapIcons;
 import org.kordamp.ikonli.carbonicons.CarbonIcons;
+import org.kordamp.ikonli.codicons.Codicons;
+import org.kordamp.ikonli.coreui.CoreUiFree;
 import org.kordamp.ikonli.evaicons.Evaicons;
+import org.kordamp.ikonli.fileicons.FileIcons;
 import org.kordamp.ikonli.fontawesome5.FontAwesomeSolid;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
 import org.kordamp.ikonli.materialdesign.MaterialDesign;
+import org.kordamp.ikonli.simplelineicons.SimpleLineIcons;
 import org.kordamp.ikonli.unicons.UniconsLine;
 
 public enum Theme {
@@ -159,14 +163,15 @@ public enum Theme {
   public static Ikon OBSERVER_ICON = UniconsLine.HEAD_SIDE;
   public static Ikon LOGS_ICON = Evaicons.FILE_TEXT_OUTLINE;
   public static Ikon ACTIVITY_ICON = Evaicons.ACTIVITY;
-  public static Ikon DEFINITION_ICON = Material2MZ.WORK_OUTLINE;
+  public static Ikon DEFINITION_ICON = Material2MZ.SUBSCRIPTIONS;
   public static Ikon BEHAVIOR_ICON = Material2MZ.WORK_OUTLINE;
+  public static Ikon SCRIPT_ICON = Material2MZ.WORK_OUTLINE;
   public static Ikon FOLDER_ICON = Material2AL.FOLDER_OPEN;
   public static Ikon COHORT_ICON = Material2AL.FOLDER_OPEN;
-  public static Ikon TESTCASE_ICON = Material2MZ.WORK_OUTLINE;
-  public static Ikon APP_ICON = Material2MZ.WORK_OUTLINE;
-  public static Ikon COMPONENT_ICON = Material2MZ.WORK_OUTLINE;
-  public static Ikon ACTION_ICON = Material2MZ.WORK_OUTLINE;
+  public static Ikon TESTCASE_ICON = FileIcons.TEST_GENERIC;
+  public static Ikon APP_ICON = CoreUiFree.TOUCH_APP;
+  public static Ikon COMPONENT_ICON = Codicons.LIBRARY;
+  public static Ikon ACTION_ICON = SimpleLineIcons.ACTION_REDO;
   public static Ikon STRATEGY_DOCUMENT_ICON = Material2MZ.WORK_OUTLINE;
   public static Ikon STRATEGY_ICON = Material2MZ.WORK_OUTLINE;
   public static Ikon WORKSPACE_ICON = Material2AL.APPS;
@@ -223,13 +228,13 @@ public enum Theme {
       case RESOURCE -> RESOURCES_ICON;
       case NAMESPACE -> NAMESPACE_ICON;
       case BEHAVIOR -> BEHAVIOR_ICON;
-      case SCRIPT -> BEHAVIOR_ICON;
+      case SCRIPT -> SCRIPT_ICON;
       case TESTCASE -> TESTCASE_ICON;
-      case APPLICATION -> APPLICATION_VIEW_ICON;
+      case APPLICATION -> APP_ICON;
       case ONTOLOGY -> ONTOLOGY_ICON;
       case OBSERVATION_STRATEGY -> ONTOLOGY_ICON;
       case OBSERVATION_STRATEGY_DOCUMENT -> ONTOLOGY_ICON;
-      case COMPONENT -> ONTOLOGY_ICON;
+      case COMPONENT -> COMPONENT_ICON;
       case PROJECT -> PROJECT_ICON;
       case WORLDVIEW -> WORLDVIEW_ICON;
       case WORKSPACE -> WORKSPACE_ICON;
@@ -256,9 +261,9 @@ public enum Theme {
         // TODO proper icons
         case BEHAVIOR, USER -> new IconLabel(APPLICATION_VIEW_ICON, 16, Color.GREY);
         case APP -> new IconLabel(APP_ICON, 16, Color.GREY);
-        case COMPONENT, TRAITS -> new IconLabel(BEHAVIOR_ICON, 16, Color.GREY);
-        case UNITTEST -> new IconLabel(BEHAVIOR_ICON, 16, Color.GREY);
-        case SCRIPT, TASK -> new IconLabel(BEHAVIOR_ICON, 16, Color.GREY);
+        case COMPONENT, TRAITS -> new IconLabel(COMPONENT_ICON, 16, Color.GREY);
+        case UNITTEST -> new IconLabel(TESTCASE_ICON, 16, Color.GREY);
+        case SCRIPT, TASK -> new IconLabel(SCRIPT_ICON, 16, Color.GREY);
       };
     }
 

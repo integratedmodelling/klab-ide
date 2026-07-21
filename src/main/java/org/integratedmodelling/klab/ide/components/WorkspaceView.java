@@ -1,10 +1,16 @@
 package org.integratedmodelling.klab.ide.components;
 
 import atlantafx.base.theme.Styles;
+import java.util.*;
+import javafx.geometry.HPos;
+import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
+import javafx.scene.layout.ColumnConstraints;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import org.integratedmodelling.klab.api.authentication.CRUDOperation;
 import org.integratedmodelling.klab.api.data.Metadata;
@@ -24,13 +30,6 @@ import org.integratedmodelling.klab.ide.components.cards.ResourceSmallViewCompon
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 import org.integratedmodelling.klab.modeler.model.NavigableWorkspace;
 import org.kordamp.ikonli.javafx.FontIcon;
-import javafx.scene.layout.GridPane;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.ColumnConstraints;
-import javafx.geometry.HPos;
-import javafx.geometry.Insets;
-
-import java.util.*;
 
 public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorkspace>
     implements ResourcesNavigator {
@@ -46,8 +45,8 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
 
   public WorkspaceView() {
     super(
-        "Choose or create a Workspace from the top-left menu",
-        "Workspaces are hosted by the connected Resources services");
+        "Choose or create a workspace from the top-left menu",
+        "Workspaces contain k.LAB assets organized in projects. They are hosted by the connected Resources services");
     this.controller =
         KlabIDEController.instance().viewController(ResourcesNavigatorController.class);
     this.controller.registerView(this);

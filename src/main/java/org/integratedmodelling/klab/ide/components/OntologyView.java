@@ -7,6 +7,12 @@ import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 
 public class OntologyView extends BrowsablePage {
 
+  public OntologyView() {
+    super(
+        "The Worldview Explorer is where you can browse and manage the shared k.LAB knowledge",
+        "If you are seeing this notice, you don't have a reasoner connected. Obtain a certificate or run a local reasoner.");
+  }
+
   @Override
   public String getName() {
     return "Digital Twins";

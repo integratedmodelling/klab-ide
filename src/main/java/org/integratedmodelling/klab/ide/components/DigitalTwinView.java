@@ -2,7 +2,6 @@ package org.integratedmodelling.klab.ide.components;
 
 import atlantafx.base.theme.Styles;
 import java.util.*;
-
 import javafx.geometry.HPos;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
@@ -20,9 +19,9 @@ import org.integratedmodelling.klab.api.services.ResourcesService;
 import org.integratedmodelling.klab.api.services.RuntimeService;
 import org.integratedmodelling.klab.api.services.runtime.objects.ContextInfo;
 import org.integratedmodelling.klab.api.utils.Utils;
+import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
-import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.components.cards.DigitalTwinSmallViewComponent;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 import org.kordamp.ikonli.javafx.FontIcon;
@@ -49,6 +48,12 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
 
   @Override
   public void reset() {}
+
+  public DigitalTwinView() {
+    super(
+        "Choose or create a digital twin from the top-left menu",
+        "Digital Twins are hosted by the connected Runtime services. They will also appear here after selecting the button in the DT status bar.");
+  }
 
   public List<RuntimeService> getServices() {
     return KlabIDEController.instance().user().getServices(RuntimeService.class).stream()
@@ -128,7 +133,8 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
       }
       var isLocal = Utils.URLs.isLocalHost(dt.getConfiguration().getUrl());
       var dtComponent =
-          new DigitalTwinSmallViewComponent(dt, this::showDigitalTwin, this::removeDigitalTwin, isLocal);
+          new DigitalTwinSmallViewComponent(
+              dt, this::showDigitalTwin, this::removeDigitalTwin, isLocal);
       components.add(dtComponent);
       dtComponent.createContent();
     }

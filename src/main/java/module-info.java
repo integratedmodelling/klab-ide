@@ -1,60 +1,77 @@
 module org.integratedmodelling.klab.ide {
-    requires javafx.fxml;
-    requires javafx.web;
+  requires javafx.fxml;
+  requires javafx.web;
+  requires org.kordamp.ikonli.javafx;
+  requires klab.core.api;
+  requires klab.modeler;
+  requires atlantafx.base;
+  requires klab.core.common;
+  requires org.kordamp.ikonli.core;
+  requires org.kordamp.ikonli.material2;
+  requires org.kordamp.ikonli.fontawesome5;
+  requires org.kordamp.ikonli.bootstrapicons;
+  requires org.kordamp.ikonli.weathericons;
+  requires jdk.jsobject;
+  requires org.kordamp.ikonli.evaicons;
+  requires com.google.common;
+  requires org.jline;
+  requires com.brunomnsilva.smartgraph;
+  requires org.jgrapht.core;
+  requires org.checkerframework.checker.qual;
+  requires klab.cli;
+  requires org.kordamp.ikonli.materialdesign;
+  requires javafx.controls;
+  requires org.integratedmodelling.klabeditor;
+  requires javafx.media;
+  requires devtoolsfx.gui;
+  requires org.kordamp.ikonli.unicons;
+  requires org.kordamp.ikonli.carbonicons;
+  requires org.apache.commons.io;
+  requires tyrus.standalone.client;
+  requires java.desktop;
+  requires org.eclipse.lsp4j.jsonrpc;
+  requires evo.inflector;
+  requires java.management;
+  requires java.prefs;
+  requires com.jcraft.jsch;
+  requires org.slf4j;
+  requires commons.collections;
+  requires org.eclipse.lsp4j;
+  requires jsr305;
+  requires org.kordamp.ikonli.fileicons;
+  requires org.kordamp.ikonli.coreui;
+  requires org.kordamp.ikonli.codicons;
+  requires spring.core;
+  requires org.kordamp.ikonli.simplelineicons;
 
-    requires org.kordamp.ikonli.javafx;
-    requires klab.core.api;
-    requires klab.modeler;
-    requires atlantafx.base;
-    requires klab.core.common;
-    requires org.kordamp.ikonli.core;
-    requires org.kordamp.ikonli.material2;
-    requires org.kordamp.ikonli.fontawesome5;
-    requires org.kordamp.ikonli.bootstrapicons;
-    requires org.kordamp.ikonli.weathericons;
-    requires jdk.jsobject;
-    requires org.kordamp.ikonli.evaicons;
-    requires com.google.common;
-    requires org.jline;
-    requires com.brunomnsilva.smartgraph;
-    requires org.jgrapht.core;
-    requires org.checkerframework.checker.qual;
-    requires klab.cli;
-    requires org.kordamp.ikonli.materialdesign;
-    requires javafx.controls;
-    requires org.integratedmodelling.klabeditor;
-    requires javafx.media;
-    requires devtoolsfx.gui;
-    requires org.kordamp.ikonli.unicons;
-    requires org.kordamp.ikonli.carbonicons;
-    requires org.apache.commons.io;
-    requires tyrus.standalone.client;
-    requires java.desktop;
-    requires org.eclipse.lsp4j.jsonrpc;
-    requires evo.inflector;
-    requires java.management;
-    requires java.prefs;
-    requires com.jcraft.jsch;
-    requires org.slf4j;
-    requires commons.collections;
-    requires org.eclipse.lsp4j;
-    requires jsr305;
+  opens org.integratedmodelling.klab.ide to
+      javafx.fxml;
+  opens org.integratedmodelling.klab.ide.components to
+      javafx.fxml;
 
-    opens org.integratedmodelling.klab.ide to javafx.fxml;
-    opens org.integratedmodelling.klab.ide.components to javafx.fxml;
+  exports org.integratedmodelling.klab.ide;
+  exports org.integratedmodelling.klab.ide.components;
+  exports org.integratedmodelling.klab.ide.pages;
+  exports org.integratedmodelling.klab.ide.api;
+  exports org.integratedmodelling.klab.ide.test;
 
-    exports org.integratedmodelling.klab.ide;
-    exports org.integratedmodelling.klab.ide.components;
-    exports org.integratedmodelling.klab.ide.pages;
-    exports org.integratedmodelling.klab.ide.api;
-    exports org.integratedmodelling.klab.ide.test;
+  opens org.integratedmodelling.klab.ide.api to
+      javafx.fxml;
+  opens org.integratedmodelling.klab.ide.test to
+      javafx.fxml;
 
-    opens org.integratedmodelling.klab.ide.api to javafx.fxml;
-    opens org.integratedmodelling.klab.ide.test to javafx.fxml;
-    exports org.integratedmodelling.klab.ide.components.generic;
-    opens org.integratedmodelling.klab.ide.components.generic to javafx.fxml;
-    exports org.integratedmodelling.klab.ide.components.treeviews;
-    opens org.integratedmodelling.klab.ide.components.treeviews to javafx.fxml;
-    exports org.integratedmodelling.klab.ide.components.cards;
-    opens org.integratedmodelling.klab.ide.components.cards to javafx.fxml;
+  exports org.integratedmodelling.klab.ide.components.generic;
+
+  opens org.integratedmodelling.klab.ide.components.generic to
+      javafx.fxml;
+
+  exports org.integratedmodelling.klab.ide.components.treeviews;
+
+  opens org.integratedmodelling.klab.ide.components.treeviews to
+      javafx.fxml;
+
+  exports org.integratedmodelling.klab.ide.components.cards;
+
+  opens org.integratedmodelling.klab.ide.components.cards to
+      javafx.fxml;
 }

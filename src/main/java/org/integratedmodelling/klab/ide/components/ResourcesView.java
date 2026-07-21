@@ -1,5 +1,10 @@
 package org.integratedmodelling.klab.ide.components;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
@@ -20,15 +25,15 @@ import org.integratedmodelling.klab.ide.components.cards.ResourceSmallViewCompon
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 import org.kordamp.ikonli.javafx.FontIcon;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
-
 public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
 
   private final Map<String, ResourceEditor> openEditors = new HashMap<>();
+
+  public ResourcesView() {
+    super(
+        "Choose or create a k.LAB resource using the top-left menu",
+        "Resources wrap external or internal datasets and models. They are hosted by the connected Resources services");
+  }
 
   @Override
   public String getName() {
