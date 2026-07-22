@@ -198,7 +198,12 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
                 true,
                 KlabIDEController.instance().user());
 
-    return true;
+    if (agent != null) {
+      monacoEditor.markNotifications(agent.getNotifications());
+
+      return true;
+    }
+    return false;
   }
 
   private boolean doRun() {

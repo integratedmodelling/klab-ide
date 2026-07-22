@@ -19,6 +19,7 @@ import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
+import org.integratedmodelling.klab.api.services.ResourcesService;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
@@ -187,8 +188,13 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
       return;
     }
     try {
-      String source = Files.readString(path, StandardCharsets.UTF_8);
-      var editor = new BehaviorEditor(path, LocalBehavior.parse(path, source), this::remember);
+      //      String source = Files.readString(path, StandardCharsets.UTF_8);
+      var behavior =
+          KlabIDEController.instance()
+              .user()
+              .getService(ResourcesService.class)
+              .readBehavior(path.toUri().toURL(), KlabIDEController.instance().user());
+      var editor = new BehaviorEditor(path, behavior, this::remember);
       openEditors.put(path, editor);
       addEditor(editor, path.getFileName().toString(), new FontIcon(Theme.BEHAVIOR_ICON));
     } catch (IOException e) {
