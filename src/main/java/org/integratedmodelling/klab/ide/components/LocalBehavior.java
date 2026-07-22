@@ -44,7 +44,7 @@ public final class LocalBehavior {
     while (matcher.find()) {
       var action = new KActorsActionImpl();
       action.setUrn(matcher.group(2));
-      action.setFunction("function".equals(matcher.group(1)));
+//      action.setFunction("function".equals(matcher.group(1)));
       action.setOffsetInDocument(matcher.start());
       action.setLength(matcher.end() - matcher.start());
       if (matcher.group(3) != null && !matcher.group(3).isBlank()) {

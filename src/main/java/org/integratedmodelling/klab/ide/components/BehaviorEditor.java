@@ -188,11 +188,15 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       return false;
     }
 
-    // TODO submit this to a single-threaded executor
+    // FIXME submit this to a single-threaded executor!
     var agent =
         localRuntime
             .get()
-            .runAgent(this.behavior, "Al Caprone", true, KlabIDEController.instance().user());
+            .runAgent(
+                this.behavior.getDelegate(),
+                "Al Caprone",
+                true,
+                KlabIDEController.instance().user());
 
     return true;
   }
