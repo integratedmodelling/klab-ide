@@ -199,7 +199,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
                 KlabIDEController.instance().user());
 
     if (agent != null) {
-      monacoEditor.markNotifications(agent.getNotifications());
+      monacoEditor.markNotifications(agent.getNotifications(), true);
 
       return true;
     }
@@ -284,7 +284,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
                 warnings++;
               }
             }
-            monacoEditor.markNotifications(behavior.getNotifications());
+            monacoEditor.markNotifications(behavior.getNotifications(), true);
 
             // compile and run depend on errors
             if (errors == 0 && !this.stale) {
