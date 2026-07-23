@@ -258,10 +258,9 @@ public enum Theme {
 
     if (asset instanceof KActorsBehavior behavior) {
       return switch (behavior.getBehaviorType()) {
-        // TODO proper icons
         case BEHAVIOR, USER -> new IconLabel(APPLICATION_VIEW_ICON, 16, Color.GREY);
         case APP -> new IconLabel(APP_ICON, 16, Color.GREY);
-        case COMPONENT, TRAITS -> new IconLabel(COMPONENT_ICON, 16, Color.GREY);
+        case COMPONENT, TRAITS, LIBRARY -> new IconLabel(COMPONENT_ICON, 16, Color.GREY);
         case UNITTEST -> new IconLabel(TESTCASE_ICON, 16, Color.GREY);
         case SCRIPT, TASK -> new IconLabel(SCRIPT_ICON, 16, Color.GREY);
       };

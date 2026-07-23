@@ -18,6 +18,33 @@
     -fx-border-width: 1;
 }
 
+/* IconButton keeps AtlantaFX's control semantics but deliberately has no button chrome. */
+.button.klab-icon-button,
+.toggle-button.klab-icon-button {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+    -fx-border-color: transparent;
+    -fx-border-insets: 0;
+    -fx-border-radius: 0;
+    -fx-border-width: 0;
+    -fx-padding: 2px;
+    -fx-translate-y: 0;
+}
+
+.button.klab-icon-button:hover,
+.toggle-button.klab-icon-button:hover,
+.button.klab-icon-button:armed,
+.toggle-button.klab-icon-button:armed {
+    -fx-background-color: transparent;
+}
+
+/* Keep selection visible without adding a surrounding button surface. */
+.toggle-button.klab-icon-button:selected {
+    -fx-translate-y: 1px;
+    -fx-background-color: -color-neutral-subtle;
+}
+
 .round-button {
     -fx-background-color: #fff;
     -fx-background-radius: 17px;

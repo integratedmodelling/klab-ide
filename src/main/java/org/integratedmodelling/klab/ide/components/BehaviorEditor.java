@@ -62,6 +62,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   private IconButton stop;
   private IconButton publish;
   private IconLabel typeLabel;
+  private IconButton sourceCode;
 
   private record AgentGroup(String label) {}
 
@@ -111,6 +112,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     String theme = Theme.CURRENT_THEME.isDark() ? "vs-dark" : "vs";
     monacoEditor = new MonacoEditorView(documentUri, this::save);
     monacoEditor.loadEditor(behavior.getSourceCode(), languageId, theme);
+    monacoEditor.markNotifications(behavior.getNotifications(), false);
 
     var lsp = KlabLspService.getInstance();
     if (lsp.ensureInitialized(
@@ -145,19 +147,28 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
 
     Region spacer = new Region();
     HBox.setHgrow(spacer, Priority.ALWAYS);
-    this.debug = icon(CarbonIcons.DEBUG, "Debug behavior", false, this::doDebug);
+    this.debug = icon(CarbonIcons.DEBUG, "Debug behavior", false, false, this::doDebug);
     this.compile =
         icon(
             CarbonIcons.CHECKMARK_OUTLINE_WARNING,
             "Compile and check for errors",
             false,
+            true,
             this::doCompile);
-    this.run = icon(Material2MZ.PLAY_ARROW, "Run behavior", false, this::doRun);
-    this.stop = icon(Material2MZ.STOP, "Stop behavior", false, this::doStop);
+    this.sourceCode =
+        icon(
+            MaterialDesign.MDI_LANGUAGE_JAVASCRIPT, // TODO wrong language
+            "Display Java-compiled source code",
+            false,
+            true,
+            this::toggleCompile);
+    this.run = icon(Material2MZ.PLAY_ARROW, "Run behavior", false, false, this::doRun);
+    this.stop = icon(Material2MZ.STOP, "Stop behavior", false, false, this::doStop);
     this.publish =
         icon(
             MaterialDesign.MDI_CLOUD_UPLOAD,
             "Publish to an open workspace",
+            false,
             false,
             this::doPublish);
     var toolbar =
@@ -167,7 +178,9 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
             location,
             spacer,
             publish,
+            new Separator(Orientation.VERTICAL),
             compile,
+            sourceCode,
             new Separator(Orientation.VERTICAL),
             debug,
             run,
@@ -178,6 +191,17 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     return toolbar;
   }
 
+  private Boolean toggleCompile() {
+    return false;
+  }
+
+  /**
+   * TODO just toggle (and compile if on); should be on when service is available; link action to
+   * save; handle Java source code if requested. Must turn the behavior icon green/yellow/red when
+   * checked.
+   *
+   * @return
+   */
   private boolean doCompile() {
     var localRuntime =
         KlabIDEController.instance().user().getServices(RuntimeService.class).stream()
@@ -230,17 +254,25 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     return switch (behavior.getBehaviorType()) {
       case BEHAVIOR, USER -> KlabAsset.KnowledgeClass.BEHAVIOR;
       case APP -> KlabAsset.KnowledgeClass.APPLICATION;
-      case TRAITS, COMPONENT -> KlabAsset.KnowledgeClass.COMPONENT;
+      case TRAITS, COMPONENT, LIBRARY -> KlabAsset.KnowledgeClass.COMPONENT;
       case UNITTEST -> KlabAsset.KnowledgeClass.TESTCASE;
       case SCRIPT, TASK -> KlabAsset.KnowledgeClass.SCRIPT;
     };
   }
 
   private IconButton icon(
-      org.kordamp.ikonli.Ikon icon, String tooltip, boolean enabled, Callable<Boolean> action) {
-    return IconButton.of(icon, 18, Theme.FOREGROUND_COLOR, Color.GRAY, action)
-        .tooltip(tooltip)
-        .enabled(enabled);
+      org.kordamp.ikonli.Ikon icon,
+      String tooltip,
+      boolean enabled,
+      boolean toggle,
+      Callable<Boolean> action) {
+    return toggle
+        ? IconButton.toggle(icon, 18, Theme.FOREGROUND_COLOR, Color.GRAY, action)
+            .tooltip(tooltip)
+            .enabled(enabled)
+        : IconButton.of(icon, 18, Theme.FOREGROUND_COLOR, Color.GRAY, action)
+            .tooltip(tooltip)
+            .enabled(enabled);
   }
 
   private Node createStatusBar() {

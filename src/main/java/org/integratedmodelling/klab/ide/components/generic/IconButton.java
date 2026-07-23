@@ -2,20 +2,24 @@ package org.integratedmodelling.klab.ide.components.generic;
 
 import java.util.concurrent.Callable;
 import javafx.scene.Cursor;
+import javafx.scene.control.ToggleButton;
 import javafx.scene.control.Tooltip;
 import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.kordamp.ikonli.Ikon;
+import org.kordamp.ikonli.IkonHandler;
+import org.kordamp.ikonli.javafx.IkonResolver;
 
-import javax.swing.*;
+/** A button displaying an Ikonli icon, optionally behaving as a toggle button. */
+public abstract class IconButton extends ToggleButton {
 
-public abstract class IconButton extends IconLabel {
-
-  private boolean toggle = false;
-  private boolean pressed = false;
-  private Color onColor;
-  private String onCssColor;
+  private final boolean toggle;
+  private final Color onColor;
+  private final Color offColor;
+  private final String onCssColor;
+  private final String offCssColor;
 
   public static IconButton toggle(
       Ikon ikon, int size, Color colorOn, Color colorOff, Callable<Boolean> toggleAction) {
@@ -77,40 +81,38 @@ public abstract class IconButton extends IconLabel {
     };
   }
 
+  public IconButton(Ikon ikon, int size, Color colorOn, Color colorOff, boolean toggle) {
+    this.toggle = toggle;
+    onColor = colorOn;
+    offColor = colorOff;
+    onCssColor = null;
+    offCssColor = null;
+    setIconText(ikon, size);
+    initializeInteraction();
+  }
+
+  public IconButton(Ikon ikon, int size, String cssColorOn, String cssColorOff, boolean toggle) {
+    this.toggle = toggle;
+    onColor = null;
+    offColor = null;
+    onCssColor = cssColorOn;
+    offCssColor = cssColorOff;
+    setIconText(ikon, size);
+    initializeInteraction();
+  }
+
+  /** Sets whether this button is toggled. Equivalent to {@link #setSelected(boolean)}. */
   public void setToggled(boolean toggled) {
-
-    if (onCssColor != null) {
-      if (toggled) {
-        setStyle("-fx-background-color: " + onCssColor);
-      } else {
-        // ehm
-        setStyle("-fx-background-color: " + getStyle().split(": ")[1]);
-      }
-    } else if (onColor != null) {
-      if (toggled) {
-        setStyle("-fx-background-color: " + onColor.toString());
-      } else {
-        setStyle("-fx-background-color: " + getStyle().split(": ")[1]);
-      }
-    }
+    setSelected(toggled);
   }
 
-  public IconButton(Ikon ikon, int size, Color color, Color offColor, boolean toggle) {
-    super(ikon, size, offColor);
-    this.toggle = toggle;
-    this.onColor = color;
-    initializeInteraction();
-  }
-
-  public IconButton(Ikon ikon, int size, String cssColor, String offCssColor, boolean toggle) {
-    super(ikon, size, cssColor);
-    this.toggle = toggle;
-    this.onCssColor = offCssColor;
-    initializeInteraction();
+  /** Returns whether this button is toggled. Equivalent to {@link #isSelected()}. */
+  public boolean isToggled() {
+    return isSelected();
   }
 
   public IconButton styleClass(String... styles) {
-    this.getStyleClass().addAll(styles);
+    getStyleClass().addAll(styles);
     return this;
   }
 
@@ -121,24 +123,44 @@ public abstract class IconButton extends IconLabel {
     return this;
   }
 
+  public IconButton enabled(boolean enabled) {
+    setDisable(!enabled);
+    return this;
+  }
+
+  protected abstract void action();
+
   private void initializeInteraction() {
-    setOnMouseEntered(event -> setOpacity(0.8));
-    setOnMouseExited(event -> setOpacity(1.0));
+    getStyleClass().add("klab-icon-button");
+    if (!toggle) {
+      getStyleClass().remove("toggle-button");
+      getStyleClass().add("button");
+    }
     setCursor(Cursor.HAND);
-    setOnMouseClicked(
+    selectedProperty().addListener((observable, oldValue, toggled) -> updateIconColor(toggled));
+    updateIconColor(isSelected());
+    setOnAction(
         event -> {
-          if (toggle) {
-            pressed = !pressed;
-            setToggled(pressed);
+          if (!toggle) {
+            setSelected(false);
           }
           action();
         });
   }
 
-  protected abstract void action();
+  private void updateIconColor(boolean toggled) {
+    if (onColor != null) {
+      setTextFill(toggled ? onColor : offColor);
+    } else {
+      setStyle("-fx-text-fill: " + (toggled ? onCssColor : offCssColor) + ";");
+    }
+  }
 
-  public IconButton enabled(boolean b) {
-    setDisable(!b);
-    return this;
+  private void setIconText(Ikon ikon, int size) {
+    IkonHandler ikonHandler = IkonResolver.getInstance().resolve(ikon.getDescription());
+    Font font = (Font) ikonHandler.getFont();
+    setFont(new Font(font.getFamily(), size));
+    int code = ikon.getCode();
+    setText(code <= '\uFFFF' ? String.valueOf((char) code) : new String(Character.toChars(code)));
   }
 }
