@@ -68,6 +68,7 @@ import org.kordamp.ikonli.materialdesign.MaterialDesign;
 public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object> {
 
   private static final String JAVA_CODE_EDITOR_KEY = "java-code";
+  private static final String AGENT_CONSOLE_EDITOR_KEY = "agent-console";
 
   private IconButton debug;
   private IconButton compile;
@@ -102,6 +103,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   private final Set<Agent> agents = Collections.synchronizedSet(new LinkedHashSet<>());
   private final Set<Agent> debugAgents = Collections.synchronizedSet(new LinkedHashSet<>());
   private Agent currentDebugTarget;
+  private AgentConsoleView agentConsole;
 
   public BehaviorEditor(
       Path file,
@@ -207,7 +209,13 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       this.compile.setSelected(true);
     }
 
-    this.run = icon(Material2MZ.PLAY_ARROW, "Compile the behavior and run a new agent", false, false, this::doRun);
+    this.run =
+        icon(
+            Material2MZ.PLAY_ARROW,
+            "Compile the behavior and run a new agent",
+            false,
+            false,
+            this::doRun);
     this.stop = icon(Material2MZ.STOP, "Stop all running agents", false, false, this::doStop);
     this.publish =
         icon(
@@ -252,10 +260,10 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
    * @return
    */
   private boolean doCompile() {
-    return compileBehavior(false) != null;
+    return compileBehavior(false, true) != null;
   }
 
-  private Agent compileBehavior(boolean debugging) {
+  private Agent compileBehavior(boolean debugging, boolean testing) {
 
     var localRuntime = getLocalRuntime();
 
@@ -265,7 +273,11 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       return null;
     }
 
-    var options = EnumSet.of(RuntimeAgent.CompilationOptions.DO_NOT_COMPILE_JAVA);
+    var options = EnumSet.noneOf(RuntimeAgent.CompilationOptions.class);
+    if (testing) {
+      options.add(RuntimeAgent.CompilationOptions.DO_NOT_COMPILE_JAVA);
+    }
+
     if (sourceCode.isToggled()) {
       options.add(RuntimeAgent.CompilationOptions.INCLUDE_JAVA_CODE);
     }
@@ -402,19 +414,19 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   }
 
   private boolean doRun() {
-    return launchAgent(false);
+    return launchAgent(false, false);
   }
 
   private boolean doDebug() {
-    return launchAgent(true);
+    return launchAgent(true, false);
   }
 
-  private boolean launchAgent(boolean debugging) {
+  private boolean launchAgent(boolean debugging, boolean testing) {
     if (!compilationSuccessful || getLocalRuntime().isEmpty()) {
       return false;
     }
 
-    var agent = compileBehavior(debugging);
+    var agent = compileBehavior(debugging, testing);
     if (agent == null || !compilationSuccessful || !agent.isViable()) {
       return reportLaunchFailure(agent, debugging, null);
     }
@@ -532,8 +544,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
               }
             });
 
-    var publishButton =
-        new ButtonType("OK", ButtonBar.ButtonData.OK_DONE);
+    var publishButton = new ButtonType("OK", ButtonBar.ButtonData.OK_DONE);
     var dialog = new Dialog<Project>();
     dialog.setTitle("Publish behavior");
     dialog.setHeaderText("Select the local project that will receive this behavior");
@@ -552,9 +563,9 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     dialog.setResultConverter(
         button ->
             button == publishButton
-                && projects.getSelectionModel().getSelectedItem() != null
-                && projects.getSelectionModel().getSelectedItem().getValue()
-                    instanceof Project project
+                    && projects.getSelectionModel().getSelectedItem() != null
+                    && projects.getSelectionModel().getSelectedItem().getValue()
+                        instanceof Project project
                 ? project
                 : null);
     if (getScene() != null) {
@@ -760,7 +771,36 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   /** Update the current debug target when coordinated by the owning view. */
   public void setCurrentDebugTarget(Agent agent) {
     currentDebugTarget = debugAgents.contains(agent) ? agent : null;
+    if (currentDebugTarget == null) {
+      if (agentConsole != null) {
+        agentConsole.setAgent(null);
+      }
+      closeAuxiliaryEditor(AGENT_CONSOLE_EDITOR_KEY);
+    } else {
+      if (agentConsole == null) {
+        agentConsole = new AgentConsoleView();
+      }
+      agentConsole.setAgent(currentDebugTarget);
+      var tab =
+          showAuxiliaryEditor(
+              AGENT_CONSOLE_EDITOR_KEY, "Console — " + currentDebugTarget.getName(), agentConsole);
+      tab.setOnCloseRequest(
+          event -> {
+            if (agentConsole != null) {
+              agentConsole.setAgent(null);
+            }
+          });
+    }
     refreshAgentStates();
+  }
+
+  @Override
+  public void close() {
+    if (agentConsole != null) {
+      agentConsole.close();
+      agentConsole = null;
+    }
+    super.close();
   }
 
   private void requestDebugTarget(Agent agent) {
