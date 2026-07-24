@@ -10,17 +10,19 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.function.Consumer;
 import javafx.application.Platform;
-import javafx.scene.Cursor;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
+import javafx.geometry.Bounds;
 import javafx.scene.Node;
+import javafx.scene.Cursor;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.control.Separator;
 import javafx.scene.control.Tab;
@@ -34,6 +36,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.stage.Popup;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.runtime.actors.AgentImpl;
 import org.integratedmodelling.klab.api.actors.Agent;
@@ -96,7 +99,11 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   private MonacoEditorView javaCodeEditor;
   private Tab javaCodeTab;
   private String displayedJavaCode;
+  private IconLabel notificationStatusDot;
+  private Label notificationSummaryLabel;
   private Label statusLabel;
+  private Popup notificationPopup;
+  private List<Notification> currentNotifications = List.of();
   private String documentUri;
   private boolean stale = false;
   private boolean compilationSuccessful;
@@ -119,6 +126,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     this.debugAgentAvailableCallback = debugAgentAvailableCallback;
     this.debugTargetRequestedCallback = debugTargetRequestedCallback;
     this.behavior = getEditedAsset();
+    this.currentNotifications = notificationSnapshot(behavior.getNotifications());
   }
 
   public Path getFile() {
@@ -312,25 +320,38 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   private void updateBehaviorIcon(Collection<Notification> notifications) {
     refreshBehaviorIconType();
 
-    var style = Styles.SUCCESS;
-    var color = Color.GREEN;
-    if (notifications != null) {
-      for (var notification : notifications) {
-        if (notification.getLevel().severity >= Notification.Level.Error.severity) {
-          style = Styles.DANGER;
-          color = Color.RED;
-          break;
-        }
-        if (notification.getLevel().severity >= Notification.Level.Warning.severity) {
-          style = Styles.WARNING;
-          color = Color.GOLDENROD;
-        }
-      }
-    }
+    var style = notificationStyle(notifications);
+    var color = notificationColor(style);
     typeLabel.getStyleClass().removeAll(Styles.DANGER, Styles.WARNING, Styles.SUCCESS);
     typeLabel.getStyleClass().add(style);
     typeLabel.setTextFill(color);
+    setCurrentNotifications(notifications, style, color);
     compilationSuccessful = Styles.SUCCESS.equals(style);
+  }
+
+  private String notificationStyle(Collection<Notification> notifications) {
+    var style = Styles.SUCCESS;
+    if (notifications != null) {
+      for (var notification : notifications) {
+        if (notification.getLevel().severity >= Notification.Level.Error.severity) {
+          return Styles.DANGER;
+        }
+        if (notification.getLevel().severity >= Notification.Level.Warning.severity) {
+          style = Styles.WARNING;
+        }
+      }
+    }
+    return style;
+  }
+
+  private Color notificationColor(String style) {
+    if (Styles.DANGER.equals(style)) {
+      return Color.RED;
+    }
+    if (Styles.WARNING.equals(style)) {
+      return Color.GOLDENROD;
+    }
+    return Color.GREEN;
   }
 
   private void refreshBehaviorIconType() {
@@ -598,14 +619,150 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   }
 
   private Node createStatusBar() {
+    notificationStatusDot =
+        new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 9, Theme.FOREGROUND_COLOR);
+    notificationSummaryLabel = new Label();
+    notificationSummaryLabel.setCursor(Cursor.HAND);
+    notificationSummaryLabel.setStyle("-fx-font-size: 10px;");
+    notificationSummaryLabel.setOnMouseClicked(event -> toggleNotificationPopup());
+    var notificationStatus = new HBox(5, notificationStatusDot, notificationSummaryLabel);
+    notificationStatus.setAlignment(Pos.CENTER_LEFT);
+
     statusLabel = new Label("Stopped", new IconLabel(Material2MZ.STOP, 12, Color.GRAY));
     statusLabel.setDisable(true);
     statusLabel.setTooltip(new Tooltip("Behavior execution is not active"));
-    var bar = new HBox(statusLabel);
-    bar.setAlignment(Pos.CENTER_RIGHT);
+    var spacer = new Region();
+    HBox.setHgrow(spacer, Priority.ALWAYS);
+    var bar = new HBox(notificationStatus, spacer, statusLabel);
+    bar.setAlignment(Pos.CENTER_LEFT);
     bar.setPadding(new Insets(3, 8, 3, 8));
     bar.setStyle("-fx-background-color: -color-neutral-muted;");
+    updateNotificationStatus(currentNotifications, null, Color.GRAY);
     return bar;
+  }
+
+  private List<Notification> notificationSnapshot(Collection<Notification> notifications) {
+    return notifications == null ? List.of() : List.copyOf(notifications);
+  }
+
+  private void setCurrentNotifications(
+      Collection<Notification> notifications, String style, Color color) {
+    currentNotifications = notificationSnapshot(notifications);
+    updateNotificationStatus(currentNotifications, style, color);
+    if (notificationPopup != null && notificationPopup.isShowing()) {
+      notificationPopup.hide();
+    }
+  }
+
+  private void updateNotificationStatus(
+      Collection<Notification> notifications, String style, Color color) {
+    if (notificationStatusDot == null || notificationSummaryLabel == null) {
+      return;
+    }
+    long errors = 0;
+    long warnings = 0;
+    long info = 0;
+    for (var notification : notificationSnapshot(notifications)) {
+      if (notification.getLevel().severity >= Notification.Level.Error.severity) {
+        errors++;
+      } else if (notification.getLevel().severity >= Notification.Level.Warning.severity) {
+        warnings++;
+      } else {
+        info++;
+      }
+    }
+    notificationSummaryLabel.setText(
+        errors
+            + (errors == 1 ? " error, " : " errors, ")
+            + warnings
+            + (warnings == 1 ? " warning, " : " warnings, ")
+            + info
+            + " info");
+    notificationStatusDot
+        .getStyleClass()
+        .removeAll(Styles.DANGER, Styles.WARNING, Styles.SUCCESS);
+    if (style != null) {
+      notificationStatusDot.getStyleClass().add(style);
+    }
+    notificationStatusDot.setTextFill(color);
+  }
+
+  private void toggleNotificationPopup() {
+    if (notificationPopup != null && notificationPopup.isShowing()) {
+      notificationPopup.hide();
+      return;
+    }
+    if (notificationSummaryLabel == null || notificationSummaryLabel.getScene() == null) {
+      return;
+    }
+
+    var messages = new VBox(4);
+    messages.setPadding(new Insets(6));
+    if (currentNotifications.isEmpty()) {
+      var empty = new Label("No notifications");
+      empty.setStyle("-fx-font-size: 10px; -fx-padding: 6 8;");
+      messages.getChildren().add(empty);
+    } else {
+      for (var notification : currentNotifications) {
+        messages.getChildren().add(createNotificationMessage(notification));
+      }
+    }
+
+    var scroll = new ScrollPane(messages);
+    scroll.setFitToWidth(true);
+    scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+    scroll.setPrefViewportWidth(460);
+    scroll.setPrefViewportHeight(Math.min(240, Math.max(34, currentNotifications.size() * 42)));
+    scroll.setMaxHeight(250);
+    scroll.setStyle(
+        "-fx-background: -color-bg-default; -fx-background-color: -color-bg-default;");
+
+    var popupContent = new VBox(scroll);
+    popupContent.setStyle(
+        "-fx-background-color: -color-bg-default;"
+            + " -fx-border-color: -color-border-default;"
+            + " -fx-border-radius: 4; -fx-background-radius: 4;");
+    notificationPopup = new Popup();
+    notificationPopup.setAutoHide(true);
+    notificationPopup.setHideOnEscape(true);
+    notificationPopup.setConsumeAutoHidingEvents(false);
+    notificationPopup.getContent().add(popupContent);
+
+    Bounds bounds =
+        notificationSummaryLabel.localToScreen(notificationSummaryLabel.getBoundsInLocal());
+    if (bounds == null) {
+      return;
+    }
+    notificationPopup.show(
+        notificationSummaryLabel, bounds.getMinX(), bounds.getMinY());
+    notificationPopup.setY(bounds.getMinY() - notificationPopup.getHeight() - 4);
+  }
+
+  private Node createNotificationMessage(Notification notification) {
+    var message = new Label(notification.getMessage());
+    message.setWrapText(true);
+    message.setMaxWidth(Double.MAX_VALUE);
+    message.setMinHeight(Region.USE_PREF_SIZE);
+    message
+        .getStyleClass()
+        .add(
+            switch (notification.getLevel()) {
+              case Error, SystemError -> Styles.DANGER;
+              case Warning -> Styles.WARNING;
+              case Debug, Info -> Styles.ACCENT;
+            });
+    var background =
+        switch (notification.getLevel()) {
+          case Error, SystemError -> "-color-danger-subtle";
+          case Warning -> "-color-warning-subtle";
+          case Debug, Info -> "-color-accent-subtle";
+        };
+    message.setStyle(
+        "-fx-font-size: 10px; -fx-padding: 6 8; -fx-background-radius: 4;"
+            + " -fx-background-color: "
+            + background
+            + ";");
+    return message;
   }
 
   /**
@@ -683,7 +840,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       }
 
       this.behavior = new NavigableKActorsBehavior(parsed, null);
-      this.compilationSuccessful = false;
+      resetCompilationVisualStatus(behavior.getNotifications());
       for (var notification : behavior.getNotifications()) {
         // TODO send to editor to show. Needs a notification method that only consumes those with
         //  lexical context
@@ -796,11 +953,24 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
 
   @Override
   public void close() {
+    if (notificationPopup != null) {
+      notificationPopup.hide();
+      notificationPopup = null;
+    }
     if (agentConsole != null) {
       agentConsole.close();
       agentConsole = null;
     }
     super.close();
+  }
+
+  private void resetCompilationVisualStatus(Collection<Notification> notifications) {
+    compilationSuccessful = false;
+    if (typeLabel != null) {
+      typeLabel.getStyleClass().removeAll(Styles.DANGER, Styles.WARNING, Styles.SUCCESS);
+      typeLabel.setTextFill(Color.GRAY);
+    }
+    setCurrentNotifications(notifications, null, Color.GRAY);
   }
 
   private void requestDebugTarget(Agent agent) {
