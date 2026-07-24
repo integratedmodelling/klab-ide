@@ -656,22 +656,22 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         });
     reasonerButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.toggle(AssetViewComponent.Type.ServiceInfo, KlabService.Type.REASONER);
+          notebook.toggle(AssetViewComponent.Type.ReasonerService);
           selectView(View.NOTEBOOK);
         });
     resourcesButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.toggle(AssetViewComponent.Type.ServiceInfo, KlabService.Type.RESOURCES);
+          notebook.toggle(AssetViewComponent.Type.ResourcesService);
           selectView(View.NOTEBOOK);
         });
     resolverButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.toggle(AssetViewComponent.Type.ServiceInfo, KlabService.Type.RESOLVER);
+          notebook.toggle(AssetViewComponent.Type.ResolverService);
           selectView(View.NOTEBOOK);
         });
     runtimeButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.toggle(AssetViewComponent.Type.ServiceInfo, KlabService.Type.RUNTIME);
+          notebook.toggle(AssetViewComponent.Type.RuntimeService);
           selectView(View.NOTEBOOK);
         });
 

@@ -8,8 +8,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.prefs.Preferences;
 import javafx.scene.Node;
 import javafx.scene.Parent;
@@ -19,6 +21,7 @@ import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
+import org.integratedmodelling.klab.api.actors.Agent;
 import org.integratedmodelling.klab.api.services.ResourcesService;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.ide.KlabIDEController;
@@ -26,6 +29,7 @@ import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.cards.BehaviorFileCard;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 import org.integratedmodelling.klab.modeler.model.NavigableKActorsBehavior;
+import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.javafx.FontIcon;
 
 /** Browser and editor host for standalone k.Actors behaviors. */
@@ -39,8 +43,10 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
 
   private final Preferences preferences = Preferences.userNodeForPackage(AgentView.class);
   private final Map<Path, BehaviorEditor> openEditors = new LinkedHashMap<>();
+  private final Set<Agent> debugAgents = new LinkedHashSet<>();
   private final List<Path> recentFiles = new ArrayList<>();
   private final List<Node> components = new ArrayList<>();
+  private Agent currentDebugTarget;
 
   public AgentView() {
     super(
@@ -71,6 +77,11 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
   @Override
   protected void assetEditorClosed(BehaviorEditor editor) {
     openEditors.remove(editor.getFile());
+    var removedDebugAgents = editor.getDebugAgents();
+    debugAgents.removeAll(removedDebugAgents);
+    if (removedDebugAgents.contains(currentDebugTarget)) {
+      setDebugTarget(debugAgents.stream().findFirst().orElse(null));
+    }
     editor.close();
   }
 
@@ -194,12 +205,45 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
               .user()
               .getService(ResourcesService.class)
               .readBehavior(path.toUri().toURL(), KlabIDEController.instance().user());
-      var editor = new BehaviorEditor(path, behavior, this::remember);
+      var editor =
+          new BehaviorEditor(
+              path,
+              behavior,
+              this::remember,
+              icon -> updateEditorIcon(path, icon),
+              this::registerDebugAgent,
+              this::setDebugTarget);
       openEditors.put(path, editor);
-      addEditor(editor, path.getFileName().toString(), new FontIcon(Theme.BEHAVIOR_ICON));
+      addEditor(editor, path.getFileName().toString(), new FontIcon(Theme.getIcon(behavior)));
     } catch (IOException e) {
       KlabIDEController.instance().handleNotification(Notification.error(e));
     }
+  }
+
+  private void updateEditorIcon(Path path, Ikon icon) {
+    var editor = openEditors.get(path);
+    if (editor != null) {
+      setEditorGraphic(editor, new FontIcon(icon));
+    }
+  }
+
+  private void registerDebugAgent(Agent agent) {
+    if (agent != null && debugAgents.add(agent) && currentDebugTarget == null) {
+      setDebugTarget(agent);
+    }
+  }
+
+  private void setDebugTarget(Agent agent) {
+    if (agent != null && !debugAgents.contains(agent)) {
+      return;
+    }
+    currentDebugTarget = agent;
+    openEditors.values().forEach(editor -> editor.setCurrentDebugTarget(agent));
+  }
+
+  /** The agent selected as the target for future debugger components, or {@code null}. */
+  public Agent getCurrentDebugTarget() {
+    return currentDebugTarget;
   }
 
   private void remember(Path path) {

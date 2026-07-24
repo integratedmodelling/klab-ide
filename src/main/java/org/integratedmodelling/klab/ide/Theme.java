@@ -245,6 +245,16 @@ public enum Theme {
     };
   }
 
+  public static Ikon getIcon(KActorsBehavior behavior) {
+    return switch (behavior.getBehaviorType()) {
+      case BEHAVIOR, USER -> APPLICATION_VIEW_ICON;
+      case APP -> APP_ICON;
+      case COMPONENT, TRAITS, LIBRARY -> COMPONENT_ICON;
+      case UNITTEST -> TESTCASE_ICON;
+      case SCRIPT, TASK -> SCRIPT_ICON;
+    };
+  }
+
   public static IconLabel getGraphics(Object asset) {
 
     int errorCount = 0;
@@ -257,13 +267,7 @@ public enum Theme {
     }
 
     if (asset instanceof KActorsBehavior behavior) {
-      return switch (behavior.getBehaviorType()) {
-        case BEHAVIOR, USER -> new IconLabel(APPLICATION_VIEW_ICON, 16, Color.GREY);
-        case APP -> new IconLabel(APP_ICON, 16, Color.GREY);
-        case COMPONENT, TRAITS, LIBRARY -> new IconLabel(COMPONENT_ICON, 16, Color.GREY);
-        case UNITTEST -> new IconLabel(TESTCASE_ICON, 16, Color.GREY);
-        case SCRIPT, TASK -> new IconLabel(SCRIPT_ICON, 16, Color.GREY);
-      };
+      return new IconLabel(getIcon(behavior), 16, Color.GREY);
     }
 
     if (asset instanceof NavigableAsset navigableAsset) {

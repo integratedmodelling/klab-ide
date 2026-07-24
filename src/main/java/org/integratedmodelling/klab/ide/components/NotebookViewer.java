@@ -13,6 +13,7 @@ import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.configuration.Configuration;
 import org.integratedmodelling.klab.api.exceptions.KlabInternalErrorException;
+import org.integratedmodelling.klab.api.services.KlabService;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.components.cards.*;
 import org.integratedmodelling.klab.ide.components.generic.Notebook;
@@ -137,7 +138,7 @@ public class NotebookViewer extends BorderPane implements Page {
         component);
   }
 
-  public void toggle(AssetViewComponent.Type type, Object... arguments) {
+  public void toggle(AssetViewComponent.Type type) {
 
     if (notebook.hasCard(type.name())) {
       notebook.focusCard(type.name());
@@ -146,7 +147,14 @@ public class NotebookViewer extends BorderPane implements Page {
           switch (type) {
             case Distribution -> new DistributionViewComponent();
             case UserInfo -> new UserViewComponent(KlabIDEController.instance().user());
-            case ServiceInfo -> new ServicesViewComponent();
+            case ReasonerService ->
+                new ServiceViewComponent(KlabService.Type.REASONER);
+            case ResourcesService ->
+                new ServiceViewComponent(KlabService.Type.RESOURCES);
+            case ResolverService ->
+                new ServiceViewComponent(KlabService.Type.RESOLVER);
+            case RuntimeService ->
+                new ServiceViewComponent(KlabService.Type.RUNTIME);
             case About -> new AboutViewComponent();
             case Settings -> new SettingsViewComponent();
             default -> throw new KlabInternalErrorException("unexpected component " + type);

@@ -36,6 +36,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
   KeyFrame clickKeyFrame = new KeyFrame(clickDuration);
   boolean isClickTimelinePlaying = false;
   private Map<T, Tab> assetEditors = new HashMap<>();
+  private final Map<String, Tab> auxiliaryEditors = new HashMap<>();
   protected DigitalTwinControlPanel digitalTwinControlPanel;
   private TreeView<T> tree;
   private A currentAsset;
@@ -261,6 +262,44 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
     return tab != null && editorTabs.getSelectionModel().getSelectedItem() == tab;
   }
 
+  /** Replace the graphic of the editor tab associated with an asset. */
+  protected void setEditorGraphic(T asset, Node graphic) {
+    var tab = assetEditors.get(asset);
+    if (tab != null) {
+      tab.setGraphic(graphic);
+    }
+  }
+
+  /**
+   * Show an editor tab that is not associated with an asset in the page tree. If a tab with the
+   * same key is already open, its content is replaced instead of adding another tab.
+   */
+  protected Tab showAuxiliaryEditor(String key, String title, Node editor) {
+    var tab = auxiliaryEditors.get(key);
+    if (tab == null) {
+      tab = new Tab(title, editor);
+      var newTab = tab;
+      tab.setOnClosed(event -> auxiliaryEditors.remove(key, newTab));
+      auxiliaryEditors.put(key, tab);
+      editorTabs.getTabs().add(tab);
+      editorTabs.getSelectionModel().select(tab);
+    } else {
+      tab.setText(title);
+      if (tab.getContent() != editor) {
+        tab.setContent(editor);
+      }
+    }
+    return tab;
+  }
+
+  /** Close an auxiliary editor tab if it is currently open. */
+  protected void closeAuxiliaryEditor(String key) {
+    var tab = auxiliaryEditors.remove(key);
+    if (tab != null) {
+      editorTabs.getTabs().remove(tab);
+    }
+  }
+
   /**
    * Return the asset being edited
    *
@@ -333,6 +372,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
       }
     }
     assetEditors.clear();
+    auxiliaryEditors.clear();
     if (digitalTwinControlPanel != null) {
       digitalTwinControlPanel.close();
     }

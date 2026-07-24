@@ -51,6 +51,11 @@ public class IconLabel extends Label {
     }
   }
 
+  /** Changes the displayed icon and size without altering its current color or CSS styling. */
+  public void setIcon(Ikon ikon, int size) {
+    setIconText(ikon, size);
+  }
+
   private void setIconText(Ikon ikon, int size) {
     IkonHandler ikonHandler = IkonResolver.getInstance().resolve(ikon.getDescription());
     Font font = (Font) ikonHandler.getFont();

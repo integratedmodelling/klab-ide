@@ -18,7 +18,7 @@ import org.integratedmodelling.klab.api.services.KlabService;
 public class ServiceDashboard extends BaseAssetViewComponent {
 
   public ServiceDashboard(KlabService service, String title, boolean initialize) {
-    super(Type.ServiceInfo, title, initialize);
+    super(Type.Object, title, initialize);
   }
 
   @Override

@@ -213,6 +213,16 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
         });
   }
 
+  /** Replace the graphic of the tab hosting the supplied editor. */
+  protected void setEditorGraphic(T editor, Node graphic) {
+    Platform.runLater(
+        () ->
+            tabPane.getTabs().stream()
+                .filter(tab -> tab.getContent() == editor)
+                .findFirst()
+                .ifPresent(tab -> tab.setGraphic(graphic)));
+  }
+
   public boolean isEmpty() {
     return tabPane.getTabs().size() == 1;
   }
