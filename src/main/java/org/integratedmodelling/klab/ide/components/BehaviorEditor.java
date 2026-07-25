@@ -304,11 +304,11 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
                 KlabIDEController.instance().user());
 
     if (agent != null) {
-      var behaviorNotifications = notificationSnapshot(behavior.getNotifications());
+      var markerNotifications =
+          mergeMarkerNotifications(agent.getNotifications(), behavior.getNotifications());
       monacoEditor.runAfterEditorRendered(
           () -> {
-            monacoEditor.markNotifications(agent.getNotifications(), true);
-            monacoEditor.markNotifications(behaviorNotifications, false);
+            monacoEditor.markNotifications(markerNotifications, true);
           });
       updateBehaviorIcon(agent.getNotifications());
       if (sourceCode.isToggled() && agent instanceof AgentImpl agent1) {
@@ -648,6 +648,37 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
 
   private List<Notification> notificationSnapshot(Collection<Notification> notifications) {
     return notifications == null ? List.of() : List.copyOf(notifications);
+  }
+
+  private List<Notification> mergeMarkerNotifications(
+      Collection<Notification> first, Collection<Notification> second) {
+    var merged = new ArrayList<Notification>();
+    var keys = new HashSet<String>();
+    for (var notification : notificationSnapshot(first)) {
+      if (keys.add(markerKey(notification))) {
+        merged.add(notification);
+      }
+    }
+    for (var notification : notificationSnapshot(second)) {
+      if (keys.add(markerKey(notification))) {
+        merged.add(notification);
+      }
+    }
+    return merged;
+  }
+
+  private String markerKey(Notification notification) {
+    var context = notification.getLexicalContext();
+    if (context == null) {
+      return "no-context:" + System.identityHashCode(notification);
+    }
+    return context.getOffsetInDocument()
+        + ":"
+        + context.getLength()
+        + ":"
+        + notification.getLevel()
+        + ":"
+        + notification.getMessage();
   }
 
   private void setCurrentNotifications(
