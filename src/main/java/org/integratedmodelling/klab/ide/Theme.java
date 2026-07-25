@@ -249,7 +249,7 @@ public enum Theme {
     return switch (behavior.getBehaviorType()) {
       case BEHAVIOR, USER -> APPLICATION_VIEW_ICON;
       case APP -> APP_ICON;
-      case COMPONENT, TRAITS, LIBRARY -> COMPONENT_ICON;
+      case COMPONENT, TRAIT, LIBRARY -> COMPONENT_ICON;
       case UNITTEST -> TESTCASE_ICON;
       case SCRIPT, TASK -> SCRIPT_ICON;
     };
