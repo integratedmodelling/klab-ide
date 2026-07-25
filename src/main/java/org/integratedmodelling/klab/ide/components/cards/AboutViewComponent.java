@@ -19,8 +19,10 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
 import org.integratedmodelling.klab.api.data.Version;
 import org.integratedmodelling.klab.ide.KlabIDEApplication;
+import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
@@ -142,11 +144,12 @@ public class AboutViewComponent extends BaseAssetViewComponent {
                 Material2AL.GAVEL,
                 "https://www.gnu.org/licenses/agpl-3.0.en.html"));
 
-    return createSection(
-        "Resources",
-        "Documentation, community resources and project information.",
-        Material2AL.FOLDER_OPEN,
-        links);
+    return links;
+    //    return createSection(
+    //        "Resources",
+    //        "Documentation, community resources and project information.",
+    //        Material2AL.FOLDER_OPEN,
+    //        links);
   }
 
   private Node createExtensionSections() {
@@ -182,9 +185,8 @@ public class AboutViewComponent extends BaseAssetViewComponent {
   }
 
   private VBox createSection(String title, String subtitle, Ikon icon, Node body) {
-    FontIcon sectionIcon = new FontIcon(icon);
-    sectionIcon.setIconSize(18);
-    sectionIcon.setStyle("-fx-icon-color: -color-fg-muted;");
+
+    var sectionIcon = new IconLabel(icon, 24, Color.DARKBLUE);
 
     Label titleLabel = new Label(title);
     titleLabel.getStyleClass().addAll(Styles.TITLE_4, Styles.TEXT_BOLD);
@@ -197,9 +199,10 @@ public class AboutViewComponent extends BaseAssetViewComponent {
     HBox heading = new HBox(10, sectionIcon, headingText);
     heading.setAlignment(Pos.CENTER_LEFT);
 
-    VBox section = new VBox(14, heading, body);
+    VBox section = new VBox(4, heading, body);
     section.setMaxWidth(Double.MAX_VALUE);
     VBox.setVgrow(body, Priority.ALWAYS);
+    section.getStyleClass().add("geometry-card-spatial");
     return section;
   }
 
