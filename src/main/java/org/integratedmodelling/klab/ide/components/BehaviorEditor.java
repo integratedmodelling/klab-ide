@@ -304,7 +304,12 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
                 KlabIDEController.instance().user());
 
     if (agent != null) {
-      monacoEditor.markNotifications(agent.getNotifications(), true);
+      var behaviorNotifications = notificationSnapshot(behavior.getNotifications());
+      monacoEditor.runAfterEditorRendered(
+          () -> {
+            monacoEditor.markNotifications(agent.getNotifications(), true);
+            monacoEditor.markNotifications(behaviorNotifications, false);
+          });
       updateBehaviorIcon(agent.getNotifications());
       if (sourceCode.isToggled() && agent instanceof AgentImpl agent1) {
         showJavaCode(agent1.getJavaCode());
@@ -792,8 +797,6 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
                 warnings++;
               }
             }
-            monacoEditor.markNotifications(behavior.getNotifications(), true);
-
             // compile and run depend on errors
             if (errors == 0 && !this.stale) {
               this.compile.enabled(true);
@@ -820,6 +823,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   }
 
   private void save(String contents) {
+    var statusUpdateQueued = false;
     try {
       Files.writeString(file, contents, StandardCharsets.UTF_8);
       var parsed =
@@ -840,6 +844,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       }
 
       this.behavior = new NavigableKActorsBehavior(parsed, null);
+      monacoEditor.markNotifications(behavior.getNotifications(), true);
       resetCompilationVisualStatus(behavior.getNotifications());
       for (var notification : behavior.getNotifications()) {
         // TODO send to editor to show. Needs a notification method that only consumes those with
@@ -849,7 +854,9 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
           this.stale = true;
         }
       }
-      if (this.compile.isToggled()) {
+      var compiled = this.compile.isToggled();
+      if (compiled) {
+        statusUpdateQueued = true;
         doCompile();
       }
       if (treeView != null) treeView.setRoot(createTreeRoot());
@@ -860,7 +867,9 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       this.stale = true;
     }
 
-    updateStatus();
+    if (!statusUpdateQueued) {
+      updateStatus();
+    }
   }
 
   @Override
