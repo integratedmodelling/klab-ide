@@ -16,10 +16,12 @@ import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.control.Tooltip;
@@ -55,8 +57,8 @@ public final class AgentDebuggerView extends BorderPane implements AutoCloseable
       DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault());
 
   private enum Direction {
-    IN("<-"),
-    OUT("->");
+    IN("SVC"),
+    OUT("CLI");
 
     private final String symbol;
 
@@ -100,7 +102,7 @@ public final class AgentDebuggerView extends BorderPane implements AutoCloseable
 
   private final Map<String, DebugSession> sessions = new LinkedHashMap<>();
   private final TableView<MessageRow> messages = new TableView<>();
-  private final TextField messageClass = new TextField("MESSAGE");
+  private final ComboBox<String> messageClass = new ComboBox<>();
   private final TextField payload = new TextField();
   private final Button send = new Button();
   private final Label agentName = new Label();
@@ -170,6 +172,13 @@ public final class AgentDebuggerView extends BorderPane implements AutoCloseable
     setVisible(available);
     setManaged(available);
     if (available) {
+      var handledClasses = focusedSession.agent.getHandledMessageClasses();
+      messageClass.setItems(FXCollections.observableArrayList(handledClasses));
+      if (!handledClasses.isEmpty()) {
+        messageClass.getSelectionModel().selectFirst();
+      } else {
+        messageClass.getEditor().setText("MESSAGE");
+      }
       statusRefresh.playFromStart();
       if (!messages.getItems().isEmpty()) {
         messages.scrollTo(messages.getItems().size() - 1);
@@ -219,9 +228,23 @@ public final class AgentDebuggerView extends BorderPane implements AutoCloseable
     messages.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
     messages.setFixedCellSize(20);
     messages.getStyleClass().addAll(Styles.DENSE, Styles.SMALL);
+    messages.setRowFactory(
+        ignored ->
+            new TableRow<>() {
+              @Override
+              protected void updateItem(MessageRow row, boolean empty) {
+                super.updateItem(row, empty);
+                setStyle(
+                    empty || row == null
+                        ? ""
+                        : Direction.IN.symbol.equals(row.direction())
+                            ? "-fx-background-color: -color-accent-subtle;"
+                            : "-fx-background-color: -color-success-subtle;");
+              }
+            });
 
     var timeColumn = column("Time", MessageRow::time, 72);
-    var directionColumn = column("", MessageRow::direction, 25);
+    var directionColumn = column("Peer", MessageRow::direction, 38);
     var typeColumn = column("Type", MessageRow::type, 105);
     var senderColumn = column("Sender", MessageRow::sender, 95);
     var payloadColumn = column("Payload", MessageRow::payload, 160);
@@ -229,8 +252,9 @@ public final class AgentDebuggerView extends BorderPane implements AutoCloseable
         .getColumns()
         .addAll(timeColumn, directionColumn, typeColumn, senderColumn, payloadColumn);
 
+    messageClass.setEditable(true);
     messageClass.setPromptText("CONSTANT");
-    messageClass.setPrefColumnCount(10);
+    messageClass.setPrefWidth(105);
     payload.setPromptText("Text payload");
     HBox.setHgrow(payload, Priority.ALWAYS);
     send.setGraphic(new IconLabel(Material2MZ.SEND, 11, Theme.FOREGROUND_COLOR));
@@ -319,10 +343,13 @@ public final class AgentDebuggerView extends BorderPane implements AutoCloseable
     if (focusedSession == null || !focusedSession.agent.isAlive()) {
       return;
     }
-    String type = messageClass.getText() == null ? "" : messageClass.getText().trim();
+    String type =
+        messageClass.getEditor().getText() == null
+            ? ""
+            : messageClass.getEditor().getText().trim();
     if (type.isBlank()) {
       type = "MESSAGE";
-      messageClass.setText(type);
+      messageClass.getEditor().setText(type);
     }
     focusedSession.agent.tell(
         new RuntimeAgent.CustomMessage(

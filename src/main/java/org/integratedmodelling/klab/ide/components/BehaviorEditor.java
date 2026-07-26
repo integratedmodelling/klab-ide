@@ -205,18 +205,24 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
 
     Region spacer = new Region();
     HBox.setHgrow(spacer, Priority.ALWAYS);
-    this.debug = icon(CarbonIcons.DEBUG, "Debug behavior", false, false, this::doDebug);
+    this.debug =
+        icon(
+            CarbonIcons.DEBUG,
+            "Compile and run a new agent in debug mode",
+            false,
+            false,
+            this::doDebug);
     this.compile =
         icon(
             CarbonIcons.CHECKMARK_OUTLINE_WARNING,
-            "Compile and check for errors",
+            "Automatically compile and check for logical errors after saving",
             false,
             true,
             this::doCompile);
     this.sourceCode =
         icon(
             MaterialDesign.MDI_LANGUAGE_JAVASCRIPT, // TODO wrong language
-            "Display Java-compiled source code",
+            "Display Java-compiled source code after saving",
             false,
             true,
             this::toggleCompile);
@@ -739,9 +745,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
             + (warnings == 1 ? " warning, " : " warnings, ")
             + info
             + " info");
-    notificationStatusDot
-        .getStyleClass()
-        .removeAll(Styles.DANGER, Styles.WARNING, Styles.SUCCESS);
+    notificationStatusDot.getStyleClass().removeAll(Styles.DANGER, Styles.WARNING, Styles.SUCCESS);
     if (style != null) {
       notificationStatusDot.getStyleClass().add(style);
     }
@@ -775,8 +779,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     scroll.setPrefViewportWidth(460);
     scroll.setPrefViewportHeight(Math.min(240, Math.max(34, currentNotifications.size() * 42)));
     scroll.setMaxHeight(250);
-    scroll.setStyle(
-        "-fx-background: -color-bg-default; -fx-background-color: -color-bg-default;");
+    scroll.setStyle("-fx-background: -color-bg-default; -fx-background-color: -color-bg-default;");
 
     var popupContent = new VBox(scroll);
     popupContent.setStyle(
@@ -794,8 +797,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     if (bounds == null) {
       return;
     }
-    notificationPopup.show(
-        notificationSummaryLabel, bounds.getMinX(), bounds.getMinY());
+    notificationPopup.show(notificationSummaryLabel, bounds.getMinX(), bounds.getMinY());
     notificationPopup.setY(bounds.getMinY() - notificationPopup.getHeight() - 4);
   }
 
@@ -1050,9 +1052,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     var name = agent.getName();
     var tab =
         showAuxiliaryEditor(
-            key,
-            "Console — " + (name == null || name.isBlank() ? agent.getUrn() : name),
-            console);
+            key, "Console — " + (name == null || name.isBlank() ? agent.getUrn() : name), console);
     if (tab.getTabPane() != null) {
       tab.getTabPane().getSelectionModel().select(tab);
     }
@@ -1073,7 +1073,8 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     } catch (Throwable failure) {
       stopped = false;
       KlabIDEController.instance()
-          .handleNotification(Notification.error("Unable to stop agent " + agent.getUrn(), failure));
+          .handleNotification(
+              Notification.error("Unable to stop agent " + agent.getUrn(), failure));
     }
     if (stopped) {
       agentStopped(agent);
