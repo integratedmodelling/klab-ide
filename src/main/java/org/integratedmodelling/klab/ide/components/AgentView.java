@@ -212,7 +212,8 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
               this::remember,
               icon -> updateEditorIcon(path, icon),
               this::registerDebugAgent,
-              this::setDebugTarget);
+              this::setDebugTarget,
+              this::unregisterDebugAgent);
       openEditors.put(path, editor);
       addEditor(editor, path.getFileName().toString(), new FontIcon(Theme.getIcon(behavior)));
     } catch (IOException e) {
@@ -228,8 +229,17 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
   }
 
   private void registerDebugAgent(Agent agent) {
-    if (agent != null && debugAgents.add(agent) && currentDebugTarget == null) {
+    if (agent != null && debugAgents.add(agent)) {
       setDebugTarget(agent);
+    }
+  }
+
+  private void unregisterDebugAgent(Agent agent) {
+    if (agent == null || !debugAgents.remove(agent)) {
+      return;
+    }
+    if (currentDebugTarget == agent) {
+      setDebugTarget(debugAgents.stream().findFirst().orElse(null));
     }
   }
 

@@ -9,6 +9,8 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.function.Consumer;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
@@ -37,6 +39,7 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.Popup;
+import javafx.util.Duration;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.runtime.actors.AgentImpl;
 import org.integratedmodelling.klab.api.actors.Agent;
@@ -71,7 +74,7 @@ import org.kordamp.ikonli.materialdesign.MaterialDesign;
 public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object> {
 
   private static final String JAVA_CODE_EDITOR_KEY = "java-code";
-  private static final String AGENT_CONSOLE_EDITOR_KEY = "agent-console";
+  private static final String AGENT_CONSOLE_EDITOR_KEY_PREFIX = "agent-console:";
 
   private IconButton debug;
   private IconButton compile;
@@ -88,6 +91,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   private final Consumer<Ikon> behaviorIconChangedCallback;
   private final Consumer<Agent> debugAgentAvailableCallback;
   private final Consumer<Agent> debugTargetRequestedCallback;
+  private final Consumer<Agent> agentStoppedCallback;
   private final Map<String, Boolean> runningAgents = new HashMap<>();
   private final Map<String, Boolean> associatedAgents = new HashMap<>();
   private final Map<Node, LspDocumentSession> lspSessions = new IdentityHashMap<>();
@@ -109,8 +113,11 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   private boolean compilationSuccessful;
   private final Set<Agent> agents = Collections.synchronizedSet(new LinkedHashSet<>());
   private final Set<Agent> debugAgents = Collections.synchronizedSet(new LinkedHashSet<>());
+  private final Map<String, AgentConsoleView> agentConsoles = new LinkedHashMap<>();
+  private final Timeline agentStatusRefresh =
+      new Timeline(new KeyFrame(Duration.seconds(1), event -> removeStoppedAgents()));
+  private AgentDebuggerView debuggerView;
   private Agent currentDebugTarget;
-  private AgentConsoleView agentConsole;
 
   public BehaviorEditor(
       Path file,
@@ -118,13 +125,15 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       Consumer<Path> savedCallback,
       Consumer<Ikon> behaviorIconChangedCallback,
       Consumer<Agent> debugAgentAvailableCallback,
-      Consumer<Agent> debugTargetRequestedCallback) {
+      Consumer<Agent> debugTargetRequestedCallback,
+      Consumer<Agent> agentStoppedCallback) {
     super(new NavigableKActorsBehavior(asset, null));
     this.file = file.toAbsolutePath().normalize();
     this.savedCallback = savedCallback;
     this.behaviorIconChangedCallback = behaviorIconChangedCallback;
     this.debugAgentAvailableCallback = debugAgentAvailableCallback;
     this.debugTargetRequestedCallback = debugTargetRequestedCallback;
+    this.agentStoppedCallback = agentStoppedCallback;
     this.behavior = getEditedAsset();
     this.currentNotifications = notificationSnapshot(behavior.getNotifications());
   }
@@ -299,7 +308,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
             .get()
             .createAgent(
                 this.behavior.getDelegate(),
-                "Al Caprone",
+                this.behavior.getUrn(),
                 options,
                 KlabIDEController.instance().user());
 
@@ -456,27 +465,46 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     if (agent == null || !compilationSuccessful || !agent.isViable()) {
       return reportLaunchFailure(agent, debugging, null);
     }
+    if (debugging) {
+      registerDebugSession(agent);
+    }
     try {
       if (!agent.isAlive() && !agent.start()) {
+        if (debugging) {
+          agentStopped(agent);
+        }
         return reportLaunchFailure(agent, debugging, null);
       }
     } catch (Throwable throwable) {
+      if (debugging) {
+        agentStopped(agent);
+      }
       return reportLaunchFailure(agent, debugging, throwable);
     }
     if (agent.isViable() && agent.isAlive()) {
       agents.add(agent);
-      if (debugging) {
-        debugAgents.add(agent);
-        if (debugAgentAvailableCallback != null) {
-          debugAgentAvailableCallback.accept(agent);
-        } else if (currentDebugTarget == null) {
-          setCurrentDebugTarget(agent);
-        }
-      }
+      agentStatusRefresh.setCycleCount(Timeline.INDEFINITE);
+      agentStatusRefresh.play();
+      showAgentConsole(agent);
       refreshAgentStates();
       return true;
     }
+    if (debugging) {
+      agentStopped(agent);
+    }
     return reportLaunchFailure(agent, debugging, null);
+  }
+
+  private void registerDebugSession(Agent agent) {
+    debugAgents.add(agent);
+    if (debuggerView != null) {
+      debuggerView.registerAgent(agent);
+    }
+    if (debugAgentAvailableCallback != null) {
+      debugAgentAvailableCallback.accept(agent);
+    } else {
+      setCurrentDebugTarget(agent);
+    }
   }
 
   private boolean reportLaunchFailure(Agent agent, boolean debugging, Throwable cause) {
@@ -505,11 +533,8 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   private boolean doStop() {
     var stopped = true;
     for (var agent : agentSnapshot()) {
-      if (agent.isAlive()) {
-        stopped &= agent.stop();
-      }
+      stopped &= stopAndRemoveAgent(agent);
     }
-    refreshAgentStates();
     return stopped;
   }
 
@@ -907,6 +932,11 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   protected void onSingleClickItemSelection(Object value) {
     if (value instanceof KActorsAction action && monacoEditor != null) {
       monacoEditor.setCursorPosition(action.getOffsetInDocument());
+    } else if (value instanceof Agent agent) {
+      if (debugAgents.contains(agent)) {
+        requestDebugTarget(agent);
+      }
+      showAgentConsole(agent);
     }
   }
 
@@ -968,25 +998,11 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   /** Update the current debug target when coordinated by the owning view. */
   public void setCurrentDebugTarget(Agent agent) {
     currentDebugTarget = debugAgents.contains(agent) ? agent : null;
-    if (currentDebugTarget == null) {
-      if (agentConsole != null) {
-        agentConsole.setAgent(null);
-      }
-      closeAuxiliaryEditor(AGENT_CONSOLE_EDITOR_KEY);
-    } else {
-      if (agentConsole == null) {
-        agentConsole = new AgentConsoleView();
-      }
-      agentConsole.setAgent(currentDebugTarget);
-      var tab =
-          showAuxiliaryEditor(
-              AGENT_CONSOLE_EDITOR_KEY, "Console — " + currentDebugTarget.getName(), agentConsole);
-      tab.setOnCloseRequest(
-          event -> {
-            if (agentConsole != null) {
-              agentConsole.setAgent(null);
-            }
-          });
+    if (debuggerView != null) {
+      debuggerView.focusAgent(currentDebugTarget);
+    }
+    if (currentDebugTarget != null) {
+      showAgentConsole(currentDebugTarget);
     }
     refreshAgentStates();
   }
@@ -997,10 +1013,12 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       notificationPopup.hide();
       notificationPopup = null;
     }
-    if (agentConsole != null) {
-      agentConsole.close();
-      agentConsole = null;
+    agentConsoles.values().forEach(AgentConsoleView::close);
+    agentConsoles.clear();
+    if (debuggerView != null) {
+      debuggerView.close();
     }
+    agentStatusRefresh.stop();
     super.close();
   }
 
@@ -1018,6 +1036,98 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       debugTargetRequestedCallback.accept(agent);
     } else {
       setCurrentDebugTarget(agent);
+    }
+  }
+
+  private void showAgentConsole(Agent agent) {
+    if (agent == null || agent.getUrn() == null) {
+      return;
+    }
+    var key = AGENT_CONSOLE_EDITOR_KEY_PREFIX + agent.getUrn();
+    var console =
+        agentConsoles.computeIfAbsent(
+            agent.getUrn(), ignored -> new AgentConsoleView(agent, this::agentStopped));
+    var name = agent.getName();
+    var tab =
+        showAuxiliaryEditor(
+            key,
+            "Console — " + (name == null || name.isBlank() ? agent.getUrn() : name),
+            console);
+    if (tab.getTabPane() != null) {
+      tab.getTabPane().getSelectionModel().select(tab);
+    }
+    tab.setOnCloseRequest(
+        event -> {
+          var removed = agentConsoles.remove(agent.getUrn());
+          if (removed != null) {
+            removed.close();
+          }
+        });
+    console.focusInput();
+  }
+
+  private boolean stopAndRemoveAgent(Agent agent) {
+    boolean stopped;
+    try {
+      stopped = !agent.isAlive() || agent.stop();
+    } catch (Throwable failure) {
+      stopped = false;
+      KlabIDEController.instance()
+          .handleNotification(Notification.error("Unable to stop agent " + agent.getUrn(), failure));
+    }
+    if (stopped) {
+      agentStopped(agent);
+      removeAgentConsole(agent);
+    }
+    return stopped;
+  }
+
+  private void removeAgentConsole(Agent agent) {
+    if (agent == null || agent.getUrn() == null) {
+      return;
+    }
+    var console = agentConsoles.remove(agent.getUrn());
+    if (console != null) {
+      console.close();
+    }
+    closeAuxiliaryEditor(AGENT_CONSOLE_EDITOR_KEY_PREFIX + agent.getUrn());
+  }
+
+  private void agentStopped(Agent agent) {
+    boolean removed;
+    synchronized (agents) {
+      removed = agents.remove(agent);
+    }
+    boolean debugRemoved;
+    synchronized (debugAgents) {
+      debugRemoved = debugAgents.remove(agent);
+    }
+    if (debugRemoved && debuggerView != null) {
+      debuggerView.unregisterAgent(agent);
+    }
+    if (currentDebugTarget == agent) {
+      currentDebugTarget = null;
+    }
+    if (debugRemoved && agentStoppedCallback != null) {
+      agentStoppedCallback.accept(agent);
+    }
+    if (removed || debugRemoved) {
+      refreshAgentStates();
+    }
+    if (agents.isEmpty()) {
+      agentStatusRefresh.stop();
+    }
+  }
+
+  private void removeStoppedAgents() {
+    for (var agent : agentSnapshot()) {
+      try {
+        if (!agent.isAlive()) {
+          agentStopped(agent);
+        }
+      } catch (Throwable failure) {
+        agentStopped(agent);
+      }
     }
   }
 
@@ -1098,20 +1208,11 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   @Override
   protected Node createBrowsingContent(TreeView<Object> tree) {
     VBox.setVgrow(tree, Priority.ALWAYS);
-    var metadata = reserved("Interaction", "Message-sending UI");
-    var debugger = reserved("Debugger", "Debugger UI");
-    return new VBox(tree, new Separator(), metadata, debugger);
-  }
-
-  private Node reserved(String title, String description) {
-    var titleLabel = new Label(title);
-    titleLabel.getStyleClass().add(Styles.TITLE_4);
-    var descriptionLabel = new Label(description);
-    descriptionLabel.setDisable(true);
-    var box = new VBox(3, titleLabel, descriptionLabel);
-    box.setPadding(new Insets(7));
-    box.setMinHeight(58);
-    return box;
+    debuggerView = new AgentDebuggerView(this::agentStopped);
+    var separator = new Separator();
+    separator.visibleProperty().bind(debuggerView.visibleProperty());
+    separator.managedProperty().bind(debuggerView.managedProperty());
+    return new VBox(tree, separator, debuggerView);
   }
 
   private final class BehaviorTreeCell extends TreeCell<Object> {
@@ -1195,22 +1296,8 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       if (alive) {
         var stopAgent =
             new MenuItem("Stop instance", new IconLabel(Material2MZ.STOP, 14, Color.DARKRED));
-        stopAgent.setOnAction(
-            event -> {
-              agent.stop();
-              refreshAgentStates();
-            });
+        stopAgent.setOnAction(event -> stopAndRemoveAgent(agent));
         menu.getItems().add(stopAgent);
-      } else {
-        var startAgent =
-            new MenuItem("Start instance", new IconLabel(Material2MZ.PLAY_ARROW, 14, Color.GREEN));
-        startAgent.setDisable(!viable);
-        startAgent.setOnAction(
-            event -> {
-              agent.start();
-              refreshAgentStates();
-            });
-        menu.getItems().add(startAgent);
       }
       setContextMenu(menu);
     }
