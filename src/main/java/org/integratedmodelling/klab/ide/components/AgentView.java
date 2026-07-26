@@ -17,7 +17,6 @@ import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
-import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
@@ -100,18 +99,17 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
   }
 
   private void chooseOpenOrCreate() {
-    var dialog = new ChoiceDialog<>("Open existing file", "Open existing file", "Create new file");
-    dialog.setTitle("Behavior file");
-    dialog.setHeaderText("Open an existing behavior or create one from the template");
-    dialog.setContentText("Action:");
-    dialog.initOwner(getScene() == null ? null : getScene().getWindow());
-    dialog
-        .showAndWait()
-        .ifPresent(
-            choice -> {
-              if (choice.startsWith("Create")) createFile();
-              else chooseFile();
-            });
+    var chooser = chooser("Open or create k.Actors behavior");
+    chooser.setInitialFileName("behavior.kactor");
+    File selected = chooser.showSaveDialog(getScene().getWindow());
+    if (selected == null) return;
+
+    Path path = withKActorExtension(selected.toPath()).toAbsolutePath().normalize();
+    if (Files.exists(path)) {
+      openFile(path);
+    } else {
+      createFile(path);
+    }
   }
 
   private FileChooser chooser(String title) {
@@ -129,17 +127,7 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
     return chooser;
   }
 
-  private void chooseFile() {
-    File selected = chooser("Open k.Actors behavior").showOpenDialog(getScene().getWindow());
-    if (selected != null) openFile(selected.toPath());
-  }
-
-  private void createFile() {
-    var chooser = chooser("Create k.Actors behavior");
-    chooser.setInitialFileName("behavior.kactor");
-    File selected = chooser.showSaveDialog(getScene().getWindow());
-    if (selected == null) return;
-    Path path = withKActorExtension(selected.toPath()).toAbsolutePath().normalize();
+  private void createFile(Path path) {
     if (Files.exists(path)) {
       var confirmation =
           new Alert(
