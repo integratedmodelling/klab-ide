@@ -189,11 +189,11 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
 
   protected Node makeHeader(String title, HeaderAction... actions) {
     var workspacesLabel = new Label(title);
-    HBox.setHgrow(workspacesLabel, Priority.ALWAYS);
     workspacesLabel.getStyleClass().add(Styles.TITLE_4);
     workspacesLabel.setAlignment(Pos.CENTER_LEFT);
     workspacesLabel.setPadding(new Insets(0, 0, 0, 8));
     workspacesLabel.setStyle("-fx-text-fill: -color-fg-subtle;");
+    HBox.setHgrow(workspacesLabel, Priority.ALWAYS);
 
     var buttons = new HBox(2);
     buttons.setAlignment(Pos.CENTER_RIGHT);

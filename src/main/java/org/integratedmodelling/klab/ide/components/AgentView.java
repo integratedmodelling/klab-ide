@@ -15,6 +15,8 @@ import java.util.Set;
 import java.util.prefs.Preferences;
 import javafx.scene.Node;
 import javafx.scene.Parent;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import org.integratedmodelling.klab.api.actors.Agent;
@@ -90,7 +92,9 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
             "Recent behaviors",
             new HeaderAction(
                 Theme.ADD_ASSET_ICON, "Create a new .kactor behavior", this::chooseNewFile),
-            new HeaderAction(Theme.FOLDER_ICON, "Open an existing .kactor behavior", this::chooseFile));
+            new HeaderAction(
+                Theme.FOLDER_ICON, "Open an existing .kactor behavior", this::chooseFile));
+    HBox.setHgrow(header, Priority.ALWAYS);
     components.add(header);
     recentFiles.removeIf(path -> !Files.isRegularFile(path));
     for (Path path : recentFiles) {
@@ -197,8 +201,7 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
       addEditor(
           editor,
           path.getFileName().toString(),
-          new FontIcon(
-              behavior == null ? Theme.APPLICATION_VIEW_ICON : Theme.getIcon(behavior)));
+          new FontIcon(behavior == null ? Theme.APPLICATION_VIEW_ICON : Theme.getIcon(behavior)));
     } catch (IOException e) {
       KlabIDEController.instance().handleNotification(Notification.error(e));
     }
