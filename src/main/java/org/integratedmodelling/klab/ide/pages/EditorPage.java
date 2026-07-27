@@ -309,6 +309,11 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
     return currentAsset;
   }
 
+  /** Update the logical asset after an editor reparses or otherwise replaces it in place. */
+  protected void setEditedAsset(A asset) {
+    this.currentAsset = asset;
+  }
+
   protected abstract Node createEditor(T asset);
 
   /**

@@ -1,14 +1,16 @@
-// use `behavior`, `script`, `application`, `library`, `testcase` or `component`
+// Types are `behavior`, `script`, `application`, `library`, `testcase`, `component`, `trait`
+// See the documentation for more information.
 behavior ${name}
     "Describe this behavior"
     // version number is mandatory. Do not forget to change it when the actor changes API.
     version 1.0
     // declare all imported agents here
-    using klab.core.console as console
+    using core.console as console
 
 // the init action is optional and can be seen as the constructor of the agent. If it has
 // parameters, an agent will need to pass them to the `new` verb when creating an agent.
-// Scripts, applications and test cases should not have init parameters.
+// Scripts, applications and test cases parameters do not normally have parameters, but
+// they can be used to pass parameters through the command line if executed from a shell.
 action init:
     // here you define the global agent's state, if any is needed. You can only use
     // the `def` verb in the `init` action. The global state is visible to other agents.
@@ -17,4 +19,18 @@ action init:
 // the main action is optional: it will execute automatically (after 'init') if present
 action main:
     // Add behavior statements here. At least one statement is mandatory
-    console.format("Hello from %s", name)
+    console.format("Hello from %s\n", name)
+
+// the @stdin annotation binds the following action to the console input stream
+@stdin
+action input(message, sender):
+    // Add input handling here.
+    console.format("Received message: %s\n", message)
+
+// the @handle annotation binds the following action to a specific message class. Other
+// agents (or the agent debugger) can send messages of this class to the agent. The
+// parameters are bound to the payload; the `sender` parameter is reserved for the
+// agent sending the message.
+@handle(class=SAYHELLO)
+action sayhello(message, sender):
+    console.format("Agent says hello: %s\n", message)

@@ -12,14 +12,15 @@ import java.util.function.Consumer;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
+import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
-import javafx.geometry.Bounds;
-import javafx.scene.Node;
 import javafx.scene.Cursor;
+import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
@@ -28,7 +29,6 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.control.Separator;
 import javafx.scene.control.Tab;
-import javafx.scene.control.ButtonType;
 import javafx.scene.control.Tooltip;
 import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
@@ -42,12 +42,14 @@ import javafx.stage.Popup;
 import javafx.util.Duration;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.runtime.actors.AgentImpl;
+import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.actors.Agent;
 import org.integratedmodelling.klab.api.actors.RuntimeAgent;
 import org.integratedmodelling.klab.api.knowledge.SemanticType;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.organization.Project;
 import org.integratedmodelling.klab.api.knowledge.organization.Workspace;
+import org.integratedmodelling.klab.api.lang.KlabLanguage;
 import org.integratedmodelling.klab.api.lang.kactors.KActorsAction;
 import org.integratedmodelling.klab.api.lang.kactors.KActorsBehavior;
 import org.integratedmodelling.klab.api.services.KlabService;
@@ -83,6 +85,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   private IconButton publish;
   private IconLabel typeLabel;
   private IconButton sourceCode;
+  private int nAgents;
 
   private record AgentGroup(String label) {}
 
@@ -92,13 +95,13 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   private final Consumer<Agent> debugAgentAvailableCallback;
   private final Consumer<Agent> debugTargetRequestedCallback;
   private final Consumer<Agent> agentStoppedCallback;
+  private final Object sourceEditorAsset;
   private final Map<String, Boolean> runningAgents = new HashMap<>();
   private final Map<String, Boolean> associatedAgents = new HashMap<>();
   private final Map<Node, LspDocumentSession> lspSessions = new IdentityHashMap<>();
   private NavigableKActorsBehavior behavior;
   private IDEContextScope contextScope;
   private TreeView<Object> treeView;
-  private Object sourceEditorAsset;
   private MonacoEditorView monacoEditor;
   private MonacoEditorView javaCodeEditor;
   private Tab javaCodeTab;
@@ -127,15 +130,18 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       Consumer<Agent> debugAgentAvailableCallback,
       Consumer<Agent> debugTargetRequestedCallback,
       Consumer<Agent> agentStoppedCallback) {
-    super(new NavigableKActorsBehavior(asset, null));
+    super(asset == null ? null : new NavigableKActorsBehavior(asset, null));
     this.file = file.toAbsolutePath().normalize();
+    this.sourceEditorAsset = this.file.getFileName();
     this.savedCallback = savedCallback;
     this.behaviorIconChangedCallback = behaviorIconChangedCallback;
     this.debugAgentAvailableCallback = debugAgentAvailableCallback;
     this.debugTargetRequestedCallback = debugTargetRequestedCallback;
     this.agentStoppedCallback = agentStoppedCallback;
     this.behavior = getEditedAsset();
-    this.currentNotifications = notificationSnapshot(behavior.getNotifications());
+    this.currentNotifications =
+        notificationSnapshot(behavior == null ? null : behavior.getNotifications());
+    this.stale = behavior == null;
   }
 
   public Path getFile() {
@@ -147,8 +153,9 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     super.showContent();
     Platform.runLater(
         () -> {
-          edit(behavior);
-          if (getLocalRuntime().isPresent()) {
+          edit(sourceEditorAsset);
+          updateSourceEditorGraphic();
+          if (behavior != null && getLocalRuntime().isPresent()) {
             doCompile();
           }
         });
@@ -162,20 +169,20 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
 
   @Override
   protected Node createEditor(Object asset) {
-    if (!(asset instanceof NavigableKActorsBehavior)) return null;
+    if (!Objects.equals(asset, sourceEditorAsset)) return null;
 
-    sourceEditorAsset = asset;
     documentUri = file.toUri().toString();
-    String languageId = behavior.getLanguage().languageId();
+    String source = readSource();
+    String languageId = KlabLanguage.K_ACTORS.languageId();
     String theme = Theme.CURRENT_THEME.isDark() ? "vs-dark" : "vs";
     monacoEditor = new MonacoEditorView(documentUri, this::save);
     monacoEditor.runAfterEditorRendered(
-        () -> monacoEditor.markNotifications(behavior.getNotifications(), false));
-    monacoEditor.loadEditor(behavior.getSourceCode(), languageId, theme);
+        () -> monacoEditor.markNotifications(currentNotifications, false));
+    monacoEditor.loadEditor(source, languageId, theme);
     var lsp = KlabLspService.getInstance();
     if (lsp.ensureInitialized(
         KlabIDEController.instance().getLanguageServer(), KlabIDEController.instance().user())) {
-      var session = new LspDocumentSession(monacoEditor, languageId, behavior.getSourceCode());
+      var session = new LspDocumentSession(monacoEditor, languageId, source);
 
       VBox editor = new VBox(createEditorToolbar(), monacoEditor, createStatusBar());
       VBox.setVgrow(monacoEditor, Priority.ALWAYS);
@@ -198,7 +205,11 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
 
   private Node createEditorToolbar() {
 
-    this.typeLabel = new IconLabel(Theme.getIcon(behavior), 20, Color.GREY);
+    this.typeLabel =
+        new IconLabel(
+            behavior == null ? Theme.APPLICATION_VIEW_ICON : Theme.getIcon(behavior),
+            20,
+            Color.GREY);
     typeLabel.setTooltip(new Tooltip(file.toString()));
     var location = new Label(file.getFileName().toString(), null);
     location.setTooltip(new Tooltip(file.toString()));
@@ -314,7 +325,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
             .get()
             .createAgent(
                 this.behavior.getDelegate(),
-                this.behavior.getUrn(),
+                chooseNextName(this.behavior, testing),
                 options,
                 KlabIDEController.instance().user());
 
@@ -335,6 +346,10 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     compilationSuccessful = false;
     updateStatus();
     return null;
+  }
+
+  private String chooseNextName(KActorsBehavior behavior, boolean testing) {
+    return Utils.Strings.capitalize(behavior.getUrn() + (testing ? "" : (" " + (++nAgents))));
   }
 
   private void updateBehaviorIcon(Collection<Notification> notifications) {
@@ -375,6 +390,10 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   }
 
   private void refreshBehaviorIconType() {
+    if (behavior == null) {
+      updateSourceEditorGraphic();
+      return;
+    }
     var icon = Theme.getIcon(behavior);
     typeLabel.setGraphic(null);
     typeLabel.setIcon(icon, 20);
@@ -382,6 +401,34 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       setEditorGraphic(sourceEditorAsset, Theme.getGraphics(behavior));
     }
     refreshBehaviorTreeItem();
+    if (behaviorIconChangedCallback != null) {
+      behaviorIconChangedCallback.accept(icon);
+    }
+  }
+
+  private String readSource() {
+    try {
+      return Files.readString(file, StandardCharsets.UTF_8);
+    } catch (IOException e) {
+      KlabIDEController.instance()
+          .handleNotification(Notification.error("Error reading behavior " + file, e));
+      return "";
+    }
+  }
+
+  private void updateSourceEditorGraphic() {
+    var icon = behavior == null ? Theme.APPLICATION_VIEW_ICON : Theme.getIcon(behavior);
+    var color = behavior == null ? Color.RED : Color.GREY;
+    if (typeLabel != null) {
+      typeLabel.setGraphic(null);
+      typeLabel.setIcon(icon, 20);
+      typeLabel.getStyleClass().removeAll(Styles.DANGER, Styles.WARNING, Styles.SUCCESS);
+      typeLabel.setTextFill(color);
+      if (behavior == null) {
+        typeLabel.getStyleClass().add(Styles.DANGER);
+      }
+    }
+    setEditorGraphic(sourceEditorAsset, new IconLabel(icon, 16, color));
     if (behaviorIconChangedCallback != null) {
       behaviorIconChangedCallback.accept(icon);
     }
@@ -841,8 +888,10 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
             // everything is disabled
             this.debug.enabled(false);
             this.compile.enabled(false);
+            this.sourceCode.enabled(false);
             this.run.enabled(false);
             this.stop.enabled(false);
+            updateSourceEditorGraphic();
             updateAgentActionButtons(sourceIsValid());
           } else {
             refreshBehaviorIconType();
@@ -856,11 +905,10 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
               }
             }
             // compile and run depend on errors
-            if (errors == 0 && !this.stale) {
-              this.compile.enabled(true);
-              this.sourceCode.enabled(true);
-            }
-            updateAgentActionButtons(errors == 0 && !this.stale);
+            var sourceIsValid = errors == 0 && !this.stale;
+            this.compile.enabled(sourceIsValid);
+            this.sourceCode.enabled(sourceIsValid);
+            updateAgentActionButtons(sourceIsValid);
           }
 
           // Set the stale/clean behavior status
@@ -892,16 +940,20 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
 
       this.stale = false;
       if (parsed == null) {
-        // syntax errors cause this. Do not submit and return. FIXME At this point the
-        //  loaded behavior has diverged from the source code: we should either null it
-        //  or record an obsolete state that should prevent compilation.
+        this.behavior = null;
+        setEditedAsset(null);
         this.stale = true;
         this.compilationSuccessful = false;
+        resetCompilationVisualStatus(List.of());
+        updateSourceEditorGraphic();
+        if (treeView != null) treeView.setRoot(createTreeRoot());
+        if (savedCallback != null) savedCallback.accept(file);
         updateStatus();
         return;
       }
 
       this.behavior = new NavigableKActorsBehavior(parsed, null);
+      setEditedAsset(this.behavior);
       monacoEditor.markNotifications(behavior.getNotifications(), true);
       resetCompilationVisualStatus(behavior.getNotifications());
       for (var notification : behavior.getNotifications()) {
@@ -959,11 +1011,13 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
 
   private TreeItem<Object> createTreeRoot() {
     var root = new TreeItem<Object>();
-    var behaviorItem = new TreeItem<Object>(behavior);
-    behaviorItem.setExpanded(true);
-    for (var action : behavior.getStatements())
-      behaviorItem.getChildren().add(new TreeItem<>(action));
-    root.getChildren().add(behaviorItem);
+    if (behavior != null) {
+      var behaviorItem = new TreeItem<Object>(behavior);
+      behaviorItem.setExpanded(true);
+      for (var action : behavior.getStatements())
+        behaviorItem.getChildren().add(new TreeItem<>(action));
+      root.getChildren().add(behaviorItem);
+    }
 
     var agents = new TreeItem<Object>(new AgentGroup("Agents"));
     agents.setExpanded(true);
@@ -1245,11 +1299,16 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       var viable = agent.isViable();
       var alive = agent.isAlive();
       var name = agent.getName();
+      Logging.INSTANCE.info("name is " + name);
       if (name == null || name.isBlank()) {
         name = agent.getUrn();
       }
 
-      var behaviorIcon = new IconLabel(Theme.getIcon(behavior), 15, Theme.FOREGROUND_COLOR);
+      var behaviorIcon =
+          new IconLabel(
+              behavior == null ? Theme.APPLICATION_VIEW_ICON : Theme.getIcon(behavior),
+              15,
+              Theme.FOREGROUND_COLOR);
       var nameLabel = new Label(name == null ? "Agent" : name);
       var spacer = new Region();
       HBox.setHgrow(spacer, Priority.ALWAYS);

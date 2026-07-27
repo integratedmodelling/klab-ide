@@ -15,9 +15,6 @@ import java.util.Set;
 import java.util.prefs.Preferences;
 import javafx.scene.Node;
 import javafx.scene.Parent;
-import javafx.scene.control.Alert;
-import javafx.scene.control.ButtonType;
-import javafx.scene.control.Tooltip;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import org.integratedmodelling.klab.api.actors.Agent;
@@ -88,28 +85,18 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
   protected void defineBrowser(VBox browser) {
     browser.getChildren().removeAll(components);
     components.clear();
-    Node header = makeHeader("Recent behaviors", this::chooseOpenOrCreate);
-    Tooltip.install(header, new Tooltip("Open or create a .kactor behavior"));
+    Node header =
+        makeHeader(
+            "Recent behaviors",
+            new HeaderAction(
+                Theme.ADD_ASSET_ICON, "Create a new .kactor behavior", this::chooseNewFile),
+            new HeaderAction(Theme.FOLDER_ICON, "Open an existing .kactor behavior", this::chooseFile));
     components.add(header);
     recentFiles.removeIf(path -> !Files.isRegularFile(path));
     for (Path path : recentFiles) {
       components.add(new BehaviorFileCard(path, this::openFile, this::forget));
     }
     browser.getChildren().addAll(components);
-  }
-
-  private void chooseOpenOrCreate() {
-    var chooser = chooser("Open or create k.Actors behavior");
-    chooser.setInitialFileName("behavior.kactor");
-    File selected = chooser.showSaveDialog(getScene().getWindow());
-    if (selected == null) return;
-
-    Path path = withKActorExtension(selected.toPath()).toAbsolutePath().normalize();
-    if (Files.exists(path)) {
-      openFile(path);
-    } else {
-      createFile(path);
-    }
   }
 
   private FileChooser chooser(String title) {
@@ -127,17 +114,21 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
     return chooser;
   }
 
-  private void createFile(Path path) {
-    if (Files.exists(path)) {
-      var confirmation =
-          new Alert(
-              Alert.AlertType.CONFIRMATION,
-              "Replace existing file " + path.getFileName() + "?",
-              ButtonType.YES,
-              ButtonType.CANCEL);
-      confirmation.initOwner(getScene().getWindow());
-      if (confirmation.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.YES) return;
+  private void chooseFile() {
+    File selected = chooser("Open k.Actors behavior").showOpenDialog(getScene().getWindow());
+    if (selected != null) openFile(selected.toPath());
+  }
+
+  private void chooseNewFile() {
+    var chooser = chooser("Create k.Actors behavior");
+    chooser.setInitialFileName("behavior.kactor");
+    File selected = chooser.showSaveDialog(getScene().getWindow());
+    if (selected != null) {
+      createFile(withKActorExtension(selected.toPath()).toAbsolutePath().normalize());
     }
+  }
+
+  private void createFile(Path path) {
     try {
       String name =
           LocalBehavior.stripExtension(path.getFileName().toString())
@@ -187,12 +178,12 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
       return;
     }
     try {
-      //      String source = Files.readString(path, StandardCharsets.UTF_8);
       var behavior =
           KlabIDEController.instance()
               .user()
               .getService(ResourcesService.class)
               .readBehavior(path.toUri().toURL(), KlabIDEController.instance().user());
+
       var editor =
           new BehaviorEditor(
               path,
@@ -203,7 +194,11 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
               this::setDebugTarget,
               this::unregisterDebugAgent);
       openEditors.put(path, editor);
-      addEditor(editor, path.getFileName().toString(), new FontIcon(Theme.getIcon(behavior)));
+      addEditor(
+          editor,
+          path.getFileName().toString(),
+          new FontIcon(
+              behavior == null ? Theme.APPLICATION_VIEW_ICON : Theme.getIcon(behavior)));
     } catch (IOException e) {
       KlabIDEController.instance().handleNotification(Notification.error(e));
     }

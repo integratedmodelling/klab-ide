@@ -12,12 +12,15 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import org.integratedmodelling.klab.api.view.View;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
+import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2MZ;
 
@@ -175,22 +178,35 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
 
   protected abstract void assetEditorClosed(T assetEditor);
 
-  protected Node makeHeader(String title, Runnable addAction) {
+  protected record HeaderAction(Ikon icon, String tooltip, Runnable action) {
+    public HeaderAction {}
+  }
 
-    javafx.scene.control.Label workspacesLabel = new javafx.scene.control.Label(title);
-    workspacesLabel.setPrefWidth(BrowsablePage.BROWSER_WIDTH - 40);
+  protected Node makeHeader(String title, Runnable addAction) {
+    return makeHeader(
+        title, new HeaderAction(Theme.ADD_ASSET_ICON, "Create a new asset", addAction));
+  }
+
+  protected Node makeHeader(String title, HeaderAction... actions) {
+    var workspacesLabel = new Label(title);
+    HBox.setHgrow(workspacesLabel, Priority.ALWAYS);
     workspacesLabel.getStyleClass().add(Styles.TITLE_4);
-    workspacesLabel.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-    workspacesLabel.setPadding(new javafx.geometry.Insets(0, 0, 0, 8));
+    workspacesLabel.setAlignment(Pos.CENTER_LEFT);
+    workspacesLabel.setPadding(new Insets(0, 0, 0, 8));
     workspacesLabel.setStyle("-fx-text-fill: -color-fg-subtle;");
-    javafx.scene.control.Button addButton =
-        new Button(
-            "", new IconLabel(Theme.ADD_ASSET_ICON, 20, Theme.CURRENT_THEME.getDefaultTextColor()));
-    addButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
-    HBox alignedButton = new HBox(addButton);
-    alignedButton.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
-    addButton.setOnAction(event -> addAction.run());
-    return new HBox(workspacesLabel, alignedButton);
+
+    var buttons = new HBox(2);
+    buttons.setAlignment(Pos.CENTER_RIGHT);
+    for (var action : actions) {
+      var button =
+          new Button(
+              "", new IconLabel(action.icon(), 20, Theme.CURRENT_THEME.getDefaultTextColor()));
+      button.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
+      button.setOnAction(event -> action.action().run());
+      button.setTooltip(new Tooltip(action.tooltip()));
+      buttons.getChildren().add(button);
+    }
+    return new HBox(workspacesLabel, buttons);
   }
 
   public void selectEditor(EditorPage<?, ?> node) {
