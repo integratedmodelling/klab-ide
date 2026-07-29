@@ -134,14 +134,17 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
 
   private void createFile(Path path) {
     try {
-      String name =
-          LocalBehavior.stripExtension(path.getFileName().toString())
-              .replaceAll("[^A-Za-z0-9_.]", "_");
+      String name = stripExtension(path.getFileName().toString()).replaceAll("[^A-Za-z0-9_.]", "_");
       Files.writeString(path, templateFor(name), StandardCharsets.UTF_8);
       openFile(path);
     } catch (IOException e) {
       KlabIDEController.instance().handleNotification(Notification.error(e));
     }
+  }
+
+  public static String stripExtension(String name) {
+    int dot = name.lastIndexOf('.');
+    return dot > 0 ? name.substring(0, dot) : name;
   }
 
   private Path withKActorExtension(Path path) {
