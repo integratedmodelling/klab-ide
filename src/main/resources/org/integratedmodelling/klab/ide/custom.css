@@ -304,6 +304,55 @@
     -fx-text-fill: -color-fg-muted;
 }
 
+.observation-card {
+    -fx-background-color: -color-bg-default;
+}
+
+.observation-value-card {
+    -fx-background-color: -color-bg-subtle;
+    -fx-background-radius: 4px;
+    -fx-border-color: -color-border-default;
+    -fx-border-radius: 4px;
+}
+
+.observation-map-frame {
+    -fx-background-color: #111827;
+    -fx-background-radius: 4px 4px 0 0;
+}
+
+.observation-map-image {
+    -fx-cursor: crosshair;
+}
+
+.observation-map-state-bar {
+    -fx-background-color: -color-bg-subtle;
+    -fx-border-color: -color-border-default transparent transparent transparent;
+}
+
+.observation-map-state {
+    -fx-font-size: 11px;
+    -fx-text-fill: -color-fg-muted;
+    -fx-text-overrun: ellipsis;
+}
+
+.observation-content-stub {
+    -fx-background-color: -color-bg-subtle;
+    -fx-background-radius: 4px;
+    -fx-border-color: -color-border-default;
+    -fx-border-radius: 4px;
+}
+
+.observation-content-stub-title {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.observation-content-stub-detail {
+    -fx-font-size: 11px;
+    -fx-text-fill: -color-fg-muted;
+    -fx-text-alignment: center;
+}
+
 /* HistogramCard */
 
 .histogram-card {

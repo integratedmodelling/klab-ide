@@ -70,6 +70,7 @@ public class GeometryCard extends BaseCard<Geometry> {
 
   private final List<Long> timelineMarks = new ArrayList<>();
   private Consumer<Long> timelineMarkClickHandler;
+  private Long selectedTimelineMark;
   private Canvas timelineCanvas;
   private StackPane timelineTrack;
   private TimeSummary timelineSummary;
@@ -104,6 +105,16 @@ public class GeometryCard extends BaseCard<Geometry> {
   /** Return the currently configured timeline marks as epoch milliseconds. */
   public List<Long> getTimelineMarks() {
     return List.copyOf(timelineMarks);
+  }
+
+  /** Mark one temporal state as selected. The value need not be inside the visible temporal span. */
+  public void setSelectedTimelineMark(Long epochMilliseconds) {
+    selectedTimelineMark = epochMilliseconds;
+    redrawTimeline();
+  }
+
+  public Long getSelectedTimelineMark() {
+    return selectedTimelineMark;
   }
 
   /**
@@ -519,6 +530,15 @@ public class GeometryCard extends BaseCard<Geometry> {
       gc.fillPolygon(xs, ys, 4);
       gc.strokePolygon(xs, ys, 4);
     }
+
+    if (selectedTimelineMark != null && visibleMarks.contains(selectedTimelineMark)) {
+      double x = timelineX(summary, selectedTimelineMark, left, right);
+      gc.setFill(Color.web("#7c2d12"));
+      gc.setStroke(Color.WHITE);
+      gc.setLineWidth(1.2);
+      gc.fillOval(x - 4.5, y + height + 3, 9, 9);
+      gc.strokeOval(x - 4.5, y + height + 3, 9, 9);
+    }
   }
 
   private List<Long> visibleTimelineMarks(TimeSummary summary) {
@@ -526,10 +546,16 @@ public class GeometryCard extends BaseCard<Geometry> {
       return List.of();
     }
     List<Long> ret = new ArrayList<>();
+    Long stateAtStart = null;
     for (Long mark : timelineMarks) {
-      if (mark >= summary.start() && mark <= summary.end()) {
+      if (mark <= summary.start()) {
+        stateAtStart = mark;
+      } else if (mark <= summary.end()) {
         ret.add(mark);
       }
+    }
+    if (stateAtStart != null) {
+      ret.addFirst(stateAtStart);
     }
     return ret;
   }
@@ -539,7 +565,10 @@ public class GeometryCard extends BaseCard<Geometry> {
     if (duration <= 0) {
       return left;
     }
-    double fraction = (double) (epochMilliseconds - summary.start()) / duration;
+    double fraction =
+        Math.max(
+            0,
+            Math.min(1, (double) (epochMilliseconds - summary.start()) / duration));
     return left + fraction * (right - left);
   }
 
@@ -558,11 +587,24 @@ public class GeometryCard extends BaseCard<Geometry> {
 
     double clampedX = Math.min(x, right);
     double fraction = (clampedX - left) / (right - left);
-    double clickedEpoch =
-        timelineSummary.start() + fraction * (timelineSummary.end() - timelineSummary.start());
+    return timelineStateAt(
+        visibleTimelineMarks(timelineSummary),
+        timelineSummary.start(),
+        timelineSummary.end(),
+        fraction);
+  }
+
+  static Long timelineStateAt(
+      List<Long> visibleMarks, long start, long end, double clickFraction) {
+    if (visibleMarks == null || visibleMarks.isEmpty() || end <= start) {
+      return null;
+    }
+    double fraction = Math.max(0, Math.min(1, clickFraction));
+    double clickedEpoch = start + fraction * (end - start);
     Long selected = null;
-    for (long mark : visibleTimelineMarks(timelineSummary)) {
-      if (mark <= clickedEpoch) {
+    for (long mark : visibleMarks) {
+      long visiblePosition = Math.max(start, mark);
+      if (visiblePosition <= clickedEpoch) {
         selected = mark;
       } else {
         break;

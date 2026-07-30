@@ -71,6 +71,7 @@ import org.kordamp.ikonli.carbonicons.CarbonIcons;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
 import org.kordamp.ikonli.materialdesign.MaterialDesign;
+import org.kordamp.ikonli.materialdesign2.MaterialDesignL;
 
 /** Editor for one standalone {@code .kactor} file. */
 public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object> {
@@ -232,8 +233,8 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
             this::doCompile);
     this.sourceCode =
         icon(
-            MaterialDesign.MDI_LANGUAGE_JAVASCRIPT, // TODO wrong language
-            "Display Java-compiled source code after saving",
+            MaterialDesignL.LANGUAGE_JAVA,
+            "Display Java source code after compilation",
             false,
             true,
             this::toggleCompile);

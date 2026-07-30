@@ -67,7 +67,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   public KnowledgeGraphView(
       ContextScope contextScope, ClientKnowledgeGraph knowledgeGraph, DigitalTwinEditor editor) {
 
-    this.scope = KlabIDEController.instance().requireDigitalTwinPeer(contextScope, this);
+    this.scope = KlabIDEController.instance().requireDigitalTwinPeer(contextScope, null);
     this.knowledgeGraph = knowledgeGraph;
     this.editor = editor;
     this.localGraphRoot = defaultGraphRoot(scope.getFocalRoot());
@@ -306,6 +306,9 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
       timeline = new Timeline(currentTimeMs, oneHourLaterMs, TimeUnit.MINUTES, 1);
       this.setBottom(timeline);
       timeline.setVisible(true);
+      if (scope.getSchedule() != null) {
+        timeline.updateEndTime(scope.getSchedule().getEnd());
+      }
 
       // Initialize the graph view after it's been added to the scene
       Platform.runLater(
@@ -428,6 +431,9 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   }
 
   private void handleSubmissionFinished(Observation observation) {
+    if (observation == null || observation.getId() <= 0 || observation.isEmpty()) {
+      return;
+    }
     var root =
         observation.getMetadata().containsKey(Metadata.IM_COMMIT)
             ? observation.getMetadata().get(Metadata.IM_COMMIT, KnowledgeGraph.Commit.class)
@@ -604,7 +610,6 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
 
   @Override
   public void setDigitalTwin(IDEContextScope scope, boolean inFocus) {
-    scope.addViewer(this);
     if (this.sceneProperty().get() != null && this.sceneProperty().get().getWindow() != null) {
       initializeGraphView();
     } else {
@@ -630,9 +635,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   }
 
   @Override
-  public void close() {
-    scope.removeViewer(this);
-  }
+  public void close() {}
 
   @Override
   public void closeDigitalTwin(IDEContextScope ideContextScope) {}

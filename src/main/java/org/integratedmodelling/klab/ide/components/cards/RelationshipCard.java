@@ -161,7 +161,10 @@ public class RelationshipCard extends BaseCard<RuntimeAsset> {
   }
 
   private List<RelationshipRow> relationships() {
-    if (asset == null || scope == null || scope.getDigitalTwin() == null) {
+    if (asset == null
+        || asset.getId() <= 0
+        || scope == null
+        || scope.getDigitalTwin() == null) {
       return List.of();
     }
 

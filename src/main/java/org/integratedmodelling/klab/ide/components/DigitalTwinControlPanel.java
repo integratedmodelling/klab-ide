@@ -256,6 +256,8 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     this.scope = scope;
     if (scope != null) {
       scope.addViewer(this);
+      observationTree.update(scope.getFocalRoot(), scope.getFocalAsset(), scope);
+      observerTree.update(scope.getObserver());
       if (!scope.getActivityGraph().vertexSet().isEmpty()) {
         activityTree.update(scope);
       }
@@ -287,6 +289,14 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
               progressIndicator.setManaged(true);
               progressIndicator.setVisible(true);
               progressIndicator.setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
+            }
+            case ERROR, INFO -> {
+              homeButton.setManaged(true);
+              homeButton.setVisible(true);
+              progressIndicator.setManaged(false);
+              progressIndicator.setVisible(false);
+              progressIndicator.setProgress(0);
+              setMainView();
             }
           }
         });
@@ -397,9 +407,11 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   @Override
   public void close() {
-    reset();
-    if (this.scope != null) {
-      scope.removeViewer(this);
+    var previousScope = this.scope;
+    reset(null);
+    this.scope = null;
+    if (previousScope != null) {
+      previousScope.removeViewer(this);
     }
   }
 
@@ -416,9 +428,10 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   @Override
   public void unsetDigitalTwin(IDEContextScope focalScope) {
     if (this.scope != null && this.scope.getId().equals(focalScope.getId())) {
+      this.scope.removeViewer(this);
       this.scope = null;
       this.status = Status.IDLE;
-      this.setMainView();
+      Platform.runLater(this::setMainView);
     }
   }
 
@@ -428,15 +441,12 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   @Override
   public void submissionStarted(Observation observation) {
-    Platform.runLater(
-        () -> {
-          setView(View.ACTIVITIES);
-        });
+    setStatus(Status.COMPUTING);
   }
 
   @Override
   public void submissionAborted(Observation observation) {
-    // TODO show some error message temporarily
+    setStatus(Status.ERROR);
   }
 
   @Override
@@ -447,22 +457,34 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
             : RuntimeAsset.CONTEXT_ASSET;
     Platform.runLater(
         () -> {
+          status = Status.IDLE;
+          homeButton.setManaged(true);
+          homeButton.setVisible(true);
+          progressIndicator.setManaged(false);
+          progressIndicator.setVisible(false);
+          progressIndicator.setProgress(0);
           observationTree.update(root, observation, scope);
           setView(View.OBSERVATIONS);
         });
   }
 
   public void reset() {
+    reset(scope);
+  }
+
+  private void reset(IDEContextScope scopeToReset) {
     Platform.runLater(
         () -> {
-          if (scope == null) {
+          if (scopeToReset == null) {
             observationTree.reset();
             activityTree.reset();
             scenarioTree.reset();
             observerTree.reset();
           } else {
             observationTree.update(
-                RuntimeAsset.CONTEXT_ASSET, scope.getContextObservation(), scope);
+                RuntimeAsset.CONTEXT_ASSET,
+                scopeToReset.getContextObservation(),
+                scopeToReset);
             activityTree.reset();
             // TODO fill up scenarios and observers
           }
@@ -489,18 +511,38 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
                       : "Context observation set to " + Theme.getLabel(observation));
           tooltip.setShowDelay(Duration.millis(200));
           homeButton.setTooltip(tooltip);
+          if (scope != null) {
+            observationTree.update(RuntimeAsset.CONTEXT_ASSET, observation, scope);
+          }
         });
   }
 
   @Override
-  public void setObserver(Observation observation) {}
+  public void setObserver(Observation observation) {
+    Platform.runLater(
+        () -> {
+          observerTree.update(observation);
+          setView(View.OBSERVERS);
+        });
+  }
 
   @Override
-  public void knowledgeGraphModified() {}
+  public void knowledgeGraphModified() {
+    var currentScope = scope;
+    if (currentScope != null) {
+      Platform.runLater(
+          () ->
+              observationTree.update(
+                  currentScope.getFocalRoot(), currentScope.getFocalAsset(), currentScope));
+    }
+  }
 
   @Override
   public void activitiesModified() {
-    activityTree.update(scope);
+    var currentScope = scope;
+    if (currentScope != null) {
+      activityTree.update(currentScope);
+    }
   }
 
   @Override

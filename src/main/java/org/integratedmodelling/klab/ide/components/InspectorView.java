@@ -22,6 +22,7 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.util.Duration;
+import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
@@ -565,7 +566,21 @@ public class InspectorView extends BorderPane {
       try {
         component = Theme.getDisplayObject(resolvedValue, Theme.Detail.CARD);
       } catch (RuntimeException e) {
-        component = resolvedValue.toString();
+        Logging.INSTANCE.error(
+            "Cannot render inspector card for " + resolvedValue.getClass().getName(), e);
+        Label title = new Label(Theme.getLabel(resolvedValue));
+        title.getStyleClass().add("inspector-empty");
+        Label detail =
+            new Label(
+                "The detailed inspector card could not be rendered"
+                    + (e.getMessage() == null || e.getMessage().isBlank()
+                        ? "."
+                        : ": " + e.getMessage()));
+        detail.setWrapText(true);
+        VBox failure = new VBox(6, title, detail);
+        failure.setAlignment(Pos.CENTER);
+        node = failure;
+        return node;
       }
       if (component instanceof Node resolvedNode) {
         node = resolvedNode;

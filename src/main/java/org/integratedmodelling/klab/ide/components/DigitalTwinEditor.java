@@ -2,8 +2,6 @@ package org.integratedmodelling.klab.ide.components;
 
 import atlantafx.base.theme.Styles;
 import atlantafx.base.theme.Tweaks;
-import java.io.File;
-import java.net.URL;
 import java.util.*;
 import java.util.function.Consumer;
 
@@ -15,8 +13,6 @@ import javafx.scene.layout.HBox;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientDigitalTwin;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
-import org.integratedmodelling.common.utils.Utils;
-import org.integratedmodelling.klab.api.collections.Parameters;
 import org.integratedmodelling.klab.api.data.KnowledgeGraph;
 import org.integratedmodelling.klab.api.data.Metadata;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
@@ -32,6 +28,7 @@ import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
+import org.integratedmodelling.klab.ide.components.cards.ObservationCard;
 import org.integratedmodelling.klab.ide.components.treeviews.KnowledgeGraphTree;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 
@@ -59,16 +56,26 @@ public class DigitalTwinEditor extends EditorPage<IDEContextScope, RuntimeAsset>
     }
     this.context = RuntimeAsset.CONTEXT_ASSET;
     this.view = digitalTwinView;
+    this.contextScope.addViewer(this);
     setDigitalTwin(contextScope, true);
   }
 
   @Override
   public void knowledgeGraphModified() {
-    updateTree(this.context);
+    if (treeView != null) {
+      treeView.knowledgeGraphModified();
+    }
+    if (knowledgeGraphView != null) {
+      knowledgeGraphView.knowledgeGraphModified();
+    }
   }
 
   @Override
-  public void scheduleModified(Schedule schedule) {}
+  public void scheduleModified(Schedule schedule) {
+    if (knowledgeGraphView != null) {
+      knowledgeGraphView.scheduleModified(schedule);
+    }
+  }
 
   @Override
   public void cleanup() {
@@ -129,55 +136,9 @@ public class DigitalTwinEditor extends EditorPage<IDEContextScope, RuntimeAsset>
               new KnowledgeGraphView(this.contextScope, this.knowledgeGraph, this);
       return ret;
     } else if (asset instanceof Observation observation) {
-      File imageUrl =
-          Utils.Files.copyInputStreamToTempFile(
-              contextScope
-                  .getService(RuntimeService.class)
-                  .exportAsset(
-                      observation.getUrn(),
-                      KlabAsset.KnowledgeClass.OBSERVATION,
-                      "image/png",
-                      Parameters.create("viewportX", 800, "viewportY", 800),
-                      contextScope),
-              "png");
-      return new AssetViewer(
-          observation,
-          () -> {
-            var url =
-                KlabIDEController.instance()
-                    .visualize(observation, null, "text/html", contextScope, Map.of(), URL.class);
-            return url == null ? null : url.toString();
-          },
-          imageUrl);
+      return new ObservationCard(observation, contextScope, true);
     }
     return null;
-  }
-
-  private void updateTree(RuntimeAsset changed) {
-    Platform.runLater(
-        () -> {
-          if (treeView == null || treeView.getSelectionModel() == null) {
-            return;
-          }
-
-          // Store selection to restore it later
-          TreeItem<RuntimeAsset> selectedItem = treeView.getSelectionModel().getSelectedItem();
-
-          // Temporarily disable cell updates to prevent flickering
-          treeView.setDisable(true);
-
-          try {
-            // Restore selection if possible
-            if (selectedItem != null) {
-              var newSelectedItem = treeView.findItemById(selectedItem.getValue().getId());
-              if (newSelectedItem != null) {
-                treeView.getSelectionModel().select(newSelectedItem);
-              }
-            }
-          } finally {
-            treeView.setDisable(false);
-          }
-        });
   }
 
   public RuntimeAsset getRootAsset() {
@@ -192,14 +153,27 @@ public class DigitalTwinEditor extends EditorPage<IDEContextScope, RuntimeAsset>
 
   @Override
   public void submissionFinished(Observation observation) {
-    var root =
-        observation.getMetadata().containsKey(Metadata.IM_COMMIT)
-            ? observation.getMetadata().get(Metadata.IM_COMMIT, KnowledgeGraph.Commit.class)
-            : RuntimeAsset.CONTEXT_ASSET;
+    if (knowledgeGraphView != null) {
+      knowledgeGraphView.submissionFinished(observation);
+    }
+    Platform.runLater(
+        () -> {
+          for (var openAsset : getOpenEditorAssets()) {
+            if (openAsset instanceof Observation openObservation
+                && openObservation.getId() == observation.getId()) {
+              refreshEditor(openAsset, observation);
+              break;
+            }
+          }
+        });
   }
 
   @Override
-  public void setContext(Observation observation) {}
+  public void setContext(Observation observation) {
+    if (treeView != null) {
+      treeView.setContext(observation);
+    }
+  }
 
   @Override
   public void setObserver(Observation observation) {}
@@ -239,9 +213,13 @@ public class DigitalTwinEditor extends EditorPage<IDEContextScope, RuntimeAsset>
       // TODO start timeout counter, add a notification (scope ... will be removed in xxxx if not
       // used again)
     }
-    knowledgeGraphView.close();
-    treeView.close();
-    digitalTwinControlPanel.close();
+    contextScope.removeViewer(this);
+    if (knowledgeGraphView != null) {
+      knowledgeGraphView.close();
+    }
+    if (treeView != null) {
+      treeView.close();
+    }
     super.close();
   }
 

@@ -41,6 +41,12 @@ public class TreeModel {
   public static Pair<AssetTreeItem, AssetTreeItem> createTree(
       RuntimeAsset asset, @Nullable RuntimeAsset focus, IDEContextScope scope) {
 
+    if (!isKnowledgeGraphAsset(asset)) {
+      asset = RuntimeAsset.CONTEXT_ASSET;
+    }
+    if (!isKnowledgeGraphAsset(focus)) {
+      focus = null;
+    }
     var types = Set.of(RuntimeAsset.Type.OBSERVATION, RuntimeAsset.Type.COHORT);
     var relationships =
         Set.of(
@@ -128,6 +134,9 @@ public class TreeModel {
       Set<GraphModel.Relationship.Direction> recursiveDirections,
       Map<AssetKey, Integer> expandedDepths,
       Map<AssetKey, RuntimeAsset> graphAssets) {
+    if (!isKnowledgeGraphAsset(asset)) {
+      return false;
+    }
     asset = graphAsset(asset, graphAssets);
     graph.addVertex(asset);
     var assetKey = AssetKey.of(asset);
@@ -142,6 +151,9 @@ public class TreeModel {
       for (var child :
           getTraversals(
               asset, scope, types, relationships, focus, recursiveDirections.size() > 1)) {
+        if (!isKnowledgeGraphAsset(child.asset())) {
+          continue;
+        }
         var childAsset = graphAsset(child.asset(), graphAssets);
         if (sameAsset(asset, childAsset)) {
           // shouldn't happen, but happens
@@ -233,6 +245,9 @@ public class TreeModel {
       RuntimeAsset focus,
       boolean includeBothDirections) {
 
+    if (!isKnowledgeGraphAsset(asset)) {
+      return List.of();
+    }
     var kg = scope.getDigitalTwin().getKnowledgeGraph();
     var ret = new ArrayList<AssetTraversal>();
 
@@ -315,6 +330,17 @@ public class TreeModel {
     }
 
     return ret;
+  }
+
+  static boolean isKnowledgeGraphAsset(RuntimeAsset asset) {
+    if (asset == null) {
+      return false;
+    }
+    long id = asset.getId();
+    return id > 0
+        || id == RuntimeAsset.CONTEXT_ASSET_ID
+        || id == RuntimeAsset.PROVENANCE_ASSET_ID
+        || id == RuntimeAsset.DATAFLOW_ASSET_ID;
   }
 
   static boolean followsPreferredDirection(

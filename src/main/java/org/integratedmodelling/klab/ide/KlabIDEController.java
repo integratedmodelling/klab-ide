@@ -19,6 +19,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.event.EventHandler;
@@ -108,7 +109,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private boolean inspectorIsOn;
   private Set<View> neverSeen = EnumSet.of(View.RESOURCES, View.WORKSPACES, View.DIGITAL_TWINS);
   private static KlabIDEController _this;
-  private Map<String, IDEContextScope> contextMap = new LinkedHashMap<>();
+  private final Map<String, IDEContextScope> contextMap = new ConcurrentHashMap<>();
   private Queue<DigitalTwinReactor> digitalTwinReactors = new ConcurrentLinkedQueue<>();
   private AtomicReference<Engine.Status> engineStatus = new AtomicReference<>();
   private Label infoLabel;
@@ -247,6 +248,10 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   }
 
   public void setFocalScope(IDEContextScope focalScope, boolean isLocal) {
+    if (!Platform.isFxApplicationThread()) {
+      Platform.runLater(() -> setFocalScope(focalScope, isLocal));
+      return;
+    }
     if (focalScope == null && this.focalScope != null) {
       digitalTwinView.deselectDigitalTwin(this.focalScope);
       synchronized (this.digitalTwinReactors) {
@@ -1469,15 +1474,17 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   @Override
   public void notifyDigitalTwinModified(DigitalTwin digitalTwin, Message change) {
     Logging.INSTANCE.info("Digital twin changed: " + change);
+    var peer = findDigitalTwinPeer(digitalTwin);
+    if (peer != null) {
+      peer.acceptDigitalTwinEvent(change);
+    }
   }
 
   @Override
   public void notifyObservationSubmission(
       Observation observation, ContextScope contextScope, RuntimeService service) {
     Logging.INSTANCE.info("Observation submitted: " + observation);
-    for (var viewer : getDigitalTwinViewers(contextScope, service)) {
-      viewer.submissionStarted(observation);
-    }
+    routeToDigitalTwin(contextScope, peer -> peer.notifySubmissionStarted(observation));
   }
 
   void unregisterDigitalTwin(IDEContextScope ideContextScope) {
@@ -1493,53 +1500,52 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     contextMap.remove(ideContextScope.getId());
   }
 
-  /**
-   * Retrieve any viewers for the passed DT, also managing the DT widget, if any is open.
-   *
-   * @param contextScope
-   * @param service
-   * @return
-   */
-  private List<DigitalTwinViewer> getDigitalTwinViewers(
-      ContextScope contextScope, RuntimeService service) {
-    // TODO
-    return List.of();
+  private void routeToDigitalTwin(
+      ContextScope contextScope, Consumer<IDEContextScope> notification) {
+    var peer = requireDigitalTwinPeer(contextScope, null);
+    if (peer != null) {
+      notification.accept(peer);
+    }
+  }
+
+  private synchronized IDEContextScope findDigitalTwinPeer(DigitalTwin digitalTwin) {
+    if (digitalTwin == null) {
+      return null;
+    }
+    for (var peer : contextMap.values()) {
+      if (peer.getDigitalTwin() == digitalTwin) {
+        return peer;
+      }
+    }
+    return null;
   }
 
   @Override
   public void notifyObservationSubmissionAborted(
       Observation observation, ContextScope contextScope, RuntimeService service) {
     Logging.INSTANCE.info("Observation submission aborted: " + observation);
-    for (var viewer : getDigitalTwinViewers(contextScope, service)) {
-      viewer.submissionAborted(observation);
-    }
+    routeToDigitalTwin(contextScope, peer -> peer.notifySubmissionAborted(observation));
   }
 
   @Override
   public void notifyObservationSubmissionFinished(
       Observation observation, ContextScope contextScope, RuntimeService service) {
     Logging.INSTANCE.info("Observation submission finished: " + observation);
-    for (var viewer : getDigitalTwinViewers(contextScope, service)) {
-      viewer.submissionFinished(observation);
-    }
+    routeToDigitalTwin(contextScope, peer -> peer.notifySubmissionFinished(observation));
   }
 
   @Override
   public void notifyContextObservationResolved(
       Observation observation, ContextScope contextScope, RuntimeService service) {
     Logging.INSTANCE.info("Context observation resolved: " + observation);
-    for (var viewer : getDigitalTwinViewers(contextScope, service)) {
-      viewer.setContext(observation);
-    }
+    routeToDigitalTwin(contextScope, peer -> peer.notifyContextChanged(observation));
   }
 
   @Override
   public void notifyObserverResolved(
       Observation observation, ContextScope contextScope, RuntimeService service) {
     Logging.INSTANCE.info("Observer resolved: " + observation);
-    for (var viewer : getDigitalTwinViewers(contextScope, service)) {
-      viewer.setObserver(observation);
-    }
+    routeToDigitalTwin(contextScope, peer -> peer.notifyObserverChanged(observation));
   }
 
   //  @Override

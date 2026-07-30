@@ -85,6 +85,9 @@ public class KnowledgeGraphTree extends KlabTreeView<RuntimeAsset> implements Di
   }
 
   public TreeItem<RuntimeAsset> findItemById(TreeItem<RuntimeAsset> current, long id) {
+    if (current == null || current.getValue() == null) {
+      return null;
+    }
     if (current.getValue().getId() == id) {
       return current;
     }
@@ -106,7 +109,7 @@ public class KnowledgeGraphTree extends KlabTreeView<RuntimeAsset> implements Di
       DigitalTwinEditor editor, RuntimeAsset rootAsset, ContextScope contextScope) {
     super();
     this.editor = editor;
-    this.scope = KlabIDEController.instance().requireDigitalTwinPeer(contextScope, this);
+    this.scope = KlabIDEController.instance().requireDigitalTwinPeer(contextScope, null);
     this.clientKnowledgeGraph = this.scope.getDigitalTwin().getKnowledgeGraph();
     setCellFactory(p -> new AssetTreeCell(editor));
 
@@ -144,23 +147,22 @@ public class KnowledgeGraphTree extends KlabTreeView<RuntimeAsset> implements Di
     // The context change should be initiated externally, and this method
     // should only react to the notification
 
-    if (observation != null) {
-      var item = findTreeItemById((TreeModel.AssetTreeItem) getRoot(), observation.getId());
-      Platform.runLater(
-          () -> {
-            if (previousBoldItem != null) {
-              // Ensure the previous item has a graphic before styling
-              ensureGraphicExists(previousBoldItem);
-              previousBoldItem.graphicProperty().get().setStyle("-fx-font-weight: normal");
-            }
+    Platform.runLater(
+        () -> {
+          if (previousBoldItem != null) {
+            ensureGraphicExists(previousBoldItem);
+            previousBoldItem.graphicProperty().get().setStyle("-fx-font-weight: normal");
+            previousBoldItem = null;
+          }
+          if (observation != null) {
+            var item = findTreeItemById((TreeModel.AssetTreeItem) getRoot(), observation.getId());
             if (item != null) {
-              // Ensure the current item has a graphic before styling
               ensureGraphicExists(item);
               item.graphicProperty().get().setStyle("-fx-font-weight: bold");
               previousBoldItem = item;
             }
-          });
-    }
+          }
+        });
   }
 
   /**
@@ -182,6 +184,9 @@ public class KnowledgeGraphTree extends KlabTreeView<RuntimeAsset> implements Di
   }
 
   private TreeModel.AssetTreeItem findTreeItemById(TreeModel.AssetTreeItem current, long id) {
+    if (current == null) {
+      return null;
+    }
     if (current.getValue() != null && current.getValue().getId() == id) {
       return current;
     }
@@ -226,13 +231,11 @@ public class KnowledgeGraphTree extends KlabTreeView<RuntimeAsset> implements Di
 
   @Override
   public void setDigitalTwin(IDEContextScope scope, boolean focus) {
-    scope.addViewer(this);
+    // The containing DigitalTwinEditor owns registration and forwards relevant events.
   }
 
   @Override
-  public void close() {
-    scope.removeViewer(this);
-  }
+  public void close() {}
 
   @Override
   public void closeDigitalTwin(IDEContextScope ideContextScope) {}

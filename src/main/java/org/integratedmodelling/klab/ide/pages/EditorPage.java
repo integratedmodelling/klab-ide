@@ -3,6 +3,7 @@ package org.integratedmodelling.klab.ide.pages;
 import atlantafx.base.theme.Styles;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
@@ -307,6 +308,43 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
    */
   public A getEditedAsset() {
     return currentAsset;
+  }
+
+  /** Return a stable snapshot of the assets with an open editor tab. */
+  protected Set<T> getOpenEditorAssets() {
+    return Set.copyOf(assetEditors.keySet());
+  }
+
+  /**
+   * Replace an open asset and its editor in place, retaining the tab position and selection.
+   *
+   * @return true when the old asset had an open editor and the replacement was installed
+   */
+  protected boolean refreshEditor(T oldAsset, T refreshedAsset) {
+    var tab = assetEditors.get(oldAsset);
+    if (tab == null) {
+      return false;
+    }
+    var refreshedEditor = createEditor(refreshedAsset);
+    if (refreshedEditor == null) {
+      return false;
+    }
+    var previousEditor = tab.getContent();
+    if (previousEditor != null) {
+      disposeEditor(oldAsset, previousEditor);
+    }
+    assetEditors.remove(oldAsset);
+    assetEditors.put(refreshedAsset, tab);
+    tab.setText(Theme.getLabel(refreshedAsset));
+    tab.setGraphic(Theme.getGraphics(refreshedAsset));
+    tab.setContent(refreshedEditor);
+    tab.setOnClosed(
+        event -> {
+          if (assetEditors.remove(refreshedAsset, tab)) {
+            disposeEditor(refreshedAsset, refreshedEditor);
+          }
+        });
+    return true;
   }
 
   /** Update the logical asset after an editor reparses or otherwise replaces it in place. */

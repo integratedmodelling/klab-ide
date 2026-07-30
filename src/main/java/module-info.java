@@ -43,8 +43,10 @@ module org.integratedmodelling.klab.ide {
   requires org.kordamp.ikonli.codicons;
   requires spring.core;
   requires org.kordamp.ikonli.simplelineicons;
+  requires org.kordamp.ikonli.materialdesign2;
+    requires org.kordamp.ikonli.octicons;
 
-  opens org.integratedmodelling.klab.ide to
+    opens org.integratedmodelling.klab.ide to
       javafx.fxml;
   opens org.integratedmodelling.klab.ide.components to
       javafx.fxml;

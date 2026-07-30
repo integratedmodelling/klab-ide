@@ -4,9 +4,12 @@ import java.net.URL;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
+import javafx.application.Platform;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientDigitalTwin;
 import org.integratedmodelling.common.services.client.scope.ClientContextScope;
 import org.integratedmodelling.klab.api.actors.Agent;
@@ -45,40 +48,45 @@ import org.jgrapht.graph.DefaultEdge;
  * derived context but also inform any views of the changes. Listeners are installed to build
  * notifications and closing removes all views.
  *
- * <p>TODO the scope must be the single thing sending message to high-level UI components, which in
- * turn must inform their sub-viewers affected by that scope.
+ * <p>The scope is the single event boundary for the UI. Both client digital-twin messages and
+ * modeler callbacks enter its serial queue; registered high-level viewers then refresh their owned
+ * sub-views.
  */
 public class IDEContextScope implements ContextScope {
 
   ClientContextScope delegate;
-  // the scope keeps a list of all the viewers dedicated to it.
-  private final Set<DigitalTwinViewer> viewers = Collections.synchronizedSet(new HashSet<>());
+  private final DigitalTwinEventRouter eventRouter = new DigitalTwinEventRouter();
   private final ExecutorService executor = Executors.newSingleThreadExecutor();
+  private final AtomicBoolean closed = new AtomicBoolean();
 
   private Graph<Activity, DefaultEdge> activityGraph =
       new DefaultDirectedGraph<>(DefaultEdge.class);
   private HashMap<Long, Activity> activities = new HashMap<>();
-  private Schedule schedule;
+  private volatile Schedule schedule;
   private AtomicReference<RuntimeAsset> focalRoot =
       new AtomicReference<>(RuntimeAsset.CONTEXT_ASSET);
   private final AtomicReference<RuntimeAsset> focalAsset = new AtomicReference<>(null);
   private int graphDepth = 2;
   private final List<Pair<KnowledgeGraph.Commit, Observation>> commits =
       Collections.synchronizedList(new ArrayList<>());
+  private final Map<Long, Long> recentlyFinishedObservations = new HashMap<>();
+  private static final long DUPLICATE_FINISH_WINDOW_NANOS = 1_000_000_000L;
 
   public IDEContextScope(ClientContextScope delegate) {
-    this.delegate = delegate;
+    this.delegate = Objects.requireNonNull(delegate);
     delegate
         .getDigitalTwin()
-        .addEventConsumer(message -> executor.execute(() -> processEvent(message)));
+        .addEventConsumer(this::acceptDigitalTwinEvent);
   }
 
   public void removeViewer(DigitalTwinViewer viewer) {
-    viewers.remove(viewer);
+    eventRouter.remove(viewer);
   }
 
   public void addViewer(DigitalTwinViewer viewer) {
-    this.viewers.add(viewer);
+    if (!closed.get()) {
+      eventRouter.add(viewer);
+    }
   }
 
   public RuntimeAsset getFocalAsset() {
@@ -86,8 +94,9 @@ public class IDEContextScope implements ContextScope {
   }
 
   public void setFocalAssets(RuntimeAsset rootAsset, RuntimeAsset focalAssets) {
-    focalAsset.set(focalAssets);
-    focalRoot.set(rootAsset);
+    focalAsset.set(isKnowledgeGraphAsset(focalAssets) ? focalAssets : null);
+    focalRoot.set(
+        isKnowledgeGraphAsset(rootAsset) ? rootAsset : RuntimeAsset.CONTEXT_ASSET);
   }
 
   public List<Pair<KnowledgeGraph.Commit, Observation>> getCommits() {
@@ -109,80 +118,179 @@ public class IDEContextScope implements ContextScope {
     }
   }
 
+  /**
+   * Route a message that has already been ingested by the client digital twin. The client updates
+   * its knowledge graph before invoking this method, so viewer refreshes always see the new graph.
+   */
+  public void acceptDigitalTwinEvent(Message message) {
+    if (message != null) {
+      executeEvent(() -> processEvent(message));
+    }
+  }
+
+  public void notifySubmissionStarted(Observation observation) {
+    executeEvent(() -> notifyViewers(viewer -> viewer.submissionStarted(observation)));
+  }
+
+  public void notifySubmissionAborted(Observation observation) {
+    executeEvent(() -> notifyViewers(viewer -> viewer.submissionAborted(observation)));
+  }
+
+  public void notifySubmissionFinished(Observation observation) {
+    executeEvent(() -> processSubmissionFinished(observation));
+  }
+
+  public void notifyContextChanged(Observation observation) {
+    executeEvent(() -> notifyViewers(viewer -> viewer.setContext(observation)));
+  }
+
+  public void notifyObserverChanged(Observation observation) {
+    executeEvent(() -> notifyViewers(viewer -> viewer.setObserver(observation)));
+  }
+
+  public void notifyKnowledgeGraphModified() {
+    executeEvent(() -> notifyViewers(DigitalTwinViewer::knowledgeGraphModified));
+  }
+
+  private void executeEvent(Runnable event) {
+    if (closed.get()) {
+      return;
+    }
+    try {
+      executor.execute(
+          () -> {
+            if (!closed.get()) {
+              event.run();
+            }
+          });
+    } catch (RejectedExecutionException ignored) {
+      // Closing races with late messages from the client digital twin. They are intentionally
+      // discarded once the scope has begun closing.
+    }
+  }
+
   private void processEvent(Message message) {
 
     switch (message.getMessageType()) {
-      //      case ObservationSubmissionAborted -> {}
-      //      case ObservationSubmissionStarted -> {}
-      case ObservationSubmissionFinished -> {
-        var observation = message.getPayload(Observation.class);
-        var root =
-            observation.getMetadata().containsKey(Metadata.IM_COMMIT)
-                ? observation.getMetadata().get(Metadata.IM_COMMIT, KnowledgeGraph.Commit.class)
-                : RuntimeAsset.CONTEXT_ASSET;
-        if (root instanceof KnowledgeGraph.Commit commit) {
-          addCommit(Pair.of(commit, observation));
-        }
-        this.setFocus(root, observation);
-        notifyViewers(
-            viewer -> {
-              viewer.submissionFinished(observation);
-              viewer.knowledgeGraphModified();
-            });
-      }
+      case ObservationSubmissionStarted ->
+          notifyViewers(
+              viewer -> viewer.submissionStarted(message.getPayload(Observation.class)));
+      case ObservationSubmissionAborted ->
+          notifyViewers(
+              viewer -> viewer.submissionAborted(message.getPayload(Observation.class)));
+      case ObservationSubmissionFinished ->
+          processSubmissionFinished(message.getPayload(Observation.class));
+      case ContextObservationResolved ->
+          notifyViewers(viewer -> viewer.setContext(message.getPayload(Observation.class)));
+      case ObserverResolved ->
+          notifyViewers(viewer -> viewer.setObserver(message.getPayload(Observation.class)));
       case ActivityFinished -> {
-        var activity = message.getPayload(Activity.class);
-        // update the existing activity in the graph instead of substituting it
-        var existingActivity = activities.get(activity.getTransientId());
-        if (existingActivity instanceof ActivityImpl impl) {
-          impl.setStackTrace(activity.getStackTrace());
-          impl.setObservationUrn(activity.getObservationUrn());
-          impl.setEnd(activity.getEnd());
-          impl.setOutcome(activity.getOutcome());
-          impl.getMetadata().putAll(activity.getMetadata());
-        }
-        executor.execute(() -> viewers.forEach(DigitalTwinViewer::activitiesModified));
+        upsertActivity(message.getPayload(Activity.class), true);
+        notifyViewers(DigitalTwinViewer::activitiesModified);
       }
       case ActivityStarted -> {
-        var activity = message.getPayload(Activity.class);
-        if (!activities.containsKey(activity.getTransientId())) { // shouldn't be needed
-          activities.put(activity.getTransientId(), activity);
-          activityGraph.addVertex(activity);
-          var parentActivity = activity.getParentTransientId();
-          if (parentActivity > 0) {
-            var activityParent = activities.get(parentActivity);
-            if (activityParent != null) {
-              activityGraph.addEdge(activityParent, activity);
-            }
-          }
-        }
-        executor.execute(() -> viewers.forEach(DigitalTwinViewer::activitiesModified));
+        upsertActivity(message.getPayload(Activity.class), false);
+        notifyViewers(DigitalTwinViewer::activitiesModified);
       }
       case ScheduleModified -> {
         this.schedule = message.getPayload(Schedule.class);
-        executor.execute(() -> viewers.forEach(v -> v.scheduleModified(schedule)));
+        notifyViewers(viewer -> viewer.scheduleModified(schedule));
+      }
+      case ContextClosed, DigitalTwinDeleted -> Platform.runLater(this::close);
+    }
+  }
+
+  private void upsertActivity(Activity activity, boolean finished) {
+    var stored = activities.get(activity.getTransientId());
+    if (stored == null) {
+      stored = activity;
+      activities.put(activity.getTransientId(), stored);
+      activityGraph.addVertex(stored);
+    } else if (finished && stored instanceof ActivityImpl impl) {
+      impl.setStackTrace(activity.getStackTrace());
+      impl.setObservationUrn(activity.getObservationUrn());
+      impl.setEnd(activity.getEnd());
+      impl.setOutcome(activity.getOutcome());
+      impl.getMetadata().putAll(activity.getMetadata());
+    }
+
+    var parent = activities.get(stored.getParentTransientId());
+    if (parent != null && !activityGraph.containsEdge(parent, stored)) {
+      activityGraph.addEdge(parent, stored);
+    }
+    for (var possibleChild : activities.values()) {
+      if (possibleChild.getParentTransientId() == stored.getTransientId()
+          && !activityGraph.containsEdge(stored, possibleChild)) {
+        activityGraph.addEdge(stored, possibleChild);
       }
     }
   }
 
+  private void processSubmissionFinished(Observation observation) {
+    if (!isKnowledgeGraphAsset(observation) || observation.isEmpty()) {
+      notifyViewers(viewer -> viewer.submissionAborted(observation));
+      return;
+    }
+    if (observation.getId() >= 0) {
+      var now = System.nanoTime();
+      var previous = recentlyFinishedObservations.put(observation.getId(), now);
+      recentlyFinishedObservations
+          .entrySet()
+          .removeIf(
+              entry -> now - entry.getValue() > DUPLICATE_FINISH_WINDOW_NANOS);
+      if (previous != null && now - previous <= DUPLICATE_FINISH_WINDOW_NANOS) {
+        return;
+      }
+    }
+    var root =
+        observation.getMetadata().containsKey(Metadata.IM_COMMIT)
+            ? observation.getMetadata().get(Metadata.IM_COMMIT, KnowledgeGraph.Commit.class)
+            : RuntimeAsset.CONTEXT_ASSET;
+    if (root instanceof KnowledgeGraph.Commit commit) {
+      addCommit(Pair.of(commit, observation));
+    }
+    setFocus(root, observation);
+    notifyViewers(
+        viewer -> {
+          viewer.submissionFinished(observation);
+          viewer.knowledgeGraphModified();
+        });
+  }
+
   private void addCommit(Pair<KnowledgeGraph.Commit, Observation> of) {
-    commits.add(of);
+    synchronized (commits) {
+      if (commits.stream().noneMatch(commit -> commit.getFirst().getId() == of.getFirst().getId())) {
+        commits.add(of);
+      }
+    }
   }
 
   private void notifyViewers(java.util.function.Consumer<DigitalTwinViewer> notification) {
-    synchronized (viewers) {
-      viewers.forEach(notification);
-    }
+    eventRouter.dispatch(notification);
   }
 
   public Graph<Activity, DefaultEdge> getActivityGraph() {
     return activityGraph;
   }
 
+  public Schedule getSchedule() {
+    return schedule;
+  }
+
   public void setFocus(RuntimeAsset root, RuntimeAsset focus) {
-    this.focalAsset.set(focus);
-    this.focalRoot.set(root);
+    setFocalAssets(root, focus);
     //    executor.execute(() -> viewers.forEach(v -> v.focusObservations(root, ids)));
+  }
+
+  static boolean isKnowledgeGraphAsset(RuntimeAsset asset) {
+    if (asset == null) {
+      return false;
+    }
+    long id = asset.getId();
+    return id > 0
+        || id == RuntimeAsset.CONTEXT_ASSET_ID
+        || id == RuntimeAsset.PROVENANCE_ASSET_ID
+        || id == RuntimeAsset.DATAFLOW_ASSET_ID;
   }
 
   @Override
@@ -371,10 +479,8 @@ public class IDEContextScope implements ContextScope {
     this.delegate =
         (ClientContextScope)
             (observer == null ? delegate.getRootContextScope() : delegate.withObserver(observer));
-    for (var view : viewers) {
-      view.setObserver(observer);
-    }
-    return this.delegate;
+    notifyViewers(view -> view.setObserver(observer));
+    return this;
   }
 
   @Override
@@ -384,17 +490,14 @@ public class IDEContextScope implements ContextScope {
     if (contextObservation != null) {
       delegate = (ClientContextScope) delegate.within(contextObservation);
     }
-    for (var view : viewers) {
-      view.setContext(contextObservation);
-    }
-    return this.delegate;
+    notifyViewers(view -> view.setContext(contextObservation));
+    return this;
   }
 
   @Override
   public ContextScope between(Observation source, Observation target) {
     this.delegate = (ClientContextScope) delegate.between(source, target);
-    // TODO ??
-    return this.delegate;
+    return this;
   }
 
   @Override
@@ -569,11 +672,13 @@ public class IDEContextScope implements ContextScope {
 
   @Override
   public void close() {
-
-    var list = new ArrayList<>(viewers);
-    for (var view : list) {
+    if (!closed.compareAndSet(false, true)) {
+      return;
+    }
+    for (var view : eventRouter.drain()) {
       view.close();
     }
+    executor.shutdownNow();
     KlabIDEController.instance().unregisterDigitalTwin(this);
     delegate.close();
   }

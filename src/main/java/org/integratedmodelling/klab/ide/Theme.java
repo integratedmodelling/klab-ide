@@ -53,6 +53,7 @@ import org.kordamp.ikonli.fontawesome5.FontAwesomeSolid;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
 import org.kordamp.ikonli.materialdesign.MaterialDesign;
+import org.kordamp.ikonli.octicons.Octicons;
 import org.kordamp.ikonli.simplelineicons.SimpleLineIcons;
 import org.kordamp.ikonli.unicons.UniconsLine;
 
@@ -165,7 +166,7 @@ public enum Theme {
   public static Ikon ACTIVITY_ICON = Evaicons.ACTIVITY;
   public static Ikon DEFINITION_ICON = Material2MZ.SUBSCRIPTIONS;
   public static Ikon BEHAVIOR_ICON = Material2MZ.WORK_OUTLINE;
-  public static Ikon SCRIPT_ICON = Material2MZ.WORK_OUTLINE;
+  public static Ikon SCRIPT_ICON = Octicons.FILE_CODE_24;
   public static Ikon FOLDER_ICON = Material2AL.FOLDER_OPEN;
   public static Ikon COHORT_ICON = Material2AL.FOLDER_OPEN;
   public static Ikon TESTCASE_ICON = FileIcons.TEST_GENERIC;

@@ -57,8 +57,16 @@ public class ObserverTree extends KlabTreeTableView<Observation> {
   }
 
   private HBox observationDescription(Observation value) {
-    var ret = new HBox();
+    var ret = new HBox(new Label(value == null ? "" : Theme.getLabel(value)));
     return ret;
+  }
+
+  public void update(Observation observer) {
+    var root = new TreeItem<Observation>();
+    if (observer != null) {
+      root.getChildren().add(new TreeItem<>(observer));
+    }
+    setRoot(root);
   }
 
   public void reset() {
