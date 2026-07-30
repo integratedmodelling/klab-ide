@@ -42,7 +42,9 @@
 /* Keep selection visible without adding a surrounding button surface. */
 .toggle-button.klab-icon-button:selected {
     -fx-translate-y: 1px;
-    -fx-background-color: -color-neutral-subtle;
+    -fx-background-color: -color-accent-muted;
+    -fx-background-radius: 8px;
+    -fx-effect: innershadow( three-pass-box , rgba(0,0,0,0.7) , 3, 0.0 , 0 , 1);
 }
 
 .round-button {
@@ -54,7 +56,6 @@
     -fx-max-height: 32px;
     -fx-cursor: HAND;
     -fx-alignment: CENTER;
-    /* -fx-effect: innershadow( three-pass-box , rgba(0,0,0,0.1) , 2, 0.0 , 0 , 1); */
 }
 
 .group-icon {
