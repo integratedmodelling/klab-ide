@@ -519,21 +519,15 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     if (agent == null || !compilationSuccessful || !agent.isViable()) {
       return reportLaunchFailure(agent, debugging, null);
     }
+    // RuntimeService starts the single-use service instance before serializing this handle. A
+    // stopped handle here is a finite agent that already completed, not an invitation to restart.
+    if (!agent.isAlive()) {
+      disconnectAgent(agent);
+      refreshAgentStates();
+      return true;
+    }
     if (debugging) {
       registerDebugSession(agent);
-    }
-    try {
-      if (!agent.isAlive() && !agent.start()) {
-        if (debugging) {
-          agentStopped(agent);
-        }
-        return reportLaunchFailure(agent, debugging, null);
-      }
-    } catch (Throwable throwable) {
-      if (debugging) {
-        agentStopped(agent);
-      }
-      return reportLaunchFailure(agent, debugging, throwable);
     }
     if (agent.isViable() && agent.isAlive()) {
       agents.add(agent);
@@ -1075,6 +1069,19 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     if (debuggerView != null) {
       debuggerView.close();
     }
+    var connectedAgents = Collections.newSetFromMap(new IdentityHashMap<Agent, Boolean>());
+    connectedAgents.addAll(agentSnapshot());
+    connectedAgents.addAll(getDebugAgents());
+    for (var agent : connectedAgents) {
+      try {
+        if (agent.isAlive()) {
+          agent.stop();
+        }
+      } catch (Throwable ignored) {
+        // The editor is closing; transport teardown below remains mandatory.
+      }
+      disconnectAgent(agent);
+    }
     agentStatusRefresh.stop();
     super.close();
   }
@@ -1122,20 +1129,21 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   }
 
   private boolean stopAndRemoveAgent(Agent agent) {
-    boolean stopped;
     try {
-      stopped = !agent.isAlive() || agent.stop();
+      if (!agent.isAlive()) {
+        agentStopped(agent);
+        removeAgentConsole(agent);
+        return true;
+      }
+      // stop() acknowledges publication, not service-side termination. Keep the handle connected
+      // until AgentStopped updates isAlive(), then the status refresh removes and disconnects it.
+      return agent.stop();
     } catch (Throwable failure) {
-      stopped = false;
       KlabIDEController.instance()
           .handleNotification(
               Notification.error("Unable to stop agent " + agent.getUrn(), failure));
+      return false;
     }
-    if (stopped) {
-      agentStopped(agent);
-      removeAgentConsole(agent);
-    }
-    return stopped;
   }
 
   private void removeAgentConsole(Agent agent) {
@@ -1168,10 +1176,19 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       agentStoppedCallback.accept(agent);
     }
     if (removed || debugRemoved) {
+      disconnectAgent(agent);
+    }
+    if (removed || debugRemoved) {
       refreshAgentStates();
     }
     if (agents.isEmpty()) {
       agentStatusRefresh.stop();
+    }
+  }
+
+  private void disconnectAgent(Agent agent) {
+    if (agent instanceof AgentImpl clientAgent) {
+      clientAgent.disconnect();
     }
   }
 

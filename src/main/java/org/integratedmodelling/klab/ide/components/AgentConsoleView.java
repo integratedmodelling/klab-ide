@@ -163,9 +163,8 @@ public final class AgentConsoleView extends BorderPane implements AutoCloseable 
     stopRequested = true;
     state.setText("Stopping…");
     setInteractionEnabled(false);
-    if (agent.stop()) {
-      reportStopped();
-    } else {
+    if (!agent.stop()) {
+      stopRequested = false;
       refreshStatus();
     }
   }

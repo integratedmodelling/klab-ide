@@ -364,9 +364,7 @@ public final class AgentDebuggerView extends BorderPane implements AutoCloseable
     var agent = focusedSession.agent;
     stop.setDisable(true);
     state.setText("Stopping...");
-    if (agent.stop()) {
-      stoppedHandler.accept(agent);
-    } else {
+    if (!agent.stop()) {
       refreshStatus();
     }
   }

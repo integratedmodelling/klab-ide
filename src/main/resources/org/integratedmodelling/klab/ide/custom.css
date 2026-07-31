@@ -308,6 +308,35 @@
     -fx-background-color: -color-bg-default;
 }
 
+.observation-card-title-bar {
+    -fx-background-color: -color-bg-subtle;
+    -fx-background-radius: 4px;
+    -fx-border-color: -color-border-default;
+    -fx-border-radius: 4px;
+}
+
+.observation-card-title {
+    -fx-font-size: 13px;
+    -fx-font-weight: 700;
+    -fx-text-fill: -color-fg-default;
+}
+
+.observation-card-semantics {
+    -fx-font-size: 11px;
+    -fx-text-fill: -color-fg-muted;
+}
+
+.observation-card-id-chip {
+    -fx-background-color: -color-bg-default;
+    -fx-background-radius: 5;
+    -fx-border-color: -color-border-muted;
+    -fx-border-radius: 5;
+    -fx-border-width: 1;
+    -fx-padding: 2 6 2 6;
+    -fx-font-size: 9px;
+    -fx-text-fill: -color-fg-muted;
+}
+
 .observation-value-card {
     -fx-background-color: -color-bg-subtle;
     -fx-background-radius: 4px;
