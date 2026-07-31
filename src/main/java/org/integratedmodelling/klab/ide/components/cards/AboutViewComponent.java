@@ -18,10 +18,13 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import org.integratedmodelling.klab.api.data.Version;
 import org.integratedmodelling.klab.ide.KlabIDEApplication;
+import org.integratedmodelling.klab.ide.Theme;
+import org.integratedmodelling.klab.ide.components.generic.IconButton;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.javafx.FontIcon;
@@ -105,15 +108,40 @@ public class AboutViewComponent extends BaseAssetViewComponent {
     description.setMaxWidth(650);
 
     VBox introduction = new VBox(7, eyebrow, title, description);
+    introduction.setId("introduction");
     introduction.setAlignment(Pos.CENTER_LEFT);
-    HBox.setHgrow(introduction, Priority.ALWAYS);
 
-    HBox panel = new HBox(24, logoBox, introduction);
+    var themeToggle = createThemeToggle();
+    StackPane introductionOverlay = new StackPane(introduction, themeToggle);
+    StackPane.setAlignment(introduction, Pos.CENTER_LEFT);
+    StackPane.setAlignment(themeToggle, Pos.TOP_RIGHT);
+    HBox.setHgrow(introductionOverlay, Priority.ALWAYS);
+
+    HBox panel = new HBox(24, logoBox, introductionOverlay);
     panel.setAlignment(Pos.CENTER_LEFT);
     panel.setPadding(new Insets(22, 26, 22, 22));
     panel.setMaxWidth(Double.MAX_VALUE);
     panel.setStyle(WELCOME_PANEL_STYLE);
     return panel;
+  }
+
+  private IconButton createThemeToggle() {
+    var toggle =
+        IconButton.toggle(
+            Material2AL.BRIGHTNESS_4,
+            20,
+            Theme.DARK_DEFAULT.getDefaultTextColor(),
+            Theme.LIGHT_DEFAULT.getDefaultTextColor(),
+            () -> {
+              Theme.setCurrentTheme(
+                  Theme.CURRENT_THEME == Theme.DARK_DEFAULT
+                      ? Theme.LIGHT_DEFAULT
+                      : Theme.DARK_DEFAULT);
+              return true;
+            });
+    toggle.setToggled(Theme.CURRENT_THEME == Theme.DARK_DEFAULT);
+    toggle.tooltip("Switch between day and night theme");
+    return toggle;
   }
 
   private Node createMainBody() {

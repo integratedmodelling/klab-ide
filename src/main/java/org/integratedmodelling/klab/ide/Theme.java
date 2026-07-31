@@ -2,6 +2,7 @@ package org.integratedmodelling.klab.ide;
 
 import atlantafx.base.theme.*;
 import atlantafx.base.util.BBCodeParser;
+import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tooltip;
@@ -105,6 +106,11 @@ public enum Theme {
   }
 
   public static Theme CURRENT_THEME = LIGHT_DEFAULT;
+
+  public static void setCurrentTheme(Theme theme) {
+    CURRENT_THEME = theme;
+    Application.setUserAgentStylesheet(theme.getStylesheet());
+  }
 
   // color coding for services. TODO may be non-static, styled according to the current theme
   public static final Color REASONER_COLOR_MUTED = Color.web("#b3d1ff");

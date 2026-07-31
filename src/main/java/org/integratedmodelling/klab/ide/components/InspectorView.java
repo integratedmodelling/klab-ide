@@ -115,8 +115,8 @@ public class InspectorView extends BorderPane {
       setPrefHeight(INSPECTOR_HEIGHT);
       setMaxSize(Double.MAX_VALUE, INSPECTOR_HEIGHT);
     } else {
-      setMinSize(320, 220);
-      setPrefSize(620, 360);
+      setMinSize(640, 480);
+      setPrefSize(1480, 1060);
       setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
     }
     updateDockButton();

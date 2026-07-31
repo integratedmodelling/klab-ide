@@ -1138,7 +1138,8 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     Platform.runLater(
         () -> {
           boolean shouldShow =
-              inspectorIsOn || (detachedInspectorStage != null && detachedInspectorStage.isShowing());
+              inspectorIsOn
+                  || (detachedInspectorStage != null && detachedInspectorStage.isShowing());
           if (detachedInspectorStage != null) {
             if (detachedInspectorStage.getScene() != null
                 && detachedInspectorStage.getScene().getRoot() instanceof Pane pane) {
@@ -1166,7 +1167,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     if (detachedInspectorStage == null) {
       StackPane root = new StackPane();
       root.getStyleClass().add("inspector-window-root");
-      Scene scene = new Scene(root, 640, 380);
+      Scene scene = new Scene(root, 1280, 910);
       if (KlabIDEApplication.scene() != null) {
         scene.getStylesheets().setAll(KlabIDEApplication.scene().getStylesheets());
       }
@@ -1196,8 +1197,12 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         24,
         inspectorIsOn ? Color.GOLDENROD : Theme.CURRENT_THEME.getDefaultTextColor(),
         inspectorIsOn
-            ? (inspectorDocked ? "Click to hide the knowledge inspector" : "Click to hide the detached knowledge inspector")
-            : (inspectorDocked ? "Click to show the knowledge inspector" : "Click to show the detached knowledge inspector"));
+            ? (inspectorDocked
+                ? "Click to hide the knowledge inspector"
+                : "Click to hide the detached knowledge inspector")
+            : (inspectorDocked
+                ? "Click to show the knowledge inspector"
+                : "Click to show the detached knowledge inspector"));
   }
 
   public boolean isInspectorShown() {
