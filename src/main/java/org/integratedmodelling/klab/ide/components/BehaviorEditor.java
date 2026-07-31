@@ -1132,7 +1132,6 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     try {
       if (!agent.isAlive()) {
         agentStopped(agent);
-        removeAgentConsole(agent);
         return true;
       }
       // stop() acknowledges publication, not service-side termination. Keep the handle connected
@@ -1157,7 +1156,16 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     closeAuxiliaryEditor(AGENT_CONSOLE_EDITOR_KEY_PREFIX + agent.getUrn());
   }
 
+  private boolean keepsAgentConsoleAfterStop() {
+    return behavior != null
+        && (behavior.getBehaviorType() == KActorsBehavior.Type.SCRIPT
+            || behavior.getBehaviorType() == KActorsBehavior.Type.UNITTEST);
+  }
+
   private void agentStopped(Agent agent) {
+    if (!keepsAgentConsoleAfterStop()) {
+      removeAgentConsole(agent);
+    }
     boolean removed;
     synchronized (agents) {
       removed = agents.remove(agent);
