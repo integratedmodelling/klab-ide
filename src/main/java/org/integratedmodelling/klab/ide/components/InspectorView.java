@@ -24,6 +24,7 @@ import javafx.scene.layout.VBox;
 import javafx.util.Duration;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.utils.Utils;
+import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
@@ -205,9 +206,14 @@ public class InspectorView extends BorderPane {
             stack.clear();
             currentIndex = -1;
           }
-          if (currentIndex >= 0 && stack.get(currentIndex).matches(item)) {
-            renderCurrent();
-            return;
+          if (!resetStack) {
+            for (int i = 0; i < stack.size(); i++) {
+              if (stack.get(i).matches(item)) {
+                currentIndex = i;
+                renderCurrent();
+                return;
+              }
+            }
           }
           while (stack.size() > currentIndex + 1) {
             stack.remove(stack.size() - 1);
@@ -547,7 +553,16 @@ public class InspectorView extends BorderPane {
       if (other == null || loader != null || other.loader != null) {
         return false;
       }
-      return Objects.equals(value, other.value);
+      return sameValue(value, other.value);
+    }
+
+    private static boolean sameValue(Object first, Object second) {
+      if (first instanceof RuntimeAsset firstAsset
+          && second instanceof RuntimeAsset secondAsset) {
+        return firstAsset.classify() == secondAsset.classify()
+            && firstAsset.getId() == secondAsset.getId();
+      }
+      return Objects.equals(first, second);
     }
 
     private Node resolveNode() {
