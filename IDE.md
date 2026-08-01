@@ -53,12 +53,12 @@ The upper group switches the main work area:
 The lower service group controls or describes the working environment:
 
 - the power button starts or stops local k.LAB services;
-- the service buttons open information for the reasoner, resources, resolver, and runtime services;
-- the download button opens local distribution management;
+- the service buttons open information and management dashboards for the reasoner, resources, resolver, and runtime services connected to the account;
+- the download button opens the local k.LAB software distribution management tool;
 - settings, inspector, and user-profile buttons open their respective tools.
 
 Button color communicates availability or state. In particular, the power button changes while
-local services are starting, stopping, ready, unavailable, or not installed.
+local services are starting, stopping, ready, unavailable, or not installed. The service buttons show the type, status and number of available services.
 
 ### Main work area
 

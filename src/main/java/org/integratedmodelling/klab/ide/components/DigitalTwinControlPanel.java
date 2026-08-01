@@ -512,7 +512,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
           tooltip.setShowDelay(Duration.millis(200));
           homeButton.setTooltip(tooltip);
           if (scope != null) {
-            observationTree.update(RuntimeAsset.CONTEXT_ASSET, observation, scope);
+            observationTree.refresh();
           }
         });
   }

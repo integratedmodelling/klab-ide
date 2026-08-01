@@ -12,6 +12,8 @@ import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.paint.Color;
+import java.util.HashMap;
+import java.util.Map;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
@@ -27,6 +29,7 @@ import org.kordamp.ikonli.material2.Material2AL;
 public class ObservationTree extends KlabTreeTableView<RuntimeAsset> {
 
   private ClientKnowledgeGraph clientKnowledgeGraph;
+  private final Map<Long, HBox> descriptions = new HashMap<>();
   TreeTableColumn<RuntimeAsset, HBox> descriptionColumn;
 
   public ObservationTree() {
@@ -100,11 +103,10 @@ public class ObservationTree extends KlabTreeTableView<RuntimeAsset> {
     var ret = new HBox(icon, label);
     ret.setSpacing(2);
     ret.setAlignment(Pos.CENTER_LEFT);
+    descriptions.put(observation.getId(), ret);
     icon.setOnMouseClicked(
         mouseEvent -> {
-          if (attemptSettingContext(observation, icon)) {
-            refresh();
-          }
+          attemptSettingContext(observation);
         });
 
     ret.addEventHandler(
@@ -133,7 +135,7 @@ public class ObservationTree extends KlabTreeTableView<RuntimeAsset> {
     return ret;
   }
 
-  private boolean attemptSettingContext(RuntimeAsset observation, IconLabel icon) {
+  private boolean attemptSettingContext(RuntimeAsset observation) {
     if (observation instanceof Observation obs
         && obs.getObservable().is(SemanticType.SUBJECT)
         && !obs.getObservable().getSemantics().isCollective()) {
@@ -143,18 +145,42 @@ public class ObservationTree extends KlabTreeTableView<RuntimeAsset> {
         if (current != null) {
           if (current.getId() == obs.getId()) {
             scope.within(null);
+            updateContextIcon(current, false);
             return true;
           }
         }
         scope.within(obs);
+        if (current != null) {
+          updateContextIcon(current, false);
+        }
+        updateContextIcon(obs, true);
         return true;
       }
     }
     return false;
   }
 
+  private void updateContextIcon(RuntimeAsset observation, boolean context) {
+    var description = descriptions.get(observation.getId());
+    if (description == null) {
+      return;
+    }
+
+    var color =
+        observation instanceof Observation obs
+            ? Theme.getColorForType(
+                SemanticType.fundamentalType(obs.getObservable().getSemantics().getType()))
+            : Color.BLACK;
+    var icon = context ? new IconLabel(Material2AL.HOME, 16, color) : Theme.getGraphics(observation);
+    icon.setMaxWidth(24);
+    icon.setMinWidth(24);
+    icon.setOnMouseClicked(event -> attemptSettingContext(observation));
+    description.getChildren().set(0, icon);
+  }
+
   public void update(RuntimeAsset rootAsset, RuntimeAsset focalAsset, IDEContextScope scope) {
     var root = TreeModel.createTree(rootAsset, focalAsset, scope);
+    descriptions.clear();
     setRoot(root.getFirst());
     if (root.getSecond() != null) {
       getSelectionModel().select(root.getSecond());
@@ -162,6 +188,7 @@ public class ObservationTree extends KlabTreeTableView<RuntimeAsset> {
   }
 
   public void reset() {
+    descriptions.clear();
     setRoot(new TreeItem<>());
   }
 }
