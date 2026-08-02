@@ -149,6 +149,10 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     return file;
   }
 
+  public KActorsBehavior.Type getBehaviorType() {
+    return behavior == null ? null : behavior.getBehaviorType();
+  }
+
   @Override
   protected void showContent() {
     super.showContent();

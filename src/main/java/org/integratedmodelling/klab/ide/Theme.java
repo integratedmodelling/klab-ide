@@ -253,7 +253,11 @@ public enum Theme {
   }
 
   public static Ikon getIcon(KActorsBehavior behavior) {
-    return switch (behavior.getBehaviorType()) {
+    return getIcon(behavior.getBehaviorType());
+  }
+
+  public static Ikon getIcon(KActorsBehavior.Type behaviorType) {
+    return switch (behaviorType) {
       case BEHAVIOR, USER -> APPLICATION_VIEW_ICON;
       case APP -> APP_ICON;
       case COMPONENT, TRAIT, LIBRARY -> COMPONENT_ICON;

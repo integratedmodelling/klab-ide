@@ -17,6 +17,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
+import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.material2.Material2MZ;
 import org.kordamp.ikonli.material2.Material2AL;
 
@@ -27,6 +28,11 @@ public class BehaviorFileCard extends VBox {
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
   public BehaviorFileCard(Path file, Consumer<Path> openHandler, Consumer<Path> forgetHandler) {
+    this(file, Theme.BEHAVIOR_ICON, openHandler, forgetHandler);
+  }
+
+  public BehaviorFileCard(
+      Path file, Ikon behaviorIcon, Consumer<Path> openHandler, Consumer<Path> forgetHandler) {
     Path normalized = file.toAbsolutePath().normalize();
     var card = new Card();
     var title = new Label(normalized.getFileName().toString());
@@ -56,7 +62,7 @@ public class BehaviorFileCard extends VBox {
     var header =
         new HBox(
             8,
-            new IconLabel(Theme.BEHAVIOR_ICON, 17, Theme.FOREGROUND_COLOR),
+            new IconLabel(behaviorIcon, 17, Theme.FOREGROUND_COLOR),
             title,
             spacer,
             open,

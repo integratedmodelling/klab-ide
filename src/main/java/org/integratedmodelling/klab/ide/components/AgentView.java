@@ -26,6 +26,7 @@ import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.cards.BehaviorFileCard;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
+import org.integratedmodelling.klab.api.lang.kactors.KActorsBehavior;
 import org.integratedmodelling.klab.modeler.model.NavigableKActorsBehavior;
 import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.javafx.FontIcon;
@@ -41,6 +42,7 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
 
   private final Preferences preferences = Preferences.userNodeForPackage(AgentView.class);
   private final Map<Path, BehaviorEditor> openEditors = new LinkedHashMap<>();
+  private final Map<Path, KActorsBehavior.Type> recentBehaviorTypes = new LinkedHashMap<>();
   private final Set<Agent> debugAgents = new LinkedHashSet<>();
   private final List<Path> recentFiles = new ArrayList<>();
   private final List<Node> components = new ArrayList<>();
@@ -98,7 +100,9 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
     components.add(header);
     recentFiles.removeIf(path -> !Files.isRegularFile(path));
     for (Path path : recentFiles) {
-      components.add(new BehaviorFileCard(path, this::openFile, this::forget));
+      components.add(
+          new BehaviorFileCard(
+              path, iconFor(recentBehaviorTypes.get(path)), this::openFile, this::forget));
     }
     browser.getChildren().addAll(components);
   }
@@ -177,10 +181,10 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
           .alert(Notification.error("Not a readable .kactor file: " + path));
       return;
     }
-    remember(path);
     hideBrowser();
     var existing = openEditors.get(path);
     if (existing != null) {
+      remember(path, existing.getBehaviorType());
       selectEditor(existing);
       return;
     }
@@ -190,6 +194,8 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
               .user()
               .getService(ResourcesService.class)
               .readBehavior(path.toUri().toURL(), KlabIDEController.instance().user());
+
+      remember(path, behavior == null ? null : behavior.getBehaviorType());
 
       var editor =
           new BehaviorEditor(
@@ -215,6 +221,10 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
     if (editor != null) {
       setEditorGraphic(editor, new FontIcon(icon));
     }
+  }
+
+  private Ikon iconFor(KActorsBehavior.Type type) {
+    return type == null ? Theme.BEHAVIOR_ICON : Theme.getIcon(type);
   }
 
   private void registerDebugAgent(Agent agent) {
@@ -246,7 +256,16 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
   }
 
   private void remember(Path path) {
+    var normalized = path.toAbsolutePath().normalize();
+    var editor = openEditors.get(normalized);
+    remember(path, editor == null ? recentBehaviorTypes.get(normalized) : editor.getBehaviorType());
+  }
+
+  private void remember(Path path, KActorsBehavior.Type behaviorType) {
     path = path.toAbsolutePath().normalize();
+    if (behaviorType != null) {
+      recentBehaviorTypes.put(path, behaviorType);
+    }
     recentFiles.remove(path);
     recentFiles.add(0, path);
     if (recentFiles.size() > MAX_RECENT_FILES) {
@@ -258,7 +277,9 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
   }
 
   private void forget(Path path) {
-    recentFiles.remove(path.toAbsolutePath().normalize());
+    Path normalized = path.toAbsolutePath().normalize();
+    recentFiles.remove(normalized);
+    recentBehaviorTypes.remove(normalized);
     saveRecents();
     updateBrowser();
   }
@@ -268,16 +289,38 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
     if (!stored.isBlank()) {
       Arrays.stream(stored.split("\\n"))
           .filter(value -> !value.isBlank())
-          .map(Path::of)
-          .map(path -> path.toAbsolutePath().normalize())
-          .distinct()
-          .limit(MAX_RECENT_FILES)
-          .forEach(recentFiles::add);
+          .forEach(
+              value -> {
+                int separator = value.indexOf('\t');
+                String pathValue = separator < 0 ? value : value.substring(0, separator);
+                Path path = Path.of(pathValue).toAbsolutePath().normalize();
+                if (separator >= 0) {
+                  try {
+                    recentBehaviorTypes.put(
+                        path, KActorsBehavior.Type.valueOf(value.substring(separator + 1)));
+                  } catch (IllegalArgumentException ignored) {
+                    // Keep the path even if a future version adds a behavior type we do not know.
+                  }
+                }
+                if (!recentFiles.contains(path) && recentFiles.size() < MAX_RECENT_FILES) {
+                  recentFiles.add(path);
+                }
+              });
     }
   }
 
   private void saveRecents() {
     preferences.put(
-        RECENTS_KEY, String.join("\n", recentFiles.stream().map(Path::toString).toList()));
+        RECENTS_KEY,
+        String.join(
+            "\n",
+            recentFiles.stream()
+                .map(
+                    path ->
+                        path
+                            + (recentBehaviorTypes.containsKey(path)
+                                ? "\t" + recentBehaviorTypes.get(path).name()
+                                : ""))
+                .toList()));
   }
 }
