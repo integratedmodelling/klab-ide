@@ -8,8 +8,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import javafx.animation.KeyFrame;
+import javafx.animation.PauseTransition;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.geometry.Bounds;
@@ -45,6 +47,7 @@ import org.integratedmodelling.common.runtime.actors.AgentImpl;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.actors.Agent;
 import org.integratedmodelling.klab.api.actors.RuntimeAgent;
+import org.integratedmodelling.klab.api.collections.DomainObject;
 import org.integratedmodelling.klab.api.knowledge.SemanticType;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.organization.Project;
@@ -55,6 +58,7 @@ import org.integratedmodelling.klab.api.lang.kactors.KActorsBehavior;
 import org.integratedmodelling.klab.api.services.KlabService;
 import org.integratedmodelling.klab.api.services.ResourcesService;
 import org.integratedmodelling.klab.api.services.RuntimeService;
+import org.integratedmodelling.klab.api.services.runtime.Message;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.KlabIDEController;
@@ -78,6 +82,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
 
   private static final String JAVA_CODE_EDITOR_KEY = "java-code";
   private static final String AGENT_CONSOLE_EDITOR_KEY_PREFIX = "agent-console:";
+  private static final String TEST_RESULTS_EDITOR_KEY_PREFIX = "test-results:";
 
   private IconButton debug;
   private IconButton compile;
@@ -118,6 +123,9 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   private final Set<Agent> agents = Collections.synchronizedSet(new LinkedHashSet<>());
   private final Set<Agent> debugAgents = Collections.synchronizedSet(new LinkedHashSet<>());
   private final Map<String, AgentConsoleView> agentConsoles = new LinkedHashMap<>();
+  private final Map<String, TestCaseResultsView> testCaseResults = new ConcurrentHashMap<>();
+  private final Map<String, AutoCloseable> testCaseSubscriptions = new ConcurrentHashMap<>();
+  private final Map<String, PauseTransition> testCaseStartTimeouts = new ConcurrentHashMap<>();
   private final Timeline agentStatusRefresh =
       new Timeline(new KeyFrame(Duration.seconds(1), event -> removeStoppedAgents()));
   private AgentDebuggerView debuggerView;
@@ -303,6 +311,10 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   }
 
   private Agent compileBehavior(boolean debugging, boolean testing) {
+    return compileBehavior(debugging, testing, false);
+  }
+
+  private Agent compileBehavior(boolean debugging, boolean testing, boolean deferStart) {
 
     var localRuntime = getLocalRuntime();
 
@@ -322,6 +334,9 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     }
     if (debugging) {
       options.add(RuntimeAgent.CompilationOptions.COMPILE_FOR_DEBUGGING);
+    }
+    if (deferStart) {
+      options.add(RuntimeAgent.CompilationOptions.DO_NOT_START);
     }
 
     // FIXME submit this to a single-threaded executor!
@@ -519,12 +534,19 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       return false;
     }
 
-    var agent = compileBehavior(debugging, testing);
+    boolean testCase = behavior.getBehaviorType() == KActorsBehavior.Type.UNITTEST;
+    var agent = compileBehavior(debugging, testing, testCase);
     if (agent == null || !compilationSuccessful || !agent.isViable()) {
       return reportLaunchFailure(agent, debugging, null);
     }
-    // RuntimeService starts the single-use service instance before serializing this handle. A
-    // stopped handle here is a finite agent that already completed, not an invitation to restart.
+    if (testCase) {
+      if (!registerTestCase(agent) || !agent.start()) {
+        closeTestCaseSubscription(agent.getUrn());
+        return reportLaunchFailure(agent, debugging, null);
+      }
+    }
+    // Ordinary agents are started by RuntimeService. Tests are started above, after their listener
+    // is attached. In either case a stopped handle here is a finite agent that already completed.
     if (!agent.isAlive()) {
       disconnectAgent(agent);
       refreshAgentStates();
@@ -537,7 +559,9 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       agents.add(agent);
       agentStatusRefresh.setCycleCount(Timeline.INDEFINITE);
       agentStatusRefresh.play();
-      showAgentConsole(agent);
+      if (!testCase) {
+        showAgentConsole(agent);
+      }
       refreshAgentStates();
       return true;
     }
@@ -545,6 +569,109 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       agentStopped(agent);
     }
     return reportLaunchFailure(agent, debugging, null);
+  }
+
+  private boolean registerTestCase(Agent agent) {
+    if (!(agent instanceof AgentImpl clientAgent) || agent.getUrn() == null) {
+      KlabIDEController.instance()
+          .handleNotification(
+              Notification.error("The runtime did not return a message-capable test agent"));
+      return false;
+    }
+    var view = new TestCaseResultsView();
+    testCaseResults.put(agent.getUrn(), view);
+    var key = TEST_RESULTS_EDITOR_KEY_PREFIX + agent.getUrn();
+    var title = agent.getName() == null || agent.getName().isBlank() ? "Test results" : agent.getName();
+    var tab = showAuxiliaryEditor(key, "Tests — " + title, view);
+    if (!clientAgent.isMessagingConnected()) {
+      var detail =
+          "The runtime could not establish the test agent communication channel. "
+              + "Restart the local runtime after rebuilding klab-services.";
+      view.fail(title, detail);
+      KlabIDEController.instance().handleNotification(Notification.error(detail));
+      return false;
+    }
+    if (!clientAgent.isStartDeferred()) {
+      var detail =
+          "The runtime executed the test before the results listener was connected. "
+              + "Restart the local runtime so it uses the deferred test-start protocol.";
+      view.fail(title, detail);
+      KlabIDEController.instance().handleNotification(Notification.error(detail));
+      return false;
+    }
+    var subscription = clientAgent.addMessageListener(message -> handleTestMessage(agent, message));
+    testCaseSubscriptions.put(agent.getUrn(), subscription);
+    var startTimeout = new PauseTransition(Duration.seconds(5));
+    startTimeout.setOnFinished(
+        event -> {
+          if (view.getDomainObject() == null) {
+            var detail =
+                "The runtime accepted the test start request but sent no lifecycle messages.";
+            view.fail(title, detail);
+            clientAgent.setAlive(false);
+            agentStopped(agent);
+            KlabIDEController.instance().handleNotification(Notification.error(detail));
+          }
+          testCaseStartTimeouts.remove(agent.getUrn());
+        });
+    testCaseStartTimeouts.put(agent.getUrn(), startTimeout);
+    startTimeout.play();
+    tab.setOnCloseRequest(
+        event -> {
+          testCaseResults.remove(agent.getUrn());
+          closeTestCaseSubscription(agent.getUrn());
+        });
+    return true;
+  }
+
+  private void handleTestMessage(Agent agent, Message message) {
+    if (message == null || message.getMessageType() != Message.MessageType.CustomAgentMessage) {
+      return;
+    }
+    var customMessage = message.getPayload(RuntimeAgent.CustomMessage.class);
+    if (customMessage == null || customMessage.type() == null) {
+      return;
+    }
+    var type = testMessageType(customMessage.type().getValue());
+    if (type == null || !(customMessage.payload() instanceof DomainObject payload)) {
+      return;
+    }
+    var view = testCaseResults.get(agent.getUrn());
+    var startTimeout = testCaseStartTimeouts.remove(agent.getUrn());
+    if (startTimeout != null) {
+      Platform.runLater(startTimeout::stop);
+    }
+    if (view != null) {
+      view.accept(type, payload);
+    }
+    if (type == RuntimeAgent.TestMessageType.TESTCASE_FINISHED) {
+      closeTestCaseSubscription(agent.getUrn());
+    }
+  }
+
+  static RuntimeAgent.TestMessageType testMessageType(String messageClass) {
+    if (messageClass == null) {
+      return null;
+    }
+    return Arrays.stream(RuntimeAgent.TestMessageType.values())
+        .filter(type -> type.messageClass().equals(messageClass))
+        .findFirst()
+        .orElse(null);
+  }
+
+  private void closeTestCaseSubscription(String agentUrn) {
+    var startTimeout = testCaseStartTimeouts.remove(agentUrn);
+    if (startTimeout != null) {
+      startTimeout.stop();
+    }
+    var subscription = testCaseSubscriptions.remove(agentUrn);
+    if (subscription != null) {
+      try {
+        subscription.close();
+      } catch (Exception failure) {
+        Logging.INSTANCE.warn("Cannot detach test-case listener: " + failure.getMessage());
+      }
+    }
   }
 
   private void registerDebugSession(Agent agent) {
@@ -1070,6 +1197,10 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     }
     agentConsoles.values().forEach(AgentConsoleView::close);
     agentConsoles.clear();
+    for (var agentUrn : List.copyOf(testCaseSubscriptions.keySet())) {
+      closeTestCaseSubscription(agentUrn);
+    }
+    testCaseResults.clear();
     if (debuggerView != null) {
       debuggerView.close();
     }
