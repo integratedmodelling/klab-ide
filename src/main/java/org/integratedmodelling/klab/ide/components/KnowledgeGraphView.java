@@ -235,6 +235,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     HBox spinnerBox = new HBox(backButton, forwardButton, homeButton, spinner, redrawButton);
     HBox.setHgrow(spinnerBox, javafx.scene.layout.Priority.ALWAYS);
     controls.getChildren().addAll(spinnerBox, switchesBox);
+    controls.getStyleClass().addAll("knowledge-graph-controls");
     this.setTop(controls);
 
     // Fire callback when this Node becomes visible again

@@ -730,3 +730,10 @@
     -fx-padding: 10;
 }
 
+.knowledge-graph-controls {
+    -fx-background-color: -color-bg-subtle;
+    -fx-background-radius: 4px;
+    -fx-border-color: -color-border-default;
+    -fx-border-radius: 4px;
+}
+
