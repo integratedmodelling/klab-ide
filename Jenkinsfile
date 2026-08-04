@@ -111,20 +111,6 @@ pipeline {
                     echo "MinIO client installation:"
                     command -v mc
                     mc --version
-
-                    echo "Runtime identity:"
-                    id
-
-                    echo "Process 1:"
-                    ps -o user,pid,ppid,args -p 1 || true
-
-                    echo "Agent log:"
-                    ls -l /agent.log || true
-                    readlink -f /agent.log || true
-
-                    echo "Writable checks:"
-                    test -w /tmp && echo "/tmp is writable"
-                    test -w /agent.log && echo "/agent.log is writable"
                 '''
             }
         }
@@ -192,10 +178,8 @@ pipeline {
                                 "${ACCESSKEY}" \
                                 "${SECRETKEY}"
                             echo "MinIO connection configured."
-                            /*
-                             * Verify access to the products bucket before
-                             * preparing and deleting any existing products.
-                             */
+                            # Verify access to the products bucket before
+                            # preparing and deleting any existing products.
                             mc ls minio/products >/dev/null
                         '''
                         pushProducts(destination)
@@ -316,13 +300,10 @@ def uploadProducts(String destination) {
             echo "Uploading products to:"
             echo "${MINIO_PRODUCTS_PATH}/"
 
-            /*
-             * Copy the directory, rather than only its contents. This creates:
-             *
-             * minio/products/klab/latest
-             * or
-             * minio/products/klab/develop
-             */
+            # Copy the directory, rather than only its contents. This creates:
+            # minio/products/klab-ide/latest
+            # minio/products/klab-ide/develop
+
             mc cp \
                 --recursive \
                 "${staging_directory}" \
