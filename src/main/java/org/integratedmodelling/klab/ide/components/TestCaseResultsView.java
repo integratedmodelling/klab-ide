@@ -119,7 +119,13 @@ public final class TestCaseResultsView extends DomainObjectView {
         stats.finished() ? (failed ? Color.FIREBRICK : Color.FORESTGREEN) : Color.DODGERBLUE);
     var spacer = new Region();
     HBox.setHgrow(spacer, Priority.ALWAYS);
-    var heading = new HBox(8, new IconLabel(Theme.TESTCASE_ICON, 20, Theme.FOREGROUND_COLOR), title, spacer, state);
+    var heading =
+        new HBox(
+            8,
+            new IconLabel(Theme.TESTCASE_ICON, 20, Theme.FOREGROUND_COLOR),
+            title,
+            spacer,
+            state);
     heading.setAlignment(Pos.CENTER_LEFT);
     box.getChildren().add(heading);
     if (report.description() != null && !report.description().isBlank()) {
@@ -185,7 +191,9 @@ public final class TestCaseResultsView extends DomainObjectView {
     Color color = complete ? (passed ? Color.FORESTGREEN : Color.FIREBRICK) : Color.DODGERBLUE;
     var icon =
         new IconLabel(
-            complete ? (passed ? Material2AL.CHECK_CIRCLE : Material2AL.ERROR) : Theme.TESTCASE_ICON,
+            complete
+                ? (passed ? Material2AL.CHECK_CIRCLE : Material2AL.ERROR)
+                : Theme.TESTCASE_ICON,
             16,
             color);
     long start = number(test.get("start"));

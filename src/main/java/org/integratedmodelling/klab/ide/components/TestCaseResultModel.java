@@ -76,7 +76,8 @@ public final class TestCaseResultModel {
     }
     long start = longValue(report.get("start"));
     long end = longValue(report.get("end"));
-    long elapsed = start <= 0 ? 0 : Math.max(0, (end > 0 ? end : System.currentTimeMillis()) - start);
+    long elapsed =
+        start <= 0 ? 0 : Math.max(0, (end > 0 ? end : System.currentTimeMillis()) - start);
     return new Statistics(
         tests,
         testsFinished,
