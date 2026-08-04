@@ -111,6 +111,20 @@ pipeline {
                     echo "MinIO client installation:"
                     command -v mc
                     mc --version
+
+                    echo "Runtime identity:"
+                    id
+
+                    echo "Process 1:"
+                    ps -o user,pid,ppid,args -p 1 || true
+
+                    echo "Agent log:"
+                    ls -l /agent.log || true
+                    readlink -f /agent.log || true
+
+                    echo "Writable checks:"
+                    test -w /tmp && echo "/tmp is writable"
+                    test -w /agent.log && echo "/agent.log is writable"
                 '''
             }
         }
