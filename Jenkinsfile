@@ -119,27 +119,16 @@ pipeline {
             steps {
                 sh '''
                     set -eu
-
                     rm -rf output
-
-                    mvn \
-                        -B \
-                        -ntp \
-                        -DskipTests \
-                        -Pconveyor \
-                        clean \
-                        package
-
+                    ./mvnw -B -ntp -DskipTests -Pconveyor clean package
                     if [ ! -d output ]; then
                         echo "The output directory was not created."
                         exit 1
                     fi
-
                     if [ -z "$(find output -type f -print -quit)" ]; then
                         echo "No Conveyor artifacts were generated."
                         exit 1
                     fi
-
                     echo "Generated Conveyor artifacts:"
                     find output -type f -print | sort
                 '''
@@ -183,22 +172,18 @@ pipeline {
                         sh '''
                             set -eu
                             set +x
-
                             mc alias set \
                                 minio \
                                 "${MINIO_HOST}" \
                                 "${ACCESSKEY}" \
                                 "${SECRETKEY}"
-
                             echo "MinIO connection configured."
-
                             /*
                              * Verify access to the products bucket before
                              * preparing and deleting any existing products.
                              */
                             mc ls minio/products >/dev/null
                         '''
-
                         pushProducts(destination)
                     }
                 }
