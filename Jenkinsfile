@@ -172,22 +172,18 @@ pipeline {
                         sh '''
                             set -eu
                             set +x
-
                             mc alias set \
                                 minio \
                                 "${MINIO_HOST}" \
                                 "${ACCESSKEY}" \
                                 "${SECRETKEY}"
-
                             echo "MinIO connection configured."
-
                             /*
                              * Verify access to the products bucket before
                              * preparing and deleting any existing products.
                              */
                             mc ls minio/products >/dev/null
                         '''
-
                         pushProducts(destination)
                     }
                 }
