@@ -230,8 +230,6 @@ pipeline {
 /**
  * Determines whether products should be uploaded.
  *
- * This matches the existing K.LAB multibranch pipeline:
- *
  *   master  -> upload
  *   develop -> upload
  *   others  -> build and archive only
