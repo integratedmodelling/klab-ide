@@ -114,6 +114,7 @@ pipeline {
 
                     echo "Archive tools:"
                     command -v unzip
+                    command -v zip
                 '''
             }
         }
@@ -289,6 +290,62 @@ def prepareProductsUpload(String destination) {
                     -o -iname '*.crt' \
                 ')' \
                 -exec cp -v '{}' "${win_directory}/" ';'
+
+            # Ensure the complete self-signed Windows installation set is
+            # present before creating the downloadable bundle.
+            for required_pattern in \
+                '*.msix' \
+                '*.exe' \
+                '*.appinstaller' \
+                '*.crt' \
+                'install.ps1'; do
+                if [ -z "$(find "${win_directory}" \
+                    -maxdepth 1 \
+                    -type f \
+                    -name "${required_pattern}" \
+                    -print -quit)" ]; then
+                    echo "Missing required Windows file: ${required_pattern}"
+                    exit 1
+                fi
+            done
+
+            # Create one downloadable Windows bundle containing the
+            # installer, package, certificate and generated install script.
+            windows_bundle="klab-ide-windows-${PRODUCTS_DESTINATION}.zip"
+            windows_bundle_tmp="${WORKSPACE}/${windows_bundle}"
+
+            cat > "${win_directory}/README-WINDOWS.txt" <<'EOF'
+k.LAB IDE Windows installation
+==============================
+
+This package is signed with a development/self-signed certificate.
+
+Installation:
+
+1. Extract every file from this ZIP into the same directory.
+2. Open PowerShell as Administrator.
+3. Change to the extracted directory.
+4. Run:
+
+   Set-ExecutionPolicy -Scope Process Bypass -Force
+   ./install.ps1
+
+Manual alternative:
+
+   Import-Certificate -FilePath ./klab-ide.crt -CertStoreLocation Cert:/LocalMachine/TrustedPeople
+   ./klab-ide.exe
+
+Do not install only the MSIX unless the certificate has already been trusted.
+EOF
+
+            rm -f "${windows_bundle_tmp}"
+            (
+                cd "${win_directory}"
+                zip -9 -r "${windows_bundle_tmp}" .
+            )
+            mv -v \
+                "${windows_bundle_tmp}" \
+                "${win_directory}/${windows_bundle}"
 
             # Linux Debian/Ubuntu installer packages.
             find output -type f \
