@@ -255,24 +255,18 @@ def prepareProductsUpload(String destination) {
     ]) {
         sh '''
             set -eu
-
             staging_directory="${WORKSPACE}/minio/${PRODUCTS_DESTINATION}"
-
             echo "Preparing product staging directory:"
             echo "${staging_directory}"
-
             rm -rf "${staging_directory}"
             mkdir -p "${staging_directory}"
-
             cp -R \
                 "${WORKSPACE}/output/." \
                 "${staging_directory}/"
-
             if [ -z "$(find "${staging_directory}" -type f -print -quit)" ]; then
                 echo "No files were copied into the staging directory."
                 exit 1
             fi
-
             echo "Products prepared for upload:"
             find "${staging_directory}" -type f -print | sort
         '''
