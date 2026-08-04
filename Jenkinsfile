@@ -122,13 +122,7 @@ pipeline {
 
                     rm -rf output
 
-                    mvn \
-                        -B \
-                        -ntp \
-                        -DskipTests \
-                        -Pconveyor \
-                        clean \
-                        package
+                    ./mvnw -B -ntp -DskipTests -Pconveyor clean package
 
                     if [ ! -d output ]; then
                         echo "The output directory was not created."
