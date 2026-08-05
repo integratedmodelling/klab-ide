@@ -1,80 +1,70 @@
 package org.integratedmodelling.klab.ide.components.cards;
 
 import atlantafx.base.controls.Card;
-import atlantafx.base.controls.ToggleSwitch;
 import atlantafx.base.theme.Styles;
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
-import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
-import javafx.scene.control.ComboBox;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
-import javafx.scene.control.ListCell;
 import javafx.scene.control.Tooltip;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.klab.api.data.Version;
-import org.integratedmodelling.klab.api.engine.distribution.Distribution;
 import org.integratedmodelling.klab.api.engine.distribution.Stack;
+import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
-import org.integratedmodelling.klab.ide.components.generic.CarouselBox;
+import org.integratedmodelling.klab.ide.components.DownloadMonitor;
 import org.integratedmodelling.klab.ide.components.generic.IconButton;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
-import org.integratedmodelling.klab.ide.components.generic.WaitButton;
 import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.evaicons.Evaicons;
-import org.kordamp.ikonli.javafx.FontIcon;
-import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.materialdesign.MaterialDesign;
 
+/** Installs, checks, removes, and selects binary k.LAB software-stack distributions. */
 public class DistributionViewComponent extends BaseAssetViewComponent {
 
-  //  private ComboBox<TagInfo> chooseTag;
-  private CarouselBox productList;
-  private Label tagLabel;
-  private WaitButton downloadButton;
-
-  private static class TagInfo {
-    private final Stack.Tag tag;
-    private final String description;
-    private final IconLabel icon;
-
-    public TagInfo(Stack.Tag tag) {
-      this.tag = tag;
-      var isDevelop = tag.version() == Version.HEAD;
-      var isAvailable = tag.availableLocally();
-      var date = parseDate(tag.build());
-      this.description =
-          (isDevelop ? "Source code " : tag.version().toString())
-              + tag.release()
-              + " distribution (built "
-              + date
-              + (tag.orphan() ? ", orphaned)" : ")");
-      this.icon =
-          new IconLabel(
-              Theme.DEFINITION_ICON, 16, tag.availableLocally() ? Color.GREEN : Color.GREY);
-    }
-
-    private String parseDate(String buildId) {
-      var year = buildId.substring(0, 4);
-      var month = buildId.substring(4, 6);
-      var day = buildId.substring(6, 8);
-      var hour = buildId.substring(8, 10);
-      var minute = buildId.substring(10, 12);
-      return day + "/" + month + "/" + year + " " + hour + ":" + minute;
-    }
-
-    @Override
-    public String toString() {
-      return description;
-    }
-  }
+  private final Stack.Tag requestedTag;
+  private final boolean synchronizeOnShow;
+  private final Runnable synchronizationFinished;
+  private final AtomicBoolean operationRunning = new AtomicBoolean();
+  private final FlowPane cards = new FlowPane(12, 12);
+  private final DownloadMonitor progress = new DownloadMonitor();
+  private final Runnable stateListener = this::refreshCards;
 
   public DistributionViewComponent() {
-    super(AssetViewComponent.Type.Distribution, "Software stack", true);
+    this(null, false, null);
+  }
+
+  /** Create a single-distribution component suitable for the startup modal. */
+  public DistributionViewComponent(
+      Stack.Tag requestedTag, boolean synchronizeOnShow, Runnable synchronizationFinished) {
+    super(AssetViewComponent.Type.Distribution, "Software stack", false);
+    this.requestedTag = requestedTag;
+    this.synchronizeOnShow = synchronizeOnShow;
+    this.synchronizationFinished = synchronizationFinished;
+    createContent();
+    KlabIDEController.instance().addSoftwareStackStateListener(stateListener);
+    if (synchronizeOnShow) {
+      Platform.runLater(
+          () -> {
+            var tag = resolveRequestedTag();
+            if (tag != null && tag.version() != Version.HEAD) {
+              synchronize(tag);
+            }
+          });
+    }
   }
 
   @Override
@@ -87,284 +77,405 @@ public class DistributionViewComponent extends BaseAssetViewComponent {
     return MaterialDesign.MDI_PACKAGE_VARIANT;
   }
 
+  @Override
   protected Node createContent() {
-    //      var card = new Card();
+    getChildren().clear();
+    setSpacing(12);
+    setPadding(new Insets(4));
 
-    var main = new HBox(20);
-    var left = new VBox(10);
-    var right = new VBox(10);
+    var heading = new Label("Available distributions");
+    heading.getStyleClass().add(Styles.TITLE_3);
+    var explanation =
+        new Label(
+            "Synchronize a binary stack, verify its local files, or choose which installed build the IDE should use.");
+    explanation.getStyleClass().addAll(Styles.TEXT_SMALL, Styles.TEXT_MUTED);
+    explanation.setWrapText(true);
 
-    //    this.chooseTag = new ComboBox<TagInfo>();
-    //
-    //    // Set custom cell factory to display icon and text
-    //    this.chooseTag.setCellFactory(
-    //        param ->
-    //            new ListCell<TagInfo>() {
-    //              @Override
-    //              protected void updateItem(TagInfo item, boolean empty) {
-    //                super.updateItem(item, empty);
-    //                if (empty || item == null) {
-    //                  setGraphic(null);
-    //                  setText(null);
-    //                } else {
-    //                  HBox box = new HBox(5);
-    //                  box.setAlignment(Pos.CENTER_LEFT);
-    //                  box.getChildren().addAll(item.icon, new Label(item.toString()));
-    //                  setGraphic(box);
-    //                  setText(null);
-    //                }
-    //              }
-    //            });
-    //
-    //    // Set custom button cell to display icon and text when selected
-    //    this.chooseTag.setButtonCell(
-    //        new ListCell<TagInfo>() {
-    //          @Override
-    //          protected void updateItem(TagInfo item, boolean empty) {
-    //            super.updateItem(item, empty);
-    //            if (empty || item == null) {
-    //              setGraphic(null);
-    //              setText(null);
-    //            } else {
-    //              HBox box = new HBox(5);
-    //              box.setAlignment(Pos.CENTER_LEFT);
-    //              box.getChildren().addAll(item.icon, new Label(item.toString()));
-    //              setGraphic(box);
-    //              setText(null);
-    //            }
-    //          }
-    //        });
-
-    this.productList = new CarouselBox(Orientation.HORIZONTAL);
-    //    productList.
-    //    productList.setStyle(
-    //        "-fx-border-color: -color-border-default; -fx-border-radius: 6; -fx-border-width: 1;"
-    //            + " -fx-background-radius: 4; -fx-background-color: -color-bg-subtle;");
-    HBox.setHgrow(productList, Priority.ALWAYS);
-    HBox.setHgrow(right, Priority.ALWAYS);
-    //    var downloadMonitor = new HBox();
-    //    HBox.setHgrow(downloadMonitor, Priority.ALWAYS);
-
-    var label = new Label("Placeholder for download progress");
-    label.setStyle(
-        "-fx-font-size: 10px; -fx-text-alignment: left; -fx-text-fill: -color-fg-muted;");
-
-    //    downloadMonitor.getChildren().add(label);
-
-    //    downloadMonitor.setAlignment(Pos.CENTER);
-    //    this.downloadButton = new WaitButton("Download");
-    //    downloadButton.setPrefSize(120, 60);
-    //      downloadMonitor.setStyle(
-    //          "-fx-border-color: -color-border-default; -fx-border-radius: 6; -fx-border-width:
-    // 1;" + " -fx-background-radius: 4; -fx-background-color: -color-bg-subtle;");
-    int n = 0;
-    for (Stack.Tag tag : KlabIDEController.instance().engine().getSoftwareStack().tags()) {
-      productList.addItem(makeHorizontalCard(tag));
-      //      chooseTag.getItems().add(new TagInfo(tag));
-      //      if (KlabIDEController.instance().engine().getDistributionTag() == tag) {
-      //        chooseTag.getSelectionModel().select(n);
-      //        selectTag(tag);
-      //      }
-      //      n++;
-    }
-
-    //    chooseTag.setOnAction(
-    //        e -> {
-    //          selectTag(chooseTag.getValue().tag);
-    //        });
-
-    //    this.tagLabel = new Label("Choose a distribution to use, install or update");
-    //    left.getChildren().addAll(tagLabel, chooseTag);
-    //    right.getChildren().addAll(downloadMonitor, productList);
-    //    tagLabel.setStyle(
-    //        "-fx-font-size: 10px; -fx-text-alignment: left; -fx-text-fill: -color-fg-muted;");
-    //
-    main.getChildren().addAll(productList, right /*left, downloadButton, right*/);
-
-    this.getChildren().add(main);
-
-    return main;
+    cards.setAlignment(Pos.TOP_LEFT);
+    cards.setMaxWidth(Double.MAX_VALUE);
+    progress.setVisible(false);
+    progress.setManaged(false);
+    getChildren().addAll(heading, explanation, progress, cards);
+    refreshCards();
+    return this;
   }
 
-  private void selectTag(Stack.Tag tag) {
-
-    // TODO arm buttons and descriptions
-
-    productList.clear();
-    var build = KlabIDEController.instance().engine().getSoftwareStack().build(tag);
-    for (var product : build.getProducts()) {
-      if (product.getType() == Distribution.Product.Type.CLI) {
-        continue;
-      }
-      var productIcon =
-          switch (product.getType()) {
-            case RESOURCES_SERVICE ->
-                new IconLabel(
-                    Theme.RESOURCES_ICON, 24, tag.availableLocally() ? Color.GREEN : Color.GREY);
-            case REASONER_SERVICE ->
-                new IconLabel(
-                    Theme.WORLDVIEW_ICON, 24, tag.availableLocally() ? Color.GREEN : Color.GREY);
-            case RESOLVER_SERVICE ->
-                new IconLabel(
-                    Theme.KNOWLEDGE_GRAPH_ICON,
-                    24,
-                    tag.availableLocally() ? Color.GREEN : Color.GREY);
-            case RUNTIME_SERVICE ->
-                new IconLabel(
-                    Theme.DIGITAL_TWINS_ICON,
-                    24,
-                    tag.availableLocally() ? Color.GREEN : Color.GREY);
-            case LANGUAGE_SERVER ->
-                new IconLabel(
-                    Theme.LANGUAGE_SERVER_ICON,
-                    24,
-                    tag.availableLocally() ? Color.GREEN : Color.GREY);
-            case DATABASE_SERVER ->
-                new IconLabel(
-                    Theme.DATABASE_ICON, 24, tag.availableLocally() ? Color.GREEN : Color.GREY);
-            case AMQP_BROKER ->
-                new IconLabel(
-                    Theme.MESSAGING_ICON, 24, tag.availableLocally() ? Color.GREEN : Color.GREY);
-            default -> null;
-          };
-      var tooltip = new Tooltip(product.getType().getName());
-      tooltip.setShowDelay(javafx.util.Duration.millis(250));
-      //      productIcon.setTooltip(tooltip);
-      //      productList.getChildren().add(productIcon);
-    }
+  private void refreshCards() {
+    runOnFx(
+        () -> {
+          cards.getChildren().clear();
+          var stack = KlabIDEController.instance().engine().getSoftwareStack();
+          if (stack == null) {
+            cards.getChildren().add(new Label("Software stack metadata is not available."));
+            return;
+          }
+          List<Stack.Tag> tags;
+          if (requestedTag == null) {
+            tags = stack.tags();
+          } else {
+            var resolved = stack.resolve(requestedTag);
+            tags = resolved == null ? List.of() : List.of(resolved);
+          }
+          if (tags.isEmpty()) {
+            cards.getChildren().add(new Label("No compatible software distributions were found."));
+          } else {
+            tags.forEach(tag -> cards.getChildren().add(makeCard(tag)));
+          }
+        });
   }
 
-  /**
-   * Builds a vertically-compact card sized for the horizontal carousel (fixed 180 px width, height
-   * determined by the carousel container).
-   */
-  private Card makeHorizontalCard(Stack.Tag tag) {
+  private Card makeCard(Stack.Tag tag) {
+    var controller = KlabIDEController.instance();
+    var stack = controller.engine().getSoftwareStack();
+    var current = Objects.equals(stack.resolve(controller.engine().getDistributionTag()), tag);
+    var head = tag.version() == Version.HEAD;
+    var mutable = controller.canRequestSoftwareStackChange();
+    var busy = operationRunning.get();
 
-    String title = tag.release() + (tag.orphan() ? " (orphaned)" : "");
-    String color =
-        tag.orphan()
-            ? colorToHex(Color.RED)
-            : (tag.availableLocally() ? colorToHex(Color.GREEN) : colorToHex(Color.GREY));
-    String desc = tag.release();
-    var isDevelop = tag.version() == Version.HEAD;
-    var isAvailable = tag.availableLocally();
-    var date = parseDate(tag.build());
-    var description = (isDevelop ? "Source code" : tag.version().toString()) + " :: built " + date;
-    var icon =
-        new IconLabel(Theme.DEFINITION_ICON, 12, tag.availableLocally() ? Color.GREEN : Color.GREY);
+    var availabilityDot = new Label();
+    availabilityDot.setMinSize(10, 10);
+    availabilityDot.setMaxSize(10, 10);
+    availabilityDot.setStyle(
+        "-fx-background-radius: 5; -fx-background-color: "
+            + (tag.orphan()
+                ? "-color-danger-emphasis"
+                : tag.availableLocally() ? "-color-success-emphasis" : "-color-fg-muted")
+            + ";");
 
-    // Colored dot accent
-    Label dot = new Label();
-    dot.setMinSize(16, 16);
-    dot.setMaxSize(16, 16);
-    dot.setStyle("-fx-background-color: " + color + "; " + "-fx-background-radius: 9px;");
+    var title = new Label(releaseName(tag));
+    title.getStyleClass().add(Styles.TEXT_BOLD);
+    var version = new Label(head ? "Source checkout" : "Version " + tag.version());
+    version.getStyleClass().addAll(Styles.TEXT_SMALL, Styles.TEXT_MUTED);
+    var titleBox = new VBox(1, title, version);
+    HBox.setHgrow(titleBox, Priority.ALWAYS);
 
-    Label titleLabel = new Label(title);
-    titleLabel.getStyleClass().addAll(Styles.TEXT_BOLD);
-    titleLabel.setWrapText(false);
-    //    HBox.setHgrow(titleLabel, Priority.ALWAYS);
-    var currentSwitch = new ToggleSwitch("");
-    currentSwitch.pseudoClassStateChanged(Styles.STATE_SUCCESS, true);
-    // TODO set the switch and give it an action - must be in the card
-    HBox header = new HBox(6, currentSwitch, titleLabel);
-    header.setAlignment(Pos.CENTER_LEFT);
-    //    HBox.setHgrow(header, Priority.ALWAYS);
-    header.setPadding(new Insets(6, 8, 2, 8));
-
-    if (KlabIDEController.instance().engine().getDistributionTag() == tag) {
-      currentSwitch.setSelected(true);
-      var tooltip = new Tooltip("This is the current distribution");
-      tooltip.setShowDelay(javafx.util.Duration.millis(150));
-      currentSwitch.setTooltip(tooltip);
-    } else if (tag.availableLocally()) {
-      currentSwitch.setSelected(false);
-      var tooltip = new Tooltip("Select to make this the current distribution");
-      tooltip.setShowDelay(javafx.util.Duration.millis(150));
-      currentSwitch.setTooltip(tooltip);
+    Node currentControl;
+    if (current) {
+      var currentLabel = new Label("Current");
+      currentLabel.getStyleClass().addAll(Styles.TEXT_SMALL, Styles.TEXT_BOLD, Styles.SUCCESS);
+      currentLabel.setGraphic(new IconLabel(Evaicons.CHECKMARK_CIRCLE_2, 14, Color.DARKGREEN));
+      currentLabel.setTooltip(tooltip("This is the distribution used by the IDE"));
+      currentControl = currentLabel;
     } else {
-      currentSwitch.setDisable(true);
-      var tooltip = new Tooltip("Synchronize this distribution to make it available");
-      tooltip.setShowDelay(javafx.util.Duration.millis(150));
-      titleLabel.setTooltip(tooltip);
+      var makeCurrent = new Button("Make current");
+      makeCurrent.getStyleClass().addAll(Styles.SMALL, Styles.ACCENT);
+      makeCurrent.setDisable(head || !tag.availableLocally() || !mutable || busy);
+      makeCurrent.setTooltip(
+          tooltip(
+              head
+                  ? "Source distributions are selected through development settings"
+                  : !tag.availableLocally()
+                      ? "Synchronize the distribution before selecting it"
+                      : !mutable
+                          ? "Stop all local k.LAB and auxiliary services before switching"
+                          : controller.canChangeSoftwareStack()
+                              ? "Make this the current IDE distribution"
+                              : "Make current and restart the language server"));
+      makeCurrent.setOnAction(
+          event -> {
+            if (controller.switchDistributionTag(tag)) {
+              notifySuccess("Switching to " + displayName(tag));
+            }
+            refreshCards();
+          });
+      currentControl = makeCurrent;
     }
 
-    Label descLabel = new Label("v." + tag.version());
-    descLabel.setWrapText(true);
-    descLabel.getStyleClass().addAll(Styles.TEXT_BOLDER, Styles.TITLE_3);
-    descLabel.setMaxWidth(220);
+    var header = new HBox(8, availabilityDot, titleBox, currentControl);
+    header.setAlignment(Pos.CENTER_LEFT);
+    header.setPadding(new Insets(10, 12, 6, 12));
 
-    var buttons = new HBox(4);
-    buttons
-        .getChildren()
-        .add(
-            new IconButton(Evaicons.DOWNLOAD, 24, Color.DARKGOLDENROD, Color.DARKGREEN, false) {
-              @Override
-              protected void action() {
-                System.out.println("Daje");
-              }
-            }.enabled(!tag.availableLocally()).styleClass(Styles.ROUNDED).tooltip("Synchronize"));
-    buttons
-        .getChildren()
-        .add(
-            new IconButton(Evaicons.FLAG, 24, Color.DARKGREEN, Color.DARKGOLDENROD, false) {
-              @Override
-              protected void action() {
-                System.out.println("Daje");
-              }
-            }.enabled(tag.availableLocally())
-                .styleClass(Styles.ROUNDED)
-                .tooltip("Verify integrity"));
-    buttons
-        .getChildren()
-        .add(
-            new IconButton(Evaicons.TRASH, 24, Color.DARKGOLDENROD, Color.DARKRED, false) {
-              @Override
-              protected void action() {
-                System.out.println("Daje");
-              }
-            }.enabled(tag.availableLocally())
-                .styleClass(Styles.ROUNDED)
-                .tooltip("Delete from disk"));
+    var build = new Label("Build " + formatBuild(tag.build()));
+    build.getStyleClass().addAll(Styles.TEXT_SMALL);
+    var state =
+        new Label(
+            head
+                ? "Managed from the local source tree"
+                : tag.orphan()
+                    ? "Installed locally; no longer present in the network catalog"
+                    : tag.availableLocally()
+                        ? "Installed on this computer"
+                        : "Available from the distribution network");
+    state.getStyleClass().addAll(Styles.TEXT_SMALL, Styles.TEXT_MUTED);
+    state.setWrapText(true);
 
-    VBox cardBody = new VBox(10, descLabel, buttons);
-    cardBody.setPadding(new Insets(0, 8, 4, 8));
+    var actions = new HBox(6);
+    actions.setAlignment(Pos.CENTER_LEFT);
+    if (head) {
+      var sourceNotice = new Label("Binary distribution actions do not apply to HEAD.");
+      sourceNotice.getStyleClass().addAll(Styles.TEXT_SMALL, Styles.TEXT_MUTED);
+      actions.getChildren().add(sourceNotice);
+    } else {
+      var synchronize =
+          actionButton(
+              Evaicons.DOWNLOAD,
+              Color.DARKGREEN,
+              "Synchronize",
+              !busy && (!current || mutable),
+              () -> synchronize(tag));
+      var verify =
+          actionButton(
+              Evaicons.FLAG,
+              Color.DARKGOLDENROD,
+              "Verify integrity",
+              !busy && tag.availableLocally(),
+              () -> verify(tag));
+      var delete =
+          actionButton(
+              Evaicons.TRASH,
+              Color.DARKRED,
+              "Delete from disk",
+              !busy && tag.availableLocally() && !current,
+              () -> confirmDelete(tag));
+      actions.getChildren().addAll(synchronize, verify, delete);
+    }
 
-    //    FontIcon footerIcon = new FontIcon(Material2AL.LABEL_IMPORTANT);
-    //    footerIcon.setIconSize(12);
-    //    footerIcon.setStyle("-fx-icon-color: -color-fg-muted;");
+    var body = new VBox(8, build, state, actions);
+    body.setPadding(new Insets(4, 12, 10, 12));
+    body.setMinHeight(100);
 
-    Label tagLabel = new Label(description);
-    tagLabel.getStyleClass().addAll(Styles.TEXT_SMALL, Styles.TEXT_MUTED);
-
-    HBox footer = new HBox(4, icon, tagLabel);
+    var products = productSummary(tag);
+    var footer = new HBox(6, new IconLabel(Theme.DEFINITION_ICON, 12, Color.GREY), products);
     footer.setAlignment(Pos.CENTER_LEFT);
-    footer.setPadding(new Insets(2, 8, 6, 8));
+    footer.setPadding(new Insets(6, 12, 9, 12));
 
-    Card card = new Card();
+    var card = new Card();
     card.setHeader(header);
-    card.setBody(cardBody);
+    card.setBody(body);
     card.setFooter(footer);
-    card.setPrefWidth(300);
-    card.setPrefHeight(170);
-    card.setUserData(title);
-
+    card.setPrefWidth(350);
+    card.setMinWidth(320);
     return card;
   }
 
-  private String parseDate(String buildId) {
-    var year = buildId.substring(0, 4);
-    var month = buildId.substring(4, 6);
-    var day = buildId.substring(6, 8);
-    var hour = buildId.substring(8, 10);
-    var minute = buildId.substring(10, 12);
-    return day + "/" + month + "/" + year + " " + hour + ":" + minute;
+  private Label productSummary(Stack.Tag tag) {
+    var build = KlabIDEController.instance().engine().getSoftwareStack().build(tag);
+    var text =
+        build == null
+            ? "Product metadata unavailable"
+            : build.getProducts().size() + " stack products";
+    var label = new Label(text);
+    label.getStyleClass().addAll(Styles.TEXT_SMALL, Styles.TEXT_MUTED);
+    return label;
   }
 
-  public String colorToHex(Color color) {
-    return String.format(
-        "#%02X%02X%02X",
-        (int) (color.getRed() * 255),
-        (int) (color.getGreen() * 255),
-        (int) (color.getBlue() * 255));
+  private IconButton actionButton(
+      Ikon icon, Color color, String tooltip, boolean enabled, Runnable action) {
+    return new IconButton(icon, 20, color, color, false) {
+      @Override
+      protected void action() {
+        action.run();
+      }
+    }.enabled(enabled).styleClass(Styles.ROUNDED).tooltip(tooltip);
+  }
+
+  private void synchronize(Stack.Tag tag) {
+    var controller = KlabIDEController.instance();
+    var stack = controller.engine().getSoftwareStack();
+    var current = Objects.equals(stack.resolve(controller.engine().getDistributionTag()), tag);
+    if (current && !controller.canChangeSoftwareStack()) {
+      notifyFailure("Stop local services before synchronizing the current distribution");
+      return;
+    }
+    if (!operationRunning.compareAndSet(false, true)) {
+      return;
+    }
+    showProgress("Preparing synchronization for " + displayName(tag));
+    refreshCards();
+    Thread.ofVirtual()
+        .name("klab-distribution-sync")
+        .start(
+            () -> {
+              boolean success = false;
+              try {
+                success =
+                    KlabIDEController.instance()
+                        .engine()
+                        .getSoftwareStack()
+                        .synchronize(tag, progress.synchronization());
+                if (success) {
+                  progress.complete("Synchronization completed");
+                  notifySuccess(displayName(tag) + " synchronized successfully");
+                } else {
+                  progress.fail("Synchronization failed");
+                  notifyFailure("Could not synchronize " + displayName(tag));
+                }
+              } catch (Throwable throwable) {
+                Logging.INSTANCE.error(throwable);
+                progress.fail("Synchronization failed: " + safeMessage(throwable));
+                notifyFailure("Could not synchronize " + displayName(tag));
+              } finally {
+                operationRunning.set(false);
+                runOnFx(
+                    () -> {
+                      if (synchronizeOnShow) {
+                        KlabIDEController.instance().initializeSoftwareStack();
+                      } else {
+                        KlabIDEController.instance().refreshSoftwareStack();
+                      }
+                      hideProgress();
+                      refreshCards();
+                    });
+                if (synchronizationFinished != null) {
+                  KlabIDEController.instance().removeSoftwareStackStateListener(stateListener);
+                  runOnFx(synchronizationFinished);
+                }
+              }
+            });
+  }
+
+  private void verify(Stack.Tag tag) {
+    if (!operationRunning.compareAndSet(false, true)) {
+      return;
+    }
+    showProgress("Verifying " + displayName(tag));
+    refreshCards();
+    Thread.ofVirtual()
+        .name("klab-distribution-verify")
+        .start(
+            () -> {
+              try {
+                var valid =
+                    KlabIDEController.instance()
+                        .engine()
+                        .getSoftwareStack()
+                        .verify(tag, progress.verification());
+                if (valid) {
+                  progress.complete("Verification completed: all files are valid");
+                  notifySuccess(displayName(tag) + " passed integrity verification");
+                } else {
+                  progress.fail("Verification failed: synchronize to repair the distribution");
+                  notifyFailure(displayName(tag) + " failed integrity verification");
+                }
+              } catch (Throwable throwable) {
+                Logging.INSTANCE.error(throwable);
+                progress.fail("Verification failed: " + safeMessage(throwable));
+              } finally {
+                operationRunning.set(false);
+                runOnFx(
+                    () -> {
+                      hideProgress();
+                      refreshCards();
+                    });
+              }
+            });
+  }
+
+  private void confirmDelete(Stack.Tag tag) {
+    var alert = new Alert(Alert.AlertType.CONFIRMATION);
+    alert.setTitle("Delete software distribution");
+    alert.setHeaderText("Delete " + displayName(tag) + " from this computer?");
+    alert.setContentText("The distribution can be downloaded again later.");
+    if (alert.showAndWait().filter(ButtonType.OK::equals).isPresent()) {
+      delete(tag);
+    }
+  }
+
+  private void delete(Stack.Tag tag) {
+    var controller = KlabIDEController.instance();
+    var stack = controller.engine().getSoftwareStack();
+    if (!tag.availableLocally()
+        || Objects.equals(stack.resolve(controller.engine().getDistributionTag()), tag)) {
+      notifyFailure("Select another distribution before deleting this one");
+      return;
+    }
+    if (!operationRunning.compareAndSet(false, true)) {
+      return;
+    }
+    refreshCards();
+    Thread.ofVirtual()
+        .name("klab-distribution-delete")
+        .start(
+            () -> {
+              try {
+                if (KlabIDEController.instance().engine().getSoftwareStack().delete(tag)) {
+                  notifySuccess(displayName(tag) + " was deleted from disk");
+                } else {
+                  notifyFailure("Could not delete " + displayName(tag));
+                }
+              } finally {
+                operationRunning.set(false);
+                runOnFx(
+                    () -> {
+                      KlabIDEController.instance().refreshSoftwareStack();
+                      refreshCards();
+                    });
+              }
+            });
+  }
+
+  private void showProgress(String operation) {
+    runOnFx(
+        () -> {
+          progress.setManaged(true);
+          progress.setVisible(true);
+          progress.prepare(operation);
+        });
+  }
+
+  private void hideProgress() {
+    progress.setVisible(false);
+    progress.setManaged(false);
+  }
+
+  private Stack.Tag resolveRequestedTag() {
+    var stack = KlabIDEController.instance().engine().getSoftwareStack();
+    return stack == null ? null : stack.resolve(requestedTag);
+  }
+
+  private static String releaseName(Stack.Tag tag) {
+    var release = tag.release();
+    if (release == null || release.isBlank() || "master".equalsIgnoreCase(release)) {
+      return "Stable release" + (tag.orphan() ? " (orphaned)" : "");
+    }
+    return release.substring(0, 1).toUpperCase() + release.substring(1) + " release"
+        + (tag.orphan() ? " (orphaned)" : "");
+  }
+
+  private static String displayName(Stack.Tag tag) {
+    return releaseName(tag) + " " + tag.version() + " build " + tag.build();
+  }
+
+  private static String formatBuild(String build) {
+    if (build != null && build.matches("\\d{12,}")) {
+      return build.substring(6, 8)
+          + "/"
+          + build.substring(4, 6)
+          + "/"
+          + build.substring(0, 4)
+          + " "
+          + build.substring(8, 10)
+          + ":"
+          + build.substring(10, 12);
+    }
+    return build == null || build.isBlank() ? "unknown" : build;
+  }
+
+  private static Tooltip tooltip(String text) {
+    var tooltip = new Tooltip(text);
+    tooltip.setShowDelay(javafx.util.Duration.millis(150));
+    return tooltip;
+  }
+
+  private static String safeMessage(Throwable throwable) {
+    return throwable.getMessage() == null ? throwable.getClass().getSimpleName() : throwable.getMessage();
+  }
+
+  private static void notifySuccess(String message) {
+    KlabIDEController.instance()
+        .handleNotification(Notification.info(message, Notification.Outcome.Success));
+  }
+
+  private static void notifyFailure(String message) {
+    KlabIDEController.instance()
+        .handleNotification(Notification.warning(message, Notification.Outcome.Failure));
+  }
+
+  private static void runOnFx(Runnable runnable) {
+    if (Platform.isFxApplicationThread()) {
+      runnable.run();
+    } else {
+      Platform.runLater(runnable);
+    }
   }
 }

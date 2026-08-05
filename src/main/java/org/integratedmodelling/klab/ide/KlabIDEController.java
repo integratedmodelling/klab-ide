@@ -16,6 +16,10 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -86,6 +90,7 @@ import org.integratedmodelling.klab.ide.api.DigitalTwinReactor;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.integratedmodelling.klab.ide.components.*;
 import org.integratedmodelling.klab.ide.components.cards.AssetViewComponent;
+import org.integratedmodelling.klab.ide.components.cards.DistributionViewComponent;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
@@ -140,9 +145,13 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private Map<KlabService, KlabService.ServiceStatus> serviceStatus = new ConcurrentHashMap<>() {};
   private ModalPane modalPane;
   private boolean modalEscHandlerInstalled;
+  private boolean modalDismissible = true;
+  private final List<Runnable> softwareStackStateListeners = new CopyOnWriteArrayList<>();
+  private ScheduledExecutorService stackUpdateChecker;
+  private Stack.Tag pendingDistributionTag;
   private final EventHandler<KeyEvent> escHandler =
       event -> {
-        if (event.getCode() == KeyCode.ESCAPE) {
+        if (event.getCode() == KeyCode.ESCAPE && modalDismissible) {
           removeModalOverlay();
           event.consume();
         }
@@ -717,7 +726,10 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
           //            // TODO
           //            //      Thread.ofPlatform().start(this::toggleLocalServices);
           //          }
-          initializeSoftwareStack();
+          if (!showStartupStackSynchronization()) {
+            initializeSoftwareStack();
+          }
+          scheduleSoftwareStackUpdateChecks();
         });
   }
 
@@ -808,9 +820,14 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   }
 
   public void showInModalOverlay(Node node) {
+    showInModalOverlay(node, true);
+  }
+
+  public void showInModalOverlay(Node node, boolean dismissible) {
 
     Platform.runLater(
         () -> {
+          modalDismissible = dismissible;
           ensureModalPaneAttached();
           if (!modalEscHandlerInstalled && mainArea.getScene() != null) {
             mainArea.getScene().addEventFilter(KeyEvent.KEY_PRESSED, escHandler);
@@ -854,6 +871,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
             }
             modalEscHandlerInstalled = false;
             modalPane.hide();
+            modalDismissible = true;
           }
         });
   }
@@ -1250,6 +1268,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   public void engineStatusChanged(Engine.Status status) {
 
     engineStatus.set(status);
+    completePendingDistributionSwitch();
 
     switch (status.getCondition()) {
       case TRANSITIONING -> {
@@ -1297,6 +1316,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         }
       }
     }
+    notifySoftwareStackStateListeners();
 
     for (var serviceType : KlabService.Type.operationCritical()) {
 
@@ -1598,18 +1618,152 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
    *
    * @param tag
    */
-  public void switchDistributionTag(Stack.Tag tag) {
-    if (engineStatus.get().isOperational()) {
+  public boolean switchDistributionTag(Stack.Tag tag) {
+    var stack = engine().getSoftwareStack();
+    var resolved = stack == null ? null : stack.resolve(tag);
+    if (resolved == null
+        || resolved.version() == Version.HEAD
+        || !resolved.availableLocally()
+        || !canRequestSoftwareStackChange()) {
       Toolkit.getDefaultToolkit().beep();
-    } else {
-      if (engine() instanceof EngineImpl engine) {
-        engine.setDistributionTag(tag);
-        Platform.runLater(this::initializeSoftwareStack);
+      return false;
+    }
+    if (!canChangeSoftwareStack()) {
+      pendingDistributionTag = resolved;
+      if (!engine().stopAuxiliaryServices(KlabService.Type.LANGUAGE_SERVER)) {
+        pendingDistributionTag = null;
+        Toolkit.getDefaultToolkit().beep();
+        return false;
       }
+      return true;
+    }
+    return applyDistributionTag(resolved);
+  }
+
+  private boolean applyDistributionTag(Stack.Tag resolved) {
+    if (engine() instanceof EngineImpl engine) {
+      engine.setDistributionTag(resolved);
+      Platform.runLater(this::initializeSoftwareStack);
+      notifySoftwareStackStateListeners();
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * A running language server is not a deadlock for switching: it is stack-bound and can be
+   * stopped and restarted around the change. Primary services, database, and broker remain hard
+   * blockers.
+   */
+  public boolean canRequestSoftwareStackChange() {
+    if (canChangeSoftwareStack()) {
+      return true;
+    }
+    var status = engineStatus.get();
+    if (status == null
+        || (status.getCondition() != Engine.Status.EngineCondition.INOPERATIVE
+            && status.getCondition() != Engine.Status.EngineCondition.ACTIVE_REMOTE_ONLY)) {
+      return false;
+    }
+    return !status.getActiveAuxiliaryServices().isEmpty()
+        && status.getActiveAuxiliaryServices().stream()
+            .allMatch(type -> type == Distribution.Product.Type.LANGUAGE_SERVER);
+  }
+
+  private void completePendingDistributionSwitch() {
+    var pending = pendingDistributionTag;
+    if (pending != null && canChangeSoftwareStack()) {
+      pendingDistributionTag = null;
+      applyDistributionTag(pending);
     }
   }
 
+  /** True only when no local k.LAB or auxiliary process is active or transitioning. */
+  public boolean canChangeSoftwareStack() {
+    var status = engineStatus.get();
+    if (status == null) {
+      return engine().areLocalServicesStopped();
+    }
+    var localServicesStopped =
+        status.getCondition() == Engine.Status.EngineCondition.INOPERATIVE
+            || status.getCondition() == Engine.Status.EngineCondition.ACTIVE_REMOTE_ONLY;
+    return localServicesStopped
+        && status.getActiveAuxiliaryServices().isEmpty()
+        && engine().areLocalServicesStopped();
+  }
+
+  public void addSoftwareStackStateListener(Runnable listener) {
+    softwareStackStateListeners.add(listener);
+  }
+
+  public void removeSoftwareStackStateListener(Runnable listener) {
+    softwareStackStateListeners.remove(listener);
+  }
+
+  private void notifySoftwareStackStateListeners() {
+    Platform.runLater(
+        () -> {
+          for (var listener : softwareStackStateListeners) {
+            listener.run();
+          }
+        });
+  }
+
+  private boolean showStartupStackSynchronization() {
+    var stack = engine().getSoftwareStack();
+    var current = stack == null ? null : stack.resolve(engine().getDistributionTag());
+    if (!engine().getSettings().get(Setting.SYNCHRONIZE_STACK_ON_STARTUP, Boolean.class)
+        || current == null
+        || current.version() == Version.HEAD
+        || current.orphan()) {
+      return false;
+    }
+    var component =
+        new DistributionViewComponent(current, true, this::removeModalOverlay);
+    component.setMaxWidth(760);
+    component.setStyle(
+        "-fx-background-color: -color-bg-default; -fx-background-radius: 10; -fx-padding: 18;");
+    showInModalOverlay(component, false);
+    return true;
+  }
+
+  private void scheduleSoftwareStackUpdateChecks() {
+    var interval =
+        engine()
+            .getSettings()
+            .get(Setting.CHECK_FOR_UPDATES_INTERVAL_MINUTES, Integer.class);
+    if (interval == null || interval <= 0 || stackUpdateChecker != null) {
+      return;
+    }
+    stackUpdateChecker =
+        Executors.newSingleThreadScheduledExecutor(
+            Thread.ofPlatform().daemon().name("klab-stack-update-check").factory());
+    stackUpdateChecker.scheduleWithFixedDelay(
+        () -> {
+          try {
+            var stack = engine().getSoftwareStack();
+            if (stack != null) {
+              stack.refresh();
+              Platform.runLater(this::refreshSoftwareStack);
+            }
+          } catch (Throwable throwable) {
+            Logging.INSTANCE.warn("Unable to refresh the software stack catalog", throwable);
+          }
+        },
+        interval,
+        interval,
+        TimeUnit.MINUTES);
+  }
+
   public void initializeSoftwareStack() {
+    initializeSoftwareStack(true);
+  }
+
+  public void refreshSoftwareStack() {
+    initializeSoftwareStack(false);
+  }
+
+  private void initializeSoftwareStack(boolean startConfiguredAuxiliaries) {
 
     if (!otherServices.getChildren().contains(dbIcon)) {
       otherServices.getChildren().addAll(dbIcon, langIcon, messIcon);
@@ -1620,8 +1774,13 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     var tooltip = "No k.LAB distribution is available";
     var startColor = Color.GREEN;
     var startTooltip = "Local services are not available";
-    var distributionTag = engine().getDistributionTag();
-    var available = false;
+    var distributionTag = engine().getSoftwareStack().resolve(engine().getDistributionTag());
+    if (distributionTag == null) {
+      setButton(startButton, Material2MZ.POWER_SETTINGS_NEW, 16, Color.GREY, startTooltip);
+      setButton(downloadButton, icon, 16, Color.RED, tooltip);
+      notifySoftwareStackStateListeners();
+      return;
+    }
     if (distributionTag.version() == Version.HEAD) {
 
       icon = BootstrapIcons.LAPTOP;
@@ -1631,27 +1790,39 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
     } else {
 
-      var status = engine().getSoftwareStack().status(engine().getDistributionTag());
+      var stack = engine().getSoftwareStack();
+      var status = stack.status(distributionTag);
+      var automaticSynchronization =
+          Boolean.TRUE.equals(
+              engine().getSettings().get(Setting.SYNCHRONIZE_STACK_ON_STARTUP, Boolean.class));
+      var updateAvailable =
+          status.downloadSize() > 0 || hasNewerDistribution(stack, distributionTag);
 
-      if (status == Stack.Status.ABSENT) {
+      if (status.equals(Stack.Status.ABSENT)) {
         color = Color.RED;
         tooltip = "No distribution available. Click to download";
         startButton.setDisable(true);
-      } else if (status.downloadSize() == 0 && status.totalContentSize() > 0) {
+      } else if (updateAvailable && !automaticSynchronization) {
+        color = Color.GOLDENROD;
+        startColor = Color.GOLDENROD;
+        tooltip = "Updated k.LAB distribution available. Click to update";
+        startTooltip = "Start out-of-date local services";
+        startButton.setDisable(false);
+      } else if (distributionTag.availableLocally()) {
         startTooltip = "Start local k.LAB services";
         icon = BootstrapIcons.CHECK;
         startButton.setDisable(false);
       } else {
-        color = Color.GOLDENROD;
-        tooltip = "Updated k.LAB distribution available. Click to update";
-        startTooltip = "Start out-of-date local services";
-        startButton.setDisable(false);
+        color = Color.RED;
+        tooltip = "Distribution is not available locally. Click to download";
+        startButton.setDisable(true);
       }
     }
     setButton(startButton, Material2MZ.POWER_SETTINGS_NEW, 16, startColor, startTooltip);
     setButton(downloadButton, icon, 16, color, tooltip);
 
-    if (engine().getSettings().get(Setting.START_LSP_SERVER_ON_STARTUP, Boolean.class)) {
+    if (startConfiguredAuxiliaries
+        && engine().getSettings().get(Setting.START_LSP_SERVER_ON_STARTUP, Boolean.class)) {
       if (engine().startAuxiliaryServices(KlabService.Type.LANGUAGE_SERVER)) {
         handleNotification(
             Notification.info("Language server started", Notification.Outcome.Success));
@@ -1661,9 +1832,22 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
             Notification.warning("Language server not available", Notification.Outcome.Failure));
         langIcon.set(Theme.LANGUAGE_SERVER_ICON, 11, Color.RED);
       }
-    } else {
+    } else if (startConfiguredAuxiliaries) {
       handleNotification(Notification.info("Language server was disabled in settings"));
     }
+    notifySoftwareStackStateListeners();
+  }
+
+  private boolean hasNewerDistribution(Stack stack, Stack.Tag current) {
+    for (var tag : stack.tags()) {
+      if (tag.version() != Version.HEAD && !tag.orphan()) {
+        if (Objects.equals(tag, current)) {
+          return false;
+        }
+        return true;
+      }
+    }
+    return false;
   }
 
   public static void setButton(Button button, Ikon icon, int size, Color color, String tooltip) {
@@ -1780,6 +1964,10 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   @Override
   public boolean shutdown(boolean shutdownLocalServices) {
+    if (stackUpdateChecker != null) {
+      stackUpdateChecker.shutdownNow();
+      stackUpdateChecker = null;
+    }
     return modeler == null || modeler.shutdown(shutdownLocalServices);
   }
 

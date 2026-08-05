@@ -3,6 +3,7 @@ package org.integratedmodelling.klab.ide.components;
 import atlantafx.base.controls.ToggleSwitch;
 import atlantafx.base.theme.Styles;
 import atlantafx.base.util.IntegerStringConverter;
+import com.brunomnsilva.smartgraph.containers.ContentZoomScrollPane;
 import com.brunomnsilva.smartgraph.graph.DigraphEdgeList;
 import com.brunomnsilva.smartgraph.graphview.ForceDirectedSpringGravityLayoutStrategy;
 import com.brunomnsilva.smartgraph.graphview.SmartCircularSortedPlacementStrategy;
@@ -279,7 +280,11 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
       var initialPlacement = new SmartCircularSortedPlacementStrategy();
       var graph = new DigraphEdgeList<RuntimeAsset, ClientKnowledgeGraph.Relationship>();
       this.graphView = new SmartGraphPanel<>(graph, initialPlacement);
-      this.setCenter(this.graphView);
+      this.graphView.setDarkMode(Theme.CURRENT_THEME.isDark());
+      var scrollPane = new ContentZoomScrollPane(this.graphView);
+      scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+      scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+      this.setCenter(scrollPane);
       this.graphView.setAutomaticLayoutStrategy(new ForceDirectedSpringGravityLayoutStrategy<>());
       this.graphView.setAutomaticLayout(true);
 
