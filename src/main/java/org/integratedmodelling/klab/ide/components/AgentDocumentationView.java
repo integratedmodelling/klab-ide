@@ -15,9 +15,11 @@ import javafx.scene.control.TreeView;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.collections.DomainObject;
 import org.integratedmodelling.klab.ide.components.generic.DomainObjectView;
 import org.integratedmodelling.klab.ide.components.generic.TreeSearchField;
+import org.integratedmodelling.klab.ide.utils.BBCodeNodeRenderer;
 
 /** Compact, searchable documentation browser for agents and their verbs. */
 public final class AgentDocumentationView extends DomainObjectView {
@@ -30,13 +32,15 @@ public final class AgentDocumentationView extends DomainObjectView {
   public static final String SYNTAX = AgentDocumentationModel.SYNTAX;
 
   private static final String COMPACT_STYLE = "-fx-font-size: 10px;";
+  private static final String LEAF_STYLE = COMPACT_STYLE + "-fx-indent: 0; -fx-padding: 0 0 0 -18px;";
 
   private final Function<String, String> markdownToBBCode;
   private final TreeView<DomainObject> documentationTree = new TreeView<>();
+  private static final BBCodeNodeRenderer bbcCodeRenderer = new BBCodeNodeRenderer();
 
   /** Create the view with mock data and the intentionally replaceable translation stub. */
   public AgentDocumentationView() {
-    this(AgentDocumentationView::markdownToBBCodeStub);
+    this(AgentDocumentationView::markdownToBBCode);
   }
 
   /**
@@ -77,8 +81,9 @@ public final class AgentDocumentationView extends DomainObjectView {
           var verbItem = new TreeItem<>(verb);
           // A presentation-only child gives each verb a disclosure control without changing the
           // service bean shape: root -> agents -> verbs.
-          verbItem.getChildren().add(
-              new TreeItem<>(AgentDocumentationModel.documentationNode(verb)));
+          verbItem
+              .getChildren()
+              .add(new TreeItem<>(AgentDocumentationModel.documentationNode(verb)));
           agentItem.getChildren().add(verbItem);
         }
         root.getChildren().add(agentItem);
@@ -103,6 +108,7 @@ public final class AgentDocumentationView extends DomainObjectView {
       var layout = BBCodeParser.createLayout(bbCode);
       layout.setMaxWidth(Double.MAX_VALUE);
       layout.setStyle(COMPACT_STYLE);
+      layout.getStyleClass().add("documentation-card");
       return layout;
     } catch (RuntimeException malformedBBCode) {
       var fallback = new Label(markdown);
@@ -112,12 +118,10 @@ public final class AgentDocumentationView extends DomainObjectView {
   }
 
   /**
-   * Translation seam for the future Markdown converter. It deliberately displays Markdown as
-   * plain text while allowing safe BBCode emphasis around the placeholder notice.
+   * Use Flexmark with the BBCode renderer in this project.
    */
-  static String markdownToBBCodeStub(String markdown) {
-    return "[i]Markdown translation callback not installed[/i]\n\n"
-        + (markdown == null ? "" : markdown.replace("[", "(").replace("]", ")"));
+  static String markdownToBBCode(String markdown) {
+    return Utils.Markdown.render(markdown, bbcCodeRenderer);
   }
 
   private final class DocumentationTreeCell extends TreeCell<DomainObject> {
@@ -128,6 +132,7 @@ public final class AgentDocumentationView extends DomainObjectView {
       setText(null);
       setGraphic(null);
       setStyle(COMPACT_STYLE);
+      setPadding(Insets.EMPTY);
       if (empty || item == null) {
         return;
       }
@@ -140,15 +145,17 @@ public final class AgentDocumentationView extends DomainObjectView {
         }
         case VERB -> {
           String syntax = item.get(SYNTAX, String.class);
-          var label = new Label(
-              syntax == null || syntax.isBlank() ? objectTitle(item) : syntax);
+          var label = new Label(syntax == null || syntax.isBlank() ? objectTitle(item) : syntax);
           label.setStyle(COMPACT_STYLE);
           setGraphic(label);
         }
         case DOCUMENTATION -> {
+          // Documentation is always the fourth level from the root. Do not leave the content
+          // indented by the tree hierarchy: it is the leaf's full-width presentation.
+          setStyle(LEAF_STYLE);
           var content = renderDocumentation(item);
           if (content instanceof Region region) {
-            region.prefWidthProperty().bind(documentationTree.widthProperty().subtract(58));
+            region.prefWidthProperty().bind(documentationTree.widthProperty().subtract(10));
           }
           setGraphic(content);
           setPadding(new Insets(3, 5, 8, 2));
