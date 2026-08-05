@@ -19,8 +19,7 @@ pipeline {
 
         buildDiscarder(
             logRotator(
-                numToKeepStr: '20',
-                artifactNumToKeepStr: '10'
+                numToKeepStr: '20'
             )
         )
 
@@ -32,8 +31,7 @@ pipeline {
         MAVEN_OPTS = '-Xmx2g'
 
         /*
-         * The credentials entry must be a Jenkins
-         * "Username with password" credential:
+         * Jenkins "Username with password" credential:
          *
          * Username = MinIO access key
          * Password = MinIO secret key
@@ -47,7 +45,6 @@ pipeline {
          * "klab-ide" is the prefix inside the bucket.
          */
         MINIO_PRODUCTS_PATH = 'minio/products/klab-ide'
-        PUBLIC_PRODUCTS_URL = 'https://products.integratedmodelling.org/klab-ide'
     }
 
     stages {
@@ -72,21 +69,13 @@ pipeline {
                     env.PRODUCTS_GEN =
                         shouldPushProducts(env.BRANCH_NAME)
 
-                    env.PRODUCTS_DESTINATION =
-                        productsFolderName(env.BRANCH_NAME)
-
-                    env.CONVEYOR_SITE_BASE_URL =
-                        "${env.PUBLIC_PRODUCTS_URL}/" +
-                        "${env.PRODUCTS_DESTINATION}"
-
                     currentBuild.description =
                         "${env.BRANCH_NAME} @ ${env.SHORT_COMMIT}"
 
                     echo(
                         "${env.BRANCH_NAME} build at " +
                         "${env.CURRENT_COMMIT}; product generation is " +
-                        "${env.PRODUCTS_GEN}; Conveyor site is " +
-                        "${env.CONVEYOR_SITE_BASE_URL}"
+                        "${env.PRODUCTS_GEN}"
                     )
                 }
 
@@ -120,34 +109,15 @@ pipeline {
                     echo "MinIO client installation:"
                     command -v mc
                     mc --version
-
-                    echo "Archive tools:"
-                    command -v unzip
-                    command -v zip
                 '''
             }
         }
 
-        stage('Build platform installers') {
+        stage('Build Conveyor site') {
             steps {
                 sh '''
                     set -eu
                     rm -rf output
-
-                    if [ ! -f conveyor.conf ]; then
-                        echo "conveyor.conf was not found."
-                        exit 1
-                    fi
-
-                    # Generate installers with URLs rooted directly at:
-                    # https://products.integratedmodelling.org/klab-ide/<branch>
-                    cp conveyor.conf .conveyor.conf.jenkins-backup
-                    trap 'cp .conveyor.conf.jenkins-backup conveyor.conf; rm -f .conveyor.conf.jenkins-backup' EXIT HUP INT TERM
-                    printf '\\napp.site.base-url = "%s"\\n' \
-                        "${CONVEYOR_SITE_BASE_URL}" \
-                        >> conveyor.conf
-
-                    echo "Conveyor site URL: ${CONVEYOR_SITE_BASE_URL}"
 
                     # The Maven Conveyor profile forwards conveyor.target to:
                     # conveyor make <target>. The site target builds packages for
@@ -161,39 +131,26 @@ pipeline {
                         clean package
 
                     if [ ! -d output ]; then
-                        echo "The Conveyor output directory was not created."
+                        echo "ERROR: Conveyor did not create the output directory."
                         exit 1
                     fi
                     if [ -z "$(find output -type f -print -quit)" ]; then
-                        echo "No Conveyor artifacts were generated."
+                        echo "ERROR: Conveyor generated no site files."
                         exit 1
                     fi
-                    echo "Generated Conveyor artifacts:"
+
+                    if [ ! -f output/download.html ]; then
+                        echo "ERROR: Conveyor site did not generate output/download.html."
+                        exit 1
+                    fi
+
+                    echo "Generated Conveyor site:"
                     find output -type f -print | sort
                 '''
             }
         }
 
-        stage('Prepare platform folders') {
-            steps {
-                script {
-                    def destination = productsFolderName(env.BRANCH_NAME)
-                    prepareProductsUpload(destination)
-                }
-            }
-        }
-
-        stage('Archive artifacts') {
-            steps {
-                archiveArtifacts(
-                    artifacts: 'minio/**/klab-ide-windows-*.zip',
-                    fingerprint: true,
-                    allowEmptyArchive: false
-                )
-            }
-        }
-
-        stage('Push products') {
+        stage('Push Conveyor site') {
             when {
                 expression {
                     env.PRODUCTS_GEN == 'yes'
@@ -205,7 +162,7 @@ pipeline {
                     def destination = productsFolderName(env.BRANCH_NAME)
 
                     echo(
-                        "Uploading platform products to " +
+                        "Uploading the unchanged Conveyor site to " +
                         "${env.MINIO_PRODUCTS_PATH}/${destination}"
                     )
 
@@ -225,8 +182,6 @@ pipeline {
                                 "${ACCESSKEY}" \
                                 "${SECRETKEY}"
                             echo "MinIO connection configured."
-                            # Verify access to the products bucket before
-                            # preparing and deleting any existing products.
                             mc ls minio/products >/dev/null
                         '''
 
@@ -240,14 +195,14 @@ pipeline {
     post {
         success {
             echo(
-                "Conveyor installer build completed successfully for " +
+                "Conveyor site build and upload completed successfully for " +
                 "${env.BRANCH_NAME}."
             )
         }
 
         unsuccessful {
             echo(
-                "The Conveyor installer build or product upload failed for " +
+                "The Conveyor site build or product upload failed for " +
                 "${env.BRANCH_NAME}."
             )
         }
@@ -263,7 +218,7 @@ pipeline {
  *
  *   master  -> upload
  *   develop -> upload
- *   others  -> build and archive only
+ *   others  -> build only
  */
 def shouldPushProducts(String branchName) {
     return branchName == 'master' || branchName == 'develop'
@@ -284,130 +239,8 @@ def productsFolderName(String branchName) {
 }
 
 /**
- * Stage the complete Conveyor site at the branch root and add one Windows
- * download bundle containing only the files needed for Windows installation.
- */
-def prepareProductsUpload(String destination) {
-    withEnv([
-        "PRODUCTS_DESTINATION=${destination}"
-    ]) {
-        sh '''
-            set -eu
-
-            staging_root="${WORKSPACE}/minio/${PRODUCTS_DESTINATION}"
-            windows_bundle="klab-ide-windows-${PRODUCTS_DESTINATION}.zip"
-            windows_bundle_tmp="${WORKSPACE}/${windows_bundle}"
-            windows_file_list="${WORKSPACE}/windows-bundle-files.txt"
-
-            rm -rf "${staging_root}"
-            mkdir -p "${staging_root}"
-
-            # Keep the complete Conveyor site unchanged at the branch root.
-            # Installer/update metadata references files relative to this root.
-            cp -a output/. "${staging_root}/"
-
-            # Validate the files required by the self-signed Windows installer.
-            for required_pattern in \
-                'install.ps1' \
-                '*.appinstaller' \
-                '*.crt' \
-                '*.exe' \
-                '*.msix'; do
-                if [ -z "$(find "${staging_root}" \
-                    -maxdepth 1 \
-                    -type f \
-                    -name "${required_pattern}" \
-                    -print -quit)" ]; then
-                    echo "Missing required Windows file: ${required_pattern}"
-                    exit 1
-                fi
-            done
-
-            cat > "${staging_root}/README-WINDOWS.txt" <<'EOF'
-k.LAB IDE Windows installation
-==============================
-
-This package is signed with a development/self-signed certificate.
-
-Installation:
-
-1. Extract every file from this ZIP into the same directory.
-2. Open PowerShell as Administrator.
-3. Change to the extracted directory.
-4. Run:
-
-   Set-ExecutionPolicy -Scope Process Bypass -Force
-   .\\install.ps1
-
-Do not install only the MSIX unless the certificate has already been trusted.
-EOF
-
-            # Build an explicit file list so the ZIP contains only the Windows
-            # installation set, not Linux/macOS packages or site metadata.
-            rm -f \
-                "${windows_bundle_tmp}" \
-                "${windows_file_list}"
-
-            printf '%s\\n' \
-                'README-WINDOWS.txt' \
-                'install.ps1' \
-                > "${windows_file_list}"
-
-            for required_pattern in \
-                '*.appinstaller' \
-                '*.crt' \
-                '*.exe' \
-                '*.msix'; do
-                find "${staging_root}" \
-                    -maxdepth 1 \
-                    -type f \
-                    -name "${required_pattern}" \
-                    -printf '%f\\n' \
-                    >> "${windows_file_list}"
-                done
-
-            sort -u \
-                "${windows_file_list}" \
-                -o "${windows_file_list}"
-
-            echo "Windows bundle contents:"
-            cat "${windows_file_list}"
-
-            (
-                cd "${staging_root}"
-                zip -9 "${windows_bundle_tmp}" -@ < "${windows_file_list}"
-            )
-
-            mv -v \
-                "${windows_bundle_tmp}" \
-                "${staging_root}/${windows_bundle}"
-
-            # Confirm that the generated installer metadata uses the public
-            # branch-root URL rather than an obsolete host or /site subfolder.
-            if ! grep -Fq \
-                "${CONVEYOR_SITE_BASE_URL}" \
-                "${staging_root}/install.ps1"; then
-                echo "install.ps1 does not reference ${CONVEYOR_SITE_BASE_URL}"
-                exit 1
-            fi
-
-            for appinstaller in "${staging_root}"/*.appinstaller; do
-                if ! grep -Fq \
-                    "${CONVEYOR_SITE_BASE_URL}" \
-                    "${appinstaller}"; then
-                    echo "${appinstaller} does not reference ${CONVEYOR_SITE_BASE_URL}"
-                exit 1
-            fi
-            done
-
-            echo "Products prepared at the branch root:"
-            find "${staging_root}" -type f -print | sort
-        '''
-    }
-}
-
-/**
- * Replace the branch directory in MinIO, then upload win/linux/mac.
+ * Uploads the complete Conveyor-generated site without moving, sorting,
+ * renaming, repackaging, or compressing any files.
  */
 def uploadProducts(String destination) {
     withEnv([
@@ -416,32 +249,37 @@ def uploadProducts(String destination) {
         sh '''
             set -eu
 
-            staging_directory="${WORKSPACE}/minio/${PRODUCTS_DESTINATION}"
+            source_directory="${WORKSPACE}/output"
             remote_directory="${MINIO_PRODUCTS_PATH}/${PRODUCTS_DESTINATION}"
 
-            echo "Removing previous products from ${remote_directory}"
+            if [ ! -f "${source_directory}/download.html" ]; then
+                echo "ERROR: ${source_directory}/download.html does not exist."
+                    exit 1
+                fi
+
+            echo "Replacing the existing site at:"
+            echo "${remote_directory}"
+
             mc rm \
                 --recursive \
                 --force \
                 "${remote_directory}" \
                 || echo "${remote_directory} does not exist"
 
-            echo "Uploading products from:"
-            echo "${staging_directory}"
+            echo "Uploading Conveyor output directly from:"
+            echo "${source_directory}"
 
-            echo "Uploading products to:"
-            echo "${MINIO_PRODUCTS_PATH}/"
+            echo "Uploading Conveyor output directly to:"
+            echo "${remote_directory}"
 
-            # Copy the directory, rather than only its contents. This creates:
-            # minio/products/klab-ide/latest
-            # minio/products/klab-ide/develop
+            # mc mirror copies the contents of output/ directly into the
+            # branch directory. No local file movement or compression occurs.
+            mc mirror \
+                --overwrite \
+                "${source_directory}/" \
+                "${remote_directory}/"
 
-            mc cp \
-                --recursive \
-                "${staging_directory}" \
-                "${MINIO_PRODUCTS_PATH}/"
-
-            echo "Products uploaded successfully."
+            echo "Conveyor site uploaded successfully."
 
             echo "Uploaded files:"
             mc ls \
