@@ -57,6 +57,25 @@ class DigitalTwinEventRouterTest {
     assertEquals(0, router.size());
   }
 
+  @Test
+  void removalDuringDispatchPreventsStaleDeliveryFromSnapshot() {
+    var router = new DigitalTwinEventRouter();
+    var removedViewer = new RecordingViewer();
+    var removingViewer =
+        new RecordingViewer() {
+          @Override
+          public void knowledgeGraphModified() {
+            router.remove(removedViewer);
+          }
+        };
+    router.add(removingViewer);
+    router.add(removedViewer);
+
+    router.dispatch(DigitalTwinViewer::knowledgeGraphModified);
+
+    assertEquals(0, removedViewer.graphChanges.get());
+  }
+
   private static class RecordingViewer implements DigitalTwinViewer {
 
     private final AtomicInteger graphChanges = new AtomicInteger();

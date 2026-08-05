@@ -29,6 +29,7 @@ import org.kordamp.ikonli.material2.Material2AL;
 public class ObservationTree extends KlabTreeTableView<RuntimeAsset> {
 
   private ClientKnowledgeGraph clientKnowledgeGraph;
+  private IDEContextScope scope;
   private final Map<Long, HBox> descriptions = new HashMap<>();
   TreeTableColumn<RuntimeAsset, HBox> descriptionColumn;
 
@@ -52,10 +53,10 @@ public class ObservationTree extends KlabTreeTableView<RuntimeAsset> {
 
   private HBox observationDescription(RuntimeAsset observation) {
 
-    var scope = KlabIDEController.instance().getFocalScope();
     RuntimeAsset current = null;
-    if (scope != null) {
-      current = scope.getContextObservation();
+    var treeScope = this.scope;
+    if (treeScope != null) {
+      current = treeScope.getContextObservation();
     }
 
     var color =
@@ -139,17 +140,17 @@ public class ObservationTree extends KlabTreeTableView<RuntimeAsset> {
     if (observation instanceof Observation obs
         && obs.getObservable().is(SemanticType.SUBJECT)
         && !obs.getObservable().getSemantics().isCollective()) {
-      var scope = KlabIDEController.instance().getFocalScope();
-      if (scope != null) {
-        var current = scope.getContextObservation();
+      var treeScope = this.scope;
+      if (treeScope != null) {
+        var current = treeScope.getContextObservation();
         if (current != null) {
           if (current.getId() == obs.getId()) {
-            scope.within(null);
+            treeScope.within(null);
             updateContextIcon(current, false);
             return true;
           }
         }
-        scope.within(obs);
+        treeScope.within(obs);
         if (current != null) {
           updateContextIcon(current, false);
         }
@@ -179,6 +180,7 @@ public class ObservationTree extends KlabTreeTableView<RuntimeAsset> {
   }
 
   public void update(RuntimeAsset rootAsset, RuntimeAsset focalAsset, IDEContextScope scope) {
+    this.scope = scope;
     var root = TreeModel.createTree(rootAsset, focalAsset, scope);
     descriptions.clear();
     setRoot(root.getFirst());
@@ -188,6 +190,7 @@ public class ObservationTree extends KlabTreeTableView<RuntimeAsset> {
   }
 
   public void reset() {
+    scope = null;
     descriptions.clear();
     setRoot(new TreeItem<>());
   }

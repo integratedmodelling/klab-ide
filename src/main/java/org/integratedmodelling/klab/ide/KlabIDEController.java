@@ -252,7 +252,11 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
       Platform.runLater(() -> setFocalScope(focalScope, isLocal));
       return;
     }
-    if (focalScope == null && this.focalScope != null) {
+    var canonicalScope =
+        focalScope == null
+            ? null
+            : contextMap.computeIfAbsent(focalScope.getId(), id -> focalScope);
+    if (canonicalScope == null && this.focalScope != null) {
       digitalTwinView.deselectDigitalTwin(this.focalScope);
       synchronized (this.digitalTwinReactors) {
         for (var reactor : this.digitalTwinReactors) {
@@ -260,10 +264,10 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         }
       }
     }
-    this.focalScope = focalScope;
+    this.focalScope = canonicalScope;
     synchronized (this.digitalTwinReactors) {
       for (var reactor : this.digitalTwinReactors) {
-        reactor.setDigitalTwin(focalScope, focalScope != null);
+        reactor.setDigitalTwin(canonicalScope, canonicalScope != null);
       }
     }
     updateDigitalTwinChoices();
@@ -424,7 +428,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     }
     IDEContextScope ret = null;
     if (scope instanceof IDEContextScope ideContextScope) {
-      ret = ideContextScope;
+      // Keep one UI event boundary per digital-twin id. An IDE scope can arrive here from a
+      // drag/drop path or from an already-open editor before it has been entered in contextMap.
+      ret = contextMap.computeIfAbsent(scope.getId(), id -> ideContextScope);
     } else if (scope instanceof ClientContextScope clientContextScope) {
       ret =
           contextMap.computeIfAbsent(scope.getId(), id -> new IDEContextScope(clientContextScope));
