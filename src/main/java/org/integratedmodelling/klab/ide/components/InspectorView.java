@@ -557,11 +557,11 @@ public class InspectorView extends BorderPane {
     }
 
     private static boolean sameValue(Object first, Object second) {
-      if (first instanceof RuntimeAsset firstAsset
-          && second instanceof RuntimeAsset secondAsset) {
-        return firstAsset.classify() == secondAsset.classify()
-            && firstAsset.getId() == secondAsset.getId();
-      }
+//      if (first instanceof RuntimeAsset firstAsset
+//          && second instanceof RuntimeAsset secondAsset) {
+//        return firstAsset.classify() == secondAsset.classify()
+//            && firstAsset.getId() == secondAsset.getId();
+//      }
       return Objects.equals(first, second);
     }
 
