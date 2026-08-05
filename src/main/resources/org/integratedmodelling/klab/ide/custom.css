@@ -737,3 +737,13 @@
     -fx-border-radius: 4px;
 }
 
+.documentation-card {
+    -fx-background-color: -color-neutral-subtle;
+    -fx-border-width: 1 0 1 0;
+    /*-fx-background-radius: 8;*/
+    -fx-border-color: -color-border-default;
+    /*-fx-border-radius: 8;*/
+    /*-fx-border-width: 1;*/
+    -fx-padding: 10;
+    /*-fx-effect: dropshadow(gaussian, rgba(27, 31, 36, 0.08), 10, 0.16, 0, 2);*/
+}

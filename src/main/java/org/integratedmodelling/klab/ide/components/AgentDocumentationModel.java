@@ -22,9 +22,7 @@ public final class AgentDocumentationModel {
     if (object == null || query == null || query.isBlank()) {
       return false;
     }
-    return searchableText(object)
-        .toLowerCase(Locale.ROOT)
-        .contains(query.toLowerCase(Locale.ROOT));
+    return searchableText(object).toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT));
   }
 
   static DomainObject documentationNode(DomainObject verb) {
@@ -77,8 +75,8 @@ public final class AgentDocumentationModel {
             SINCE,
             "1.0",
             MARKDOWN,
-            "## observe\n\nSubmits an observable to the current context.\n\n"
-                + "### Parameters\n\n- `observable`: observable URN or declaration\n"
+            "## observe\nSubmits an observable to the current context.\n\n"
+                + "### Parameters\n- `observable`: observable URN or declaration\n"
                 + "- `within`: optional geometry\n\n### Returns\n\nThe resolved observation.");
     var emit =
         DomainObject.create(
@@ -139,7 +137,7 @@ public final class AgentDocumentationModel {
             SINCE,
             "1.0",
             MARKDOWN,
-            "## log\n\nWrites a message using the requested severity.\n\n"
+            "## log\nWrites a message using the requested severity.\n"
                 + "Supported levels are `debug`, `info`, `warning`, and `error`.");
     var systemAgent =
         DomainObject.create(
@@ -168,5 +166,9 @@ public final class AgentDocumentationModel {
         "Documentation advertised by connected services",
         runtimeAgent,
         systemAgent);
+  }
+
+  public static void main(String[] args) {
+    System.out.println(mockDocumentation());
   }
 }
