@@ -28,6 +28,11 @@ final class DigitalTwinEventRouter {
 
   void dispatch(Consumer<DigitalTwinViewer> notification) {
     for (var viewer : viewers) {
+      // A scope switch can remove a viewer while a CopyOnWriteArraySet snapshot is being walked.
+      // Do not deliver the old scope's event after that viewer has rebound to another scope.
+      if (!viewers.contains(viewer)) {
+        continue;
+      }
       try {
         notification.accept(viewer);
       } catch (RuntimeException e) {

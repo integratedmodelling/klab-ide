@@ -35,6 +35,7 @@ import javafx.scene.control.Tooltip;
 import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
+import javafx.scene.control.SplitPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -108,6 +109,9 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   private NavigableKActorsBehavior behavior;
   private IDEContextScope contextScope;
   private TreeView<Object> treeView;
+  private SplitPane browsingSplitPane;
+  private AgentDocumentationView agentDocumentationView;
+  private IconButton agentDocumentationToggle;
   private MonacoEditorView monacoEditor;
   private MonacoEditorView javaCodeEditor;
   private Tab javaCodeTab;
@@ -1135,6 +1139,38 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     return treeView;
   }
 
+  @Override
+  protected Node createTopMenu() {
+    agentDocumentationToggle =
+        IconButton.toggle(
+                Material2AL.DESCRIPTION,
+                16,
+                "-color-accent-fg",
+                "-color-fg-muted",
+                this::toggleAgentDocumentation)
+            .tooltip("Show agent and verb documentation");
+    var toolbar = new HBox(agentDocumentationToggle);
+    toolbar.setAlignment(Pos.CENTER_RIGHT);
+    toolbar.setPadding(new Insets(3, 6, 3, 6));
+    toolbar.getStyleClass().add(Styles.DENSE);
+    return toolbar;
+  }
+
+  private Boolean toggleAgentDocumentation() {
+    if (browsingSplitPane == null || agentDocumentationView == null) {
+      return false;
+    }
+    if (agentDocumentationToggle.isToggled()) {
+      if (!browsingSplitPane.getItems().contains(agentDocumentationView)) {
+        browsingSplitPane.getItems().add(agentDocumentationView);
+        browsingSplitPane.setDividerPositions(0.58);
+      }
+    } else {
+      browsingSplitPane.getItems().remove(agentDocumentationView);
+    }
+    return true;
+  }
+
   private TreeItem<Object> createTreeRoot() {
     var root = new TreeItem<Object>();
     if (behavior != null) {
@@ -1428,7 +1464,13 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     var separator = new Separator();
     separator.visibleProperty().bind(debuggerView.visibleProperty());
     separator.managedProperty().bind(debuggerView.managedProperty());
-    return new VBox(tree, separator, debuggerView);
+    var behaviorBrowser = new VBox(tree, separator, debuggerView);
+    agentDocumentationView = new AgentDocumentationView();
+    agentDocumentationView.setMinHeight(120);
+    agentDocumentationView.setPrefHeight(280);
+    browsingSplitPane = new SplitPane(behaviorBrowser);
+    browsingSplitPane.setOrientation(Orientation.VERTICAL);
+    return browsingSplitPane;
   }
 
   private final class BehaviorTreeCell extends TreeCell<Object> {

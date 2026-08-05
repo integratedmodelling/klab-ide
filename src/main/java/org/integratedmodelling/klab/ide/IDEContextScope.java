@@ -69,8 +69,8 @@ public class IDEContextScope implements ContextScope {
   private int graphDepth = 2;
   private final List<Pair<KnowledgeGraph.Commit, Observation>> commits =
       Collections.synchronizedList(new ArrayList<>());
-  private final Map<Long, Long> recentlyFinishedObservations = new HashMap<>();
-  private static final long DUPLICATE_FINISH_WINDOW_NANOS = 1_000_000_000L;
+  private final SubmissionCompletionTracker submissionCompletions =
+      new SubmissionCompletionTracker();
 
   public IDEContextScope(ClientContextScope delegate) {
     this.delegate = Objects.requireNonNull(delegate);
@@ -137,7 +137,7 @@ public class IDEContextScope implements ContextScope {
   }
 
   public void notifySubmissionFinished(Observation observation) {
-    executeEvent(() -> processSubmissionFinished(observation));
+    executeEvent(() -> processSubmissionFinished(observation, false));
   }
 
   public void notifyContextChanged(Observation observation) {
@@ -179,7 +179,7 @@ public class IDEContextScope implements ContextScope {
           notifyViewers(
               viewer -> viewer.submissionAborted(message.getPayload(Observation.class)));
       case ObservationSubmissionFinished ->
-          processSubmissionFinished(message.getPayload(Observation.class));
+          processSubmissionFinished(message.getPayload(Observation.class), true);
       case ContextObservationResolved ->
           notifyViewers(viewer -> viewer.setContext(message.getPayload(Observation.class)));
       case ObserverResolved ->
@@ -226,21 +226,20 @@ public class IDEContextScope implements ContextScope {
     }
   }
 
-  private void processSubmissionFinished(Observation observation) {
+  private void processSubmissionFinished(Observation observation, boolean knowledgeGraphCurrent) {
     if (!isKnowledgeGraphAsset(observation) || observation.isEmpty()) {
       notifyViewers(viewer -> viewer.submissionAborted(observation));
       return;
     }
-    if (observation.getId() >= 0) {
-      var now = System.nanoTime();
-      var previous = recentlyFinishedObservations.put(observation.getId(), now);
-      recentlyFinishedObservations
-          .entrySet()
-          .removeIf(
-              entry -> now - entry.getValue() > DUPLICATE_FINISH_WINDOW_NANOS);
-      if (previous != null && now - previous <= DUPLICATE_FINISH_WINDOW_NANOS) {
-        return;
-      }
+    var completion = submissionCompletions.record(observation.getId(), knowledgeGraphCurrent);
+    if (completion == SubmissionCompletionTracker.Decision.REFRESH_ONLY) {
+      // The modeler callback may precede ingestion by ClientKnowledgeGraph. The graph-backed
+      // duplicate is therefore not redundant: it is the first point at which viewers are
+      // guaranteed to rebuild against the committed graph.
+      notifyViewers(DigitalTwinViewer::knowledgeGraphModified);
+      return;
+    } else if (completion == SubmissionCompletionTracker.Decision.IGNORE) {
+      return;
     }
     var root =
         observation.getMetadata().containsKey(Metadata.IM_COMMIT)

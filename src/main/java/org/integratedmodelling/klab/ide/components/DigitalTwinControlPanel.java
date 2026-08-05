@@ -60,7 +60,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   @Deprecated
   // FIXME don't copy, carry over from the modeler
-  private IDEContextScope scope;
+  private volatile IDEContextScope scope;
 
   public enum Status {
     IDLE,
@@ -256,13 +256,27 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     this.scope = scope;
     if (scope != null) {
       scope.addViewer(this);
-      observationTree.update(scope.getFocalRoot(), scope.getFocalAsset(), scope);
-      observerTree.update(scope.getObserver());
-      if (!scope.getActivityGraph().vertexSet().isEmpty()) {
-        activityTree.update(scope);
-      }
+      runOnFxThread(
+          () -> {
+            if (this.scope != scope) return;
+            observationTree.update(scope.getFocalRoot(), scope.getFocalAsset(), scope);
+            observerTree.update(scope.getObserver());
+            if (!scope.getActivityGraph().vertexSet().isEmpty()) {
+              activityTree.update(scope);
+            }
+            setMainView();
+          });
+    } else {
+      runOnFxThread(this::setMainView);
     }
-    Platform.runLater(this::setMainView);
+  }
+
+  private static void runOnFxThread(Runnable action) {
+    if (Platform.isFxApplicationThread()) {
+      action.run();
+    } else {
+      Platform.runLater(action);
+    }
   }
 
   public void setStatus(Status status) {
@@ -401,6 +415,16 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   @Override
   public void setDigitalTwin(IDEContextScope scope, boolean focus) {
+    if (!Platform.isFxApplicationThread()) {
+      Platform.runLater(() -> setDigitalTwin(scope, focus));
+      return;
+    }
+    if (this.scope == scope) {
+      if (scope != null) {
+        observationTree.update(scope.getFocalRoot(), scope.getFocalAsset(), scope);
+      }
+      return;
+    }
     close();
     loadScope(scope);
   }
@@ -408,11 +432,11 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   @Override
   public void close() {
     var previousScope = this.scope;
-    reset(null);
     this.scope = null;
     if (previousScope != null) {
       previousScope.removeViewer(this);
     }
+    reset(null);
   }
 
   @Override
@@ -451,19 +475,22 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   @Override
   public void submissionFinished(Observation observation) {
+    var eventScope = scope;
+    if (eventScope == null) return;
     var root =
         observation.getMetadata().containsKey(Metadata.IM_COMMIT)
             ? observation.getMetadata().get(Metadata.IM_COMMIT, KnowledgeGraph.Commit.class)
             : RuntimeAsset.CONTEXT_ASSET;
     Platform.runLater(
         () -> {
+          if (scope != eventScope) return;
           status = Status.IDLE;
           homeButton.setManaged(true);
           homeButton.setVisible(true);
           progressIndicator.setManaged(false);
           progressIndicator.setVisible(false);
           progressIndicator.setProgress(0);
-          observationTree.update(root, observation, scope);
+          observationTree.update(root, observation, eventScope);
           setView(View.OBSERVATIONS);
         });
   }
@@ -473,8 +500,10 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   }
 
   private void reset(IDEContextScope scopeToReset) {
-    Platform.runLater(
+    runOnFxThread(
         () -> {
+          if (scopeToReset != null && scope != scopeToReset) return;
+          if (scopeToReset == null && scope != null) return;
           if (scopeToReset == null) {
             observationTree.reset();
             activityTree.reset();
@@ -493,8 +522,11 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   @Override
   public void setContext(Observation observation) {
-    Platform.runLater(
+    var eventScope = scope;
+    if (eventScope == null) return;
+    runOnFxThread(
         () -> {
+          if (scope != eventScope) return;
           homeButton.setGraphic(
               observation == null
                   ? new IconLabel(Material2AL.HOME, 16, Color.BLACK)
@@ -519,8 +551,11 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   @Override
   public void setObserver(Observation observation) {
-    Platform.runLater(
+    var eventScope = scope;
+    if (eventScope == null) return;
+    runOnFxThread(
         () -> {
+          if (scope != eventScope) return;
           observerTree.update(observation);
           setView(View.OBSERVERS);
         });
@@ -531,9 +566,12 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     var currentScope = scope;
     if (currentScope != null) {
       Platform.runLater(
-          () ->
+          () -> {
+            if (scope == currentScope) {
               observationTree.update(
-                  currentScope.getFocalRoot(), currentScope.getFocalAsset(), currentScope));
+                  currentScope.getFocalRoot(), currentScope.getFocalAsset(), currentScope);
+            }
+          });
     }
   }
 
@@ -541,7 +579,12 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   public void activitiesModified() {
     var currentScope = scope;
     if (currentScope != null) {
-      activityTree.update(currentScope);
+      runOnFxThread(
+          () -> {
+            if (scope == currentScope) {
+              activityTree.update(currentScope);
+            }
+          });
     }
   }
 
