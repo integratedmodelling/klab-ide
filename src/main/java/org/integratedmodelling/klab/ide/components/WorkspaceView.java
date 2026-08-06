@@ -15,6 +15,7 @@ import javafx.scene.layout.VBox;
 import org.integratedmodelling.klab.api.authentication.CRUDOperation;
 import org.integratedmodelling.klab.api.data.Metadata;
 import org.integratedmodelling.klab.api.engine.Engine;
+import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.services.ResourcesService;
 import org.integratedmodelling.klab.api.services.resources.ResourceInfo;
 import org.integratedmodelling.klab.api.services.resources.ResourceSet;
@@ -98,7 +99,12 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
         if (openEditors.containsKey(workspace)) {
           continue;
         }
-        ret.add(rService.resourceInfo(workspace, KlabIDEController.instance().user()));
+        ret.add(
+            rService.info(
+                workspace,
+                KlabAsset.KnowledgeClass.WORKSPACE,
+                ResourceInfo.class,
+                KlabIDEController.instance().user()));
       }
     }
     return ret;
@@ -197,12 +203,22 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
   }
 
   private void createWorkspace(String workspaceName, String description, ResourcesService service) {
-    if (!service.createWorkspace(
-        workspaceName,
-        Metadata.create(Metadata.DC_COMMENT, description),
-        KlabIDEController.instance().user())) {
+
+    // TODO must create an empty workspace with the metadata, then use submit
+    if (true /*!service.submit(
+            workspaceName,
+            Metadata.create(Metadata.DC_COMMENT, description),
+            KlabIDEController.instance().user())*/) {
       KlabIDEController.instance().alert(Notification.error("Workspace creation failed"));
+      return;
     }
+
+    raiseWorkspace(
+        service.info(
+            workspaceName,
+            KlabAsset.KnowledgeClass.WORKSPACE,
+            ResourceInfo.class,
+            KlabIDEController.instance().user()));
   }
 
   private void raiseWorkspace(ResourceInfo resourceInfo) {

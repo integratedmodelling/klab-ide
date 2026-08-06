@@ -113,11 +113,15 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
                         if (isCancelled()) {
                           break;
                         }
-                        results.addAll(
-                            service.queryResources(
-                                newValue,
-                                KlabIDEController.instance().user(),
-                                KlabAsset.KnowledgeClass.RESOURCE));
+                        throw new UnsupportedOperationException(
+                            "Resource query must be reimplemented");
+                        /*
+                                                results.addAll(
+                                                    service.queryResources(
+                                                        newValue,
+                                                        KlabIDEController.instance().user(),
+                                                        KlabAsset.KnowledgeClass.RESOURCE));
+                        */
                       }
 
                       return results;

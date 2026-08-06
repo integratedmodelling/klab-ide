@@ -740,7 +740,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     var user = KlabIDEController.instance().user();
     var root = new TreeItem<Object>();
     for (var workspaceName : service.capabilities(user).getWorkspaceNames()) {
-      var workspace = service.retrieveWorkspace(workspaceName, user);
+      var workspace = service.retrieve(workspaceName, Workspace.class, user);
       if (workspace == null) {
         continue;
       }
@@ -1066,7 +1066,10 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
           KlabIDEController.instance()
               .user()
               .getService(ResourcesService.class)
-              .readBehavior(file.toUri().toURL(), KlabIDEController.instance().user());
+              .parseAsset(
+                  file.toUri().toURL(),
+                  KActorsBehavior.class,
+                  KlabIDEController.instance().user());
 
       this.stale = false;
       if (parsed == null) {
