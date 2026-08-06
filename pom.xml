@@ -14,10 +14,16 @@
         <junit.version>5.10.2</junit.version>
         <xtextVersion>2.36.0</xtextVersion>
         <klab.version>1.0.0-SNAPSHOT</klab.version>
+        <klab.api.version>${klab.version}</klab.api.version>
         <conveyor.target>app</conveyor.target>
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>org.integratedmodelling</groupId>
+            <artifactId>klab.core.api</artifactId>
+            <version>${klab.api.version}</version>
+        </dependency>
         <dependency>
             <groupId>com.dlsc.formsfx</groupId>
             <artifactId>formsfx-core</artifactId>

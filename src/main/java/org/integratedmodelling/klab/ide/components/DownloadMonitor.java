@@ -1,252 +1,264 @@
 package org.integratedmodelling.klab.ide.components;
 
+import atlantafx.base.theme.Styles;
+import java.io.File;
+import java.io.IOException;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
-import javafx.geometry.Pos;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Region;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
-import javafx.scene.paint.Paint;
-import javafx.scene.text.Font;
+import org.apache.commons.io.FileUtils;
 import org.integratedmodelling.common.distribution.Downloader;
+import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.engine.distribution.Distribution;
-import org.integratedmodelling.klab.api.engine.distribution.Stack;
+import org.integratedmodelling.klab.ide.Theme;
 
-import java.io.File;
-import java.net.URL;
-import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+/** Two-level progress display and filesystem actuator for distribution operations. */
+public class DownloadMonitor extends VBox {
 
-public class DownloadMonitor extends Region {
+  private final Label operationLabel = new Label();
+  private final Label overallLabel = new Label();
+  private final ProgressBar overallProgress = new ProgressBar(0);
+  private final Label currentFileLabel = new Label();
+  private final ProgressBar currentFileProgress = new ProgressBar(0);
+  private final Label currentFileDetail = new Label();
+  private final AtomicInteger completedDownloads = new AtomicInteger();
+  private volatile int totalDownloads;
 
-  private final ProgressBar engineProgressBarOverall;
-  private final Label engineProgressLabelTotal;
-  private final ProgressBar engineProgressBarDetail;
-  private final Label engineProgressLabelDetail;
-  private final Label engineCurrentFileLabel;
-  private final Paint originalLabelColor;
-  private final Stack.Tag tag;
+  public DownloadMonitor() {
+    super(5);
+    getStyleClass().add("distribution-progress");
+    setPadding(new Insets(12));
+    setMaxWidth(Double.MAX_VALUE);
+    setStyle(
+        "-fx-background-color: -color-bg-subtle; -fx-background-radius: 8;"
+            + " -fx-border-color: -color-border-default; -fx-border-radius: 8;");
 
-  public DownloadMonitor(Stack.Tag tag) {
-
-    this.tag = tag;
-
-    // Create the main VBox
-    VBox engineDownloadMonitor = new VBox();
-    VBox.setMargin(engineDownloadMonitor, new Insets(6.0, 0, 0, 0));
-
-    // First HBox - Overall progress
-    HBox hbox1 = new HBox();
-    hbox1.setAlignment(Pos.CENTER_LEFT);
-
-    engineProgressBarOverall = new ProgressBar(0.0);
-    engineProgressBarOverall.setMaxHeight(12.0);
-    engineProgressBarOverall.setMinHeight(10.0);
-    engineProgressBarOverall.setPrefHeight(10.0);
-    engineProgressBarOverall.setPrefWidth(172.0);
-    engineProgressBarOverall.setStyle("-fx-text-box-border: #28c41d; -fx-background-insets: 0;");
-
-    engineProgressLabelTotal = new Label("Copying local files");
-    engineProgressLabelTotal.setTextFill(Color.web("#777777"));
-    engineProgressLabelTotal.setFont(Font.font("Open Sans Regular", 10.0));
-    HBox.setMargin(engineProgressLabelTotal, new Insets(0, 0, 0, 3.0));
-
-    hbox1.getChildren().addAll(engineProgressBarOverall, engineProgressLabelTotal);
-
-    // Second HBox - Detail progress
-    HBox hbox2 = new HBox();
-    hbox2.setAlignment(Pos.CENTER_LEFT);
-
-    engineProgressBarDetail = new ProgressBar(0.0);
-    engineProgressBarDetail.setMaxHeight(8.0);
-    engineProgressBarDetail.setMinHeight(6.0);
-    engineProgressBarDetail.setPrefHeight(6.0);
-    engineProgressBarDetail.setPrefWidth(172.0);
-    engineProgressBarDetail.setStyle("-fx-text-box-border: #28c41d; -fx-background-insets: 0;");
-
-    engineProgressLabelDetail = new Label("please wait...");
-    engineProgressLabelDetail.setTextFill(Color.web("#777777"));
-    engineProgressLabelDetail.setFont(Font.font("Open Sans Regular", 10.0));
-    HBox.setMargin(engineProgressLabelDetail, new Insets(0, 0, 0, 3.0));
-
-    hbox2.getChildren().addAll(engineProgressBarDetail, engineProgressLabelDetail);
-
-    // Current file label
-    engineCurrentFileLabel = new Label("Preparing incremental download..");
-    engineCurrentFileLabel.setTextFill(Color.web("#777777"));
-    engineCurrentFileLabel.setFont(Font.font("Open Sans Regular", 10.0));
-
-    originalLabelColor = engineCurrentFileLabel.getTextFill();
-
-    // Add all to main VBox
-    engineDownloadMonitor.getChildren().addAll(hbox1, hbox2, engineCurrentFileLabel);
-
-    // Add the VBox to this Region
-    getChildren().add(engineDownloadMonitor);
+    operationLabel.getStyleClass().addAll(Styles.TEXT_BOLD);
+    overallLabel.getStyleClass().addAll(Styles.TEXT_SMALL, Styles.TEXT_MUTED);
+    currentFileLabel.getStyleClass().addAll(Styles.TEXT_SMALL);
+    currentFileDetail.getStyleClass().addAll(Styles.TEXT_SMALL, Styles.TEXT_MUTED);
+    currentFileLabel.setWrapText(false);
+    currentFileLabel.setTextOverrun(javafx.scene.control.OverrunStyle.CENTER_ELLIPSIS);
+    overallProgress.setMaxWidth(Double.MAX_VALUE);
+    currentFileProgress.setMaxWidth(Double.MAX_VALUE);
+    VBox.setVgrow(overallProgress, Priority.NEVER);
+    getChildren()
+        .addAll(
+            operationLabel,
+            overallLabel,
+            overallProgress,
+            currentFileLabel,
+            currentFileProgress,
+            currentFileDetail);
   }
 
-  void startDownload(String file) {
+  public void prepare(String operation) {
+    completedDownloads.set(0);
+    totalDownloads = 0;
+    update(
+        () -> {
+          operationLabel.setText(operation);
+          operationLabel.setTextFill(Theme.CURRENT_THEME.getDefaultTextColor());
+          overallLabel.setText("Preparing...");
+          overallProgress.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
+          currentFileLabel.setText("Inspecting distribution metadata");
+          currentFileProgress.setProgress(0);
+          currentFileDetail.setText("");
+        });
+  }
 
-    ExecutorService executor = Executors.newFixedThreadPool(2);
-    Future<Boolean> etask =
-        executor.submit(
-            new Callable<>() {
-              @Override
-              public Boolean call() throws Exception {
+  public Distribution.Synchronization synchronization() {
+    return new Distribution.Synchronization() {
+      @Override
+      public boolean isSynchronizing() {
+        return true;
+      }
 
-                var synchronizer =
-                    new Distribution.Synchronization() {
+      @Override
+      public boolean notifyDownload(
+          long totalSize,
+          long downloadSize,
+          Map<Distribution.FileData, Distribution.FileTarget> fullList,
+          Map<Distribution.FileData, Distribution.FileTarget> downloadList) {
+        totalDownloads = downloadList.size();
+        completedDownloads.set(0);
+        update(
+            () -> {
+              overallLabel.setText(
+                  totalDownloads + " files to synchronize / " + fullList.size() + " total files");
+              overallProgress.setProgress(totalDownloads == 0 ? 1 : 0);
+              currentFileLabel.setText(
+                  totalDownloads == 0 ? "Distribution is already synchronized" : "Ready");
+              currentFileProgress.setProgress(0);
+            });
+        return true;
+      }
 
-                      @Override
-                      public boolean isSynchronizing() {
-                        return true;
-                      }
+      @Override
+      public boolean download(URL url, File file, Distribution.FileData fileData) {
+        var ordinal = completedDownloads.get() + 1;
+        update(
+            () -> {
+              currentFileLabel.setText(fileData.name());
+              currentFileDetail.setText("File " + ordinal + " of " + totalDownloads);
+              currentFileProgress.setProgress(0);
+            });
+        try {
+          var downloaded =
+              new Downloader(
+                      url,
+                      file,
+                      (bytes, total) ->
+                          update(
+                              () -> {
+                                currentFileProgress.setProgress(
+                                    total <= 0
+                                        ? ProgressBar.INDETERMINATE_PROGRESS
+                                        : (double) bytes / total);
+                                currentFileDetail.setText(
+                                    formatBytes(bytes)
+                                        + (total > 0 ? " / " + formatBytes(total) : ""));
+                              }),
+                      fileData.hash())
+                  .download();
+          if (downloaded) {
+            var complete = completedDownloads.incrementAndGet();
+            update(
+                () -> {
+                  currentFileProgress.setProgress(1);
+                  overallProgress.setProgress(
+                      totalDownloads == 0 ? 1 : (double) complete / totalDownloads);
+                  overallLabel.setText(complete + " of " + totalDownloads + " files synchronized");
+                });
+          }
+          return downloaded;
+        } catch (RuntimeException e) {
+          return false;
+        }
+      }
 
-                      @Override
-                      public boolean notifyDownload(
-                          long totalSize,
-                          long downloadSize,
-                          Map<Distribution.FileData, Distribution.FileTarget> fullList,
-                          Map<Distribution.FileData, Distribution.FileTarget> downloadList) {
-                        return false;
-                      }
+      @Override
+      public boolean link(File file, File destination) {
+        var parent = destination.getParentFile();
+        if (parent != null) {
+          parent.mkdirs();
+        }
+        return Utils.Files.symlink(file, destination);
+      }
 
-                      @Override
-                      public boolean download(URL url, File file, Distribution.FileData fileData) {
-                        var downloader =
-                            new Downloader(
-                                url,
-                                file,
-                                (bytesSoFar, totalBytes) -> {
-                                  engineProgressBarDetail.setProgress(
-                                      (double) bytesSoFar / (double) totalBytes);
-                                  engineProgressLabelDetail.setText(
-                                      (bytesSoFar / 1024) + "/" + (totalBytes / 1024) + " kB");
-                                });
-                        // TODO initialize progress
-                        var ret = downloader.download();
-                        // TODO finish up
-                        return ret;
-                      }
+      @Override
+      public void delete(File file) {
+        FileUtils.deleteQuietly(file);
+      }
 
-                      @Override
-                      public boolean link(File file, File destination) {
-                        return false;
-                      }
+      @Override
+      public boolean copy(File source, File destination) {
+        try {
+          var parent = destination.getParentFile();
+          if (parent != null) {
+            parent.mkdirs();
+          }
+          Files.copy(source.toPath(), destination.toPath(), StandardCopyOption.REPLACE_EXISTING);
+          return true;
+        } catch (IOException e) {
+          return false;
+        }
+      }
 
-                      @Override
-                      public void delete(File file) {}
+      @Override
+      public void notifyProductSynchronizing(Distribution.Product product) {
+        update(() -> operationLabel.setText("Synchronizing " + product.getType().getName()));
+      }
 
-                      @Override
-                      public boolean copy(File source, File destination) {
-                        return false;
-                      }
+      @Override
+      public void notifyProductSynchronized(Distribution.Product product) {}
+    };
+  }
 
-                      @Override
-                      public void notifyProductSynchronizing(Distribution.Product product) {}
+  public Distribution.Verification verification() {
+    return new Distribution.Verification() {
+      private volatile int totalFiles;
 
-                      @Override
-                      public void notifyProductSynchronized(Distribution.Product product) {}
-                    };
+      @Override
+      public void notifyVerification(int totalFiles) {
+        this.totalFiles = totalFiles;
+        update(
+            () -> {
+              overallLabel.setText("0 of " + totalFiles + " files verified");
+              overallProgress.setProgress(totalFiles == 0 ? 1 : 0);
+            });
+      }
 
-                //                return releaseService
-                //                    .getRelease(rs.chosen)
-                //                    .getDistribution(
-                //                        IProduct.ProductType.CLI,
-                //                        releaseService.getLastLocalRelease(),
-                //                        new SyncListener() {
-                //
-                //                          int total;
-                //                          int sofar = 0;
-                //
-                //                          @Override
-                //                          public void transferFinished(Exception e) {
-                //                            Platform.runLater(
-                //                                () -> {
-                //                                  if (e != null) {
-                //                                    engineCurrentFileLabel.setTextFill(Color.RED);
-                //                                    engineCurrentFileLabel.setText("Error
-                // downloading k.Engine");
-                //                                  } else {
-                //
-                // engineCurrentFileLabel.setTextFill(originalLabelColor);
-                //                                    engineCurrentFileLabel.setText("k.Engine
-                // download complete");
-                //                                    // engine.cleanOldBuilds();
-                //                                  }
-                //                                });
-                //                          }
-                //
-                //                          @Override
-                //                          public void notifyFileProgress(
-                //                              String file, long bytesSoFar, long totalBytes) {
-                //                            Platform.runLater(
-                //                                () -> {
-                //
-                // engineProgressLabelDetail.setTextFill(originalLabelColor);
-                //                                  engineProgressBarDetail.setProgress(
-                //                                      (double) bytesSoFar / (double) totalBytes);
-                //                                  engineProgressLabelDetail.setText(
-                //                                      (bytesSoFar / 1024) + "/" + (totalBytes /
-                // 1024) + " kB");
-                //                                });
-                //                          }
-                //
-                //                          @Override
-                //                          public void notifyDownloadCount(
-                //                              int downloadFilecount, int deleteFileCount) {
-                //                            this.total = downloadFilecount;
-                //                          }
-                //
-                //                          @Override
-                //                          public void beforeDownload(String file) {
-                //
-                // engineCurrentFileLabel.setTextFill(originalLabelColor);
-                //
-                // engineProgressLabelDetail.setTextFill(originalLabelColor);
-                //                            sofar++;
-                //                            Platform.runLater(
-                //                                () -> {
-                //                                  engineProgressBarOverall.setProgress(
-                //                                      (double) sofar / (double) total);
-                //                                  engineProgressLabelTotal.setText("#" + sofar + "
-                // of " + total);
-                //                                  engineCurrentFileLabel.setText(file);
-                //                                });
-                //                          }
-                //
-                //                          @Override
-                //                          public void beforeDelete(File localFile) {}
-                //
-                //                          @Override
-                //                          public void notifyDownloadPreparationStart() {
-                //                            // TODO Auto-generated method stub
-                //
-                //                          }
-                //
-                //                          @Override
-                //                          public void notifyDownloadPreparationEnd() {
-                //                            // TODO Auto-generated method stub
-                //
-                //                          }
-                //
-                //                          @Override
-                //                          public void notifyError(Exception e) {
-                //                            Platform.runLater(
-                //                                () -> {
-                //                                  engineCurrentFileLabel.setTextFill(Color.RED);
-                //                                  engineCurrentFileLabel.setText(e.getMessage());
-                //                                });
-                //                          }
-                //                        })
-                //                    .isComplete();
-                return true;
+      @Override
+      public void notifyFileVerifying(
+          File file, Distribution.FileData fileData, int index) {
+        update(
+            () -> {
+              currentFileLabel.setText(fileData.name());
+              currentFileDetail.setText("Checking file " + index + " of " + totalFiles);
+              currentFileProgress.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
+            });
+      }
+
+      @Override
+      public void notifyFileVerified(
+          File file, Distribution.FileData fileData, int index, boolean valid) {
+        update(
+            () -> {
+              currentFileProgress.setProgress(valid ? 1 : 0);
+              overallProgress.setProgress(totalFiles == 0 ? 1 : (double) index / totalFiles);
+              overallLabel.setText(index + " of " + totalFiles + " files verified");
+              if (!valid) {
+                currentFileDetail.setText("Integrity check failed");
               }
             });
+      }
+    };
+  }
+
+  public void complete(String message) {
+    update(
+        () -> {
+          operationLabel.setText(message);
+          operationLabel.setTextFill(Color.DARKGREEN);
+          overallProgress.setProgress(1);
+          currentFileProgress.setProgress(1);
+        });
+  }
+
+  public void fail(String message) {
+    update(
+        () -> {
+          operationLabel.setText(message);
+          operationLabel.setTextFill(Color.DARKRED);
+          currentFileProgress.setProgress(0);
+        });
+  }
+
+  private static String formatBytes(long bytes) {
+    if (bytes < 1024) {
+      return bytes + " B";
+    }
+    if (bytes < 1024 * 1024) {
+      return String.format("%.1f kB", bytes / 1024.0);
+    }
+    return String.format("%.1f MB", bytes / (1024.0 * 1024.0));
+  }
+
+  private static void update(Runnable runnable) {
+    if (Platform.isFxApplicationThread()) {
+      runnable.run();
+    } else {
+      Platform.runLater(runnable);
+    }
   }
 }
