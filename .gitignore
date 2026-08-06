@@ -41,3 +41,6 @@ build/
 jte-classes/
 /.output.txt
 /dependency-reduced-pom.xml
+
+### Conveyor
+/output/
