@@ -279,6 +279,39 @@ def uploadProducts(String destination) {
                 "${source_directory}/" \
                 "${remote_directory}/"
 
+            echo "Setting image/svg+xml on all SVG objects."
+
+            # Re-upload every SVG recursively with the correct S3
+            # Content-Type metadata.
+            #
+            # The pattern handles:
+            #   .svg
+            #   .SVG
+            #   .Svg
+            #   and other case combinations.
+            (
+                cd "${source_directory}"
+
+                find . \
+                    -type f \
+                    -name '*.[sS][vV][gG]' \
+                    -exec sh -eu -c '
+                        remote_directory=$1
+                        shift
+
+                        for source_path do
+                            object_path=${source_path#./}
+
+                            echo "Setting SVG Content-Type: ${object_path}"
+
+                            mc cp \
+                                --attr "Content-Type=image/svg+xml" \
+                                "${source_path}" \
+                                "${remote_directory}/${object_path}"
+                        done
+                    ' sh "${remote_directory}" {} +
+            )
+
             echo "Conveyor site uploaded successfully."
 
             echo "Uploaded files:"
