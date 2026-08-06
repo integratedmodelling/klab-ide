@@ -5,60 +5,11 @@
    viewBox="0 0 48.683332 48.683332"
    version="1.1"
    id="svg1528"
-   inkscape:version="1.1.1 (1:1.1+202109281949+c3084ef5ed)"
-   sodipodi:docname="controlcenter.svg"
-   inkscape:export-filename="/home/klab/workspaces/klab-workspace/klab-eclipse-2021-06/klab.controlcenter/src/main/deploy/package/images/kdot_96.png"
-   inkscape:export-xdpi="50.09"
-   inkscape:export-ydpi="50.09"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:svg="http://www.w3.org/2000/svg"
-   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-   xmlns:cc="http://creativecommons.org/ns#"
-   xmlns:dc="http://purl.org/dc/elements/1.1/">
-  <defs
-     id="defs1522" />
-  <sodipodi:namedview
-     id="base"
-     pagecolor="#ffffff"
-     bordercolor="#000000"
-     borderopacity="0"
-     inkscape:pageopacity="0.0"
-     inkscape:pageshadow="2"
-     inkscape:zoom="1.4"
-     inkscape:cx="102.5"
-     inkscape:cy="176.07143"
-     inkscape:document-units="px"
-     inkscape:current-layer="layer1"
-     inkscape:document-rotation="0"
-     showgrid="false"
-     fit-margin-top="15"
-     lock-margins="true"
-     fit-margin-left="15"
-     fit-margin-right="15"
-     fit-margin-bottom="15"
-     units="px"
-     inkscape:pagecheckerboard="true"
-     inkscape:window-width="1462"
-     inkscape:window-height="970"
-     inkscape:window-x="458"
-     inkscape:window-y="54"
-     inkscape:window-maximized="0" />
-  <metadata
-     id="metadata1525">
-    <rdf:RDF>
-      <cc:Work
-         rdf:about="">
-        <dc:format>image/svg+xml</dc:format>
-        <dc:type
-           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-      </cc:Work>
-    </rdf:RDF>
+   xmlns="http://www.w3.org/2000/svg">
+  <defs id="defs1522" />
+  <metadata id="metadata1525">
   </metadata>
   <g
-     inkscape:label="Layer 1"
-     inkscape:groupmode="layer"
      id="layer1"
      transform="translate(62.722311,-10.254353)">
     <rect
