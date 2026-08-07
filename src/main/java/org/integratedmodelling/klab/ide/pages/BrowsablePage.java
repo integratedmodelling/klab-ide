@@ -39,6 +39,7 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
 
       setSpacing(10);
       setAlignment(Pos.CENTER);
+      setFillWidth(true);
       setMinSize(width, height);
       setMaxSize(width, height);
       setStyle("-fx-background-color: -color-bg-default;");
@@ -191,22 +192,26 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
     var workspacesLabel = new Label(title);
     workspacesLabel.getStyleClass().add(Styles.TITLE_4);
     workspacesLabel.setAlignment(Pos.CENTER_LEFT);
+    workspacesLabel.setMaxWidth(Double.MAX_VALUE);
     workspacesLabel.setPadding(new Insets(0, 0, 0, 8));
     workspacesLabel.setStyle("-fx-text-fill: -color-fg-subtle;");
     HBox.setHgrow(workspacesLabel, Priority.ALWAYS);
 
-    var buttons = new HBox(2);
+    var buttons = new HBox(0);
     buttons.setAlignment(Pos.CENTER_RIGHT);
     for (var action : actions) {
       var button =
           new Button(
-              "", new IconLabel(action.icon(), 20, Theme.CURRENT_THEME.getDefaultTextColor()));
+              "", new IconLabel(action.icon(), 16, Theme.CURRENT_THEME.getDefaultTextColor()));
       button.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
       button.setOnAction(event -> action.action().run());
       button.setTooltip(new Tooltip(action.tooltip()));
       buttons.getChildren().add(button);
     }
-    return new HBox(workspacesLabel, buttons);
+    var ret = new HBox(workspacesLabel, buttons);
+    ret.setMaxWidth(Double.MAX_VALUE);
+    ret.setPrefWidth(BROWSER_WIDTH);
+    return ret;
   }
 
   public void selectEditor(EditorPage<?, ?> node) {

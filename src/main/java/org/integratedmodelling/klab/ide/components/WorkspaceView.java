@@ -12,6 +12,7 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.klab.api.authentication.CRUDOperation;
 import org.integratedmodelling.klab.api.data.Metadata;
 import org.integratedmodelling.klab.api.engine.Engine;
@@ -120,8 +121,13 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
       components.add(workspaceDialog);
     }
     for (var workspace : getWorkspaceList()) {
-      components.add(
-          new ResourceSmallViewComponent(workspace, this::raiseWorkspace, /* TODO */ null));
+      try {
+        components.add(
+            new ResourceSmallViewComponent(workspace, this::raiseWorkspace, /* TODO */ null));
+      } catch (Throwable e) {
+        // TODO temporary - when services are up to date it should be OK
+        Logging.INSTANCE.error("Error loading workspace: " + workspace);
+      }
     }
     browserComponents.getChildren().addAll(components);
   }
@@ -206,9 +212,9 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
 
     // TODO must create an empty workspace with the metadata, then use submit
     if (true /*!service.submit(
-            workspaceName,
-            Metadata.create(Metadata.DC_COMMENT, description),
-            KlabIDEController.instance().user())*/) {
+             workspaceName,
+             Metadata.create(Metadata.DC_COMMENT, description),
+             KlabIDEController.instance().user())*/) {
       KlabIDEController.instance().alert(Notification.error("Workspace creation failed"));
       return;
     }

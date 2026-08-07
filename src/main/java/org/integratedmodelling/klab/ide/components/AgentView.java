@@ -105,6 +105,7 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
               path, iconFor(recentBehaviorTypes.get(path)), this::openFile, this::forget));
     }
     browser.getChildren().addAll(components);
+    HBox.setHgrow(browser, Priority.ALWAYS);
   }
 
   private FileChooser chooser(String title) {

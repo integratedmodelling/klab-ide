@@ -378,7 +378,7 @@ public class DistributionViewComponent extends BaseAssetViewComponent {
     alert.setHeaderText("Delete " + displayName(tag) + " from this computer?");
     alert.setContentText(
         tag.orphan()
-            ? "The distribution is no longer available for download!"
+            ? "The distribution is no longer available and will be lost."
             : "The distribution can be downloaded again later.");
     if (alert.showAndWait().filter(ButtonType.OK::equals).isPresent()) {
       delete(tag);
