@@ -30,12 +30,12 @@ import javafx.scene.control.MenuItem;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.control.Separator;
+import javafx.scene.control.SplitPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.Tooltip;
 import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
-import javafx.scene.control.SplitPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -49,6 +49,7 @@ import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.actors.Agent;
 import org.integratedmodelling.klab.api.actors.RuntimeAgent;
 import org.integratedmodelling.klab.api.collections.DomainObject;
+import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.SemanticType;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.organization.Project;
@@ -585,7 +586,8 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     var view = new TestCaseResultsView();
     testCaseResults.put(agent.getUrn(), view);
     var key = TEST_RESULTS_EDITOR_KEY_PREFIX + agent.getUrn();
-    var title = agent.getName() == null || agent.getName().isBlank() ? "Test results" : agent.getName();
+    var title =
+        agent.getName() == null || agent.getName().isBlank() ? "Test results" : agent.getName();
     var tab = showAuxiliaryEditor(key, "Tests — " + title, view);
     if (!clientAgent.isMessagingConnected()) {
       var detail =
