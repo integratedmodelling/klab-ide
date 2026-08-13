@@ -7,6 +7,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
+import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Alert;
@@ -14,7 +15,6 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tooltip;
-import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -26,8 +26,10 @@ import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.DownloadMonitor;
+import org.integratedmodelling.klab.ide.components.generic.CarouselBox;
 import org.integratedmodelling.klab.ide.components.generic.IconButton;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
+import org.integratedmodelling.klab.ide.components.generic.WaitButton;
 import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.evaicons.Evaicons;
 import org.kordamp.ikonli.materialdesign.MaterialDesign;
@@ -39,7 +41,7 @@ public class DistributionViewComponent extends BaseAssetViewComponent {
   private final boolean synchronizeOnShow;
   private final Runnable synchronizationFinished;
   private final AtomicBoolean operationRunning = new AtomicBoolean();
-  private final FlowPane cards = new FlowPane(12, 12);
+  private final CarouselBox cards = new CarouselBox(Orientation.HORIZONTAL);
   private final DownloadMonitor progress = new DownloadMonitor();
   private final Runnable stateListener = this::refreshCards;
 
@@ -91,7 +93,7 @@ public class DistributionViewComponent extends BaseAssetViewComponent {
     explanation.getStyleClass().addAll(Styles.TEXT_SMALL, Styles.TEXT_MUTED);
     explanation.setWrapText(true);
 
-    cards.setAlignment(Pos.TOP_LEFT);
+    //    cards.setAlignment(Pos.TOP_LEFT);
     cards.setMaxWidth(Double.MAX_VALUE);
     progress.setVisible(false);
     progress.setManaged(false);
@@ -103,10 +105,11 @@ public class DistributionViewComponent extends BaseAssetViewComponent {
   private void refreshCards() {
     runOnFx(
         () -> {
-          cards.getChildren().clear();
+          cards /*.getChildren()*/.clear();
           var stack = KlabIDEController.instance().engine().getSoftwareStack();
           if (stack == null) {
-            cards.getChildren().add(new Label("Software stack metadata is not available."));
+            cards./*getChildren().*/ addItem(
+                new Label("Software stack metadata is not available."));
             return;
           }
           List<Stack.Tag> tags;
@@ -117,9 +120,10 @@ public class DistributionViewComponent extends BaseAssetViewComponent {
             tags = resolved == null ? List.of() : List.of(resolved);
           }
           if (tags.isEmpty()) {
-            cards.getChildren().add(new Label("No compatible software distributions were found."));
+            cards./*getChildren().*/ addItem(
+                new Label("No compatible software distributions were found."));
           } else {
-            tags.forEach(tag -> cards.getChildren().add(makeCard(tag)));
+            tags.forEach(tag -> cards./*getChildren().*/ addItem(makeCard(tag)));
           }
         });
   }
@@ -131,6 +135,7 @@ public class DistributionViewComponent extends BaseAssetViewComponent {
     var head = tag.version() == Version.HEAD;
     var mutable = controller.canRequestSoftwareStackChange();
     var busy = operationRunning.get();
+    var pending = controller.isSoftwareStackChangePending(tag);
 
     var availabilityDot = new Label();
     availabilityDot.setMinSize(10, 10);
@@ -150,7 +155,12 @@ public class DistributionViewComponent extends BaseAssetViewComponent {
     HBox.setHgrow(titleBox, Priority.ALWAYS);
 
     Node currentControl;
-    if (current) {
+    if (pending) {
+      var switching = new WaitButton("Switching...");
+      switching.getStyleClass().add(Styles.ACCENT);
+      switching.showWaiting();
+      currentControl = switching;
+    } else if (current) {
       var currentLabel = new Label("Current");
       currentLabel.getStyleClass().addAll(Styles.TEXT_SMALL, Styles.TEXT_BOLD, Styles.SUCCESS);
       currentLabel.setGraphic(new IconLabel(Evaicons.CHECKMARK_CIRCLE_2, 14, Color.DARKGREEN));
@@ -159,15 +169,16 @@ public class DistributionViewComponent extends BaseAssetViewComponent {
     } else {
       var makeCurrent = new Button("Make current");
       makeCurrent.getStyleClass().addAll(Styles.SMALL, Styles.ACCENT);
-      makeCurrent.setDisable(head || !tag.availableLocally() || !mutable || busy);
+      makeCurrent.setDisable(
+          !tag.availableLocally() || !mutable || busy || controller.isSoftwareStackChangePending());
       makeCurrent.setTooltip(
           tooltip(
-              head
-                  ? "Source distributions are selected through development settings"
-                  : !tag.availableLocally()
-                      ? "Synchronize the distribution before selecting it"
-                      : !mutable
-                          ? "Stop all local k.LAB and auxiliary services before switching"
+              !tag.availableLocally()
+                  ? "Synchronize the distribution before selecting it"
+                  : !mutable
+                      ? "Stop all local k.LAB and auxiliary services before switching"
+                      : head
+                          ? "Use this source checkout as the current IDE distribution"
                           : controller.canChangeSoftwareStack()
                               ? "Make this the current IDE distribution"
                               : "Make current and restart the language server"));
@@ -211,7 +222,7 @@ public class DistributionViewComponent extends BaseAssetViewComponent {
               Evaicons.DOWNLOAD,
               Color.DARKGREEN,
               "Synchronize",
-              !busy && (!current || mutable),
+              !busy && !tag.availableLocally(),
               () -> synchronize(tag));
       var verify =
           actionButton(
@@ -365,7 +376,10 @@ public class DistributionViewComponent extends BaseAssetViewComponent {
     var alert = new Alert(Alert.AlertType.CONFIRMATION);
     alert.setTitle("Delete software distribution");
     alert.setHeaderText("Delete " + displayName(tag) + " from this computer?");
-    alert.setContentText("The distribution can be downloaded again later.");
+    alert.setContentText(
+        tag.orphan()
+            ? "The distribution is no longer available and will be lost."
+            : "The distribution can be downloaded again later.");
     if (alert.showAndWait().filter(ButtonType.OK::equals).isPresent()) {
       delete(tag);
     }
@@ -428,7 +442,9 @@ public class DistributionViewComponent extends BaseAssetViewComponent {
     if (release == null || release.isBlank() || "master".equalsIgnoreCase(release)) {
       return "Stable release" + (tag.orphan() ? " (orphaned)" : "");
     }
-    return release.substring(0, 1).toUpperCase() + release.substring(1) + " release"
+    return release.substring(0, 1).toUpperCase()
+        + release.substring(1)
+        + " release"
         + (tag.orphan() ? " (orphaned)" : "");
   }
 
@@ -458,7 +474,9 @@ public class DistributionViewComponent extends BaseAssetViewComponent {
   }
 
   private static String safeMessage(Throwable throwable) {
-    return throwable.getMessage() == null ? throwable.getClass().getSimpleName() : throwable.getMessage();
+    return throwable.getMessage() == null
+        ? throwable.getClass().getSimpleName()
+        : throwable.getMessage();
   }
 
   private static void notifySuccess(String message) {

@@ -3,12 +3,9 @@ package org.integratedmodelling.klab.ide.components.generic;
 import atlantafx.base.theme.Styles;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
-import javafx.geometry.Pos;
 import javafx.scene.control.Button;
-import javafx.scene.control.Label;
+import javafx.scene.control.ContentDisplay;
 import javafx.scene.control.ProgressIndicator;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import org.kordamp.ikonli.material2.Material2AL;
@@ -44,8 +41,6 @@ import java.util.function.Supplier;
  */
 public class WaitButton extends Button {
 
-  private final HBox contentPane;
-  private final Label textLabel;
   private final StackPane iconContainer;
   private final ProgressIndicator progressIndicator;
   private final IconLabel arrowIcon;
@@ -70,10 +65,7 @@ public class WaitButton extends Button {
     this.originalText = text;
     this.executorService = Executors.newCachedThreadPool();
 
-    // Create text label
-    this.textLabel = new Label(text);
-    textLabel.setAlignment(Pos.CENTER);
-    HBox.setHgrow(textLabel, Priority.ALWAYS);
+    setText(text);
 
     // Create icons for different states
     this.arrowIcon = new IconLabel(Material2MZ.NAVIGATE_NEXT, size, Color.GRAY);
@@ -94,7 +86,9 @@ public class WaitButton extends Button {
     progressIndicator.setVisible(false);
 
     // Ensure the indicator is always fully visible, even when the button is in a "disabled" state
-    progressIndicator.setStyle("-fx-opacity: 1.0; -fx-background-color: transparent;");
+    progressIndicator.setStyle(
+        "-fx-opacity: 1.0; -fx-background-color: transparent;"
+            + " -fx-progress-color: -color-accent-emphasis;");
 
     // Apply AtlantaFX styling for consistent look and feel
     Styles.addStyleClass(progressIndicator, Styles.ACCENT);
@@ -104,15 +98,14 @@ public class WaitButton extends Button {
 
     // Create a stack pane to hold the icons and progress indicator
     this.iconContainer = new StackPane();
-    iconContainer.getChildren().addAll(arrowIcon, successIcon, errorIcon, progressIndicator);
-
-    // Create content pane to hold both text and icon container
-    this.contentPane = new HBox(5);
-    contentPane.setAlignment(Pos.CENTER);
-    contentPane.getChildren().addAll(textLabel, iconContainer);
+    iconContainer.setMinSize(size + 8, size + 8);
+    iconContainer.setPrefSize(size + 8, size + 8);
+    iconContainer.getChildren().addAll(arrowIcon, successIcon, errorIcon);
 
     // Set up the button
-    setGraphic(contentPane);
+    setGraphic(iconContainer);
+    setContentDisplay(ContentDisplay.RIGHT);
+    setGraphicTextGap(5);
     getStyleClass().add("wait-button");
 
     // Set up the action handler
@@ -136,25 +129,7 @@ public class WaitButton extends Button {
 
   /** Executes the task in a background thread and updates the button UI accordingly. */
   private void executeTask() {
-    // Instead of disabling the entire button (which affects all children),
-    // just disable the click functionality and update the visual state manually
-    setMouseTransparent(true); // Prevents clicks but doesn't change visual styling
-
-    // Hide all icons
-    arrowIcon.setVisible(false);
-    successIcon.setVisible(false);
-    errorIcon.setVisible(false);
-
-    // Show progress indicator with full opacity
-    progressIndicator.setVisible(true);
-    progressIndicator.setProgress(-1); // Indeterminate progress
-
-    // Apply a visual indication that the button is processing
-    setStyle("-fx-opacity: 0.8;");
-    progressIndicator.setStyle("-fx-opacity: 1.0;"); // Ensure indicator remains fully visible
-
-    // Keep the text but make it slightly transparent to indicate processing
-    textLabel.setOpacity(0.7);
+    showWaiting();
 
     Task<Boolean> task =
         new Task<>() {
@@ -196,14 +171,37 @@ public class WaitButton extends Button {
     executorService.submit(task);
   }
 
+  /** Show the indeterminate wait state for work whose lifecycle is managed externally. */
+  public void showWaiting() {
+    // Instead of disabling the entire button (which affects all children),
+    // just disable the click functionality and update the visual state manually
+    setMouseTransparent(true); // Prevents clicks but doesn't change visual styling
+
+    // Hide all icons
+    arrowIcon.setVisible(false);
+    successIcon.setVisible(false);
+    errorIcon.setVisible(false);
+
+    // Show progress indicator with full opacity
+    progressIndicator.setVisible(true);
+    progressIndicator.setManaged(true);
+    progressIndicator.setOpacity(1.0);
+    progressIndicator.setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
+    setGraphic(progressIndicator);
+
+    // Keep the control and spinner fully opaque while preventing further clicks.
+    setOpacity(1.0);
+    progressIndicator.setStyle(
+        "-fx-opacity: 1.0; -fx-progress-color: -color-accent-emphasis;");
+  }
+
   /**
    * Resets the button to its original state and shows the appropriate icon based on task result.
    * The success or failure icon will remain visible until reset() is called.
    */
   private void resetButton() {
     // Restore text and opacity
-    textLabel.setText(originalText);
-    textLabel.setOpacity(1.0);
+    setText(originalText);
 
     // Hide progress indicator
     progressIndicator.setVisible(false);
@@ -213,10 +211,11 @@ public class WaitButton extends Button {
     arrowIcon.setVisible(false);
     successIcon.setVisible(taskSucceeded);
     errorIcon.setVisible(!taskSucceeded);
+    setGraphic(iconContainer);
 
     // Restore button interactivity and styling
     setMouseTransparent(false);
-    setStyle(""); // Remove any custom styling
+    setOpacity(1.0);
     progressIndicator.setStyle("-fx-opacity: 1.0;"); // Keep this style for next use
   }
 
@@ -226,8 +225,7 @@ public class WaitButton extends Button {
    */
   public void reset() {
     // Restore text and opacity
-    textLabel.setText(originalText);
-    textLabel.setOpacity(1.0);
+    setText(originalText);
 
     // Hide progress indicator
     progressIndicator.setVisible(false);
@@ -237,10 +235,11 @@ public class WaitButton extends Button {
     arrowIcon.setVisible(true);
     successIcon.setVisible(false);
     errorIcon.setVisible(false);
+    setGraphic(iconContainer);
 
     // Ensure button is interactive
     setMouseTransparent(false);
-    setStyle(""); // Remove any custom styling
+    setOpacity(1.0);
   }
 
   /**
@@ -249,7 +248,7 @@ public class WaitButton extends Button {
    * @param text The new text for the button
    */
   public void updateText(String text) {
-    textLabel.setText(text);
+    setText(text);
     // Only update the original text if the button is not in processing state
     if (!isMouseTransparent()) {
       this.originalText = text;

@@ -105,6 +105,7 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
               path, iconFor(recentBehaviorTypes.get(path)), this::openFile, this::forget));
     }
     browser.getChildren().addAll(components);
+    HBox.setHgrow(browser, Priority.ALWAYS);
   }
 
   private FileChooser chooser(String title) {
@@ -193,7 +194,10 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
           KlabIDEController.instance()
               .user()
               .getService(ResourcesService.class)
-              .readBehavior(path.toUri().toURL(), KlabIDEController.instance().user());
+              .parseAsset(
+                  path.toUri().toURL(),
+                  KActorsBehavior.class,
+                  KlabIDEController.instance().user());
 
       remember(path, behavior == null ? null : behavior.getBehaviorType());
 

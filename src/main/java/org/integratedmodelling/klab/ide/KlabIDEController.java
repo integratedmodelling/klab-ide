@@ -148,7 +148,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private boolean modalDismissible = true;
   private final List<Runnable> softwareStackStateListeners = new CopyOnWriteArrayList<>();
   private ScheduledExecutorService stackUpdateChecker;
-  private Stack.Tag pendingDistributionTag;
+  private volatile Stack.Tag pendingDistributionTag;
   private final EventHandler<KeyEvent> escHandler =
       event -> {
         if (event.getCode() == KeyCode.ESCAPE && modalDismissible) {
@@ -1622,7 +1622,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     var stack = engine().getSoftwareStack();
     var resolved = stack == null ? null : stack.resolve(tag);
     if (resolved == null
-        || resolved.version() == Version.HEAD
         || !resolved.availableLocally()
         || !canRequestSoftwareStackChange()) {
       Toolkit.getDefaultToolkit().beep();
@@ -1630,14 +1629,27 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     }
     if (!canChangeSoftwareStack()) {
       pendingDistributionTag = resolved;
+      notifySoftwareStackStateListeners();
       if (!engine().stopAuxiliaryServices(KlabService.Type.LANGUAGE_SERVER)) {
         pendingDistributionTag = null;
+        notifySoftwareStackStateListeners();
         Toolkit.getDefaultToolkit().beep();
         return false;
       }
       return true;
     }
     return applyDistributionTag(resolved);
+  }
+
+  public boolean isSoftwareStackChangePending() {
+    return pendingDistributionTag != null;
+  }
+
+  public boolean isSoftwareStackChangePending(Stack.Tag tag) {
+    var stack = engine().getSoftwareStack();
+    return pendingDistributionTag != null
+        && stack != null
+        && Objects.equals(pendingDistributionTag, stack.resolve(tag));
   }
 
   private boolean applyDistributionTag(Stack.Tag resolved) {
@@ -1774,9 +1786,10 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     var tooltip = "No k.LAB distribution is available";
     var startColor = Color.GREEN;
     var startTooltip = "Local services are not available";
+    var startEnabled = false;
     var distributionTag = engine().getSoftwareStack().resolve(engine().getDistributionTag());
     if (distributionTag == null) {
-      setButton(startButton, Material2MZ.POWER_SETTINGS_NEW, 16, Color.GREY, startTooltip);
+      updateInactiveStartButton(false, Color.GREY, startTooltip);
       setButton(downloadButton, icon, 16, Color.RED, tooltip);
       notifySoftwareStackStateListeners();
       return;
@@ -1786,7 +1799,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
       icon = BootstrapIcons.LAPTOP;
       tooltip = "Using locally available source k.LAB distribution";
       startTooltip = "Start local k.LAB services";
-      startButton.setDisable(false);
+      startEnabled = true;
 
     } else {
 
@@ -1801,24 +1814,22 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
       if (status.equals(Stack.Status.ABSENT)) {
         color = Color.RED;
         tooltip = "No distribution available. Click to download";
-        startButton.setDisable(true);
       } else if (updateAvailable && !automaticSynchronization) {
         color = Color.GOLDENROD;
         startColor = Color.GOLDENROD;
         tooltip = "Updated k.LAB distribution available. Click to update";
         startTooltip = "Start out-of-date local services";
-        startButton.setDisable(false);
+        startEnabled = true;
       } else if (distributionTag.availableLocally()) {
         startTooltip = "Start local k.LAB services";
         icon = BootstrapIcons.CHECK;
-        startButton.setDisable(false);
+        startEnabled = true;
       } else {
         color = Color.RED;
         tooltip = "Distribution is not available locally. Click to download";
-        startButton.setDisable(true);
       }
     }
-    setButton(startButton, Material2MZ.POWER_SETTINGS_NEW, 16, startColor, startTooltip);
+    updateInactiveStartButton(startEnabled, startColor, startTooltip);
     setButton(downloadButton, icon, 16, color, tooltip);
 
     if (startConfiguredAuxiliaries
@@ -1836,6 +1847,22 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
       handleNotification(Notification.info("Language server was disabled in settings"));
     }
     notifySoftwareStackStateListeners();
+  }
+
+  /**
+   * Distribution refreshes may describe whether services can be started, but must not overwrite
+   * the authoritative running or transitioning state rendered by {@link #engineStatusChanged}.
+   */
+  private void updateInactiveStartButton(boolean enabled, Color color, String tooltip) {
+    var status = engineStatus.get();
+    if (status != null
+        && (status.getCondition() == Engine.Status.EngineCondition.TRANSITIONING
+            || status.getCondition() == Engine.Status.EngineCondition.ACTIVE_LOCAL_ONLY
+            || status.getCondition() == Engine.Status.EngineCondition.ACTIVE_LOCAL_AND_REMOTE)) {
+      return;
+    }
+    setStartButtonDisabled(!enabled);
+    setButton(startButton, BootstrapIcons.POWER, 16, color, tooltip);
   }
 
   private boolean hasNewerDistribution(Stack stack, Stack.Tag current) {

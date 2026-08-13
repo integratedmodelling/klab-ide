@@ -19,6 +19,7 @@ import org.integratedmodelling.klab.api.data.RepositoryState;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.organization.ProjectStorage;
+import org.integratedmodelling.klab.api.knowledge.organization.Workspace;
 import org.integratedmodelling.klab.api.lang.kim.KlabDocument;
 import org.integratedmodelling.klab.api.lang.kim.KlabStatement;
 import org.integratedmodelling.klab.api.services.ResourcesService;
@@ -58,7 +59,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   public WorkspaceEditor(ResourcesService service, ResourceInfo resourceInfo, WorkspaceView view) {
     super(
         new NavigableWorkspace(
-            service.retrieveWorkspace(resourceInfo.getUrn(), KlabIDEController.instance().user())));
+            service.retrieve(
+                resourceInfo.getUrn(), Workspace.class, KlabIDEController.instance().user())));
     this.service = service;
     this.view = view;
     this.workspace = getEditedAsset();
@@ -525,8 +527,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
             // TODO change the tab title with the asterisk on top
           });
       if (lspAvailable) {
-        var session =
-            new LspDocumentSession(ret, languageId, document.getSourceCode());
+        var session = new LspDocumentSession(ret, languageId, document.getSourceCode());
         lspSessions.put(ret, session);
       }
       return ret;

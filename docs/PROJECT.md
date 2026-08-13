@@ -43,8 +43,9 @@ C:\Users\Ferd\git\klab-ide/
 ├── pom.xml                        (Maven build configuration)
 ├── conveyor.conf                  (Conveyor packaging configuration)
 ├── mvnw, mvnw.cmd                (Maven wrapper scripts)
-├── BUILD.md, BUILD_README.md      (Build documentation)
-└── Other files (NOTES.md, Timeline_Component_Documentation.md, etc.)
+└── docs/                         (Project documentation)
+    ├── BUILD.md, BUILD_README.md  (Build documentation)
+    └── Other documentation files
 ```
 
 ### 2. Build Files Contents
