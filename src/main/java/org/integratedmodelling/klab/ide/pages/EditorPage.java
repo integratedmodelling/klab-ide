@@ -376,6 +376,19 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
     }
   }
 
+  @Override
+  public void unsetDigitalTwin(IDEContextScope focalScope) {
+    setDigitalTwin(null, true);
+    Platform.runLater(
+        () -> {
+          // Keep the panel visible while switching to another twin, but do not leave an
+          // orphaned panel on screen when the closed twin was the last available one.
+          if (KlabIDEController.instance().getFocalScope() == null) {
+            hideDigitalTwinControlPanel();
+          }
+        });
+  }
+
   /**
    * Handle a double click in the browse tree. Note: runs inside the platform UI thread
    *

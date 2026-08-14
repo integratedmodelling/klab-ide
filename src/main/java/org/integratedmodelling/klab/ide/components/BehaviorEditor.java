@@ -49,7 +49,6 @@ import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.actors.Agent;
 import org.integratedmodelling.klab.api.actors.RuntimeAgent;
 import org.integratedmodelling.klab.api.collections.DomainObject;
-import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.SemanticType;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.organization.Project;
@@ -57,6 +56,7 @@ import org.integratedmodelling.klab.api.knowledge.organization.Workspace;
 import org.integratedmodelling.klab.api.lang.KlabLanguage;
 import org.integratedmodelling.klab.api.lang.kactors.KActorsAction;
 import org.integratedmodelling.klab.api.lang.kactors.KActorsBehavior;
+import org.integratedmodelling.klab.api.lang.kactors.impl.KActorsBehaviorImpl;
 import org.integratedmodelling.klab.api.services.KlabService;
 import org.integratedmodelling.klab.api.services.ResourcesService;
 import org.integratedmodelling.klab.api.services.RuntimeService;
@@ -193,13 +193,16 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     String source = readSource();
     String languageId = KlabLanguage.K_ACTORS.languageId();
     String theme = Theme.CURRENT_THEME.isDark() ? "vs-dark" : "vs";
+    var lsp = KlabLspService.getInstance();
+    boolean lspAvailable =
+        lsp.ensureInitialized(
+            KlabIDEController.instance().getLanguageServer(), KlabIDEController.instance().user());
+
     monacoEditor = new MonacoEditorView(documentUri, this::save);
     monacoEditor.runAfterEditorRendered(
         () -> monacoEditor.markNotifications(currentNotifications, false));
     monacoEditor.loadEditor(source, languageId, theme);
-    var lsp = KlabLspService.getInstance();
-    if (lsp.ensureInitialized(
-        KlabIDEController.instance().getLanguageServer(), KlabIDEController.instance().user())) {
+    if (lspAvailable) {
       var session = new LspDocumentSession(monacoEditor, languageId, source);
 
       VBox editor = new VBox(createEditorToolbar(), monacoEditor, createStatusBar());
@@ -815,7 +818,16 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
    * be implemented here.
    */
   private void publishBehavior(ResourcesService service, Project project) {
-    // TODO publish the current behavior to project.getUrn() through service.
+    if (behavior.getDelegate() instanceof KActorsBehaviorImpl behavior1) {
+      // override whatever project we were in, or set it for a new project
+      behavior1.setProjectName(project.getUrn());
+      var results =
+          service.submit(
+              behavior1,
+              ResourcesService.SubmissionMode.CREATE_OR_UPDATE,
+              KlabIDEController.instance().user());
+      KlabIDEController.instance().handleResultSets(results);
+    }
   }
 
   private IconButton icon(
@@ -1069,9 +1081,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
               .user()
               .getService(ResourcesService.class)
               .parseAsset(
-                  file.toUri().toURL(),
-                  KActorsBehavior.class,
-                  KlabIDEController.instance().user());
+                  file.toUri().toURL(), KActorsBehavior.class, KlabIDEController.instance().user());
 
       this.stale = false;
       if (parsed == null) {
@@ -1637,11 +1647,6 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
 
   @Override
   public void closeDigitalTwin(IDEContextScope scope) {
-    if (contextScope == scope) setDigitalTwin(null, true);
-  }
-
-  @Override
-  public void unsetDigitalTwin(IDEContextScope scope) {
     if (contextScope == scope) setDigitalTwin(null, true);
   }
 }

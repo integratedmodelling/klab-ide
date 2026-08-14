@@ -1519,9 +1519,13 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   }
 
   void unregisterDigitalTwin(IDEContextScope ideContextScope) {
-    if (focalScope != null && focalScope.getId().equals(ideContextScope.getId())) {
-      focalScope = null;
-      //      modeler().setCurrentContext(null);
+    var wasFocalScope = focalScope != null && focalScope.getId().equals(ideContextScope.getId());
+
+    // Use the same reset path as the explicit "reset digital twin" action.  Clearing the field
+    // directly leaves the switcher, persistent reactors and the current editor bound to the
+    // closed scope.
+    if (wasFocalScope) {
+      resetCurrentDigitalTwin();
     }
     for (var viewer : digitalTwinReactors) {
       if (viewer.isAffectedBy(ideContextScope)) {
@@ -1529,6 +1533,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
       }
     }
     contextMap.remove(ideContextScope.getId());
+    updateDigitalTwinChoices();
+    handleNotification(
+        Notification.info("Digital twin " + ideContextScope.getName() + " was closed"));
   }
 
   private void routeToDigitalTwin(
@@ -1621,9 +1628,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   public boolean switchDistributionTag(Stack.Tag tag) {
     var stack = engine().getSoftwareStack();
     var resolved = stack == null ? null : stack.resolve(tag);
-    if (resolved == null
-        || !resolved.availableLocally()
-        || !canRequestSoftwareStackChange()) {
+    if (resolved == null || !resolved.availableLocally() || !canRequestSoftwareStackChange()) {
       Toolkit.getDefaultToolkit().beep();
       return false;
     }
@@ -1663,9 +1668,8 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   }
 
   /**
-   * A running language server is not a deadlock for switching: it is stack-bound and can be
-   * stopped and restarted around the change. Primary services, database, and broker remain hard
-   * blockers.
+   * A running language server is not a deadlock for switching: it is stack-bound and can be stopped
+   * and restarted around the change. Primary services, database, and broker remain hard blockers.
    */
   public boolean canRequestSoftwareStackChange() {
     if (canChangeSoftwareStack()) {
@@ -1730,8 +1734,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         || current.orphan()) {
       return false;
     }
-    var component =
-        new DistributionViewComponent(current, true, this::removeModalOverlay);
+    var component = new DistributionViewComponent(current, true, this::removeModalOverlay);
     component.setMaxWidth(760);
     component.setStyle(
         "-fx-background-color: -color-bg-default; -fx-background-radius: 10; -fx-padding: 18;");
@@ -1741,9 +1744,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   private void scheduleSoftwareStackUpdateChecks() {
     var interval =
-        engine()
-            .getSettings()
-            .get(Setting.CHECK_FOR_UPDATES_INTERVAL_MINUTES, Integer.class);
+        engine().getSettings().get(Setting.CHECK_FOR_UPDATES_INTERVAL_MINUTES, Integer.class);
     if (interval == null || interval <= 0 || stackUpdateChecker != null) {
       return;
     }
@@ -1850,8 +1851,8 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   }
 
   /**
-   * Distribution refreshes may describe whether services can be started, but must not overwrite
-   * the authoritative running or transitioning state rendered by {@link #engineStatusChanged}.
+   * Distribution refreshes may describe whether services can be started, but must not overwrite the
+   * authoritative running or transitioning state rendered by {@link #engineStatusChanged}.
    */
   private void updateInactiveStartButton(boolean enabled, Color color, String tooltip) {
     var status = engineStatus.get();
@@ -2024,6 +2025,12 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
       RepositoryState.Operation operation,
       String... arguments) {
     modeler.manageProject(service, projectId, operation, arguments);
+  }
+
+  @Override
+  public boolean handleResultSets(List<ResourceSet> ret) {
+    ret.forEach(set -> handleNotifications(set.getNotifications()));
+    return modeler.handleResultSets(ret);
   }
 
   @Override
