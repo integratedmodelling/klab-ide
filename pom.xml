@@ -352,6 +352,7 @@
                                 <configuration>
                                     <target>
                                         <exec executable="conveyor">
+                                            <arg value="--passphrase=env:SIGNING_PASSPHRASE"/>
                                             <arg value="make"/>
                                             <arg value="${conveyor.target}"/>
                                             <env key="PROJECT_VERSION" value="${project.version}"/>

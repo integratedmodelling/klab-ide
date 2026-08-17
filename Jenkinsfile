@@ -121,6 +121,7 @@ pipeline {
         stage('Build Conveyor site') {
             environment {
                 SIGNING_KEY = credentials('conveyor-signing-key')
+                SIGNING_PASSPHRASE = credentials('conveyor-signing-passphrase')
             }
             steps {
                 sh '''
