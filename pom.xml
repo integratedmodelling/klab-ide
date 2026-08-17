@@ -351,11 +351,10 @@
                                 </goals>
                                 <configuration>
                                     <target>
-                                        <exec executable="conveyor">
+                                        <exec executable="conveyor" failonerror="true">
                                             <arg value="--passphrase=env:SIGNING_PASSPHRASE"/>
                                             <arg value="make"/>
                                             <arg value="${conveyor.target}"/>
-                                            <env key="PROJECT_VERSION" value="${project.version}"/>
                                         </exec>
                                     </target>
                                 </configuration>
