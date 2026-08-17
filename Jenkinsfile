@@ -66,16 +66,23 @@ pipeline {
                     /*
                      * Products are published only from master and develop.
                      */
-                    env.PRODUCTS_GEN =
-                        shouldPushProducts(env.BRANCH_NAME)
+                    env.PRODUCTS_GEN = shouldPushProducts(env.BRANCH_NAME)
+                    def destination = productsFolderName(env.BRANCH_NAME)
+
+                    env.PRODUCTS_DESTINATION = destination
+                    env.CONVEYOR_REVISION = env.BUILD_NUMBER
+                    env.CONVEYOR_BASE_URL = "https://products.integratedmodelling.org/klab-ide/${destination}"
+
 
                     currentBuild.description =
-                        "${env.BRANCH_NAME} @ ${env.SHORT_COMMIT}"
+                        "${env.BRANCH_NAME} @ ${env.SHORT_COMMIT} r${env.CONVEYOR_REVISION}"
 
                     echo(
-                        "${env.BRANCH_NAME} build at " +
-                        "${env.CURRENT_COMMIT}; product generation is " +
-                        "${env.PRODUCTS_GEN}"
+                        "Branch: ${env.BRANCH_NAME}\n" +
+                        "Commit: ${env.CURRENT_COMMIT}\n" +
+                        "Revision: ${env.CONVEYOR_REVISION}\n" +
+                        "Conveyor URL: ${env.CONVEYOR_BASE_URL}\n" +
+                        "Product generation: ${env.PRODUCTS_GEN}"
                     )
                 }
 
@@ -159,7 +166,7 @@ pipeline {
 
             steps {
                 script {
-                    def destination = productsFolderName(env.BRANCH_NAME)
+                    def destination = env.PRODUCTS_DESTINATION
 
                     echo(
                         "Uploading the unchanged Conveyor site to " +
