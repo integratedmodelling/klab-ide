@@ -2,6 +2,7 @@ package org.integratedmodelling.klab.ide.components;
 
 import atlantafx.base.theme.Styles;
 import atlantafx.base.theme.Tweaks;
+import java.io.IOException;
 import java.util.*;
 import javafx.application.Platform;
 import javafx.geometry.Pos;
@@ -20,9 +21,11 @@ import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.organization.ProjectStorage;
 import org.integratedmodelling.klab.api.knowledge.organization.Workspace;
+import org.integratedmodelling.klab.api.lang.kactors.KActorsBehavior;
 import org.integratedmodelling.klab.api.lang.kim.KlabDocument;
 import org.integratedmodelling.klab.api.lang.kim.KlabStatement;
 import org.integratedmodelling.klab.api.services.ResourcesService;
+import org.integratedmodelling.klab.api.services.RuntimeService;
 import org.integratedmodelling.klab.api.services.resources.ResourceInfo;
 import org.integratedmodelling.klab.api.services.resources.ResourceSet;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
@@ -137,10 +140,55 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   private void setupDocumentMenu(ContextMenu contextMenu, KlabDocument<?> document) {
     if (document instanceof NavigableAsset asset) {
-      var openEdit =
+      if (document instanceof KActorsBehavior behavior) {
+        var localRuntime =
+            KlabIDEController.instance().user().getServices(RuntimeService.class).stream()
+                .filter(s -> s.isLocal())
+                .findFirst();
+        var editLocally =
+            new MenuItem(
+                "Edit and run locally",
+                new IconLabel(MaterialDesign.MDI_CLOUD_DOWNLOAD, 16, Theme.FOREGROUND_COLOR));
+        editLocally.setOnAction(event -> editBehaviorLocally(behavior, asset));
+        if (localRuntime.isEmpty()) {
+          editLocally.setDisable(true);
+        }
+        contextMenu.getItems().addAll(editLocally, new SeparatorMenuItem());
+      }
+      var delete =
           new MenuItem("Delete", new IconLabel(Material2AL.DELETE, 16, Theme.FOREGROUND_COLOR));
-      openEdit.setOnAction(e -> KlabIDEController.instance().deleteAsset(service, asset));
-      contextMenu.getItems().add(openEdit);
+      delete.setOnAction(e -> KlabIDEController.instance().deleteAsset(service, asset));
+      contextMenu.getItems().add(delete);
+    }
+  }
+
+  private void editBehaviorLocally(KActorsBehavior behavior, NavigableAsset asset) {
+    try {
+      var project = behavior.getProjectName();
+      if (project == null || project.isBlank()) {
+        var parent = asset.parent(NavigableProject.class);
+        project = parent == null ? null : parent.getUrn();
+      }
+      var managedBehavior =
+          service.retrieve(
+              behavior.getUrn(), KActorsBehavior.class, KlabIDEController.instance().user());
+      if (managedBehavior == null || project == null || project.isBlank()) {
+        KlabIDEController.instance()
+            .handleNotification(
+                Notification.error("Unable to retrieve the project behavior for local editing"));
+        return;
+      }
+      var checkout =
+          ManagedBehaviorMirrors.getDefault()
+              .checkout(
+                  service.serviceId(),
+                  project,
+                  managedBehavior.getUrn(),
+                  managedBehavior.getSourceCode());
+      KlabIDEController.instance().openBehaviorFile(checkout.file());
+    } catch (IOException | IllegalArgumentException e) {
+      KlabIDEController.instance()
+          .handleNotification(Notification.error("Unable to create the local behavior mirror", e));
     }
   }
 
@@ -202,7 +250,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         });
     newBehavior.setOnAction(
         actionEvent -> {
-          createNewDocument(project, ProjectStorage.ResourceType.BEHAVIOR_COMPONENT);
+          createNewDocument(project, ProjectStorage.ResourceType.BEHAVIOR);
         });
     newOntology.setOnAction(
         actionEvent -> {
@@ -311,10 +359,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
     var searchField =
         new TreeSearchField<>(
-            this.treeView,
-            (q, asset) -> {
-              return asset.getUrn().toLowerCase().contains(q);
-            });
+            this.treeView, (q, asset) -> asset.getUrn().toLowerCase().contains(q));
     HBox.setHgrow(searchField, Priority.ALWAYS);
 
     var addProject = new Button("");
@@ -567,6 +612,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
             for (var change : Utils.Resources.collectChanges(changes)) {
               mergeChangeIntoTree(change);
             }
+            treeView.refresh();
             setWaiting(false);
           });
     }
@@ -625,14 +671,30 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       var newAsset =
           wroot.findAsset(change.getResourceUrn(), KlabAsset.class, change.getKnowledgeClass());
 
-      if (node != null) {
-        node.setValue((NavigableAsset) newAsset);
+      if (node != null && newAsset instanceof NavigableAsset navigableAsset) {
+        var oldAsset = node.getValue();
+        node.setValue(navigableAsset);
         node.getChildren().clear();
         focus = node;
-        updateTree(node, (NavigableAsset) newAsset);
+        updateTree(node, navigableAsset);
+        refreshEditor(oldAsset, navigableAsset);
+        if (navigableAsset instanceof KActorsBehavior updatedBehavior) {
+          KlabIDEController.instance().synchronizeManagedBehavior(service, updatedBehavior);
+        }
         if (node.getValue() instanceof NavigableDocument navigableDocument) {
           document = navigableDocument;
         }
+      }
+    } else if (change.getOperation() == CRUDOperation.UPDATE_METADATA
+        && change.getKnowledgeClass() == KlabAsset.KnowledgeClass.PROJECT
+        && workspace instanceof NavigableKlabAsset<?> wroot) {
+      var node = findNodeContaining(change.getResourceUrn());
+      var updatedProject =
+          wroot.findAsset(
+              change.getResourceUrn(), NavigableProject.class, KlabAsset.KnowledgeClass.PROJECT);
+      if (node != null && updatedProject != null) {
+        node.setValue(updatedProject);
+        focus = node;
       }
     }
 
@@ -653,6 +715,39 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   private TreeItem<NavigableAsset> findOrAddFolder(NavigableFolder folder) {
+    var existing = findTreeNodeByPath(this.root, folder);
+    if (existing != null) {
+      return existing;
+    }
+
+    NavigableAsset folderAsset = folder;
+    var parentAsset = folderAsset.parent();
+    if (parentAsset == null) {
+      return null;
+    }
+
+    var parentNode = findTreeNodeByPath(this.root, parentAsset);
+    if (parentNode == null) {
+      return null;
+    }
+
+    var added = new TreeItem<>(folderAsset);
+    added.setGraphic(Theme.getGraphics(folderAsset));
+    parentNode.getChildren().add(added);
+    return added;
+  }
+
+  private TreeItem<NavigableAsset> findTreeNodeByPath(
+      TreeItem<NavigableAsset> candidate, NavigableAsset asset) {
+    if (candidate.getValue().equals(asset)) {
+      return candidate;
+    }
+    for (var child : candidate.getChildren()) {
+      var found = findTreeNodeByPath(child, asset);
+      if (found != null) {
+        return found;
+      }
+    }
     return null;
   }
 

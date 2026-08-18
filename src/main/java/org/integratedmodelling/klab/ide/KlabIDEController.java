@@ -141,6 +141,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
       new ModelerCommandLine(() -> focalScope == null ? modeler().engine().getOwner() : focalScope);
   private boolean knowledgeInitialized;
   private final AtomicBoolean localServiceActionRunning = new AtomicBoolean(false);
+  private CompletableFuture<Void> initializationFuture;
 
   private Map<KlabService, KlabService.ServiceStatus> serviceStatus = new ConcurrentHashMap<>() {};
   private ModalPane modalPane;
@@ -149,6 +150,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private final List<Runnable> softwareStackStateListeners = new CopyOnWriteArrayList<>();
   private ScheduledExecutorService stackUpdateChecker;
   private volatile Stack.Tag pendingDistributionTag;
+  private final AtomicBoolean distributionSwitchMonitorRunning = new AtomicBoolean(false);
   private final EventHandler<KeyEvent> escHandler =
       event -> {
         if (event.getCode() == KeyCode.ESCAPE && modalDismissible) {
@@ -505,6 +507,46 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     Logging.INSTANCE.info("Modeler initialized");
   }
 
+  /**
+   * Boot and authenticate away from the JavaFX application thread. The returned future completes
+   * only after the JavaFX-side startup state has also been installed.
+   */
+  public synchronized CompletableFuture<Void> startInitialization() {
+    if (initializationFuture == null) {
+      createModeler();
+      initializationFuture =
+          StartupInitialization.run(
+                  () -> {
+                    modeler.boot();
+                    var authenticatedUser = modeler.authenticate();
+                    var notificationCapacity =
+                        modeler
+                            .engine()
+                            .getSettings()
+                            .get(Setting.NOTIFICATIONS_CACHED, Integer.class);
+                    return new StartupState(authenticatedUser, notificationCapacity);
+                  })
+              .thenAcceptAsync(this::completeInitialization, Platform::runLater);
+    }
+    return initializationFuture;
+  }
+
+  private void completeInitialization(StartupState startupState) {
+    this.user = startupState.user();
+
+    // Must be explicit because the callback is not used before boot.
+    notifyUser(this.user.getUser());
+    notifications =
+        Queues.synchronizedQueue(EvictingQueue.create(startupState.notificationCapacity()));
+
+    if (!showStartupStackSynchronization()) {
+      initializeSoftwareStack();
+    }
+    scheduleSoftwareStackUpdateChecks();
+  }
+
+  private record StartupState(UserScope user, int notificationCapacity) {}
+
   public <T extends BrowsablePage<?, ?>> T getView(View view, Class<T> cls) {
     return (T)
         switch (view) {
@@ -603,6 +645,15 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   /** Convenience overload for JavaFX and legacy callers that work with {@link File}. */
   public void openBehaviorFile(File file) {
     if (file != null) openBehaviorFile(file.toPath());
+  }
+
+  /** Reconcile an open local mirror with a changed project behavior. */
+  public void synchronizeManagedBehavior(
+      ResourcesService service,
+      org.integratedmodelling.klab.api.lang.kactors.KActorsBehavior behavior) {
+    if (applicationView != null) {
+      applicationView.synchronizeManagedBehavior(service, behavior);
+    }
   }
 
   public View selectedView() {
@@ -705,32 +756,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     this.dbIcon = new IconLabel(MaterialDesign.MDI_DATABASE, 11, Color.DARKGRAY);
     this.langIcon = new IconLabel(CarbonIcons.LANGUAGE, 11, Color.DARKGRAY);
     this.messIcon = new IconLabel(Evaicons.MESSAGE_SQUARE_OUTLINE, 11, Color.DARKGRAY);
-
-    Platform.runLater(
-        () -> {
-          createModeler();
-          modeler.boot();
-          this.user = modeler.authenticate();
-
-          // must call explicitly because the callback won't be used before boot.
-          notifyUser(this.user.getUser());
-          notifications =
-              Queues.synchronizedQueue(
-                  EvictingQueue.create(
-                      modeler
-                          .engine()
-                          .getSettings()
-                          .get(Setting.NOTIFICATIONS_CACHED, Integer.class)));
-
-          //          if (settings.getStartServicesOnStartup().getValue()) {
-          //            // TODO
-          //            //      Thread.ofPlatform().start(this::toggleLocalServices);
-          //          }
-          if (!showStartupStackSynchronization()) {
-            initializeSoftwareStack();
-          }
-          scheduleSoftwareStackUpdateChecks();
-        });
   }
 
   private void setStatusBar() {
@@ -1641,6 +1666,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         Toolkit.getDefaultToolkit().beep();
         return false;
       }
+      monitorPendingDistributionSwitch();
       return true;
     }
     return applyDistributionTag(resolved);
@@ -1686,12 +1712,62 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
             .allMatch(type -> type == Distribution.Product.Type.LANGUAGE_SERVER);
   }
 
-  private void completePendingDistributionSwitch() {
+  private synchronized void completePendingDistributionSwitch() {
     var pending = pendingDistributionTag;
-    if (pending != null && canChangeSoftwareStack()) {
-      pendingDistributionTag = null;
-      applyDistributionTag(pending);
+    if (pending == null || !engine().areLocalServicesStopped()) {
+      return;
     }
+    var stack = engine().getSoftwareStack();
+    var resolved = stack == null ? null : stack.resolve(pending);
+    if (resolved != null && resolved.availableLocally()) {
+      pendingDistributionTag = null;
+      applyDistributionTag(resolved);
+    }
+  }
+
+  /**
+   * Targeted process shutdown is asynchronous. Complete the switch from authoritative process
+   * liveness as well as status callbacks, so a missed or early status event cannot strand it.
+   */
+  private void monitorPendingDistributionSwitch() {
+    if (!distributionSwitchMonitorRunning.compareAndSet(false, true)) {
+      return;
+    }
+    Thread.ofVirtual()
+        .name("klab-distribution-switch-monitor")
+        .start(
+            () -> {
+              try {
+                var deadline = System.currentTimeMillis() + 30_000;
+                while (pendingDistributionTag != null && System.currentTimeMillis() < deadline) {
+                  completePendingDistributionSwitch();
+                  if (pendingDistributionTag == null) {
+                    return;
+                  }
+                  Thread.sleep(100);
+                }
+                boolean timedOut;
+                synchronized (this) {
+                  timedOut = pendingDistributionTag != null;
+                  if (timedOut) {
+                    pendingDistributionTag = null;
+                  }
+                }
+                if (timedOut) {
+                  notifySoftwareStackStateListeners();
+                  Platform.runLater(
+                      () ->
+                          handleNotification(
+                              Notification.warning(
+                                  "Could not switch software distributions because local processes did not stop",
+                                  Notification.Outcome.Failure)));
+                }
+              } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+              } finally {
+                distributionSwitchMonitorRunning.set(false);
+              }
+            });
   }
 
   /** True only when no local k.LAB or auxiliary process is active or transitioning. */

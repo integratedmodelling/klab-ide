@@ -104,6 +104,8 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   private final Consumer<Agent> debugTargetRequestedCallback;
   private final Consumer<Agent> agentStoppedCallback;
   private final Object sourceEditorAsset;
+  private final ManagedBehaviorMirrors mirrors;
+  private ManagedBehaviorMirrors.Origin managedOrigin;
   private final Map<String, Boolean> runningAgents = new HashMap<>();
   private final Map<String, Boolean> associatedAgents = new HashMap<>();
   private final Map<Node, LspDocumentSession> lspSessions = new IdentityHashMap<>();
@@ -143,7 +145,9 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       Consumer<Ikon> behaviorIconChangedCallback,
       Consumer<Agent> debugAgentAvailableCallback,
       Consumer<Agent> debugTargetRequestedCallback,
-      Consumer<Agent> agentStoppedCallback) {
+      Consumer<Agent> agentStoppedCallback,
+      ManagedBehaviorMirrors mirrors,
+      ManagedBehaviorMirrors.Origin managedOrigin) {
     super(asset == null ? null : new NavigableKActorsBehavior(asset, null));
     this.file = file.toAbsolutePath().normalize();
     this.sourceEditorAsset = this.file.getFileName();
@@ -152,6 +156,8 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     this.debugAgentAvailableCallback = debugAgentAvailableCallback;
     this.debugTargetRequestedCallback = debugTargetRequestedCallback;
     this.agentStoppedCallback = agentStoppedCallback;
+    this.mirrors = mirrors;
+    this.managedOrigin = managedOrigin;
     this.behavior = getEditedAsset();
     this.currentNotifications =
         notificationSnapshot(behavior == null ? null : behavior.getNotifications());
@@ -164,6 +170,10 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
 
   public KActorsBehavior.Type getBehaviorType() {
     return behavior == null ? null : behavior.getBehaviorType();
+  }
+
+  boolean hasUnsavedSourceChanges() {
+    return monacoEditor != null && monacoEditor.isDirty();
   }
 
   @Override
@@ -232,8 +242,17 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
             20,
             Color.GREY);
     typeLabel.setTooltip(new Tooltip(file.toString()));
-    var location = new Label(file.getFileName().toString(), null);
-    location.setTooltip(new Tooltip(file.toString()));
+    var location =
+        new Label(
+            managedOrigin == null
+                ? file.getFileName().toString()
+                : managedOrigin.projectUrn() + " / " + managedOrigin.behaviorUrn(),
+            null);
+    location.setTooltip(
+        new Tooltip(
+            managedOrigin == null
+                ? file.toString()
+                : "Managed mirror: " + file + System.lineSeparator() + managedOrigin.serviceId()));
 
     Region spacer = new Region();
     HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -274,8 +293,10 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     this.stop = icon(Material2MZ.STOP, "Stop all running agents", false, false, this::doStop);
     this.publish =
         icon(
-            MaterialDesign.MDI_CLOUD_UPLOAD,
-            "Publish to a local workspace",
+            managedOrigin == null ? MaterialDesign.MDI_CLOUD_UPLOAD : MaterialDesign.MDI_CLOUD_SYNC,
+            managedOrigin == null
+                ? "Publish to a local workspace"
+                : "Publish changes to " + managedOrigin.projectUrn(),
             false,
             false,
             this::doPublish);
@@ -485,6 +506,13 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   private Optional<ResourcesService> getLocalResourcesService() {
     return KlabIDEController.instance().user().getServices(ResourcesService.class).stream()
         .filter(KlabService::isLocal)
+        .findFirst();
+  }
+
+  private Optional<ResourcesService> getManagedResourcesService() {
+    if (managedOrigin == null) return Optional.empty();
+    return KlabIDEController.instance().user().getServices(ResourcesService.class).stream()
+        .filter(service -> managedOrigin.serviceId().equals(service.serviceId()))
         .findFirst();
   }
 
@@ -727,6 +755,9 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   }
 
   private boolean doPublish() {
+    if (managedOrigin != null) {
+      return updateManagedBehavior();
+    }
     var localResources = getLocalResourcesService();
     if (!compilationSuccessful || localResources.isEmpty()) {
       return false;
@@ -739,6 +770,39 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     }
     publishBehavior(service, selectedProject.get());
     return true;
+  }
+
+  private boolean updateManagedBehavior() {
+    var managedService = getManagedResourcesService();
+    if (!compilationSuccessful || behavior == null || managedService.isEmpty()) return false;
+    if (!(behavior.getDelegate() instanceof KActorsBehaviorImpl parsedBehavior)) return false;
+
+    var update = new KActorsBehaviorImpl();
+    update.setUrn(managedOrigin.behaviorUrn());
+    update.setBehaviorType(parsedBehavior.getBehaviorType());
+    update.setProjectName(managedOrigin.projectUrn());
+    update.setSourceCode(parsedBehavior.getSourceCode());
+    var results =
+        managedService
+            .get()
+            .submit(
+                update,
+                ResourcesService.SubmissionMode.CREATE_OR_UPDATE,
+                KlabIDEController.instance().user());
+    var accepted = KlabIDEController.instance().handleResultSets(results);
+    if (accepted) {
+      try {
+        managedOrigin =
+            mirrors.markSynchronized(
+                file, parsedBehavior.getUrn(), Files.readString(file, StandardCharsets.UTF_8));
+      } catch (IOException e) {
+        KlabIDEController.instance()
+            .handleNotification(
+                Notification.warning(
+                    "Behavior was updated but its local mirror metadata could not be saved", e));
+      }
+    }
+    return accepted;
   }
 
   private Optional<Project> showProjectSelectionDialog(ResourcesService service) {
@@ -1469,7 +1533,28 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     }
 
     publish.enabled(
-        sourceIsValid && compilationSuccessful && getLocalResourcesService().isPresent());
+        sourceIsValid
+            && compilationSuccessful
+            && (managedOrigin == null
+                ? getLocalResourcesService().isPresent()
+                : getManagedResourcesService().isPresent()));
+  }
+
+  void refreshManagedBehavior(KActorsBehavior updatedBehavior, boolean sourceChanged) {
+    if (managedOrigin == null || updatedBehavior == null) return;
+    this.behavior = new NavigableKActorsBehavior(updatedBehavior, null);
+    setEditedAsset(this.behavior);
+    this.currentNotifications = notificationSnapshot(updatedBehavior.getNotifications());
+    if (sourceChanged && monacoEditor != null) {
+      monacoEditor.setText(Objects.requireNonNullElse(updatedBehavior.getSourceCode(), ""));
+    }
+    if (monacoEditor != null) {
+      monacoEditor.markNotifications(updatedBehavior.getNotifications(), true);
+    }
+    resetCompilationVisualStatus(updatedBehavior.getNotifications());
+    updateSourceEditorGraphic();
+    if (treeView != null) treeView.setRoot(createTreeRoot());
+    updateStatus();
   }
 
   @Override

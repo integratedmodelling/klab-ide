@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.prefs.Preferences;
+import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.layout.HBox;
@@ -41,6 +42,7 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
       "/org/integratedmodelling/klab/ide/templates/behavior.kactor";
 
   private final Preferences preferences = Preferences.userNodeForPackage(AgentView.class);
+  private final ManagedBehaviorMirrors mirrors = ManagedBehaviorMirrors.getDefault();
   private final Map<Path, BehaviorEditor> openEditors = new LinkedHashMap<>();
   private final Map<Path, KActorsBehavior.Type> recentBehaviorTypes = new LinkedHashMap<>();
   private final Set<Agent> debugAgents = new LinkedHashSet<>();
@@ -198,6 +200,7 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
                   path.toUri().toURL(),
                   KActorsBehavior.class,
                   KlabIDEController.instance().user());
+      var managedOrigin = mirrors.origin(path).orElse(null);
 
       remember(path, behavior == null ? null : behavior.getBehaviorType());
 
@@ -209,7 +212,9 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
               icon -> updateEditorIcon(path, icon),
               this::registerDebugAgent,
               this::setDebugTarget,
-              this::unregisterDebugAgent);
+              this::unregisterDebugAgent,
+              mirrors,
+              managedOrigin);
       openEditors.put(path, editor);
       addEditor(
           editor,
@@ -217,6 +222,40 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
           new FontIcon(behavior == null ? Theme.APPLICATION_VIEW_ICON : Theme.getIcon(behavior)));
     } catch (IOException e) {
       KlabIDEController.instance().handleNotification(Notification.error(e));
+    }
+  }
+
+  /** Reconcile an existing managed mirror after its project behavior changes. */
+  public void synchronizeManagedBehavior(ResourcesService service, KActorsBehavior remoteBehavior) {
+    if (service == null
+        || remoteBehavior == null
+        || remoteBehavior.getProjectName() == null
+        || remoteBehavior.getProjectName().isBlank()) return;
+    try {
+      var path =
+          mirrors.pathFor(
+              service.serviceId(), remoteBehavior.getProjectName(), remoteBehavior.getUrn());
+      var editor = openEditors.get(path);
+      if (editor != null && editor.hasUnsavedSourceChanges()) return;
+      var synchronization =
+          mirrors.synchronize(
+              service.serviceId(),
+              remoteBehavior.getProjectName(),
+              remoteBehavior.getUrn(),
+              remoteBehavior.getSourceCode());
+      if (synchronization == ManagedBehaviorMirrors.Synchronization.NO_MIRROR
+          || synchronization == ManagedBehaviorMirrors.Synchronization.DIRTY) return;
+
+      if (editor != null) {
+        Platform.runLater(
+            () ->
+                editor.refreshManagedBehavior(
+                    remoteBehavior,
+                    synchronization == ManagedBehaviorMirrors.Synchronization.UPDATED));
+      }
+    } catch (IOException e) {
+      KlabIDEController.instance()
+          .handleNotification(Notification.warning("Unable to refresh managed behavior mirror", e));
     }
   }
 

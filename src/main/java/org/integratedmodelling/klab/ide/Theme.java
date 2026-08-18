@@ -277,10 +277,6 @@ public enum Theme {
       asset = runtimeAsset.getDelegate();
     }
 
-    if (asset instanceof KActorsBehavior behavior) {
-      return new IconLabel(getIcon(behavior), 16, Color.GREY);
-    }
-
     if (asset instanceof NavigableAsset navigableAsset) {
       errorCount =
           navigableAsset.localMetadata().get(NavigableAsset.ERROR_NOTIFICATION_COUNT_KEY, 0);
@@ -300,6 +296,7 @@ public enum Theme {
           case NavigableKimOntology ignored -> ONTOLOGY_ICON;
           case NavigableKimNamespace ignored -> NAMESPACE_ICON;
           case NavigableFolder ignored -> FOLDER_ICON;
+          case KActorsBehavior behavior -> getIcon(behavior);
           case Cohort ignored -> COHORT_ICON;
           case Observation observation -> {
             semanticType =
