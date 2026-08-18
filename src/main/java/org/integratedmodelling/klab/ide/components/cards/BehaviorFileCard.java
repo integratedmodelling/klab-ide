@@ -16,8 +16,10 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import org.integratedmodelling.klab.ide.Theme;
+import org.integratedmodelling.klab.ide.components.ManagedBehaviorMirrors;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.kordamp.ikonli.Ikon;
+import org.kordamp.ikonli.materialdesign.MaterialDesign;
 import org.kordamp.ikonli.material2.Material2MZ;
 import org.kordamp.ikonli.material2.Material2AL;
 
@@ -33,12 +35,43 @@ public class BehaviorFileCard extends VBox {
 
   public BehaviorFileCard(
       Path file, Ikon behaviorIcon, Consumer<Path> openHandler, Consumer<Path> forgetHandler) {
+    this(
+        file,
+        behaviorIcon,
+        null,
+        ManagedBehaviorMirrors.LocalState.NOT_MANAGED,
+        openHandler,
+        forgetHandler);
+  }
+
+  public BehaviorFileCard(
+      Path file,
+      Ikon behaviorIcon,
+      ManagedBehaviorMirrors.Origin managedOrigin,
+      ManagedBehaviorMirrors.LocalState localState,
+      Consumer<Path> openHandler,
+      Consumer<Path> forgetHandler) {
     Path normalized = file.toAbsolutePath().normalize();
     var card = new Card();
-    var title = new Label(normalized.getFileName().toString());
+    var title =
+        new Label(
+            managedOrigin == null
+                ? normalized.getFileName().toString()
+                : managedOrigin.behaviorUrn());
     title.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
-    title.setMaxWidth(175);
-    title.setTooltip(new Tooltip(normalized.toString()));
+    title.setMaxWidth(210);
+    title.setTooltip(
+        new Tooltip(
+            managedOrigin == null
+                ? normalized.toString()
+                : "Managed behavior in "
+                    + managedOrigin.projectUrn()
+                    + System.lineSeparator()
+                    + "Service: "
+                    + managedOrigin.serviceId()
+                    + System.lineSeparator()
+                    + "Local mirror: "
+                    + normalized));
 
     var spacer = new HBox();
     HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -69,12 +102,58 @@ public class BehaviorFileCard extends VBox {
             forget);
     header.setAlignment(Pos.CENTER_LEFT);
     var parent = normalized.getParent();
-    var location = new Label(parent == null ? normalized.toString() : parent.toString());
+    var location =
+        new Label(
+            managedOrigin == null
+                ? parent == null ? normalized.toString() : parent.toString()
+                : "Local mirror: " + normalized);
     location.setWrapText(true);
-    location.setStyle("-fx-font-size: 11px;");
+    location.setStyle(
+        managedOrigin == null
+            ? "-fx-font-size: 11px;"
+            : "-fx-font-size: 10px; -fx-opacity: 0.65;");
     card.setHeader(header);
-    card.setBody(new VBox(location));
-    card.setFooter(new Label(modified(normalized)));
+    if (managedOrigin == null) {
+      card.setBody(new VBox(location));
+      card.setFooter(new Label(modified(normalized)));
+    } else {
+      var project =
+          new Label(
+              "Project: " + managedOrigin.projectUrn(),
+              new IconLabel(MaterialDesign.MDI_CLOUD_SYNC, 14, Color.DODGERBLUE));
+      project.setStyle("-fx-font-size: 12px; -fx-font-weight: bold;");
+      project.setTooltip(
+          new Tooltip(
+              "This behavior is managed by project "
+                  + managedOrigin.projectUrn()
+                  + " on service "
+                  + managedOrigin.serviceId()));
+      var hasLocalChanges = localState == ManagedBehaviorMirrors.LocalState.MODIFIED;
+      var synchronizedState = localState == ManagedBehaviorMirrors.LocalState.SYNCHRONIZED;
+      var state =
+          new Label(
+              hasLocalChanges
+                  ? "Local changes not submitted"
+                  : synchronizedState ? "Up to date with project" : "Mirror state unavailable",
+              new IconLabel(
+                  hasLocalChanges
+                      ? Material2AL.EDIT
+                      : synchronizedState ? Material2AL.CHECK_CIRCLE : Material2AL.ERROR,
+                  13,
+                  hasLocalChanges
+                      ? Color.DARKORANGE
+                      : synchronizedState ? Color.GREEN : Color.DARKRED));
+      state.setStyle("-fx-font-size: 11px; -fx-font-weight: bold;");
+      state.setTooltip(
+          new Tooltip(
+              hasLocalChanges
+                  ? "This local mirror differs from the last version synchronized with the project"
+                  : synchronizedState
+                      ? "This local mirror matches the last version synchronized with the project"
+                      : "The local mirror could not be compared with its project state"));
+      card.setBody(new VBox(4, project, state, location));
+      card.setFooter(new Label("Managed project • " + modified(normalized)));
+    }
     card.setOnMouseClicked(event -> openHandler.accept(normalized));
     getChildren().add(card);
   }

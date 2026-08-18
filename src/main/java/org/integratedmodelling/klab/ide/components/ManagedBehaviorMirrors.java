@@ -39,6 +39,13 @@ public final class ManagedBehaviorMirrors {
     DIRTY
   }
 
+  public enum LocalState {
+    NOT_MANAGED,
+    SYNCHRONIZED,
+    MODIFIED,
+    UNAVAILABLE
+  }
+
   public record Checkout(Path file, Origin origin, boolean created) {}
 
   public ManagedBehaviorMirrors(Path root) {
@@ -101,6 +108,21 @@ public final class ManagedBehaviorMirrors {
           new Origin(serviceId, projectUrn, behaviorUrn, synchronizedHash, normalized));
     } catch (IOException e) {
       return Optional.empty();
+    }
+  }
+
+  /** Compare a local mirror with the last source synchronized with its managed project. */
+  public synchronized LocalState localState(Path file) {
+    var origin = origin(file);
+    if (origin.isEmpty()) return LocalState.NOT_MANAGED;
+    if (!Files.isRegularFile(origin.get().file())) return LocalState.UNAVAILABLE;
+    try {
+      var localHash = hash(Files.readString(origin.get().file(), StandardCharsets.UTF_8));
+      return localHash.equals(origin.get().synchronizedSourceHash())
+          ? LocalState.SYNCHRONIZED
+          : LocalState.MODIFIED;
+    } catch (IOException e) {
+      return LocalState.UNAVAILABLE;
     }
   }
 

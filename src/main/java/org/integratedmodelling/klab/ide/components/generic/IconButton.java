@@ -149,10 +149,11 @@ public abstract class IconButton extends ToggleButton {
   }
 
   private void updateIconColor(boolean toggled) {
+    var useOnColor = !toggle || toggled;
     if (onColor != null) {
-      setTextFill(toggled ? onColor : offColor);
+      setTextFill(useOnColor ? onColor : offColor);
     } else {
-      setStyle("-fx-text-fill: " + (toggled ? onCssColor : offCssColor) + ";");
+      setStyle("-fx-text-fill: " + (useOnColor ? onCssColor : offCssColor) + ";");
     }
   }
 

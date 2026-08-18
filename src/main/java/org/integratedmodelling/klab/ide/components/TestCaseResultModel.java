@@ -62,7 +62,10 @@ public final class TestCaseResultModel {
         testsFinished++;
       }
       int failedInTest = 0;
-      for (var assertion : test.getChildren()) {
+      for (var assertion :
+          test.getChildren().stream()
+              .filter(child -> "assertion".equals(child.type()))
+              .toList()) {
         assertions++;
         if (assertion.get("outcome", false)) {
           assertionsPassed++;

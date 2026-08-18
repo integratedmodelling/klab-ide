@@ -102,9 +102,15 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
     components.add(header);
     recentFiles.removeIf(path -> !Files.isRegularFile(path));
     for (Path path : recentFiles) {
+      var managedOrigin = mirrors.origin(path).orElse(null);
       components.add(
           new BehaviorFileCard(
-              path, iconFor(recentBehaviorTypes.get(path)), this::openFile, this::forget));
+              path,
+              iconFor(recentBehaviorTypes.get(path)),
+              managedOrigin,
+              mirrors.localState(path),
+              this::openFile,
+              this::forget));
     }
     browser.getChildren().addAll(components);
     HBox.setHgrow(browser, Priority.ALWAYS);
@@ -245,6 +251,8 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
               remoteBehavior.getSourceCode());
       if (synchronization == ManagedBehaviorMirrors.Synchronization.NO_MIRROR
           || synchronization == ManagedBehaviorMirrors.Synchronization.DIRTY) return;
+
+      Platform.runLater(this::updateBrowser);
 
       if (editor != null) {
         Platform.runLater(

@@ -571,31 +571,46 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     }
 
     boolean testCase = behavior.getBehaviorType() == KActorsBehavior.Type.UNITTEST;
-    var agent = compileBehavior(debugging, testing, testCase);
+    boolean finiteBehavior =
+        testCase || behavior.getBehaviorType() == KActorsBehavior.Type.SCRIPT;
+    var agent = compileBehavior(debugging, testing, finiteBehavior);
     if (agent == null || !compilationSuccessful || !agent.isViable()) {
       return reportLaunchFailure(agent, debugging, null);
     }
-    if (testCase) {
-      if (!registerTestCase(agent) || !agent.start()) {
+    if (testCase && !registerTestCase(agent)) {
+      return reportLaunchFailure(agent, debugging, null);
+    }
+    if (finiteBehavior) {
+      // A finite agent may complete before start() returns. Attach every observer first so console,
+      // test and debugger messages cannot be lost between the start request and UI registration.
+      showAgentConsole(agent);
+      if (debugging) {
+        registerDebugSession(agent);
+      }
+      if (!agent.start()) {
         closeTestCaseSubscription(agent.getUrn());
+        removeAgentConsole(agent);
+        if (debugging) {
+          discardDebugSession(agent);
+        }
         return reportLaunchFailure(agent, debugging, null);
       }
     }
-    // Ordinary agents are started by RuntimeService. Tests are started above, after their listener
-    // is attached. In either case a stopped handle here is a finite agent that already completed.
+    // Ordinary agents are started by RuntimeService. Finite agents are started above, after every
+    // observer is attached. A stopped handle here is therefore a finite agent that completed.
     if (!agent.isAlive()) {
       disconnectAgent(agent);
       refreshAgentStates();
       return true;
     }
-    if (debugging) {
+    if (debugging && !finiteBehavior) {
       registerDebugSession(agent);
     }
     if (agent.isViable() && agent.isAlive()) {
       agents.add(agent);
       agentStatusRefresh.setCycleCount(Timeline.INDEFINITE);
       agentStatusRefresh.play();
-      if (!testCase) {
+      if (!finiteBehavior) {
         showAgentConsole(agent);
       }
       refreshAgentStates();
@@ -723,6 +738,19 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     }
   }
 
+  private void discardDebugSession(Agent agent) {
+    debugAgents.remove(agent);
+    if (debuggerView != null) {
+      debuggerView.unregisterAgent(agent);
+    }
+    if (currentDebugTarget == agent) {
+      currentDebugTarget = null;
+    }
+    if (agentStoppedCallback != null) {
+      agentStoppedCallback.accept(agent);
+    }
+  }
+
   private boolean reportLaunchFailure(Agent agent, boolean debugging, Throwable cause) {
     Notification notification = null;
     if (agent != null && agent.getNotifications() != null) {
@@ -795,6 +823,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
         managedOrigin =
             mirrors.markSynchronized(
                 file, parsedBehavior.getUrn(), Files.readString(file, StandardCharsets.UTF_8));
+        if (savedCallback != null) savedCallback.accept(file);
       } catch (IOException e) {
         KlabIDEController.instance()
             .handleNotification(
@@ -1412,6 +1441,10 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
             || behavior.getBehaviorType() == KActorsBehavior.Type.UNITTEST);
   }
 
+  private boolean keepsDebugTranscriptAfterStop() {
+    return keepsAgentConsoleAfterStop();
+  }
+
   private void agentStopped(Agent agent) {
     if (!keepsAgentConsoleAfterStop()) {
       removeAgentConsole(agent);
@@ -1420,14 +1453,16 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     synchronized (agents) {
       removed = agents.remove(agent);
     }
-    boolean debugRemoved;
-    synchronized (debugAgents) {
-      debugRemoved = debugAgents.remove(agent);
+    boolean debugRemoved = false;
+    if (!keepsDebugTranscriptAfterStop()) {
+      synchronized (debugAgents) {
+        debugRemoved = debugAgents.remove(agent);
+      }
     }
     if (debugRemoved && debuggerView != null) {
       debuggerView.unregisterAgent(agent);
     }
-    if (currentDebugTarget == agent) {
+    if (debugRemoved && currentDebugTarget == agent) {
       currentDebugTarget = null;
     }
     if (debugRemoved && agentStoppedCallback != null) {

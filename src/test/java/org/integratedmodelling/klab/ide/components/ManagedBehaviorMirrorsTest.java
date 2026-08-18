@@ -69,4 +69,23 @@ class ManagedBehaviorMirrorsTest {
     assertEquals("behavior.new", repeated.origin().behaviorUrn());
     assertEquals(checkout.file(), mirrors.pathFor("service", "project", "behavior.new"));
   }
+
+  @Test
+  void localStateTracksUnsubmittedChangesAndSuccessfulSynchronization() throws Exception {
+    var mirrors = new ManagedBehaviorMirrors(temporaryDirectory);
+    var checkout = mirrors.checkout("service", "project", "behavior.one", "remote v1");
+
+    assertEquals(
+        ManagedBehaviorMirrors.LocalState.SYNCHRONIZED,
+        mirrors.localState(checkout.file()));
+
+    Files.writeString(checkout.file(), "local work");
+    assertEquals(
+        ManagedBehaviorMirrors.LocalState.MODIFIED, mirrors.localState(checkout.file()));
+
+    mirrors.markSynchronized(checkout.file(), "local work");
+    assertEquals(
+        ManagedBehaviorMirrors.LocalState.SYNCHRONIZED,
+        mirrors.localState(checkout.file()));
+  }
 }

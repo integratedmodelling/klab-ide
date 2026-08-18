@@ -7,6 +7,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Label;
+import javafx.scene.control.TextArea;
 import javafx.scene.control.TitledPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -185,7 +186,13 @@ public final class TestCaseResultsView extends DomainObjectView {
       content.getChildren().add(details);
     }
     for (var assertion : test.getChildren()) {
-      content.getChildren().add(createObjectNode(assertion, depth + 1));
+      if ("assertion".equals(assertion.type())) {
+        content.getChildren().add(createObjectNode(assertion, depth + 1));
+      }
+    }
+    var console = createConsoleTranscript(test);
+    if (console != null) {
+      content.getChildren().add(console);
     }
 
     Color color = complete ? (passed ? Color.FORESTGREEN : Color.FIREBRICK) : Color.DODGERBLUE;
@@ -206,6 +213,34 @@ public final class TestCaseResultsView extends DomainObjectView {
     var pane = new TitledPane(title, content);
     pane.setGraphic(icon);
     pane.setExpanded(!complete || !passed);
+    return pane;
+  }
+
+  private Node createConsoleTranscript(DomainObject test) {
+    var transcript = new StringBuilder();
+    for (var output : test.getChildren()) {
+      if (!"console".equals(output.type())) {
+        continue;
+      }
+      var text = output.get("text", String.class);
+      if (text == null) {
+        continue;
+      }
+      if ("STDERR".equals(output.get("stream", String.class))) {
+        transcript.append("[stderr] ");
+      }
+      transcript.append(text);
+    }
+    if (transcript.isEmpty()) {
+      return null;
+    }
+    var output = new TextArea(transcript.toString());
+    output.setEditable(false);
+    output.setWrapText(false);
+    output.setPrefRowCount(Math.min(12, Math.max(2, transcript.toString().split("\\R", -1).length)));
+    output.setStyle("-fx-font-family: monospace; -fx-font-size: 10px;");
+    var pane = new TitledPane("Console output", output);
+    pane.setExpanded(true);
     return pane;
   }
 

@@ -24,6 +24,14 @@ class TestCaseResultModelTest {
     var assertion =
         DomainObject.create(
             DomainObject.TYPE, "assertion", DomainObject.URN, "actual == expected", "outcome", true);
+    var console =
+        DomainObject.create(
+            DomainObject.TYPE,
+            "console",
+            "stream",
+            "STDOUT",
+            "text",
+            "checking data\n");
     var finished =
         DomainObject.create(
             DomainObject.TYPE,
@@ -36,7 +44,8 @@ class TestCaseResultModelTest {
             140L,
             "outcome",
             true,
-            assertion);
+            assertion,
+            console);
     model.accept(RuntimeAgent.TestMessageType.TEST_FINISHED, finished);
 
     var statistics = model.statistics();
@@ -46,6 +55,7 @@ class TestCaseResultModelTest {
     assertEquals(1, statistics.testsFinished());
     assertEquals(1, statistics.testsPassed());
     assertEquals(1, statistics.assertionsPassed());
+    assertEquals(1, statistics.assertions());
     assertFalse(statistics.finished());
   }
 
