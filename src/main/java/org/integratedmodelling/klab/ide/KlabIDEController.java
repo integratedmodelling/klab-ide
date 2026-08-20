@@ -2120,6 +2120,12 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   }
 
   @Override
+  public boolean createWorkspace(
+      ResourcesService service, String workspaceName, String description) {
+    return modeler.createWorkspace(service, workspaceName, description);
+  }
+
+  @Override
   public boolean createDocument(
       ResourcesService service,
       String projectName,

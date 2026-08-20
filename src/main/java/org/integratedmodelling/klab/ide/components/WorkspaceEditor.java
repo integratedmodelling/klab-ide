@@ -403,7 +403,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     dialog.initOwner(getScene().getWindow());
     var urn = dialog.showAndWait().orElse(null);
     return KlabIDEController.instance()
-        .createDocument(service, urn, project.getUrn(), knowledgeClass);
+        .createDocument(service, project.getUrn(), urn, knowledgeClass);
   }
 
   public void deleteProject(NavigableProject project) {

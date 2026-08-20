@@ -14,7 +14,6 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.klab.api.authentication.CRUDOperation;
-import org.integratedmodelling.klab.api.data.Metadata;
 import org.integratedmodelling.klab.api.engine.Engine;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.services.ResourcesService;
@@ -209,22 +208,22 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
   }
 
   private void createWorkspace(String workspaceName, String description, ResourcesService service) {
-
-    // TODO must create an empty workspace with the metadata, then use submit
-    if (true /*!service.submit(
-             workspaceName,
-             Metadata.create(Metadata.DC_COMMENT, description),
-             KlabIDEController.instance().user())*/) {
+    if (!KlabIDEController.instance().createWorkspace(service, workspaceName, description)) {
       KlabIDEController.instance().alert(Notification.error("Workspace creation failed"));
       return;
     }
 
-    raiseWorkspace(
+    var workspaceInfo =
         service.info(
             workspaceName,
             KlabAsset.KnowledgeClass.WORKSPACE,
             ResourceInfo.class,
-            KlabIDEController.instance().user()));
+            KlabIDEController.instance().user());
+    if (workspaceInfo != null) {
+      raiseWorkspace(workspaceInfo);
+    } else {
+      updateBrowser();
+    }
   }
 
   private void raiseWorkspace(ResourceInfo resourceInfo) {
