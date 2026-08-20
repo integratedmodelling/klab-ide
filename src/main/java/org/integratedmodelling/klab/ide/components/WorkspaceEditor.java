@@ -51,6 +51,8 @@ import org.kordamp.ikonli.materialdesign.MaterialDesign;
 
 public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAsset> {
 
+  private static final String THEME_ICON_COLOR = "-color-fg-default";
+
   private final ResourcesService service;
   private NavigableWorkspace workspace;
   private final WorkspaceView view;
@@ -148,7 +150,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         var editLocally =
             new MenuItem(
                 "Edit and run locally",
-                new IconLabel(MaterialDesign.MDI_CLOUD_DOWNLOAD, 16, Theme.FOREGROUND_COLOR));
+                new IconLabel(MaterialDesign.MDI_CLOUD_DOWNLOAD, 16, THEME_ICON_COLOR));
         editLocally.setOnAction(event -> editBehaviorLocally(behavior, asset));
         if (localRuntime.isEmpty()) {
           editLocally.setDisable(true);
@@ -156,7 +158,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         contextMenu.getItems().addAll(editLocally, new SeparatorMenuItem());
       }
       var delete =
-          new MenuItem("Delete", new IconLabel(Material2AL.DELETE, 16, Theme.FOREGROUND_COLOR));
+          new MenuItem("Delete", new IconLabel(Material2AL.DELETE, 16, THEME_ICON_COLOR));
       delete.setOnAction(e -> KlabIDEController.instance().deleteAsset(service, asset));
       contextMenu.getItems().add(delete);
     }
@@ -199,7 +201,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
             new IconLabel(
                 project.isLocked() ? BootstrapIcons.LOCK : BootstrapIcons.UNLOCK,
                 16,
-                Theme.FOREGROUND_COLOR));
+                THEME_ICON_COLOR));
     lockUnlock.setOnAction(
         e -> {
           if (project.isLocked()) {
@@ -214,7 +216,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     var projectSettings =
         new MenuItem(
             "Project settings...",
-            new IconLabel(Theme.WORKSPACE_SETTINGS_ICON, 16, Theme.FOREGROUND_COLOR));
+            new IconLabel(Theme.WORKSPACE_SETTINGS_ICON, 16, THEME_ICON_COLOR));
     projectSettings.setOnAction(
         e -> {
           /* TODO */
@@ -222,27 +224,27 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
     var deleteProject =
         new MenuItem(
-            "Delete project...", new IconLabel(Material2AL.DELETE, 16, Theme.FOREGROUND_COLOR));
+            "Delete project...", new IconLabel(Material2AL.DELETE, 16, THEME_ICON_COLOR));
     deleteProject.setOnAction(
         e -> {
           deleteProject(project);
         });
 
     var newMenu =
-        new Menu("New", new IconLabel(CarbonIcons.DOCUMENT_ADD, 16, Theme.FOREGROUND_COLOR));
+        new Menu("New", new IconLabel(CarbonIcons.DOCUMENT_ADD, 16, THEME_ICON_COLOR));
     var newNamespace =
         new MenuItem(
-            "Namespace...", new IconLabel(Theme.NAMESPACE_ICON, 16, Theme.FOREGROUND_COLOR));
+            "Namespace...", new IconLabel(Theme.NAMESPACE_ICON, 16, THEME_ICON_COLOR));
     var newBehavior =
         new MenuItem(
             "Behavior, Application or test case...",
-            new IconLabel(Theme.BEHAVIOR_ICON, 16, Theme.FOREGROUND_COLOR));
+            new IconLabel(Theme.BEHAVIOR_ICON, 16, THEME_ICON_COLOR));
     var newOntology =
-        new MenuItem("Ontology...", new IconLabel(Theme.ONTOLOGY_ICON, 16, Theme.FOREGROUND_COLOR));
+        new MenuItem("Ontology...", new IconLabel(Theme.ONTOLOGY_ICON, 16, THEME_ICON_COLOR));
     var newObservationStrategy =
         new MenuItem(
             "Observation strategy...",
-            new IconLabel(Theme.OBSERVATION_ICON, 16, Theme.FOREGROUND_COLOR));
+            new IconLabel(Theme.OBSERVATION_ICON, 16, THEME_ICON_COLOR));
 
     newNamespace.setOnAction(
         actionEvent -> {
@@ -263,7 +265,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
     newMenu.getItems().addAll(newNamespace, newBehavior, newOntology, newObservationStrategy);
 
-    var teamMenu = new Menu("Team", new IconLabel(Material2MZ.PEOPLE, 16, Theme.FOREGROUND_COLOR));
+    var teamMenu = new Menu("Team", new IconLabel(Material2MZ.PEOPLE, 16, THEME_ICON_COLOR));
 
     if (project.getRepositoryState().getOverallStatus() == RepositoryState.Status.UNTRACKED) {
 
@@ -298,7 +300,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                       case SAVE_CHANGES -> MaterialDesign.MDI_CONTENT_SAVE;
                     },
                     16,
-                    Theme.FOREGROUND_COLOR));
+                    THEME_ICON_COLOR));
         teamOperation.setOnAction(
             e -> {
               KlabIDEController.instance()
@@ -316,7 +318,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       var detach =
           new MenuItem(
               "Detach from version control",
-              new IconLabel(CarbonIcons.UNLINK, 16, Theme.FOREGROUND_COLOR));
+              new IconLabel(CarbonIcons.UNLINK, 16, THEME_ICON_COLOR));
       detach.setOnAction(
           e -> {
             /* TODO */

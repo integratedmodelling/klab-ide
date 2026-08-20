@@ -88,7 +88,7 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
     this.descriptionLabel.managedProperty().bind(this.descriptionLabel.visibleProperty());
     var menuTab = new Tab("");
     menuTab.setGraphic(
-        new IconLabel(Material2MZ.MENU, 24, Theme.CURRENT_THEME.getDefaultTextColor()));
+        new IconLabel(Material2MZ.MENU, 24, "-color-fg-default"));
     menuTab.setClosable(false);
     menuTab.setDisable(true);
     menuTab

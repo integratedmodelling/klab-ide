@@ -20,7 +20,6 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color;
 import org.integratedmodelling.klab.api.data.Version;
 import org.integratedmodelling.klab.ide.KlabIDEApplication;
 import org.integratedmodelling.klab.ide.Theme;
@@ -214,7 +213,7 @@ public class AboutViewComponent extends BaseAssetViewComponent {
 
   private VBox createSection(String title, String subtitle, Ikon icon, Node body) {
 
-    var sectionIcon = new IconLabel(icon, 24, Color.DARKBLUE);
+    var sectionIcon = new IconLabel(icon, 24, "-color-accent-fg");
 
     Label titleLabel = new Label(title);
     titleLabel.getStyleClass().addAll(Styles.TITLE_4, Styles.TEXT_BOLD);
@@ -230,7 +229,7 @@ public class AboutViewComponent extends BaseAssetViewComponent {
     VBox section = new VBox(4, heading, body);
     section.setMaxWidth(Double.MAX_VALUE);
     VBox.setVgrow(body, Priority.ALWAYS);
-    section.getStyleClass().add("geometry-card-spatial");
+    section.getStyleClass().add("about-section");
     return section;
   }
 

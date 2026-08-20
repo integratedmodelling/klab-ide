@@ -722,9 +722,9 @@
 }
 
 .about-section {
-    -fx-background-color: #eef2f5;
+    -fx-background-color: -color-bg-subtle;
     -fx-background-radius: 7;
-    -fx-border-color: #d0d7de;
+    -fx-border-color: -color-border-subtle;
     -fx-border-radius: 7;
     -fx-border-width: 1;
     -fx-padding: 10;
