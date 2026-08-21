@@ -5,12 +5,17 @@ import atlantafx.base.theme.Styles;
 import atlantafx.base.util.IntegerStringConverter;
 import com.brunomnsilva.smartgraph.containers.ContentZoomScrollPane;
 import com.brunomnsilva.smartgraph.graph.DigraphEdgeList;
-import com.brunomnsilva.smartgraph.graphview.ForceDirectedSpringGravityLayoutStrategy;
-import com.brunomnsilva.smartgraph.graphview.SmartCircularSortedPlacementStrategy;
-import com.brunomnsilva.smartgraph.graphview.SmartGraphPanel;
+import com.brunomnsilva.smartgraph.graph.Graph;
+import com.brunomnsilva.smartgraph.graphview.*;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
 import javafx.application.Platform;
 import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
@@ -273,13 +278,43 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     return this.scope.getId().equals(scope.getId());
   }
 
+  private static Path getApplicationFile(String filename) {
+
+    String appDir = System.getProperty("app.dir");
+    if (appDir != null && !appDir.isBlank()) {
+      return Path.of(appDir, filename);
+    }
+    return Path.of(filename).toAbsolutePath();
+  }
+
+
+  private SmartGraphPanel<RuntimeAsset, ClientKnowledgeGraph.Relationship> createGraph(
+          Graph<RuntimeAsset, ClientKnowledgeGraph.Relationship> graph) {
+
+    Path cssPath = getApplicationFile("smartgraph.css");
+    Path propertiesPath = getApplicationFile("smartgraph.properties");
+
+    SmartGraphProperties properties;
+
+    try (InputStream stream = Files.newInputStream(propertiesPath)) {
+      properties = new SmartGraphProperties(stream);
+    } catch (IOException e) {
+      properties = new SmartGraphProperties();
+    }
+
+    return new SmartGraphPanel<>(
+            graph,
+            properties,
+            new SmartCircularSortedPlacementStrategy(),
+            cssPath.toUri()
+    );
+  }
+
   private void initializeGraphView() {
     // Check if the component has valid dimensions before initializing
     if (getWidth() > 0 && getHeight() > 0 && !initialized) {
       Logging.INSTANCE.info("Initializing Knowledge Graph View");
-      var initialPlacement = new SmartCircularSortedPlacementStrategy();
-      var graph = new DigraphEdgeList<RuntimeAsset, ClientKnowledgeGraph.Relationship>();
-      this.graphView = new SmartGraphPanel<>(graph, initialPlacement);
+      this.graphView = createGraph(new DigraphEdgeList<RuntimeAsset, ClientKnowledgeGraph.Relationship>());
       this.graphView.setDarkMode(Theme.CURRENT_THEME.isDark());
       var scrollPane = new ContentZoomScrollPane(this.graphView);
       scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
