@@ -240,7 +240,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
         new IconLabel(
             behavior == null ? Theme.APPLICATION_VIEW_ICON : Theme.getIcon(behavior),
             20,
-            Color.GREY);
+            "-color-fg-muted");
     typeLabel.setTooltip(new Tooltip(file.toString()));
     var location =
         new Label(
@@ -408,7 +408,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     var color = notificationColor(style);
     typeLabel.getStyleClass().removeAll(Styles.DANGER, Styles.WARNING, Styles.SUCCESS);
     typeLabel.getStyleClass().add(style);
-    typeLabel.setTextFill(color);
+    typeLabel.setStyle("-fx-text-fill: " + notificationCssColor(style) + ";");
     setCurrentNotifications(notifications, style, color);
     compilationSuccessful = Styles.SUCCESS.equals(style);
   }
@@ -436,6 +436,16 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       return Color.GOLDENROD;
     }
     return Color.GREEN;
+  }
+
+  private String notificationCssColor(String style) {
+    if (Styles.DANGER.equals(style)) {
+      return "-color-danger-fg";
+    }
+    if (Styles.WARNING.equals(style)) {
+      return "-color-warning-fg";
+    }
+    return "-color-success-fg";
   }
 
   private void refreshBehaviorIconType() {
@@ -467,12 +477,12 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
 
   private void updateSourceEditorGraphic() {
     var icon = behavior == null ? Theme.APPLICATION_VIEW_ICON : Theme.getIcon(behavior);
-    var color = behavior == null ? Color.RED : Color.GREY;
+    var color = behavior == null ? "-color-danger-fg" : "-color-fg-muted";
     if (typeLabel != null) {
       typeLabel.setGraphic(null);
       typeLabel.setIcon(icon, 20);
       typeLabel.getStyleClass().removeAll(Styles.DANGER, Styles.WARNING, Styles.SUCCESS);
-      typeLabel.setTextFill(color);
+      typeLabel.setStyle("-fx-text-fill: " + color + ";");
       if (behavior == null) {
         typeLabel.getStyleClass().add(Styles.DANGER);
       }
@@ -868,10 +878,10 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
                 }
                 if (item instanceof Workspace workspace) {
                   setText(workspace.getUrn());
-                  setGraphic(new IconLabel(Theme.WORKSPACE_ICON, 16, Theme.FOREGROUND_COLOR));
+                  setGraphic(new IconLabel(Theme.WORKSPACE_ICON, 16, "-color-fg-default"));
                 } else if (item instanceof Project project) {
                   setText(project.getUrn());
-                  setGraphic(new IconLabel(Theme.PROJECT_ICON, 16, Theme.FOREGROUND_COLOR));
+                  setGraphic(new IconLabel(Theme.PROJECT_ICON, 16, "-color-fg-default"));
                 }
               }
             });
@@ -930,10 +940,10 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       boolean toggle,
       Callable<Boolean> action) {
     return toggle
-        ? IconButton.toggle(icon, 18, Theme.FOREGROUND_COLOR, Color.GRAY, action)
+        ? IconButton.toggle(icon, 18, "-color-fg-default", "-color-fg-muted", action)
             .tooltip(tooltip)
             .enabled(enabled)
-        : IconButton.of(icon, 18, Theme.FOREGROUND_COLOR, Color.GRAY, action)
+        : IconButton.of(icon, 18, "-color-fg-default", "-color-fg-muted", action)
             .tooltip(tooltip)
             .enabled(enabled);
   }
@@ -1622,10 +1632,10 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
         setGraphic(Theme.getGraphics(b.getDelegate()));
       } else if (item instanceof KActorsAction action) {
         setText(action.getUrn());
-        setGraphic(new IconLabel(Theme.ACTION_ICON, 15, Theme.FOREGROUND_COLOR));
+        setGraphic(new IconLabel(Theme.ACTION_ICON, 15, "-color-fg-default"));
       } else if (item instanceof AgentGroup group) {
         setText(group.label());
-        setGraphic(new IconLabel(Material2MZ.PEOPLE, 15, Theme.FOREGROUND_COLOR));
+        setGraphic(new IconLabel(Material2MZ.PEOPLE, 15, "-color-fg-default"));
       } else if (item instanceof Agent agent) {
         configureRuntimeAgent(agent);
       } else if (item instanceof Observation observation) {
@@ -1646,7 +1656,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
           new IconLabel(
               behavior == null ? Theme.APPLICATION_VIEW_ICON : Theme.getIcon(behavior),
               15,
-              Theme.FOREGROUND_COLOR);
+              "-color-fg-default");
       var nameLabel = new Label(name == null ? "Agent" : name);
       var spacer = new Region();
       HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -1654,7 +1664,9 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
           new IconLabel(
               Material2AL.FIBER_MANUAL_RECORD,
               8,
-              viable && alive ? Color.GREEN : viable ? Color.GRAY : Color.DARKRED);
+              viable && alive
+                  ? "-color-success-fg"
+                  : viable ? "-color-fg-muted" : "-color-danger-fg");
       stateDot.setTooltip(
           new Tooltip(
               viable && alive
@@ -1666,7 +1678,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
         var debugIcon =
             activeDebugTarget
                 ? new IconLabel(CarbonIcons.DEBUG, 11, "-color-accent-fg")
-                : new IconLabel(CarbonIcons.DEBUG, 11, Color.GRAY);
+                : new IconLabel(CarbonIcons.DEBUG, 11, "-color-fg-muted");
         if (activeDebugTarget) {
           debugIcon.getStyleClass().add(Styles.ACCENT);
         } else {

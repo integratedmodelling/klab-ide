@@ -144,6 +144,8 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private CompletableFuture<Void> initializationFuture;
 
   private Map<KlabService, KlabService.ServiceStatus> serviceStatus = new ConcurrentHashMap<>() {};
+  private final Map<KlabService, List<Consumer<KlabService.ServiceStatus>>> serviceStatusListeners =
+      new ConcurrentHashMap<>();
   private ModalPane modalPane;
   private boolean modalEscHandlerInstalled;
   private boolean modalDismissible = true;
@@ -347,7 +349,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
                       ? FontAwesomeSolid.ARROW_CIRCLE_DOWN
                       : FontAwesomeSolid.ARROW_CIRCLE_UP,
                   14,
-                  Color.DARKGREEN));
+                  "-color-success-fg"));
           digitalTwinButton.setTooltip(
               new Tooltip(
                   panelShown
@@ -355,7 +357,8 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
                       : "Show Digital Twin Control Panel"));
 
           dtResetButton.setDisable(!hasFocalScope);
-          dtResetButton.setGraphic(new IconLabel(FontAwesomeSolid.TIMES_CIRCLE, 14, Color.DARKRED));
+          dtResetButton.setGraphic(
+              new IconLabel(FontAwesomeSolid.TIMES_CIRCLE, 14, "-color-danger-fg"));
           dtSwitchButton.setDisable(!hasFocalScope);
         };
 
@@ -667,24 +670,29 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     Klab.INSTANCE.setConfiguration(new CommonConfiguration());
 
     homeButton.setGraphic(
-        new IconLabel(Material2AL.HOME, 24, Theme.CURRENT_THEME.getDefaultTextColor()));
-    workspacesButton.setGraphic(new IconLabel(Theme.WORKSPACES_ICON, 24, Color.GREY));
-    resourcesManagerButton.setGraphic(new IconLabel(Theme.RESOURCES_ICON, 24, Color.GREY));
-    digitalTwinsButton.setGraphic(new IconLabel(Theme.DIGITAL_TWINS_ICON, 24, Color.GREY));
-    sessionsButton.setGraphic(new IconLabel(Theme.APPLICATION_VIEW_ICON, 24, Color.GREY));
-    worldviewButton.setGraphic(new IconLabel(Theme.WORLDVIEW_ICON, 24, Color.GREY));
-    downloadButton.setGraphic(new IconLabel(Material2AL.GET_APP, 16, Color.GREY));
-    startButton.setGraphic(new IconLabel(BootstrapIcons.POWER, 16, Color.GREY));
-    reasonerButton.setGraphic(new IconLabel(Theme.LOCAL_SERVICE_ICON, 16, Color.GREY));
-    resourcesButton.setGraphic(new IconLabel(Theme.LOCAL_SERVICE_ICON, 16, Color.GREY));
-    resolverButton.setGraphic(new IconLabel(Theme.LOCAL_SERVICE_ICON, 16, Color.GREY));
-    runtimeButton.setGraphic(new IconLabel(Theme.LOCAL_SERVICE_ICON, 16, Color.GREY));
+        new IconLabel(Material2AL.HOME, 24, "-color-fg-default"));
+    workspacesButton.setGraphic(new IconLabel(Theme.WORKSPACES_ICON, 24, "-color-fg-muted"));
+    resourcesManagerButton.setGraphic(
+        new IconLabel(Theme.RESOURCES_ICON, 24, "-color-fg-muted"));
+    digitalTwinsButton.setGraphic(
+        new IconLabel(Theme.DIGITAL_TWINS_ICON, 24, "-color-fg-muted"));
+    sessionsButton.setGraphic(
+        new IconLabel(Theme.APPLICATION_VIEW_ICON, 24, "-color-fg-muted"));
+    worldviewButton.setGraphic(new IconLabel(Theme.WORLDVIEW_ICON, 24, "-color-fg-muted"));
+    downloadButton.setGraphic(new IconLabel(Material2AL.GET_APP, 16, "-color-fg-muted"));
+    startButton.setGraphic(new IconLabel(BootstrapIcons.POWER, 16, "-color-fg-muted"));
+    reasonerButton.setGraphic(new IconLabel(Theme.LOCAL_SERVICE_ICON, 16, "-color-fg-muted"));
+    resourcesButton.setGraphic(
+        new IconLabel(Theme.LOCAL_SERVICE_ICON, 16, "-color-fg-muted"));
+    resolverButton.setGraphic(new IconLabel(Theme.LOCAL_SERVICE_ICON, 16, "-color-fg-muted"));
+    runtimeButton.setGraphic(new IconLabel(Theme.LOCAL_SERVICE_ICON, 16, "-color-fg-muted"));
     settingsButton.setGraphic(
-        new IconLabel(FontAwesomeSolid.COG, 24, Theme.CURRENT_THEME.getDefaultTextColor()));
+        new IconLabel(FontAwesomeSolid.COG, 24, "-color-fg-default"));
     inspectorButton.setGraphic(
-        new IconLabel(Theme.INSPECTOR_ICON, 24, Theme.CURRENT_THEME.getDefaultTextColor()));
+        new IconLabel(Theme.INSPECTOR_ICON, 24, "-color-fg-default"));
     updateInspectorButton();
-    profileButton.setGraphic(new IconLabel(FontAwesomeSolid.USER_CIRCLE, 32, Color.GREY));
+    profileButton.setGraphic(
+        new IconLabel(FontAwesomeSolid.USER_CIRCLE, 32, "-color-fg-muted"));
 
     viewButtons.put(View.NOTEBOOK, homeButton);
     viewButtons.put(View.DIGITAL_TWINS, digitalTwinsButton);
@@ -753,9 +761,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     setStatusBar();
     ensureModalPaneAttached();
 
-    this.dbIcon = new IconLabel(MaterialDesign.MDI_DATABASE, 11, Color.DARKGRAY);
-    this.langIcon = new IconLabel(CarbonIcons.LANGUAGE, 11, Color.DARKGRAY);
-    this.messIcon = new IconLabel(Evaicons.MESSAGE_SQUARE_OUTLINE, 11, Color.DARKGRAY);
+    this.dbIcon = new IconLabel(MaterialDesign.MDI_DATABASE, 11, "-color-fg-muted");
+    this.langIcon = new IconLabel(CarbonIcons.LANGUAGE, 11, "-color-fg-muted");
+    this.messIcon = new IconLabel(Evaicons.MESSAGE_SQUARE_OUTLINE, 11, "-color-fg-muted");
   }
 
   private void setStatusBar() {
@@ -764,7 +772,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     toggleRightSideButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
     toggleRightSideButton.setOnAction(e -> toggleNotificationPanel());
     toggleRightSideButton.setGraphic(
-        new IconLabel(Material2MZ.NAVIGATE_BEFORE, 24, Theme.CURRENT_THEME.getDefaultTextColor()));
+        new IconLabel(Material2MZ.NAVIGATE_BEFORE, 24, "-color-fg-default"));
 
     // This will contain the current DT name and statistics
     digitalTwinBox = new HBox(0);
@@ -778,21 +786,23 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     digitalTwinButton.setTooltip(new Tooltip("Show Digital Twin Control Panel"));
     digitalTwinButton.setDisable(true);
     digitalTwinButton.setGraphic(
-        new IconLabel(FontAwesomeSolid.ARROW_CIRCLE_UP, 14, Color.DARKGREEN));
+        new IconLabel(FontAwesomeSolid.ARROW_CIRCLE_UP, 14, "-color-success-fg"));
     digitalTwinButton.setOnAction(e -> toggleDigitalTwinControlPanel());
 
     dtResetButton = new Button();
     dtResetButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
     dtResetButton.setTooltip(new Tooltip("Show Digital Twin Control Panel"));
     dtResetButton.setDisable(true);
-    dtResetButton.setGraphic(new IconLabel(FontAwesomeSolid.TIMES_CIRCLE, 14, Color.DARKRED));
+    dtResetButton.setGraphic(
+        new IconLabel(FontAwesomeSolid.TIMES_CIRCLE, 14, "-color-danger-fg"));
     dtResetButton.setOnAction(e -> resetCurrentDigitalTwin());
 
     dtSwitchButton = new Button();
     dtSwitchButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
     dtSwitchButton.setTooltip(new Tooltip("Show Digital Twin Control Panel"));
     dtSwitchButton.setDisable(true);
-    dtSwitchButton.setGraphic(new IconLabel(Theme.DIGITAL_TWINS_ICON, 16, Color.GREY));
+    dtSwitchButton.setGraphic(
+        new IconLabel(Theme.DIGITAL_TWINS_ICON, 16, "-color-fg-muted"));
     dtSwitchButton.setOnAction(
         e -> {
           if (getFocalScope() != null) {
@@ -814,11 +824,11 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
             new Separator(Orientation.VERTICAL));
 
     this.infoLabel =
-        new Label(null, new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, Color.BLUE));
+        new Label(null, new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, "-color-accent-fg"));
     this.errorLabel =
-        new Label(null, new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, Color.RED));
+        new Label(null, new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, "-color-danger-fg"));
     this.warningLabel =
-        new Label(null, new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, Color.ORANGE));
+        new Label(null, new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, "-color-warning-fg"));
     this.messageLabel = new Label();
     HBox.setHgrow(messageLabel, Priority.ALWAYS);
     this.warningLabel.setTooltip(new Tooltip("No unread warnings."));
@@ -926,7 +936,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         startButton,
         BootstrapIcons.CLOCK,
         16,
-        Color.DARKGOLDENROD,
+        "-color-warning-fg",
         "Local services are starting or stopping. Wait until status changes.");
     setStartButtonDisabled(true);
 
@@ -984,17 +994,17 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
             switch (notification.getLevel()) {
               case Debug, Info -> {
                 infoLabel.setGraphic(
-                    new IconLabel(Material2MZ.NOTIFICATIONS_ACTIVE, 16, Color.BLUE));
+                    new IconLabel(Material2MZ.NOTIFICATIONS_ACTIVE, 16, "-color-accent-fg"));
                 infoLabel.setTooltip(new Tooltip("There are new notifications."));
               }
               case Warning -> {
                 warningLabel.setGraphic(
-                    new IconLabel(Material2MZ.NOTIFICATIONS_ACTIVE, 16, Color.ORANGE));
+                    new IconLabel(Material2MZ.NOTIFICATIONS_ACTIVE, 16, "-color-warning-fg"));
                 warningLabel.setTooltip(new Tooltip("There are new warnings."));
               }
               case Error, SystemError -> {
                 errorLabel.setGraphic(
-                    new IconLabel(Material2MZ.NOTIFICATIONS_ACTIVE, 16, Color.RED));
+                    new IconLabel(Material2MZ.NOTIFICATIONS_ACTIVE, 16, "-color-danger-fg"));
                 errorLabel.setTooltip(new Tooltip("There are new errors."));
               }
             }
@@ -1013,10 +1023,11 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
                             : Material2AL.INFO,
                         16,
                         Notification.Outcome.Success == notification.getOutcome()
-                            ? Color.GREEN
-                            : Color.BLUE);
-                case Warning -> new IconLabel(Material2MZ.WARNING, 16, Color.ORANGE);
-                case Error, SystemError -> new IconLabel(Material2AL.ERROR, 16, Color.RED);
+                            ? "-color-success-fg"
+                            : "-color-accent-fg");
+                case Warning -> new IconLabel(Material2MZ.WARNING, 16, "-color-warning-fg");
+                case Error, SystemError ->
+                    new IconLabel(Material2AL.ERROR, 16, "-color-danger-fg");
               });
           currentPause = new PauseTransition(Duration.seconds(5));
           currentPause.setOnFinished(
@@ -1034,9 +1045,12 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         () -> {
 
           // reset icons to "all read"
-          infoLabel.setGraphic(new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, Color.BLUE));
-          warningLabel.setGraphic(new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, Color.ORANGE));
-          errorLabel.setGraphic(new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, Color.RED));
+          infoLabel.setGraphic(
+              new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, "-color-accent-fg"));
+          warningLabel.setGraphic(
+              new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, "-color-warning-fg"));
+          errorLabel.setGraphic(
+              new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, "-color-danger-fg"));
           infoLabel.setTooltip(new Tooltip("No unread notifications."));
           warningLabel.setTooltip(new Tooltip("No unread warnings."));
           errorLabel.setTooltip(new Tooltip("No unread errors."));
@@ -1072,10 +1086,11 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
                           : Material2AL.INFO,
                       24,
                       Notification.Outcome.Success == notification.getOutcome()
-                          ? Color.GREEN
-                          : Color.BLUE);
-              case Warning -> new IconLabel(Material2MZ.WARNING, 24, Color.ORANGE);
-              case Error, SystemError -> new IconLabel(Material2AL.ERROR, 24, Color.RED);
+                          ? "-color-success-fg"
+                          : "-color-accent-fg");
+              case Warning -> new IconLabel(Material2MZ.WARNING, 24, "-color-warning-fg");
+              case Error, SystemError ->
+                  new IconLabel(Material2AL.ERROR, 24, "-color-danger-fg");
             });
     ret.getStyleClass()
         .addAll(
@@ -1244,7 +1259,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         inspectorButton,
         Theme.INSPECTOR_ICON,
         24,
-        inspectorIsOn ? Color.GOLDENROD : Theme.CURRENT_THEME.getDefaultTextColor(),
+        inspectorIsOn ? "-color-warning-fg" : "-color-fg-default",
         inspectorIsOn
             ? (inspectorDocked
                 ? "Click to hide the knowledge inspector"
@@ -1287,6 +1302,40 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   @Override
   public void notifyServiceStatus(KlabService service, KlabService.ServiceStatus status) {
     this.serviceStatus.put(service, status);
+    // Status messages may contain a freshly deserialized service descriptor. Do
+    // not require object identity with the descriptor held by the selected view.
+    serviceStatusListeners.forEach(
+        (registeredService, listeners) -> {
+          if (registeredService == service || sameService(registeredService, service, status)) {
+            listeners.forEach(listener -> listener.accept(status));
+          }
+        });
+  }
+
+  private static boolean sameService(
+      KlabService first, KlabService second, KlabService.ServiceStatus status) {
+    if (first == null || second == null) return false;
+    if (status != null
+        && first.serviceId() != null
+        && first.serviceId().equals(status.getServiceId())) return true;
+    if (first.serviceId() != null && first.serviceId().equals(second.serviceId())) return true;
+    return first.getUrl() != null && first.getUrl().equals(second.getUrl());
+  }
+
+  /** Register a view callback for the status stream emitted by the engine for a service. */
+  public void addServiceStatusListener(
+      KlabService service, Consumer<KlabService.ServiceStatus> listener) {
+    serviceStatusListeners.computeIfAbsent(service, ignored -> new CopyOnWriteArrayList<>()).add(listener);
+  }
+
+  /** Remove a previously registered service status callback. */
+  public void removeServiceStatusListener(
+      KlabService service, Consumer<KlabService.ServiceStatus> listener) {
+    var listeners = serviceStatusListeners.get(service);
+    if (listeners != null) {
+      listeners.remove(listener);
+      if (listeners.isEmpty()) serviceStatusListeners.remove(service, listeners);
+    }
   }
 
   @Override
@@ -1303,7 +1352,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
             startButton,
             BootstrapIcons.CLOCK,
             16,
-            Color.DARKGOLDENROD,
+            "-color-warning-fg",
             "Local services are starting or stopping. Wait until status changes.");
       }
       case INOPERATIVE, ACTIVE_REMOTE_ONLY -> {
@@ -1315,14 +1364,14 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
               startButton,
               BootstrapIcons.POWER,
               16,
-              Color.DARKGREEN,
+              "-color-success-fg",
               "Local services are not running. Click to start them.");
         } else {
           setButton(
               startButton,
               BootstrapIcons.POWER,
               16,
-              Color.GREY,
+              "-color-fg-muted",
               "No distribution is available. Please download one.");
         }
       }
@@ -1333,7 +1382,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
             startButton,
             BootstrapIcons.STOP,
             16,
-            Color.DARKRED,
+            "-color-danger-fg",
             "Local services are running. Click to stop them.");
         if (notifications != null) {
           handleNotification(
@@ -1361,24 +1410,24 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
       var color =
           provision == Engine.Status.ServiceProvision.INOPERATIVE
-              ? Color.GREY
+              ? "-color-fg-muted"
               : switch (serviceType) {
                 case REASONER ->
                     provision.isOperational()
-                        ? Theme.REASONER_COLOR_ACTIVE
-                        : Theme.REASONER_COLOR_MUTED;
+                        ? "-color-accent-fg"
+                        : "-color-accent-muted";
                 case RESOURCES ->
                     provision.isOperational()
-                        ? Theme.RESOURCES_COLOR_ACTIVE
-                        : Theme.RESOURCES_COLOR_MUTED;
+                        ? "-color-success-fg"
+                        : "-color-success-muted";
                 case RESOLVER ->
                     provision.isOperational()
-                        ? Theme.RESOLVER_COLOR_ACTIVE
-                        : Theme.RESOLVER_COLOR_MUTED;
+                        ? "-color-warning-fg"
+                        : "-color-warning-muted";
                 case RUNTIME ->
                     provision.isOperational()
-                        ? Theme.RUNTIME_COLOR_ACTIVE
-                        : Theme.RUNTIME_COLOR_MUTED;
+                        ? "-color-danger-fg"
+                        : "-color-danger-muted";
                 default -> throw new KlabInternalErrorException("?"); // can't happen
               };
 
@@ -1396,14 +1445,14 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
               digitalTwinsButton,
               Theme.DIGITAL_TWINS_ICON,
               24,
-              Color.DARKGREEN,
+              "-color-success-fg",
               digitalTwinsButton.getTooltip().getText());
         } else {
           setButton(
               digitalTwinsButton,
               Theme.DIGITAL_TWINS_ICON,
               24,
-              Color.GREY,
+              "-color-fg-muted",
               digitalTwinsButton.getTooltip().getText());
         }
       } else if (serviceType == KlabService.Type.REASONER) {
@@ -1412,14 +1461,14 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
               worldviewButton,
               Theme.WORLDVIEW_ICON,
               24,
-              Color.DARKGREEN,
+              "-color-success-fg",
               worldviewButton.getTooltip().getText());
         } else {
           setButton(
               worldviewButton,
               Theme.WORLDVIEW_ICON,
               24,
-              Color.GREY,
+              "-color-fg-muted",
               worldviewButton.getTooltip().getText());
         }
       } else if (serviceType == KlabService.Type.RESOURCES) {
@@ -1428,38 +1477,38 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
               workspacesButton,
               Theme.WORKSPACES_ICON,
               24,
-              Color.DARKGREEN,
+              "-color-success-fg",
               workspacesButton.getTooltip().getText());
           setButton(
               resourcesManagerButton,
               Theme.RESOURCES_ICON,
               24,
-              Color.DARKGREEN,
+              "-color-success-fg",
               resourcesManagerButton.getTooltip().getText());
           setButton(
               sessionsButton,
               Theme.APPLICATION_VIEW_ICON,
               24,
-              Color.DARKGREEN,
+              "-color-success-fg",
               sessionsButton.getTooltip().getText());
         } else {
           setButton(
               workspacesButton,
               Theme.WORKSPACES_ICON,
               24,
-              Color.GREY,
+              "-color-fg-muted",
               workspacesButton.getTooltip().getText());
           setButton(
               resourcesManagerButton,
               Theme.RESOURCES_ICON,
               24,
-              Color.GREY,
+              "-color-fg-muted",
               resourcesManagerButton.getTooltip().getText());
           setButton(
               sessionsButton,
               Theme.APPLICATION_VIEW_ICON,
               24,
-              Color.GREY,
+              "-color-fg-muted",
               sessionsButton.getTooltip().getText());
         }
       }
@@ -1468,20 +1517,20 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
           Theme.DATABASE_ICON,
           11,
           status.getActiveAuxiliaryServices().contains(Distribution.Product.Type.DATABASE_SERVER)
-              ? Color.LIGHTGREEN
-              : Color.DARKGRAY);
+              ? "-color-success-fg"
+              : "-color-fg-muted");
       this.langIcon.set(
           Theme.LANGUAGE_SERVER_ICON,
           11,
           status.getActiveAuxiliaryServices().contains(Distribution.Product.Type.LANGUAGE_SERVER)
-              ? Color.LIGHTGREEN
-              : Color.DARKGRAY);
+              ? "-color-success-fg"
+              : "-color-fg-muted");
       this.messIcon.set(
           Theme.MESSAGING_ICON,
           11,
           status.getActiveAuxiliaryServices().contains(Distribution.Product.Type.AMQP_BROKER)
-              ? Color.LIGHTGREEN
-              : Color.DARKGRAY);
+              ? "-color-success-fg"
+              : "-color-fg-muted");
 
       var tooltip = serviceName; // FIXME use meaningful tooltip based on provision
 
@@ -1619,21 +1668,21 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
           profileButton,
           FontAwesomeSolid.USER_CIRCLE,
           32,
-          Color.DARKRED,
+          "-color-danger-fg",
           "Anonymous user. Please obtain a certificate.");
     } else if (identity.isAuthenticated()) {
       setButton(
           profileButton,
           FontAwesomeSolid.USER_CIRCLE,
           32,
-          Color.DARKGREEN,
+          "-color-success-fg",
           "User " + identity.getUsername() + " logged in");
     } else {
       setButton(
           profileButton,
           FontAwesomeSolid.USER_CIRCLE,
           32,
-          Color.DARKGOLDENROD,
+          "-color-warning-fg",
           "Authentication failed for user " + identity.getUsername());
     }
 
@@ -1859,15 +1908,15 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     }
 
     Ikon icon = BootstrapIcons.DOWNLOAD;
-    var color = Color.GREEN;
+    var color = "-color-success-fg";
     var tooltip = "No k.LAB distribution is available";
-    var startColor = Color.GREEN;
+    var startColor = "-color-success-fg";
     var startTooltip = "Local services are not available";
     var startEnabled = false;
     var distributionTag = engine().getSoftwareStack().resolve(engine().getDistributionTag());
     if (distributionTag == null) {
-      updateInactiveStartButton(false, Color.GREY, startTooltip);
-      setButton(downloadButton, icon, 16, Color.RED, tooltip);
+      updateInactiveStartButton(false, "-color-fg-muted", startTooltip);
+      setButton(downloadButton, icon, 16, "-color-danger-fg", tooltip);
       notifySoftwareStackStateListeners();
       return;
     }
@@ -1889,11 +1938,11 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
           status.downloadSize() > 0 || hasNewerDistribution(stack, distributionTag);
 
       if (status.equals(Stack.Status.ABSENT)) {
-        color = Color.RED;
+        color = "-color-danger-fg";
         tooltip = "No distribution available. Click to download";
       } else if (updateAvailable && !automaticSynchronization) {
-        color = Color.GOLDENROD;
-        startColor = Color.GOLDENROD;
+        color = "-color-warning-fg";
+        startColor = "-color-warning-fg";
         tooltip = "Updated k.LAB distribution available. Click to update";
         startTooltip = "Start out-of-date local services";
         startEnabled = true;
@@ -1902,7 +1951,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         icon = BootstrapIcons.CHECK;
         startEnabled = true;
       } else {
-        color = Color.RED;
+        color = "-color-danger-fg";
         tooltip = "Distribution is not available locally. Click to download";
       }
     }
@@ -1914,11 +1963,11 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
       if (engine().startAuxiliaryServices(KlabService.Type.LANGUAGE_SERVER)) {
         handleNotification(
             Notification.info("Language server started", Notification.Outcome.Success));
-        langIcon.set(Theme.LANGUAGE_SERVER_ICON, 11, Color.LIGHTGREEN);
+        langIcon.set(Theme.LANGUAGE_SERVER_ICON, 11, "-color-success-fg");
       } else {
         handleNotification(
             Notification.warning("Language server not available", Notification.Outcome.Failure));
-        langIcon.set(Theme.LANGUAGE_SERVER_ICON, 11, Color.RED);
+        langIcon.set(Theme.LANGUAGE_SERVER_ICON, 11, "-color-danger-fg");
       }
     } else if (startConfiguredAuxiliaries) {
       handleNotification(Notification.info("Language server was disabled in settings"));
@@ -1930,7 +1979,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
    * Distribution refreshes may describe whether services can be started, but must not overwrite the
    * authoritative running or transitioning state rendered by {@link #engineStatusChanged}.
    */
-  private void updateInactiveStartButton(boolean enabled, Color color, String tooltip) {
+  private void updateInactiveStartButton(boolean enabled, String color, String tooltip) {
     var status = engineStatus.get();
     if (status != null
         && (status.getCondition() == Engine.Status.EngineCondition.TRANSITIONING
@@ -1965,6 +2014,18 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
             button.setTooltip(ttp);
           });
     }
+  }
+
+  /** Sets a button icon using an AtlantaFX color lookup so it follows theme changes. */
+  public static void setButton(
+      Button button, Ikon icon, int size, String cssColor, String tooltip) {
+    Platform.runLater(
+        () -> {
+          button.setGraphic(new IconLabel(icon, size, cssColor));
+          var ttp = new Tooltip(tooltip);
+          ttp.setShowDelay(Duration.millis(200));
+          button.setTooltip(ttp);
+        });
   }
 
   @Visualization(

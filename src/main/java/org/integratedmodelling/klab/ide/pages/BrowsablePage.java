@@ -21,7 +21,6 @@ import org.integratedmodelling.klab.api.view.View;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.kordamp.ikonli.Ikon;
-import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2MZ;
 
 /** The generic browser with a modal index on the left. */
@@ -223,7 +222,7 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
     }
   }
 
-  public void addEditor(EditorPage<?, ?> node, String title, FontIcon icon) {
+  public void addEditor(EditorPage<?, ?> node, String title, Node icon) {
     var tab = new Tab(title, node);
     tab.setGraphic(icon);
     Platform.runLater(

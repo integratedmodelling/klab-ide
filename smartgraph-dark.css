@@ -1,0 +1,61 @@
+/*
+ * Dark theme for SmartGraphPanel. Applications may use this file as-is or
+ * provide their own URI through SmartGraphPanel#setDarkModeStylesheet(URI).
+ */
+
+.graph {
+    -fx-background-color: #202124;
+}
+
+.vertex {
+    -fx-stroke-width: 3;
+    -fx-stroke: #8ab4f8;
+    -fx-stroke-type: inside;
+    -fx-fill: #3c5f8a;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.6), 8, 0.2, 0, 4);
+}
+
+.vertex:hover {
+    -fx-stroke-width: 4;
+}
+
+.vertex-label {
+    -fx-font: bold 8pt "sans-serif";
+    -fx-text-fill: #f1f3f4;
+    -fx-fill: #f1f3f4;
+    -fx-padding: 5px;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.7), 8, 0.2, 0, 4);
+}
+
+.vertex-label:hover {
+    -fx-background-color: #303134;
+    -fx-background-radius: 5;
+    -fx-border-radius: 5;
+    -fx-border-color: #9aa0a6;
+}
+
+.edge {
+    -fx-stroke-width: 2;
+    -fx-stroke: #f28b82;
+    -fx-stroke-dash-array: 2 5 2 5;
+    -fx-fill: transparent;
+    -fx-stroke-line-cap: round;
+    -fx-opacity: 0.9;
+}
+
+.edge:hover {
+    -fx-stroke-width: 3;
+}
+
+.edge-label {
+    -fx-font: normal 5pt "sans-serif";
+    -fx-text-fill: #f1f3f4;
+    -fx-fill: #f1f3f4;
+    -fx-background-color: #8c2f2b;
+    -fx-border-color: #bdc1c6;
+    -fx-padding: 2px;
+}
+
+.arrow {
+    -fx-stroke-dash-array: none;
+}

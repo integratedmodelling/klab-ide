@@ -63,6 +63,8 @@ public enum Theme {
   DARK_DEFAULT(true),
   LIGHT_COOL(false),
   DARK_COOL(true),
+  LIGHT_HC(false),
+  DARK_HC(true),
   DARK_ALTERNATIVE(true);
 
   public enum Detail {
@@ -329,20 +331,20 @@ public enum Theme {
           case RuntimeAsset ignored -> KNOWLEDGE_GRAPH_ICON;
           default -> UNKNOWN_ICON;
         };
-    var color = CURRENT_THEME.getDefaultTextColor();
+    var cssColor = "-color-fg-default";
     if (errorCount > 0) {
-      color = Color.RED;
+      cssColor = "-color-danger-fg";
     } else if (warningCount > 0) {
-      color = Color.GOLDENROD;
+      cssColor = "-color-warning-fg";
     } else if (infoCount > 0) {
-      color = Color.BLUE;
+      cssColor = "-color-accent-fg";
     }
 
     if (semanticType != null) {
-      color = getColorForType(semanticType);
+      return new IconLabel(icon, 18, getColorForType(semanticType));
     }
 
-    return new IconLabel(icon, 18, color);
+    return new IconLabel(icon, 18, cssColor);
   }
 
   public static Color getColorForType(SemanticType semanticType) {
@@ -433,6 +435,8 @@ public enum Theme {
       case DARK_DEFAULT -> new PrimerDark().getUserAgentStylesheet();
       case LIGHT_COOL -> new NordLight().getUserAgentStylesheet();
       case DARK_COOL -> new NordDark().getUserAgentStylesheet();
+      case LIGHT_HC -> new CupertinoLight().getUserAgentStylesheet();
+      case DARK_HC -> new CupertinoDark().getUserAgentStylesheet();
       case DARK_ALTERNATIVE -> new Dracula().getUserAgentStylesheet();
     };
   }
@@ -441,8 +445,8 @@ public enum Theme {
     return switch (this) {
       case LIGHT_DEFAULT -> Color.web("#24292FFF");
       case DARK_DEFAULT -> Color.web("#C9D1D9FF");
-      case LIGHT_COOL -> Color.web("#2E3440FF");
-      case DARK_COOL -> Color.web("#ECEFF4FF");
+      case LIGHT_COOL, LIGHT_HC -> Color.web("#2E3440FF");
+      case DARK_COOL, DARK_HC -> Color.web("#ECEFF4FF");
       case DARK_ALTERNATIVE -> Color.web("#F8F8F2FF");
     };
   }

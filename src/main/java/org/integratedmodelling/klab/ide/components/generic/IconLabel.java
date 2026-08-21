@@ -51,6 +51,12 @@ public class IconLabel extends Label {
     }
   }
 
+  /** Changes the icon and uses an AtlantaFX CSS lookup for a theme-aware color. */
+  public void set(Ikon ikon, int size, String cssColor) {
+    setIconText(ikon, size);
+    setStyle("-fx-text-fill: " + cssColor + ";");
+  }
+
   /** Changes the displayed icon and size without altering its current color or CSS styling. */
   public void setIcon(Ikon ikon, int size) {
     setIconText(ikon, size);

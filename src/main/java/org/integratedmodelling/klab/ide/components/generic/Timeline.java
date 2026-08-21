@@ -4,7 +4,6 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.control.Label;
@@ -134,9 +133,9 @@ public class Timeline extends BaseAssetViewComponent {
 
   private List<Event> events = new ArrayList<>();
 
-  private static final Color LIGHT_GREY = Color.rgb(240, 240, 240);
-  private static final Color DARK_GREY = Color.rgb(220, 220, 220);
-  private static final Color DEFAULT_EVENT_COLOR = Color.MAGENTA;
+  private static final String STRIPE_LIGHT_COLOR = "-color-bg-default";
+  private static final String STRIPE_DARK_COLOR = "-color-bg-subtle";
+  private static final String DEFAULT_EVENT_COLOR = "-color-accent-fg";
   private static final double EVENT_VERTICAL_SPACING = 5.0;
   private static final DateTimeFormatter TIME_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
@@ -295,20 +294,20 @@ public class Timeline extends BaseAssetViewComponent {
     // Set the color based on the event type
     switch (event.getType()) {
       case EVENT_EXTERNAL:
-        circle.setFill(Color.BLUE);
+        circle.setStyle("-fx-fill: -color-accent-fg;");
         break;
       case WARNING:
-        circle.setFill(Color.ORANGE);
+        circle.setStyle("-fx-fill: -color-warning-fg;");
         break;
       case ERROR:
-        circle.setFill(Color.RED);
+        circle.setStyle("-fx-fill: -color-danger-fg;");
         break;
       case EVENT_INTERNAL:
-        circle.setFill(Color.GREEN);
+        circle.setStyle("-fx-fill: -color-success-fg;");
         break;
       case TIME:
       default:
-        circle.setFill(DEFAULT_EVENT_COLOR);
+        circle.setStyle("-fx-fill: " + DEFAULT_EVENT_COLOR + ";");
         // Position TIME events on the timeline
         circle.setLayoutY(timelinePane.getHeight() - TIME_EVENT_BOTTOM_MARGIN);
         break;
@@ -380,13 +379,14 @@ public class Timeline extends BaseAssetViewComponent {
       Tooltip.install(section, new Tooltip(tooltipText));
 
       // Alternate between light and dark grey
-      section.setFill(i % 2 == 0 ? LIGHT_GREY : DARK_GREY);
+      section.setStyle(
+          "-fx-fill: " + (i % 2 == 0 ? STRIPE_LIGHT_COLOR : STRIPE_DARK_COLOR) + ";");
 
       timelinePane.getChildren().add(section);
 
       // Draw horizontal line for TIME events
       Rectangle timeLine = new Rectangle(0, height - TIME_EVENT_BOTTOM_MARGIN, width, 1);
-      timeLine.setFill(Color.LIGHTGREY);
+      timeLine.setStyle("-fx-fill: -color-border-default;");
       timelinePane.getChildren().add(timeLine);
     }
 

@@ -125,21 +125,20 @@ public class AboutViewComponent extends BaseAssetViewComponent {
   }
 
   private IconButton createThemeToggle() {
+    Theme[] themes = Theme.values();
     var toggle =
         IconButton.toggle(
             Material2AL.BRIGHTNESS_4,
             20,
-            Theme.DARK_DEFAULT.getDefaultTextColor(),
-            Theme.LIGHT_DEFAULT.getDefaultTextColor(),
+            "-color-fg-default",
+            "-color-fg-muted",
             () -> {
-              Theme.setCurrentTheme(
-                  Theme.CURRENT_THEME == Theme.DARK_DEFAULT
-                      ? Theme.LIGHT_DEFAULT
-                      : Theme.DARK_DEFAULT);
+              int nextTheme = (Theme.CURRENT_THEME.ordinal() + 1) % themes.length;
+              Theme.setCurrentTheme(themes[nextTheme]);
               return true;
             });
-    toggle.setToggled(Theme.CURRENT_THEME == Theme.DARK_DEFAULT);
-    toggle.tooltip("Switch between day and night theme");
+    toggle.setToggled(Theme.CURRENT_THEME.isDark());
+    toggle.tooltip("Cycle through available themes");
     return toggle;
   }
 

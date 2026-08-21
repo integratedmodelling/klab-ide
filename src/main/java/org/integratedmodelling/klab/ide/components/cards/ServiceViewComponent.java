@@ -83,8 +83,8 @@ public class ServiceViewComponent extends BaseAssetViewComponent {
               content.getChildren().add(serviceSelector);
 
               if (newVal != null) {
-                ServicePageViewComponent serviceComponent =
-                    new ServicePageViewComponent(newVal);
+                ServiceDashboard serviceComponent =
+                    new ServiceDashboard(newVal, newVal.serviceName(), true);
                 content.getChildren().add(serviceComponent);
                 VBox.setVgrow(serviceComponent, Priority.ALWAYS);
               }

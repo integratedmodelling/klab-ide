@@ -254,7 +254,7 @@ public class InspectorView extends BorderPane {
 
   private static Button iconButton(Ikon icon, String tooltip) {
     Button button =
-        new Button(null, new IconLabel(icon, 12, Theme.CURRENT_THEME.getDefaultTextColor()));
+        new Button(null, new IconLabel(icon, 12, "-color-fg-default"));
     button.getStyleClass().add("inspector-tool-button");
     button.setTooltip(tooltip(tooltip));
     button.setFocusTraversable(false);
@@ -367,7 +367,7 @@ public class InspectorView extends BorderPane {
     Ikon icon = docked ? Material2MZ.OPEN_IN_NEW : Material2MZ.NAVIGATE_BEFORE;
     String text = docked ? "Undock inspector" : "Dock inspector";
     if (dockButton.getGraphic() instanceof IconLabel iconLabel) {
-      iconLabel.set(icon, 11, Theme.CURRENT_THEME.getDefaultTextColor());
+      iconLabel.set(icon, 11, "-color-fg-default");
     }
     dockButton.setTooltip(tooltip(text));
   }
@@ -407,7 +407,7 @@ public class InspectorView extends BorderPane {
 
       Button close =
           new Button(
-              null, new IconLabel(Material2AL.CLOSE, 8, Theme.CURRENT_THEME.getDefaultTextColor()));
+              null, new IconLabel(Material2AL.CLOSE, 8, "-color-fg-default"));
       close.getStyleClass().add("inspector-breadcrumb-close");
       close.setTooltip(tooltip("Remove from inspector stack"));
       close.setFocusTraversable(false);

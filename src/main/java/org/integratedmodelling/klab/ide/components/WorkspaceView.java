@@ -28,6 +28,7 @@ import org.integratedmodelling.klab.api.view.modeler.views.controllers.Resources
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.cards.ResourceSmallViewComponent;
+import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 import org.integratedmodelling.klab.modeler.model.NavigableWorkspace;
 import org.kordamp.ikonli.javafx.FontIcon;
@@ -249,7 +250,7 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
       addEditor(
           newEditor,
           resourceInfo.getUrn() + "@" + service.serviceName(),
-          new FontIcon(Theme.WORKSPACE_ICON));
+          new IconLabel(Theme.WORKSPACE_ICON, 18, "-color-fg-default"));
     }
   }
 

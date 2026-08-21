@@ -12,7 +12,6 @@ import javafx.util.Duration;
 import org.integratedmodelling.klab.api.data.KnowledgeGraph;
 import org.integratedmodelling.klab.api.data.Metadata;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
-import org.integratedmodelling.klab.api.knowledge.SemanticType;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedule;
 import org.integratedmodelling.klab.api.lang.kim.KimNamespace;
@@ -78,7 +77,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     IDLE;
   }
 
-  private Pane dropZone;
+  private StackPane dropZone;
   private Status status = Status.IDLE;
   private ActivityTree activityTree;
   private ObservationTree observationTree;
@@ -100,13 +99,16 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     topBar.setAlignment(Pos.CENTER_LEFT);
     topBar.setStyle("-fx-background-color: -color-neutral-muted;");
 
-    this.activitiesButton = new Button("", new IconLabel(Theme.ACTIVITY_ICON, 14, Color.DARKGRAY));
+    this.activitiesButton =
+        new Button("", new IconLabel(Theme.ACTIVITY_ICON, 14, "-color-fg-muted"));
     this.observationButton =
-        new Button("", new IconLabel(Theme.KNOWLEDGE_GRAPH_ICON, 14, Color.DARKGRAY));
-    this.observerButton = new Button("", new IconLabel(Theme.OBSERVER_ICON, 14, Color.DARKGRAY));
-    this.scenarioButton = new Button("", new IconLabel(Theme.SCENARIO_ICON, 14, Color.DARKGRAY));
+        new Button("", new IconLabel(Theme.KNOWLEDGE_GRAPH_ICON, 14, "-color-fg-muted"));
+    this.observerButton =
+        new Button("", new IconLabel(Theme.OBSERVER_ICON, 14, "-color-fg-muted"));
+    this.scenarioButton =
+        new Button("", new IconLabel(Theme.SCENARIO_ICON, 14, "-color-fg-muted"));
     this.resetButton =
-        new Button("", new IconLabel(Material2AL.DELETE_FOREVER, 18, Color.DARKGRAY));
+        new Button("", new IconLabel(Material2AL.DELETE_FOREVER, 18, "-color-danger-fg"));
 
     resetButton.setOnAction(e -> editorPage.deleteScope(scope));
 
@@ -160,7 +162,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
     searchArea.show("activities");
 
-    this.homeButton = new Button("", new IconLabel(Material2AL.HOME, 14, Color.BLACK));
+    this.homeButton = new Button("", new IconLabel(Material2AL.HOME, 14, "-color-fg-default"));
     homeButton.setOnAction(e -> contextScopeAction());
     homeButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
 
@@ -171,7 +173,8 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     hbTooltip.setShowDelay(Duration.millis(200));
     homeButton.setTooltip(hbTooltip);
 
-    var conceptButton = new Button("", new IconLabel(Theme.WORLDVIEW_ICON, 14, Color.BLACK));
+    var conceptButton =
+        new Button("", new IconLabel(Theme.WORLDVIEW_ICON, 14, "-color-fg-default"));
     conceptButton.setOnAction(
         e -> {
           var button = new Button("PLACEHOLDER FOR FUTURE CONCEPT SEARCH");
@@ -204,11 +207,20 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
     activityTree.setMinSize(220, 220);
 
-    dropZone = new Pane();
+    dropZone = new StackPane();
     dropZone.setMinSize(220, 220);
     dropZone.setMaxSize(220, 220);
     dropZone.setStyle(
-        "-fx-background-color: #F5F5F5; -fx-border-color: grey; -fx-border-width: 5; -fx-border-style: dashed; -fx-border-radius: 10;");
+        "-fx-background-color: -color-bg-subtle;"
+            + " -fx-border-color: -color-border-default;"
+            + " -fx-border-width: 2;"
+            + " -fx-border-style: dashed;"
+            + " -fx-border-radius: 10;"
+            + " -fx-background-radius: 10;");
+    // DROP TARGET CONTENT: replace or extend this prompt when the receiving interaction evolves.
+    Label dropLabel = new Label("Drop asset here");
+    dropLabel.setStyle("-fx-text-fill: -color-fg-muted; -fx-font-size: 14px;");
+    dropZone.getChildren().add(dropLabel);
     setCenter(null); // TODO use some idle view
   }
 
@@ -345,50 +357,44 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
             Theme.ACTIVITY_ICON,
             14,
             scope == null
-                ? Color.DARKGRAY
-                : (currentView == View.ACTIVITIES ? Color.DARKGREEN : Color.BLACK)));
+                ? "-color-fg-muted"
+                : (currentView == View.ACTIVITIES ? "-color-success-fg" : "-color-fg-default")));
     this.observationButton.setGraphic(
         new IconLabel(
             Theme.KNOWLEDGE_GRAPH_ICON,
             14,
             scope == null
-                ? Color.DARKGRAY
-                : (currentView == View.OBSERVATIONS ? Color.DARKGREEN : Color.BLACK)));
+                ? "-color-fg-muted"
+                : (currentView == View.OBSERVATIONS
+                    ? "-color-success-fg"
+                    : "-color-fg-default")));
     this.observerButton.setGraphic(
         new IconLabel(
             Theme.OBSERVER_ICON,
             14,
             scope == null
-                ? Color.DARKGRAY
-                : (currentView == View.OBSERVERS ? Color.DARKGREEN : Color.BLACK)));
+                ? "-color-fg-muted"
+                : (currentView == View.OBSERVERS ? "-color-success-fg" : "-color-fg-default")));
     this.scenarioButton.setGraphic(
         new IconLabel(
             Theme.SCENARIO_ICON,
             14,
             scope == null
-                ? Color.DARKGRAY
-                : (currentView == View.SCENARIOS ? Color.DARKGREEN : Color.BLACK)));
+                ? "-color-fg-muted"
+                : (currentView == View.SCENARIOS ? "-color-success-fg" : "-color-fg-default")));
     this.homeButton.setGraphic(
         new IconLabel(
             (scope == null || scope.getContextObservation() == null)
                 ? Material2AL.HOME
                 : FontAwesomeSolid.HOME,
             (scope == null || scope.getContextObservation() == null) ? 16 : 14,
-            (scope == null
-                ? Color.DARKGRAY
-                : (scope.getContextObservation() == null
-                    ? Color.BLACK
-                    : Theme.getColorForType(
-                        SemanticType.fundamentalType(
-                            scope
-                                .getContextObservation()
-                                .getObservable()
-                                .getSemantics()
-                                .getType()))))));
+            scope == null
+                ? "-color-fg-muted"
+                : "-color-fg-default"));
 
     this.resetButton.setGraphic(
         new IconLabel(
-            Material2AL.DELETE_FOREVER, 18, scope == null ? Color.DARKGRAY : Color.DARKRED));
+            Material2AL.DELETE_FOREVER, 18, scope == null ? "-color-fg-muted" : "-color-danger-fg"));
 
     outlineButton(this.activitiesButton, currentView == View.ACTIVITIES);
     outlineButton(this.observationButton, currentView == View.OBSERVATIONS);
@@ -529,13 +535,8 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
           if (scope != eventScope) return;
           homeButton.setGraphic(
               observation == null
-                  ? new IconLabel(Material2AL.HOME, 16, Color.BLACK)
-                  : new IconLabel(
-                      FontAwesomeSolid.HOME,
-                      14,
-                      Theme.getColorForType(
-                          SemanticType.fundamentalType(
-                              observation.getObservable().getSemantics().getType()))));
+                  ? new IconLabel(Material2AL.HOME, 16, "-color-fg-default")
+                  : new IconLabel(FontAwesomeSolid.HOME, 14, "-color-fg-default"));
           var tooltip =
               new Tooltip(
                   observation == null

@@ -154,8 +154,8 @@
 }
 
 .inspector-breadcrumb-chip-current {
-    -fx-background-color: #ddf4ff;
-    -fx-border-color: #54aeef;
+    -fx-background-color: -color-accent-subtle;
+    -fx-border-color: -color-accent-muted;
 }
 
 .inspector-breadcrumb-chip-label {
@@ -164,7 +164,7 @@
 }
 
 .inspector-breadcrumb-chip-label-current {
-    -fx-text-fill: #0550ae;
+    -fx-text-fill: -color-accent-fg;
 }
 
 .inspector-breadcrumb-close {
