@@ -314,7 +314,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     // Check if the component has valid dimensions before initializing
     if (getWidth() > 0 && getHeight() > 0 && !initialized) {
       Logging.INSTANCE.info("Initializing Knowledge Graph View");
-      this.graphView = createGraph(new DigraphEdgeList<RuntimeAsset, ClientKnowledgeGraph.Relationship>());
+      this.graphView = createGraph(new DigraphEdgeList<>());
       this.graphView.setDarkMode(Theme.CURRENT_THEME.isDark());
       var scrollPane = new ContentZoomScrollPane(this.graphView);
       scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
