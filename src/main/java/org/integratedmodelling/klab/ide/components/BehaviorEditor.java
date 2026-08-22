@@ -594,6 +594,11 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       // A finite agent may complete before start() returns. Attach every observer first so console,
       // test and debugger messages cannot be lost between the start request and UI registration.
       showAgentConsole(agent);
+      if (testCase) {
+        // The console is opened after the test results tab and normally becomes selected. Keep the
+        // results visible when running a test case while retaining the console for its transcript.
+        selectAuxiliaryEditor(TEST_RESULTS_EDITOR_KEY_PREFIX + agent.getUrn());
+      }
       if (debugging) {
         registerDebugSession(agent);
       }

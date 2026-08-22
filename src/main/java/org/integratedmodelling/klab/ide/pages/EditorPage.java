@@ -293,6 +293,14 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
     return tab;
   }
 
+  /** Select an open auxiliary editor tab without creating or changing it. */
+  protected void selectAuxiliaryEditor(String key) {
+    var tab = auxiliaryEditors.get(key);
+    if (tab != null) {
+      editorTabs.getSelectionModel().select(tab);
+    }
+  }
+
   /** Close an auxiliary editor tab if it is currently open. */
   protected void closeAuxiliaryEditor(String key) {
     var tab = auxiliaryEditors.remove(key);

@@ -166,7 +166,9 @@ public final class TestCaseResultsView extends DomainObjectView {
     boolean complete = test.get("end") != null;
     boolean passed = complete && test.get("outcome", false);
     var content = new VBox(6);
-    content.setPadding(new Insets(6));
+    // Keep the description visually close to the TitledPane header while retaining room around
+    // the rest of the expanded test details.
+    content.setPadding(new Insets(0, 6, 6, 6));
     if (test.description() != null && !test.description().isBlank()) {
       var description = new Label(test.description());
       description.setWrapText(true);
