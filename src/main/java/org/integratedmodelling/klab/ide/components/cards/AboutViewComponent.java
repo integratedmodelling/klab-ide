@@ -6,6 +6,7 @@ import java.time.Year;
 import java.util.List;
 import java.util.Objects;
 import javafx.geometry.Insets;
+import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.geometry.VPos;
 import javafx.scene.Node;
@@ -25,6 +26,7 @@ import org.integratedmodelling.klab.ide.KlabIDEApplication;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.generic.IconButton;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
+import org.integratedmodelling.klab.ide.components.generic.WordPressPostViewer;
 import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
@@ -43,9 +45,6 @@ public class AboutViewComponent extends BaseAssetViewComponent {
     "Sentinel-2 cloudless - https://s2maps.eu by EOX IT Services GmbH "
         + "(Contains modified Copernicus Sentinel data 2024)"
   };
-
-  private VBox newsContent;
-  private VBox servicesContent;
 
   public AboutViewComponent() {
     super(AssetViewComponent.Type.About, "About k.LAB", true);
@@ -171,32 +170,31 @@ public class AboutViewComponent extends BaseAssetViewComponent {
                 "https://www.gnu.org/licenses/agpl-3.0.en.html"));
 
     return links;
-    //    return createSection(
-    //        "Resources",
-    //        "Documentation, community resources and project information.",
-    //        Material2AL.FOLDER_OPEN,
-    //        links);
   }
 
   private Node createExtensionSections() {
-    newsContent = new VBox(10);
-    setNewsItems(List.of());
+    WordPressPostViewer newsViewer =
+        new WordPressPostViewer(Orientation.VERTICAL, "https://klab.integratedmodelling.org");
+    newsViewer.setCardHeight(160);
+    newsViewer.setPrefHeight(340);
+    newsViewer.load();
 
-    servicesContent = new VBox(10);
-    setServiceItems(List.of());
+    WordPressPostViewer servicesViewer =
+        new WordPressPostViewer(Orientation.VERTICAL, "https://aries.integratedmodelling.org");
+//    servicesViewer.setShowingPages(true);
+    servicesViewer.setCardHeight(160);
+    servicesViewer.setPrefHeight(340);
+    servicesViewer.load();
 
     VBox news =
         createSection(
-            "News",
-            "Updates and announcements from the k.LAB community.",
-            Material2AL.ARTICLE,
-            newsContent);
+            "k.LAB posts", "Latests technical posts about k.LAB.", Material2AL.ARTICLE, newsViewer);
     VBox services =
         createSection(
-            "Services",
-            "Quick access to connected k.LAB services.",
+            "ARIES news",
+            "Latest news from the ARIES community.",
             Material2AL.CLOUD_QUEUE,
-            servicesContent);
+            servicesViewer);
 
     news.setMinWidth(280);
     services.setMinWidth(280);
@@ -249,105 +247,6 @@ public class AboutViewComponent extends BaseAssetViewComponent {
     return button;
   }
 
-  /**
-   * Replaces the news area. This is the integration point for the future news API.
-   *
-   * @param items news entries in newest-first order
-   */
-  public void setNewsItems(List<NewsItem> items) {
-    if (newsContent == null) {
-      return;
-    }
-    newsContent.getChildren().clear();
-    if (items == null || items.isEmpty()) {
-      newsContent
-          .getChildren()
-          .add(
-              createEmptyState(
-                  "News will appear here",
-                  "This area is ready for updates from the future news service."));
-      return;
-    }
-    items.forEach(item -> newsContent.getChildren().add(createNewsItem(item)));
-  }
-
-  /**
-   * Replaces the services area. Future connected services can be exposed here without changing the
-   * page layout.
-   *
-   * @param items services available to the current user
-   */
-  public void setServiceItems(List<ServiceItem> items) {
-    if (servicesContent == null) {
-      return;
-    }
-    servicesContent.getChildren().clear();
-    if (items == null || items.isEmpty()) {
-      servicesContent
-          .getChildren()
-          .add(
-              createEmptyState(
-                  "More services are coming",
-                  "Connected tools and services will be available from this area."));
-      return;
-    }
-    items.forEach(item -> servicesContent.getChildren().add(createServiceItem(item)));
-  }
-
-  private Node createNewsItem(NewsItem item) {
-    Label date = new Label(item.date());
-    date.getStyleClass().addAll(Styles.TEXT_CAPTION, Styles.TEXT_MUTED);
-
-    Label title = new Label(item.title());
-    title.getStyleClass().add(Styles.TEXT_BOLD);
-
-    Label summary = new Label(item.summary());
-    summary.setWrapText(true);
-    summary.getStyleClass().addAll(Styles.TEXT_SMALL, Styles.TEXT_MUTED);
-
-    VBox text = new VBox(3, date, title, summary);
-    if (item.url() != null && !item.url().isBlank()) {
-      Button readMore = createLinkButton("Read more", Material2AL.ARROW_FORWARD, item.url());
-      readMore.getStyleClass().add(Styles.SMALL);
-      text.getChildren().add(readMore);
-    }
-    return text;
-  }
-
-  private Node createServiceItem(ServiceItem item) {
-    Label title = new Label(item.name());
-    title.getStyleClass().add(Styles.TEXT_BOLD);
-
-    Label description = new Label(item.description());
-    description.setWrapText(true);
-    description.getStyleClass().addAll(Styles.TEXT_SMALL, Styles.TEXT_MUTED);
-
-    VBox text = new VBox(3, title, description);
-    HBox.setHgrow(text, Priority.ALWAYS);
-
-    HBox row = new HBox(10, text);
-    row.setAlignment(Pos.CENTER_LEFT);
-    if (item.url() != null && !item.url().isBlank()) {
-      Button open = createLinkButton("Open", Material2AL.ARROW_FORWARD, item.url());
-      open.getStyleClass().add(Styles.SMALL);
-      row.getChildren().add(open);
-    }
-    return row;
-  }
-
-  private Node createEmptyState(String title, String description) {
-    Label titleLabel = new Label(title);
-    titleLabel.getStyleClass().add(Styles.TEXT_BOLD);
-
-    Label descriptionLabel = new Label(description);
-    descriptionLabel.setWrapText(true);
-    descriptionLabel.getStyleClass().addAll(Styles.TEXT_SMALL, Styles.TEXT_MUTED);
-
-    VBox emptyState = new VBox(4, titleLabel, descriptionLabel);
-    emptyState.setPadding(new Insets(10, 0, 4, 0));
-    return emptyState;
-  }
-
   private Node createFooter() {
     Label version = new Label("Version " + Version.CURRENT);
     version.getStyleClass().addAll(Styles.TEXT_SMALL, Styles.TEXT_BOLD);
@@ -390,8 +289,4 @@ public class AboutViewComponent extends BaseAssetViewComponent {
   private void openUrl(String url) {
     KlabIDEApplication.instance().getHostServices().showDocument(url);
   }
-
-  public record NewsItem(String date, String title, String summary, String url) {}
-
-  public record ServiceItem(String name, String description, String url) {}
 }

@@ -19,6 +19,39 @@
     -fx-stroke-width: 4;
 }
 
+/*
+ * Asset replaces the default vertex style with one of these classes for
+ * semantic observation nodes. Keep the semantic colors in the dark theme as
+ * well; otherwise JavaFX falls back to the shape's default (black) fill.
+ */
+.qualityVertex {
+    -fx-stroke-width: 0;
+    -fx-stroke: #b7e35f;
+    -fx-stroke-type: inside;
+    -fx-fill: #9fda32;
+}
+
+.subjectVertex {
+    -fx-stroke-width: 0;
+    -fx-stroke: #d99a70;
+    -fx-stroke-type: inside;
+    -fx-fill: #d68f68;
+}
+
+.pluralSubjectVertex {
+    -fx-stroke-width: 2;
+    -fx-stroke: #d99a70;
+    -fx-stroke-type: inside;
+    -fx-fill: #d68f68;
+}
+
+.homeVertex {
+    -fx-stroke-width: 1;
+    -fx-stroke: #f1f3f4;
+    -fx-stroke-type: inside;
+    -fx-fill: #f1f3f4;
+}
+
 .vertex-label {
     -fx-font: bold 8pt "sans-serif";
     -fx-text-fill: #f1f3f4;

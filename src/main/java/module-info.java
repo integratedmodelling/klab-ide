@@ -47,9 +47,11 @@ module org.integratedmodelling.klab.ide {
   requires org.kordamp.ikonli.octicons;
   requires flexmark;
   requires flexmark.util.ast;
-    requires flexmark.util.sequence;
-    requires flexmark.util.misc;
-    requires flexmark.util.html;
+  requires flexmark.util.sequence;
+  requires flexmark.util.misc;
+  requires flexmark.util.html;
+  requires com.google.gson;
+  requires java.net.http;
 
     opens org.integratedmodelling.klab.ide to
       javafx.fxml;

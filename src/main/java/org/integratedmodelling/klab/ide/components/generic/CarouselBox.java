@@ -411,6 +411,13 @@ public class CarouselBox extends Region {
       } else {
         double wrapperH = wrapper.prefHeight(w);
         wrapper.resize(w, wrapperH);
+        // Vertical carousels use the container width as their cross-axis size.
+        // Resize flexible Region items explicitly so their visual surface fills
+        // the wrapper instead of remaining at its preferred width.
+        if (item instanceof Region region && region.getMaxWidth() >= w) {
+          region.resize(w, wrapperH);
+          region.relocate(0, 0);
+        }
         wrapper.setLayoutX(0);
         wrapper.setLayoutY(pos);
         pos += wrapperH;

@@ -1,6 +1,8 @@
 package org.integratedmodelling.klab.ide.components;
 
 import com.brunomnsilva.smartgraph.graphview.SmartGraphPanel;
+import com.brunomnsilva.smartgraph.graphview.SmartGraphVertexNode;
+import javafx.scene.shape.Circle;
 import org.integratedmodelling.cli.Test;
 import org.integratedmodelling.common.services.client.digitaltwin.ClientKnowledgeGraph;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
@@ -95,6 +97,7 @@ public class Asset implements RuntimeAsset {
       if (stylableVertex != null) {
         stylableVertex.setStyleClass(style);
         if (inlineStyle != null) {
+          addIconBackground(stylableVertex);
           stylableVertex.setStyleInline(inlineStyle);
         }
       } else
@@ -103,6 +106,21 @@ public class Asset implements RuntimeAsset {
                 Notification.warning(
                     "Error rendering graph: graph may be partial or inconsistent"));
     }
+  }
+
+  /** Add a contrasting backing for the transparent icon used as the vertex fill. */
+  private void addIconBackground(com.brunomnsilva.smartgraph.graphview.SmartStylableNode vertex) {
+    if (!(vertex instanceof SmartGraphVertexNode<?> vertexNode)) {
+      return;
+    }
+
+    var background = new Circle();
+    background.centerXProperty().bind(vertexNode.centerXProperty());
+    background.centerYProperty().bind(vertexNode.centerYProperty());
+    background.radiusProperty().bind(vertexNode.radiusProperty().add(3));
+    background.setStyle("-fx-fill: #f1f3f4;");
+    background.setMouseTransparent(true);
+    vertexNode.getChildren().add(0, background);
   }
 
   private String getObservationStyle(Observation observation) {
