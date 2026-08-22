@@ -60,6 +60,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private ProgressBar progressBar;
   private TreeView<NavigableAsset> treeView;
   private final Map<Node, LspDocumentSession> lspSessions = new IdentityHashMap<>();
+  /** Assets whose save request is currently waiting for the corresponding workspace update. */
+  private final Set<String> pendingSavedAssets = new HashSet<>();
 
   public WorkspaceEditor(ResourcesService service, ResourceInfo resourceInfo, WorkspaceView view) {
     super(
@@ -593,6 +595,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private void saveDocument(String text, NavigableAsset asset) {
     //    Logging.INSTANCE.info("Save document requested: " + asset.getUrn());
     if (asset instanceof KlabDocument<?> document) {
+      pendingSavedAssets.add(document.getUrn());
       KlabIDEController.instance()
           .updateDocument(
               service,
@@ -605,19 +608,46 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   public void updateWorkspace(
       NavigableWorkspace workspace, ResourceSet changes, Collection<NavigableAsset> changedAssets) {
-    this.workspace = workspace;
-
-    if (!changes.isEmpty()) {
-      Platform.runLater(
-          () -> {
-            setWaiting(true);
-            for (var change : Utils.Resources.collectChanges(changes)) {
-              mergeChangeIntoTree(change);
-            }
-            treeView.refresh();
-            setWaiting(false);
-          });
+    // Resource sets can contain a notification or an UPDATE that does not alter the navigable
+    // model.  In that case there is nothing to repaint.  In particular, do not refresh the whole
+    // tree: TreeView.refresh() also resets the visual position of the browsing pane.
+    if (changes.isEmpty()) {
+      return;
     }
+    var resourceChanges = Utils.Resources.collectChanges(changes);
+    if (changedAssets == null || changedAssets.isEmpty()) {
+      resourceChanges.stream()
+          .filter(change -> change.getOperation() == CRUDOperation.UPDATE)
+          .map(ResourceSet.Resource::getResourceUrn)
+          .forEach(pendingSavedAssets::remove);
+      return;
+    }
+
+    this.workspace = workspace;
+    Platform.runLater(
+        () -> {
+          var selectedItem = treeView.getSelectionModel().getSelectedItem();
+          var selectedAsset = selectedItem == null ? null : selectedItem.getValue();
+          setWaiting(true);
+          for (var change : resourceChanges) {
+            boolean causedByOpenEditorSave =
+                change.getOperation() == CRUDOperation.UPDATE
+                    && pendingSavedAssets.remove(change.getResourceUrn());
+            mergeChangeIntoTree(change, causedByOpenEditorSave);
+          }
+          // Reconciliation can temporarily invalidate the selection when children are reordered.
+          // Select the equivalent surviving node again, without scrolling the tree or selecting
+          // the node that happens to occupy the old row.
+          if (selectedAsset != null) {
+            var restoredSelection = findTreeNodeByPath(root, selectedAsset);
+            if (restoredSelection != null) {
+              treeView.getSelectionModel().select(restoredSelection);
+            }
+          }
+          // TreeItem changes update only the affected rows and retain expansion, selection and
+          // scroll position.  Avoid a full TreeView.refresh(), which redraws the entire viewport.
+          setWaiting(false);
+        });
   }
 
   private TreeItem<NavigableAsset> findTreeNode(TreeItem<NavigableAsset> root, String urn) {
@@ -637,7 +667,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     return findTreeNode(this.root, assetUrn);
   }
 
-  private void mergeChangeIntoTree(ResourceSet.Resource change) {
+  private void mergeChangeIntoTree(ResourceSet.Resource change, boolean causedByOpenEditorSave) {
 
     NavigableDocument document = null;
     TreeItem<NavigableAsset> focus = null;
@@ -674,12 +704,17 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           wroot.findAsset(change.getResourceUrn(), KlabAsset.class, change.getKnowledgeClass());
 
       if (node != null && newAsset instanceof NavigableAsset navigableAsset) {
-        var oldAsset = node.getValue();
-        node.setValue(navigableAsset);
-        node.getChildren().clear();
-        focus = node;
-        updateTree(node, navigableAsset);
-        refreshEditor(oldAsset, navigableAsset);
+         var oldAsset = node.getValue();
+         node.setValue(navigableAsset);
+         focus = node;
+         updateTree(node, navigableAsset);
+        // The save callback has already put the new source into the currently visible editor.
+        // Recreating it here loses Monaco's cursor/scroll position and makes the save feel like a
+        // navigation event.  Other updates still recreate the editor so that external source
+        // changes are loaded into it.
+        if (!causedByOpenEditorSave) {
+          refreshEditor(oldAsset, navigableAsset);
+        }
         if (navigableAsset instanceof KActorsBehavior updatedBehavior) {
           KlabIDEController.instance().synchronizeManagedBehavior(service, updatedBehavior);
         }
