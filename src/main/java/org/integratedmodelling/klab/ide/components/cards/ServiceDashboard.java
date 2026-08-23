@@ -3,9 +3,14 @@ package org.integratedmodelling.klab.ide.components.cards;
 import atlantafx.base.controls.Card;
 import atlantafx.base.theme.Styles;
 import java.time.Instant;
+import java.io.File;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -19,21 +24,35 @@ import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.StackedAreaChart;
 import javafx.scene.chart.XYChart;
 import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.util.Duration;
 import javafx.util.StringConverter;
+import org.integratedmodelling.common.utils.Utils;
+import org.integratedmodelling.klab.api.configuration.Configuration;
+import org.integratedmodelling.klab.api.configuration.Setting;
+import org.integratedmodelling.klab.api.knowledge.Urn;
 import org.integratedmodelling.klab.api.services.KlabService;
+import org.integratedmodelling.klab.api.services.resources.ResourceTransport;
+import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.api.services.runtime.extension.Extensions;
 import org.integratedmodelling.klab.ide.KlabIDEApplication;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.components.generic.CarouselBox;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
+import org.integratedmodelling.klab.ide.components.generic.LogViewer;
+import org.integratedmodelling.klab.ide.components.generic.UploadBox;
+import org.integratedmodelling.klab.ide.components.generic.WaitButton;
 import org.kordamp.ikonli.evaicons.Evaicons;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.materialdesign.MaterialDesign;
@@ -57,6 +76,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
   private final Timeline statusSampler = new Timeline();
   private int sample;
   private boolean monitoring;
+  private StackPane display;
 
   public ServiceDashboard(KlabService service, String title, boolean initialize) {
     super(Type.Object, title, false);
@@ -79,6 +99,27 @@ public class ServiceDashboard extends BaseAssetViewComponent {
             link("API documentation", MaterialDesign.MDI_BOOK_OPEN_PAGE_VARIANT, "/api.html"));
     links.setAlignment(Pos.CENTER_LEFT);
 
+    var navigation = new HBox(0);
+    navigation.setAlignment(Pos.CENTER_RIGHT);
+    var viewGroup = new ToggleGroup();
+    var dashboardButton = viewButton(MaterialDesign.MDI_VIEW_DASHBOARD, "Dashboard");
+    var importButton = viewButton(MaterialDesign.MDI_IMPORT, "Import components");
+    var settingsButton = viewButton(MaterialDesign.MDI_SETTINGS, "Service settings");
+    dashboardButton.setToggleGroup(viewGroup);
+    importButton.setToggleGroup(viewGroup);
+    settingsButton.setToggleGroup(viewGroup);
+    dashboardButton.setSelected(true);
+    navigation.getChildren().addAll(dashboardButton, importButton, settingsButton);
+    ToggleButton logsButton = null;
+    if (isLocalService()) {
+      logsButton = viewButton(MaterialDesign.MDI_FILE_DOCUMENT, "Service logs");
+      logsButton.setToggleGroup(viewGroup);
+      navigation.getChildren().add(logsButton);
+    }
+    HBox.setHgrow(links, Priority.ALWAYS);
+    var linkBar = new HBox(10, links, navigation);
+    linkBar.setAlignment(Pos.CENTER_LEFT);
+
     var status = new HBox(8, new FontIcon(Evaicons.ACTIVITY), statusLabel);
     status.setAlignment(Pos.CENTER_LEFT);
     statusLabel.getStyleClass().addAll(Styles.TEXT_SMALL, Styles.TEXT_MUTED);
@@ -95,7 +136,13 @@ public class ServiceDashboard extends BaseAssetViewComponent {
     components.setMinHeight(220);
     components.setPrefHeight(230);
     components.setMaxWidth(Double.MAX_VALUE);
-    getChildren().addAll(links, status, charts, componentHeading, components);
+    var dashboard = new VBox(10, status, charts, componentHeading, components);
+    dashboard.setPadding(new Insets(4, 0, 0, 0));
+    VBox.setVgrow(dashboard, Priority.ALWAYS);
+    display = new StackPane(dashboard);
+    display.setMaxHeight(Double.MAX_VALUE);
+    VBox.setVgrow(display, Priority.ALWAYS);
+    getChildren().addAll(linkBar, display);
     VBox.setVgrow(charts, Priority.NEVER);
 
     statusSampler
@@ -110,7 +157,116 @@ public class ServiceDashboard extends BaseAssetViewComponent {
             });
     if (getScene() != null) startMonitoring();
     populateComponents();
+
+    dashboardButton.setOnAction(e -> display.getChildren().setAll(dashboard));
+    importButton.setOnAction(e -> display.getChildren().setAll(importView()));
+    settingsButton.setOnAction(e -> display.getChildren().setAll(settingsView()));
+    if (logsButton != null) logsButton.setOnAction(e -> display.getChildren().setAll(logView()));
     return this;
+  }
+
+  private ToggleButton viewButton(org.kordamp.ikonli.Ikon icon, String label) {
+    var button = new ToggleButton("", new FontIcon(icon));
+    button.setTooltip(new Tooltip(label));
+    button.getStyleClass().add(Styles.FLAT);
+    button.setFocusTraversable(false);
+    return button;
+  }
+
+  private boolean isLocalService() {
+    return service.isLocal();
+  }
+
+  private Node settingsView() {
+    var page = switch (service.status().getServiceType()) {
+      case REASONER -> Setting.Page.REASONER;
+      case RESOURCES -> Setting.Page.RESOURCES;
+      case RESOLVER -> Setting.Page.RESOLVER;
+      case RUNTIME -> Setting.Page.RUNTIME;
+      default -> null;
+    };
+    var settings = new SettingsPageViewComponent(page) {
+      @Override
+      protected void onChangedSetting(Setting setting, Object newValue) {}
+    };
+    var scroll = new ScrollPane(settings);
+    scroll.setFitToWidth(true);
+    scroll.setMaxHeight(Double.MAX_VALUE);
+    return scroll;
+  }
+
+  private Node logView() {
+    // getInstance() only returns running services. The logs view must remain
+    // available for a selected local service even while its process is stopped.
+    var instance = KlabIDEController.instance().engine().getServiceInstance(service.status().getServiceType());
+    if (instance == null) return new Label("No local service instance is available.");
+    var logFile = instance.getConfigurationPath().resolve(
+        "logs" + File.separator + instance.getProduct().getType().relativeConfigurationPath() + ".log").toFile();
+    var viewer = new LogViewer(logFile.toPath(),
+        EnumSet.of(LogViewer.Column.TIME, LogViewer.Column.LEVEL, LogViewer.Column.MESSAGE));
+    return viewer;
+  }
+
+  private Node importView() {
+    var parameterForm = new VBox(2);
+    var importPane = new VBox(10);
+    importPane.setPadding(new Insets(10));
+    var schemaSelector = new ComboBox<String>();
+    schemaSelector.setPromptText("Select Import Schema");
+    var schemaKey = new HashMap<String, ResourceTransport.Schema>();
+    var schemata = service.capabilities(KlabIDEController.instance().user()).getImportSchemata();
+    for (var schemaName : schemata.keySet()) {
+      for (var schema : schemata.get(schemaName)) {
+        var description = schema.getProperties().isEmpty()
+            ? " (" + Utils.Strings.join(schema.getMediaTypes(), ", ") + ")" : " (parameters)";
+        var name = schemaName + description;
+        schemaSelector.getItems().add(name);
+        schemaKey.put(name, schema);
+      }
+    }
+    schemaSelector.setOnAction(e -> updateImportForm(schemaKey.get(schemaSelector.getValue()), parameterForm));
+    var formScroll = new ScrollPane(parameterForm);
+    formScroll.setFitToWidth(true);
+    VBox.setVgrow(formScroll, Priority.ALWAYS);
+    importPane.getChildren().addAll(schemaSelector, formScroll);
+    return importPane;
+  }
+
+  private void updateImportForm(ResourceTransport.Schema schema, VBox parameterForm) {
+    if (schema == null) return;
+    parameterForm.getChildren().clear();
+    Map<String, Object> userInput = new HashMap<>();
+    AtomicReference<File> file = new AtomicReference<>();
+    if (schema.getType() == ResourceTransport.Schema.Type.PROPERTIES) {
+      for (var parameter : schema.getProperties().entrySet()) {
+        var label = new Label(parameter.getKey());
+        label.setStyle(parameter.getValue().optional() ? "-fx-font-weight: bold;" : "-fx-text-fill: #dd0000; -fx-font-weight: bold;");
+        var input = new javafx.scene.control.TextField();
+        input.setPromptText(parameter.getValue().defaultValue());
+        input.textProperty().addListener((obs, oldValue, newValue) -> userInput.put(parameter.getKey(), newValue));
+        parameterForm.getChildren().addAll(label, input);
+      }
+    } else {
+      var upload = new UploadBox(Configuration.INSTANCE.getTemporaryDataPath().toString(),
+          "Drop file or URL to upload", file::set,
+          (message, throwable) -> KlabIDEController.instance().handleNotifications(List.of(Notification.error("Upload error: " + message))));
+      parameterForm.getChildren().add(upload);
+    }
+    var submit = new WaitButton("Submit");
+    submit.setOnAction(() -> {
+      var asset = file.get() == null ? schema.asset(userInput) : schema.asset(file.get());
+      if (asset.isEmpty()) {
+        KlabIDEController.instance().handleNotifications(List.of(Notification.error("Import failed: specifications are incomplete")));
+        return false;
+      }
+      service.importAsset(schema, asset, Urn.UNDEFINED_URN, KlabIDEController.instance().user())
+          .thenAccept(resourceSet -> KlabIDEController.instance().handleNotifications(resourceSet.getNotifications()))
+          .exceptionally(t -> { KlabIDEController.instance().handleNotification(Notification.error(t)); return null; });
+      return true;
+    });
+    var buttons = new HBox(10, submit);
+    buttons.setAlignment(Pos.CENTER_RIGHT);
+    parameterForm.getChildren().add(buttons);
   }
 
   private void startMonitoring() {
@@ -262,7 +418,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
       return new StatusSample(
           status.isOperational(),
           status.getHealthPercentage(),
-          Math.max(load/10, 0),
+          Math.max(load / 10, 0),
           bytesToMb(status.getMemoryUsedBytes()),
           bytesToMb(status.getMemoryAvailableBytes()));
     }
@@ -314,7 +470,9 @@ public class ServiceDashboard extends BaseAssetViewComponent {
       if (descriptors == null || descriptors.isEmpty()) {
         components.addItem(new Label("No components advertised by this service."));
       } else {
-        descriptors.forEach(descriptor -> components.addItem(componentCard(descriptor)));
+        descriptors.stream()
+            .filter(descriptor -> !Extensions.LOCAL_SERVICE_COMPONENT.equals(descriptor.id()))
+            .forEach(descriptor -> components.addItem(componentCard(descriptor)));
       }
     } catch (RuntimeException e) {
       components.addItem(new Label("Component metadata is currently unavailable."));
