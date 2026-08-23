@@ -36,6 +36,7 @@ import javafx.scene.paint.Color;
 import org.integratedmodelling.klab.api.geometry.Geometry;
 import org.integratedmodelling.klab.api.geometry.Geometry.Dimension;
 import org.integratedmodelling.klab.api.geometry.impl.GeometryImpl;
+import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.generic.SatelliteImage;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
@@ -326,9 +327,9 @@ public class GeometryCard extends BaseCard<Geometry> {
 
   private void drawSpatialPlaceholder(
       GraphicsContext gc, double width, double height, SpatialSummary summary) {
-    gc.setFill(Color.web("#eef2f5"));
-    gc.fillRoundRect(0.5, 0.5, width - 1, height - 1, 7, 7);
-    gc.setStroke(Color.web("#d4dbe3"));
+    // The frame background and border are supplied by AtlantaFX CSS. Keep the canvas transparent
+    // so they follow the active theme.
+    gc.setStroke(Theme.CURRENT_THEME.isDark() ? Color.rgb(255, 255, 255, 0.12) : Color.web("#d4dbe3"));
     gc.setLineWidth(1);
     for (int i = 1; i < 5; i++) {
       double x = width * i / 5.0;
@@ -338,7 +339,7 @@ public class GeometryCard extends BaseCard<Geometry> {
     }
 
     String text = summary.dimensionLabel();
-    gc.setFill(Color.web("#57606a"));
+    gc.setFill(Theme.CURRENT_THEME.getDefaultTextColor());
     gc.setFont(javafx.scene.text.Font.font("System", 10));
     gc.fillText(text, 10, Math.max(18, height - 12));
   }

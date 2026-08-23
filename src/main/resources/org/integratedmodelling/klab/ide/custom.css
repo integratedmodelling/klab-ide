@@ -305,16 +305,16 @@
 }
 
 .geometry-card-spatial {
-    -fx-background-color: #eef2f5;
+    -fx-background-color: -color-bg-subtle;
     -fx-background-radius: 7;
-    -fx-border-color: #d0d7de;
+    -fx-border-color: -color-border-default;
     -fx-border-radius: 7;
     -fx-border-width: 1;
     -fx-padding: 0;
 }
 
 .geometry-card-spatial-empty {
-    -fx-background-color: #f6f8fa;
+    -fx-background-color: -color-bg-subtle;
 }
 
 .geometry-card-time {
@@ -441,9 +441,9 @@
 }
 
 .histogram-card-plot {
-    -fx-background-color: #fbfcfd;
+    -fx-background-color: -color-bg-subtle;
     -fx-background-radius: 7;
-    -fx-border-color: #d0d7de;
+    -fx-border-color: -color-border-default;
     -fx-border-radius: 7;
     -fx-border-width: 1;
     -fx-padding: 0;
@@ -517,47 +517,62 @@
     -fx-font-size: 9px;
 }
 
+.metadata-card-editor {
+    -fx-background-color: -color-bg-default;
+    -fx-border-color: -color-border-muted;
+    -fx-text-fill: -color-fg-default;
+    -fx-prompt-text-fill: -color-fg-muted;
+}
+
 .metadata-value-string {
-    -fx-background-color: #f6f8fa;
-    -fx-border-color: #d0d7de;
+    -fx-background-color: -color-bg-subtle;
+    -fx-border-color: -color-border-muted;
     -fx-border-radius: 5;
-    -fx-text-fill: #57606a;
+    -fx-text-fill: -color-fg-default;
 }
 
 .metadata-value-number {
-    -fx-background-color: #ddf4ff;
-    -fx-border-color: #b6e3ff;
+    -fx-background-color: -color-accent-subtle;
+    -fx-border-color: -color-accent-muted;
     -fx-border-radius: 5;
-    -fx-text-fill: #0550ae;
+    -fx-text-fill: -color-accent-fg;
 }
 
 .metadata-value-boolean {
-    -fx-background-color: #dafbe1;
-    -fx-border-color: #aceebb;
+    -fx-background-color: -color-success-subtle;
+    -fx-border-color: -color-success-muted;
     -fx-border-radius: 5;
-    -fx-text-fill: #116329;
+    -fx-text-fill: -color-success-fg;
 }
 
 .metadata-value-null {
-    -fx-background-color: #f6f8fa;
-    -fx-border-color: #d0d7de;
+    -fx-background-color: -color-neutral-subtle;
+    -fx-border-color: -color-border-muted;
     -fx-border-radius: 5;
-    -fx-text-fill: #8c959f;
+    -fx-text-fill: -color-fg-muted;
 }
 
 .metadata-value-complex {
-    -fx-background-color: #fff8c5;
-    -fx-border-color: #eed888;
+    -fx-background-color: -color-warning-subtle;
+    -fx-border-color: -color-warning-muted;
     -fx-border-radius: 5;
-    -fx-text-fill: #7d4e00;
+    -fx-text-fill: -color-warning-fg;
 }
 
 .metadata-value-unsupported {
-    -fx-background-color: #ffebe9;
-    -fx-border-color: #ffcecb;
+    -fx-background-color: -color-danger-subtle;
+    -fx-border-color: -color-danger-muted;
     -fx-border-radius: 5;
-    -fx-text-fill: #cf222e;
+    -fx-text-fill: -color-danger-fg;
     -fx-font-size: 9px;
+}
+
+.metadata-card-string-popup {
+    -fx-background-color: -color-bg-default;
+    -fx-background-radius: 7;
+    -fx-border-color: -color-border-default;
+    -fx-border-radius: 7;
+    -fx-effect: dropshadow(gaussian, rgba(27, 31, 36, 0.16), 12, 0.2, 0, 3);
 }
 
 .metadata-card-custom-value {
@@ -624,24 +639,24 @@
 }
 
 .metadata-card-boolean-switch {
-    -fx-background-color: #f6f8fa;
+    -fx-background-color: -color-neutral-subtle;
     -fx-background-radius: 10;
-    -fx-border-color: #d0d7de;
+    -fx-border-color: -color-border-muted;
     -fx-border-radius: 10;
     -fx-border-width: 1;
     -fx-padding: 1 7 1 7;
-    -fx-text-fill: #57606a;
+    -fx-text-fill: -color-fg-muted;
     -fx-font-weight: 700;
 }
 
 .metadata-card-boolean-switch:selected {
-    -fx-background-color: #dafbe1;
-    -fx-border-color: #aceebb;
-    -fx-text-fill: #116329;
+    -fx-background-color: -color-success-subtle;
+    -fx-border-color: -color-success-muted;
+    -fx-text-fill: -color-success-fg;
 }
 
 .metadata-card-boolean-switch:focused {
-    -fx-border-color: #54aeef;
+    -fx-border-color: -color-accent-fg;
 }
 
 .metadata-card-editor-error {

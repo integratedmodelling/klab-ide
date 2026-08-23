@@ -451,7 +451,7 @@ public class RelationshipCard extends BaseCard<RuntimeAsset> {
     String label = relationship.name().toLowerCase().replace("_", " ");
     Font font = fittingFont(label, width - notch - 36);
     gc.setFont(font);
-    gc.setFill(Color.rgb(0, 0, 0, 0.96));
+    gc.setFill(Theme.CURRENT_THEME.isDark() ? Color.WHITE : Color.rgb(0, 0, 0, 0.96));
     double textWidth = textWidth(label, font);
     double x = Math.max(10, (width - textWidth) / 2.0);
     double y = mid + 3.2;
@@ -478,7 +478,7 @@ public class RelationshipCard extends BaseCard<RuntimeAsset> {
     if (relationship == null) {
       return RELATIONSHIP_COLORS[0];
     }
-    return switch (relationship.name()) {
+    Color color = switch (relationship.name()) {
       case "HAS_CHILD", "HAS_MEMBER", "HAS_CONTEXT", "CONTEXTUALIZED", "CONTEXTUALIZED_BY" ->
           Color.web("#2f7f6f40");
       case "AFFECTS", "TRIGGERED", "CONTRIBUTED_TO" -> Color.web("#9a341240");
@@ -488,6 +488,9 @@ public class RelationshipCard extends BaseCard<RuntimeAsset> {
       case "HAS_RELATIONSHIP_SOURCE", "HAS_RELATIONSHIP_TARGET" -> Color.web("#bf398940");
       default -> RELATIONSHIP_COLORS[relationship.ordinal() % RELATIONSHIP_COLORS.length];
     };
+    return Theme.CURRENT_THEME.isDark()
+        ? Color.color(color.getRed(), color.getGreen(), color.getBlue(), 0.78)
+        : color;
   }
 
   private static String labelFor(RuntimeAsset asset) {

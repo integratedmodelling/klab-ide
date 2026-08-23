@@ -28,6 +28,7 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.util.Duration;
 import org.integratedmodelling.klab.api.data.Histogram;
+import org.integratedmodelling.klab.ide.Theme;
 
 /** Compact card visualization for a k.LAB {@link Histogram}. */
 public class HistogramCard extends BaseCard<Histogram> {
@@ -226,9 +227,9 @@ public class HistogramCard extends BaseCard<Histogram> {
   }
 
   private void drawBackground(GraphicsContext gc, double width, double height) {
-    gc.setFill(Color.web("#fbfcfd"));
-    gc.fillRoundRect(0.5, 0.5, width - 1, height - 1, 6, 6);
-    gc.setStroke(Color.web("#e6ebf0"));
+    // The plot background and border are supplied by AtlantaFX CSS. Keep the canvas transparent so
+    // they follow the active theme.
+    gc.setStroke(Color.rgb(128, 128, 128, 0.22));
     gc.setLineWidth(1);
     gc.strokeLine(0, height * 0.25, width, height * 0.25);
     gc.strokeLine(0, height * 0.5, width, height * 0.5);
@@ -236,12 +237,12 @@ public class HistogramCard extends BaseCard<Histogram> {
   }
 
   private void drawEmpty(GraphicsContext gc, double width, double height) {
-    gc.setStroke(Color.web("#9aa4ad"));
+    gc.setStroke(Color.rgb(128, 128, 128, 0.65));
     gc.setLineWidth(1.2);
     gc.setLineDashes(4, 4);
     gc.strokeLine(10, height / 2.0, width - 10, height / 2.0);
     gc.setLineDashes();
-    gc.setFill(Color.web("#57606a"));
+    gc.setFill(Theme.CURRENT_THEME.getDefaultTextColor());
     gc.setFont(Font.font("System", 10));
     gc.fillText("empty histogram", 10, Math.max(18, height - 12));
   }

@@ -762,9 +762,7 @@ public class MetadataCard extends BaseCard<Parameters<?>> {
 
     VBox box = new VBox(6, title, textArea);
     box.setPadding(new Insets(8));
-    box.setStyle(
-        "-fx-background-color: white; -fx-background-radius: 7; -fx-border-color: #d0d7de; "
-            + "-fx-border-radius: 7; -fx-effect: dropshadow(gaussian, rgba(27, 31, 36, 0.16), 12, 0.2, 0, 3);");
+    box.getStyleClass().add("metadata-card-string-popup");
 
     popup.getContent().add(box);
     Bounds bounds = owner.localToScreen(owner.getBoundsInLocal());
