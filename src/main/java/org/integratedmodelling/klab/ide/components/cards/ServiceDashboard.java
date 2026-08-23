@@ -186,7 +186,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
     var chart = new StackedAreaChart<>(memorySampleAxis, y);
     chart.setTitle("Memory");
     chart.setAnimated(false);
-    chart.setCreateSymbols(true);
+    chart.setCreateSymbols(false);
     chart.setLegendVisible(true);
     memoryUsedSeries.setName("Used");
     memoryAvailableSeries.setName("Available");
@@ -210,6 +210,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
     var window = SampleWindow.endingAt(currentSample, SAMPLE_LIMIT);
     setWindow(loadSampleAxis, window);
     setWindow(memorySampleAxis, window);
+
     statusLabel.setText(
         (status.operational() ? "Operational" : "Unavailable")
             + " · health "
@@ -261,7 +262,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
       return new StatusSample(
           status.isOperational(),
           status.getHealthPercentage(),
-          load < 0 ? -1 : load / 10.0,
+          Math.max(load/10, 0),
           bytesToMb(status.getMemoryUsedBytes()),
           bytesToMb(status.getMemoryAvailableBytes()));
     }

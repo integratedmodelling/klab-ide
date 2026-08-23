@@ -82,7 +82,7 @@ public class ActivityTree extends KlabTreeTableView<Activity> {
               case CONTEXTUALIZATION -> MaterialDesign.MDI_RUN;
             },
             16,
-            Theme.FOREGROUND_COLOR);
+            "-color-fg-default");
     icon.setMaxWidth(24);
     icon.setMinWidth(24);
 

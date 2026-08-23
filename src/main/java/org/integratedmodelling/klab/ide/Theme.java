@@ -2,6 +2,9 @@ package org.integratedmodelling.klab.ide;
 
 import atlantafx.base.theme.*;
 import atlantafx.base.util.BBCodeParser;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.scene.control.Label;
@@ -59,13 +62,13 @@ import org.kordamp.ikonli.simplelineicons.SimpleLineIcons;
 import org.kordamp.ikonli.unicons.UniconsLine;
 
 public enum Theme {
-  LIGHT_DEFAULT(false),
-  DARK_DEFAULT(true),
-  LIGHT_COOL(false),
-  DARK_COOL(true),
-  LIGHT_HC(false),
-  DARK_HC(true),
-  DARK_ALTERNATIVE(true);
+  LIGHT_DEFAULT("Light Default", false),
+  DARK_DEFAULT("Dark Default", true),
+  LIGHT_COOL("Light Cool", false),
+  DARK_COOL("Dark Cool", true),
+  LIGHT_HC("Light High Contrast", false),
+  DARK_HC("Dark High Contrast", true),
+  DARK_ALTERNATIVE("Dark Alternative", true);
 
   public enum Detail {
     /** Must fit on one line or equivalent. */
@@ -79,9 +82,12 @@ public enum Theme {
     CARD
   }
 
+  public String description;
+
   private boolean dark;
 
-  Theme(boolean dark) {
+  Theme(String description, boolean dark) {
+    this.description = description;
     this.dark = dark;
   }
 
@@ -107,11 +113,32 @@ public enum Theme {
     return dark;
   }
 
-  public static Theme CURRENT_THEME = LIGHT_DEFAULT;
+  private static final Path THEME_FILE =
+      Path.of(System.getProperty("user.home"), ".klab", "modeler", "theme");
+
+  public static Theme CURRENT_THEME = loadPersistedTheme();
 
   public static void setCurrentTheme(Theme theme) {
     CURRENT_THEME = theme;
     Application.setUserAgentStylesheet(theme.getStylesheet());
+    persistTheme(theme);
+  }
+
+  private static Theme loadPersistedTheme() {
+    try {
+      return valueOf(Files.readString(THEME_FILE).trim());
+    } catch (IOException | IllegalArgumentException e) {
+      return LIGHT_DEFAULT;
+    }
+  }
+
+  private static void persistTheme(Theme theme) {
+    try {
+      Files.createDirectories(THEME_FILE.getParent());
+      Files.writeString(THEME_FILE, theme.name());
+    } catch (IOException e) {
+      // Theme persistence is best effort; the application can continue with the selected theme.
+    }
   }
 
   // color coding for services. TODO may be non-static, styled according to the current theme

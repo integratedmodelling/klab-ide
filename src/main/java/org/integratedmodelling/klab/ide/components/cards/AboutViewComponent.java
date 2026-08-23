@@ -1,6 +1,7 @@
 package org.integratedmodelling.klab.ide.components.cards;
 
 import atlantafx.base.theme.Styles;
+import atlantafx.base.theme.Tweaks;
 import java.io.IOException;
 import java.time.Year;
 import java.util.List;
@@ -12,6 +13,9 @@ import javafx.geometry.VPos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuButton;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.FlowPane;
@@ -24,7 +28,6 @@ import javafx.scene.layout.VBox;
 import org.integratedmodelling.klab.api.data.Version;
 import org.integratedmodelling.klab.ide.KlabIDEApplication;
 import org.integratedmodelling.klab.ide.Theme;
-import org.integratedmodelling.klab.ide.components.generic.IconButton;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.ide.components.generic.WordPressPostViewer;
 import org.kordamp.ikonli.Ikon;
@@ -123,22 +126,17 @@ public class AboutViewComponent extends BaseAssetViewComponent {
     return panel;
   }
 
-  private IconButton createThemeToggle() {
-    Theme[] themes = Theme.values();
-    var toggle =
-        IconButton.toggle(
-            Material2AL.BRIGHTNESS_4,
-            20,
-            "-color-fg-default",
-            "-color-fg-muted",
-            () -> {
-              int nextTheme = (Theme.CURRENT_THEME.ordinal() + 1) % themes.length;
-              Theme.setCurrentTheme(themes[nextTheme]);
-              return true;
-            });
-    toggle.setToggled(Theme.CURRENT_THEME.isDark());
-    toggle.tooltip("Cycle through available themes");
-    return toggle;
+  private MenuButton createThemeToggle() {
+    var menu =
+        new MenuButton(null, new IconLabel(Material2AL.BRIGHTNESS_4, 20, "-color-fg-default"));
+    menu.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_ICON, Tweaks.NO_ARROW);
+    menu.setTooltip(new Tooltip("Select application theme"));
+    for (Theme theme : Theme.values()) {
+      MenuItem item = new MenuItem(theme.description);
+      item.setOnAction(event -> Theme.setCurrentTheme(theme));
+      menu.getItems().add(item);
+    }
+    return menu;
   }
 
   private Node createMainBody() {
