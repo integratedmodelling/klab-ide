@@ -2,10 +2,13 @@ package org.integratedmodelling.klab.ide.components.cards;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import org.integratedmodelling.klab.api.data.Version;
 import org.integratedmodelling.klab.api.services.impl.ServiceStatusImpl;
+import org.integratedmodelling.klab.api.services.runtime.extension.Extensions;
 import org.junit.jupiter.api.Test;
 
 class ServiceDashboardTest {
@@ -77,6 +80,94 @@ class ServiceDashboardTest {
     assertEquals(10, samples.get(0).loadPercentage());
     assertEquals(10, samples.get(1).loadPercentage());
     assertEquals(70, samples.get(2).loadPercentage());
+  }
+
+  @Test
+  void componentCardStateShowsHostedAndDependencyProvenance() {
+    var hosted =
+        component(
+            Extensions.ComponentImportType.MAVEN,
+            Extensions.ComponentUpdateStatus.UPDATE_AVAILABLE,
+            "resources-1",
+            "org.example:test:1.0-SNAPSHOT",
+            2000L);
+    var dependency =
+        component(
+            Extensions.ComponentImportType.DEPENDENCY,
+            Extensions.ComponentUpdateStatus.UP_TO_DATE,
+            "resources-1",
+            null,
+            1000L);
+    var file =
+        component(
+            Extensions.ComponentImportType.FILE,
+            Extensions.ComponentUpdateStatus.UP_TO_DATE,
+            "resources-1",
+            null,
+            1000L);
+
+    var hostedState = ServiceDashboard.componentCardState(hosted, "resources-1");
+    var dependencyState = ServiceDashboard.componentCardState(dependency, "runtime-1");
+    var fileState = ServiceDashboard.componentCardState(file, "resources-1");
+
+    assertEquals("Hosted Maven import", hostedState.provenanceText());
+    assertEquals("org.example:test:1.0-SNAPSHOT", hostedState.sourceText());
+    assertEquals("Update available", hostedState.updateStatusText());
+    assertTrue(hostedState.updateEnabled());
+    assertTrue(hostedState.removalEnabled());
+
+    assertEquals(
+        "Dependency imported from a Resources service", dependencyState.provenanceText());
+    assertEquals("Source: resources-1", dependencyState.sourceText());
+    assertFalse(dependencyState.updateEnabled());
+    assertEquals("Hosted .kar import", fileState.provenanceText());
+    assertEquals("Up to date", fileState.updateStatusText());
+  }
+
+  @Test
+  void builtInComponentActionsRemainDisabled() {
+    var state =
+        ServiceDashboard.componentCardState(
+            component(
+                Extensions.ComponentImportType.BUILT_IN,
+                Extensions.ComponentUpdateStatus.NOT_UPDATEABLE,
+                "service-1",
+                null,
+                0L),
+            "service-1");
+
+    assertEquals("Built into this service", state.provenanceText());
+    assertEquals("Not updateable", state.updateStatusText());
+    assertFalse(state.updateEnabled());
+    assertFalse(state.removalEnabled());
+  }
+
+  private Extensions.ComponentDescriptor component(
+      Extensions.ComponentImportType importType,
+      Extensions.ComponentUpdateStatus updateStatus,
+      String sourceServiceId,
+      String mavenCoordinates,
+      long latestTimestamp) {
+    return new Extensions.ComponentDescriptor(
+        "test.component",
+        Version.create("1.0.0"),
+        "Test component",
+        null,
+        null,
+        mavenCoordinates,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        sourceServiceId,
+        1000L,
+        importType,
+        updateStatus,
+        latestTimestamp);
   }
 
   private static ServiceDashboard.SampleWindow windowAt(int sample) {

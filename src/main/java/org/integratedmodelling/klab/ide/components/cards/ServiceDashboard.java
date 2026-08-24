@@ -2,12 +2,14 @@ package org.integratedmodelling.klab.ide.components.cards;
 
 import atlantafx.base.controls.Card;
 import atlantafx.base.theme.Styles;
-import java.time.Instant;
 import java.io.File;
+import java.time.Instant;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -23,7 +25,6 @@ import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.StackedAreaChart;
 import javafx.scene.chart.XYChart;
-import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
@@ -48,11 +49,14 @@ import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.api.services.runtime.extension.Extensions;
 import org.integratedmodelling.klab.ide.KlabIDEApplication;
 import org.integratedmodelling.klab.ide.KlabIDEController;
+import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.generic.CarouselBox;
+import org.integratedmodelling.klab.ide.components.generic.IconButton;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.ide.components.generic.LogViewer;
 import org.integratedmodelling.klab.ide.components.generic.UploadBox;
 import org.integratedmodelling.klab.ide.components.generic.WaitButton;
+import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.evaicons.Evaicons;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.materialdesign.MaterialDesign;
@@ -62,6 +66,8 @@ public class ServiceDashboard extends BaseAssetViewComponent {
 
   private static final int SAMPLE_LIMIT = 80;
   private static final Duration SAMPLE_INTERVAL = Duration.seconds(1);
+  /** The horizontal carousel and its cards share this cross-axis size. */
+  private static final double COMPONENT_CARD_HEIGHT = 250;
   private final KlabService service;
   private final CarouselBox components = new CarouselBox(Orientation.HORIZONTAL);
   private final XYChart.Series<Number, Number> loadSeries = new XYChart.Series<>();
@@ -131,10 +137,11 @@ public class ServiceDashboard extends BaseAssetViewComponent {
 
     var componentHeading = new Label("Components");
     componentHeading.getStyleClass().add(Styles.TITLE_3);
-    // CarouselBox uses its own height when it lays out item wrappers. Keep enough
-    // room for the card body and navigation strips so the card is never clipped.
-    components.setMinHeight(220);
-    components.setPrefHeight(230);
+    // Keep the carousel at the same fixed height as its cards. CarouselBox resizes its item
+    // wrappers to its own height, so allowing either side to shrink would clip the card.
+    components.setMinHeight(COMPONENT_CARD_HEIGHT + 40);
+    components.setPrefHeight(COMPONENT_CARD_HEIGHT + 40);
+    components.setMaxHeight(COMPONENT_CARD_HEIGHT + 40);
     components.setMaxWidth(Double.MAX_VALUE);
     var dashboard = new VBox(10, status, charts, componentHeading, components);
     dashboard.setPadding(new Insets(4, 0, 0, 0));
@@ -253,17 +260,31 @@ public class ServiceDashboard extends BaseAssetViewComponent {
       parameterForm.getChildren().add(upload);
     }
     var submit = new WaitButton("Submit");
-    submit.setOnAction(() -> {
-      var asset = file.get() == null ? schema.asset(userInput) : schema.asset(file.get());
-      if (asset.isEmpty()) {
-        KlabIDEController.instance().handleNotifications(List.of(Notification.error("Import failed: specifications are incomplete")));
-        return false;
-      }
-      service.importAsset(schema, asset, Urn.UNDEFINED_URN, KlabIDEController.instance().user())
-          .thenAccept(resourceSet -> KlabIDEController.instance().handleNotifications(resourceSet.getNotifications()))
-          .exceptionally(t -> { KlabIDEController.instance().handleNotification(Notification.error(t)); return null; });
-      return true;
-    });
+    submit.setOnActionAsync(
+        () -> {
+          var asset = file.get() == null ? schema.asset(userInput) : schema.asset(file.get());
+          if (asset.isEmpty()) {
+            KlabIDEController.instance()
+                .handleNotifications(
+                    List.of(Notification.error("Import failed: specifications are incomplete")));
+            return CompletableFuture.completedFuture(false);
+          }
+          return service
+              .importAsset(
+                  schema, asset, Urn.UNDEFINED_URN, KlabIDEController.instance().user())
+              .thenApply(
+                  resourceSet -> {
+                    KlabIDEController.instance()
+                        .handleNotifications(resourceSet.getNotifications());
+                    return true;
+                  })
+              .exceptionally(
+                  throwable -> {
+                    KlabIDEController.instance()
+                        .handleNotification(Notification.error(throwable));
+                    return false;
+                  });
+        });
     var buttons = new HBox(10, submit);
     buttons.setAlignment(Pos.CENTER_RIGHT);
     parameterForm.getChildren().add(buttons);
@@ -418,7 +439,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
       return new StatusSample(
           status.isOperational(),
           status.getHealthPercentage(),
-          Math.max(load / 10, 0),
+          Math.max(load / 10.0, 0),
           bytesToMb(status.getMemoryUsedBytes()),
           bytesToMb(status.getMemoryAvailableBytes()));
     }
@@ -481,10 +502,46 @@ public class ServiceDashboard extends BaseAssetViewComponent {
 
   // TODO link click to component card in inspector for more information
   private Card componentCard(Extensions.ComponentDescriptor descriptor) {
+    var state = componentCardState(descriptor, service.serviceId());
     var title = new Label(descriptor.id());
     title.getStyleClass().add(Styles.TEXT_BOLD);
     var version = new Label("Version " + descriptor.version());
     version.getStyleClass().addAll(Styles.TEXT_SMALL, Styles.TEXT_MUTED);
+    var titleBox = new VBox(1, title, version);
+    HBox.setHgrow(titleBox, Priority.ALWAYS);
+
+    var status = new Label(state.updateStatusText());
+    status.getStyleClass().addAll(Styles.TEXT_SMALL, Styles.TEXT_BOLD);
+    status
+        .getStyleClass()
+        .add(
+            switch (state.updateStatus()) {
+              case UPDATE_AVAILABLE -> Styles.WARNING;
+              case UP_TO_DATE -> Styles.SUCCESS;
+              case UNKNOWN, NOT_UPDATEABLE -> Styles.TEXT_MUTED;
+            });
+    var statusIcon =
+        switch (state.updateStatus()) {
+          case UPDATE_AVAILABLE ->
+              new IconLabel(Evaicons.DOWNLOAD, 14, "-color-warning-fg");
+          case UP_TO_DATE ->
+              new IconLabel(Evaicons.CHECKMARK_CIRCLE_2, 14, "-color-success-fg");
+          case UNKNOWN -> new IconLabel(Evaicons.FLAG, 14, "-color-fg-muted");
+          case NOT_UPDATEABLE ->
+              new IconLabel(MaterialDesign.MDI_LOCK, 14, "-color-fg-muted");
+        };
+    var statusBox = new HBox(5, statusIcon, status);
+    statusBox.setAlignment(Pos.CENTER_LEFT);
+
+    var header =
+        new HBox(
+            8,
+            new IconLabel(Theme.COMPONENT_ICON, 16, "-color-fg-default"),
+            titleBox,
+            statusBox);
+    header.setAlignment(Pos.CENTER_LEFT);
+    header.setPadding(new Insets(10, 12, 6, 12));
+
     var description =
         new Label(
             descriptor.description() == null
@@ -492,27 +549,138 @@ public class ServiceDashboard extends BaseAssetViewComponent {
                 : descriptor.description());
     description.setWrapText(true);
     description.setPrefWidth(250);
-    var updated =
-        new Label(
-            descriptor.timestamp() <= 0
-                ? "Update time unknown"
-                : "Updated " + Instant.ofEpochMilli(descriptor.timestamp()));
+
+    var provenance = new Label(state.provenanceText());
+    provenance.getStyleClass().addAll(Styles.TEXT_SMALL, Styles.TEXT_MUTED);
+    provenance.setWrapText(true);
+    var source = new Label(state.sourceText());
+    source.getStyleClass().addAll(Styles.TEXT_SMALL, Styles.TEXT_MUTED);
+    source.setWrapText(true);
+    source.setVisible(!state.sourceText().isBlank());
+    source.setManaged(!state.sourceText().isBlank());
+
+    var updated = new Label(state.latestVersionText());
     updated.getStyleClass().addAll(Styles.TEXT_SMALL, Styles.TEXT_MUTED);
-    var update = new Button("Update");
-    update.setTooltip(new Tooltip("Request an on-demand component update"));
-    update.setOnAction(e -> updateComponent(descriptor));
-    var body = new VBox(7, version, description, updated, update);
-    body.setMinHeight(145);
+    updated.setWrapText(true);
+    var body = new VBox(7, description, provenance, source, updated);
+    // Keep the body content clear of the card's lower border and the footer slot.
+    body.setPadding(new Insets(4, 12, 12, 12));
+    // Leave room for the header and footer within COMPONENT_CARD_HEIGHT. The description remains
+    // wrapped, but the body no longer forces the card taller than the carousel viewport.
+    body.setMinHeight(110);
+
+    var update =
+        actionButton(
+            Evaicons.DOWNLOAD,
+            "-color-success-fg",
+            "Update component (action pending API support)",
+            state.updateEnabled(),
+            () -> updateComponent(descriptor));
+    var remove =
+        actionButton(
+            Evaicons.TRASH,
+            "-color-danger-fg",
+            "Remove component (action pending API support)",
+            state.removalEnabled(),
+            () -> removeComponent(descriptor));
+    var actions = new HBox(6, update, remove);
+    actions.setAlignment(Pos.CENTER_LEFT);
+    actions.setPadding(new Insets(6, 12, 9, 12));
+
     var card = new Card();
-    card.setHeader(new HBox(8, new FontIcon(MaterialDesign.MDI_PACKAGE_VARIANT), title));
+    card.setHeader(header);
     card.setBody(body);
+    card.setFooter(actions);
     card.setMinWidth(330);
-    card.setPrefWidth(340);
+    card.setPrefWidth(360);
+    card.setMinHeight(COMPONENT_CARD_HEIGHT);
+    card.setPrefHeight(COMPONENT_CARD_HEIGHT);
+    card.setMaxHeight(COMPONENT_CARD_HEIGHT);
     return card;
   }
+
+  private IconButton actionButton(
+      Ikon icon, String color, String tooltip, boolean enabled, Runnable action) {
+    return new IconButton(icon, 20, color, color, false) {
+      @Override
+      protected void action() {
+        action.run();
+      }
+    }.enabled(enabled).styleClass(Styles.ROUNDED).tooltip(tooltip);
+  }
+
+  static ComponentCardState componentCardState(
+      Extensions.ComponentDescriptor descriptor, String currentServiceId) {
+    var importType =
+        descriptor.importType() == null
+            ? Extensions.ComponentImportType.FILE
+            : descriptor.importType();
+    var updateStatus =
+        descriptor.updateStatus() == null
+            ? Extensions.ComponentUpdateStatus.UNKNOWN
+            : descriptor.updateStatus();
+    var hosted = Objects.equals(descriptor.sourceServiceId(), currentServiceId);
+    var provenance =
+        switch (importType) {
+          case BUILT_IN -> "Built into this service";
+          case FILE -> hosted ? "Hosted .kar import" : "Direct .kar import";
+          case MAVEN -> hosted ? "Hosted Maven import" : "Maven import";
+          case DEPENDENCY -> "Dependency imported from a Resources service";
+        };
+    var source =
+        switch (importType) {
+          case MAVEN -> nullToEmpty(descriptor.mavenCoordinates());
+          case DEPENDENCY ->
+              descriptor.sourceServiceId() == null
+                  ? "Source service unknown"
+                  : "Source: " + descriptor.sourceServiceId();
+          default -> "";
+        };
+    var statusText =
+        switch (updateStatus) {
+          case UPDATE_AVAILABLE -> "Update available";
+          case UP_TO_DATE -> "Up to date";
+          case UNKNOWN -> "Status unknown";
+          case NOT_UPDATEABLE -> "Not updateable";
+        };
+    var latestVersionText =
+        descriptor.latestVersionTimestamp() > 0
+            ? "Latest version: " + Instant.ofEpochMilli(descriptor.latestVersionTimestamp())
+            : descriptor.timestamp() > 0
+                ? "Installed: " + Instant.ofEpochMilli(descriptor.timestamp())
+                : "Version timestamp unknown";
+    return new ComponentCardState(
+        importType,
+        updateStatus,
+        provenance,
+        source,
+        statusText,
+        latestVersionText,
+        updateStatus == Extensions.ComponentUpdateStatus.UPDATE_AVAILABLE,
+        importType != Extensions.ComponentImportType.BUILT_IN);
+  }
+
+  private static String nullToEmpty(String value) {
+    return value == null ? "" : value;
+  }
+
+  record ComponentCardState(
+      Extensions.ComponentImportType importType,
+      Extensions.ComponentUpdateStatus updateStatus,
+      String provenanceText,
+      String sourceText,
+      String updateStatusText,
+      String latestVersionText,
+      boolean updateEnabled,
+      boolean removalEnabled) {}
 
   /** API hook pending the finalized component synchronization contract. */
   protected void updateComponent(Extensions.ComponentDescriptor descriptor) {
     // TODO invoke the service component update API when it is finalized.
+  }
+
+  /** API hook pending the finalized component removal contract. */
+  protected void removeComponent(Extensions.ComponentDescriptor descriptor) {
+    // TODO invoke the service component removal API when it is finalized.
   }
 }

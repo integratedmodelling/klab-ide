@@ -339,9 +339,9 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     var hBox = new HBox();
     hBox.setAlignment(Pos.CENTER_LEFT);
 
-    var expand = new Button("", new IconLabel(CarbonIcons.EXPAND_ALL, 16, Theme.FOREGROUND_COLOR));
+    var expand = new Button("", new IconLabel(CarbonIcons.EXPAND_ALL, 16, THEME_ICON_COLOR));
     var collapse =
-        new Button("", new IconLabel(CarbonIcons.COLLAPSE_ALL, 16, Theme.FOREGROUND_COLOR));
+        new Button("", new IconLabel(CarbonIcons.COLLAPSE_ALL, 16, THEME_ICON_COLOR));
 
     expand.setOnAction(
         actionEvent -> {
@@ -357,7 +357,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     collapse.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
     var workspaceSettings = new Button("");
     workspaceSettings.setGraphic(
-        new IconLabel(Theme.WORKSPACE_SETTINGS_ICON, 16, Theme.FOREGROUND_COLOR));
+        new IconLabel(Theme.WORKSPACE_SETTINGS_ICON, 16, THEME_ICON_COLOR));
     workspaceSettings.setOnAction(actionEvent -> showWorkspaceSettings());
     workspaceSettings.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
 
@@ -367,7 +367,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     HBox.setHgrow(searchField, Priority.ALWAYS);
 
     var addProject = new Button("");
-    addProject.setGraphic(new IconLabel(Theme.ADD_PROJECT_ICON, 16, Theme.FOREGROUND_COLOR));
+    addProject.setGraphic(new IconLabel(Theme.ADD_PROJECT_ICON, 16, THEME_ICON_COLOR));
     addProject.setOnAction(
         actionEvent -> {
           createNewProject();

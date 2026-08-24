@@ -1,185 +1,103 @@
 package org.integratedmodelling.klab.ide.test;
 
+import atlantafx.base.theme.PrimerLight;
+import java.util.concurrent.CompletableFuture;
+import javafx.animation.PauseTransition;
 import javafx.application.Application;
+import javafx.beans.binding.Bindings;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 import org.integratedmodelling.klab.ide.components.generic.WaitButton;
 
-/**
- * A simple test application for the WaitButton component.
- * This class demonstrates the functionality of the WaitButton by creating
- * buttons with different task durations and outcomes (success/failure).
- * It also demonstrates the reset() method that brings buttons back to their initial state.
- */
+/** Standalone visual check for each supported {@link WaitButton} lifecycle. */
 public class WaitButtonTest extends Application {
 
-    @Override
-    public void start(Stage primaryStage) {
-        VBox root = new VBox(20);
-        root.setPadding(new Insets(20));
-        root.setAlignment(Pos.CENTER);
-        
-        // Add a title
-        Label titleLabel = new Label("WaitButton Test");
-        titleLabel.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
-        
-        // Create a button with a short successful task (1 second)
-        WaitButton shortSuccessButton = new WaitButton("Short Success (1s)");
-        shortSuccessButton.setOnAction(() -> {
-            try {
-                // Simulate a short task
-                Thread.sleep(1000);
-                return true; // Task succeeded
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return false; // Task failed
-            }
-        });
-        
-        // Create a button with a medium successful task (3 seconds)
-        WaitButton mediumSuccessButton = new WaitButton("Medium Success (3s)");
-        mediumSuccessButton.setOnAction(() -> {
-            try {
-                // Simulate a medium task
-                Thread.sleep(3000);
-                return true; // Task succeeded
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return false; // Task failed
-            }
-        });
-        
-        // Create a button with a short failing task (1 second)
-        WaitButton shortFailButton = new WaitButton("Short Fail (1s)");
-        shortFailButton.setOnAction(() -> {
-            try {
-                // Simulate a short task
-                Thread.sleep(1000);
-                return false; // Task failed
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return false; // Task failed
-            }
-        });
-        
-        // Create a button with a medium failing task (3 seconds)
-        WaitButton mediumFailButton = new WaitButton("Medium Fail (3s)");
-        mediumFailButton.setOnAction(() -> {
-            try {
-                // Simulate a medium task
-                Thread.sleep(3000);
-                return false; // Task failed
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return false; // Task failed
-            }
-        });
-        
-        // Create a button with a random outcome (2 seconds)
-        WaitButton randomButton = new WaitButton("Random Outcome (2s)");
-        randomButton.setOnAction(() -> {
-            try {
-                // Simulate a task
-                Thread.sleep(2000);
-                // 50% chance of success
-                return Math.random() > 0.5;
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return false; // Task failed
-            }
-        });
-        
-        // Add a section label for success buttons
-        Label successLabel = new Label("Success buttons (show checkmark when done):");
-        successLabel.setStyle("-fx-font-weight: bold;");
-        
-        // Add a section label for failure buttons
-        Label failureLabel = new Label("Failure buttons (show error mark when done):");
-        failureLabel.setStyle("-fx-font-weight: bold;");
-        
-        // Add a section label for random outcome button
-        Label randomLabel = new Label("Random outcome button (50% chance of success):");
-        randomLabel.setStyle("-fx-font-weight: bold;");
-        
-        // Add a section label for reset functionality
-        Label resetLabel = new Label("Reset functionality (brings buttons back to initial state):");
-        resetLabel.setStyle("-fx-font-weight: bold;");
-        
-        // Create a container for reset buttons
-        HBox resetButtonsContainer = new HBox(10);
-        resetButtonsContainer.setAlignment(Pos.CENTER);
-        
-        // Create buttons to reset specific buttons
-        Button resetSuccessButton = new Button("Reset Success Buttons");
-        resetSuccessButton.setOnAction(e -> {
-            shortSuccessButton.reset();
-            mediumSuccessButton.reset();
-        });
-        
-        Button resetFailButton = new Button("Reset Failure Buttons");
-        resetFailButton.setOnAction(e -> {
-            shortFailButton.reset();
-            mediumFailButton.reset();
-        });
-        
-        Button resetRandomButton = new Button("Reset Random Button");
-        resetRandomButton.setOnAction(e -> {
-            randomButton.reset();
-        });
-        
-        Button resetAllButton = new Button("Reset All Buttons");
-        resetAllButton.setOnAction(e -> {
-            shortSuccessButton.reset();
-            mediumSuccessButton.reset();
-            shortFailButton.reset();
-            mediumFailButton.reset();
-            randomButton.reset();
-        });
-        
-        // Add reset buttons to container
-        resetButtonsContainer.getChildren().addAll(
-            resetSuccessButton, 
-            resetFailButton, 
-            resetRandomButton, 
-            resetAllButton
-        );
-        
-        // Add components to the root
-        root.getChildren().addAll(
-            titleLabel,
-            successLabel,
-            shortSuccessButton,
-            mediumSuccessButton,
-            failureLabel,
-            shortFailButton,
-            mediumFailButton,
-            randomLabel,
-            randomButton,
-            resetLabel,
-            resetButtonsContainer
-        );
-        
-        // Create the scene
-        Scene scene = new Scene(root, 600, 600);
-        
-        // Set up the stage
-        primaryStage.setTitle("WaitButton Test");
-        primaryStage.setScene(scene);
-        primaryStage.show();
+  @Override
+  public void start(Stage stage) {
+    Application.setUserAgentStylesheet(new PrimerLight().getUserAgentStylesheet());
+
+    var blockingSuccess = new WaitButton("Blocking success");
+    blockingSuccess.setOnAction(() -> sleepAndReturn(true));
+
+    var asyncSuccess = new WaitButton("Asynchronous success");
+    asyncSuccess.setOnActionAsync(() -> delayedResult(true));
+
+    var asyncFailure = new WaitButton("Asynchronous failure");
+    asyncFailure.setOnActionAsync(() -> delayedResult(false));
+
+    var externallyManaged = new WaitButton("Externally managed");
+    var start = new Button("Wait");
+    start.setOnAction(event -> externallyManaged.showWaiting());
+    var succeed = new Button("Succeed");
+    succeed.setOnAction(event -> externallyManaged.showSucceeded());
+    var fail = new Button("Fail");
+    fail.setOnAction(event -> externallyManaged.showFailed());
+    var reset = new Button("Reset");
+    reset.setOnAction(event -> externallyManaged.reset());
+    var externalControls = new HBox(6, start, succeed, fail, reset);
+
+    var grid = new GridPane();
+    grid.setHgap(16);
+    grid.setVgap(14);
+    addRow(grid, 0, blockingSuccess, "Runs a blocking Supplier on a worker thread");
+    addRow(grid, 1, asyncSuccess, "Waits for a successful CompletionStage");
+    addRow(grid, 2, asyncFailure, "Waits for a failed Boolean result");
+    addRow(grid, 3, externallyManaged, "Lifecycle controlled by the buttons below");
+    grid.add(externalControls, 1, 4, 2, 1);
+
+    var title = new Label("WaitButton contract check");
+    title.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
+    var instructions =
+        new Label(
+            "Every action should immediately show a moving spinner, reject repeated clicks, "
+                + "and finish with the expected icon.");
+    instructions.setWrapText(true);
+
+    var root = new VBox(18, title, instructions, grid);
+    root.setPadding(new Insets(24));
+    stage.setScene(new Scene(root, 720, 390));
+    stage.setTitle("WaitButton Test");
+    stage.show();
+  }
+
+  private static void addRow(GridPane grid, int row, WaitButton button, String description) {
+    var state = new Label();
+    state.textProperty()
+        .bind(Bindings.createStringBinding(() -> button.getState().name(), button.stateProperty()));
+    state.setMinWidth(85);
+    var buttonAndState = new HBox(10, button, state);
+    buttonAndState.setAlignment(Pos.CENTER_LEFT);
+    grid.add(buttonAndState, 0, row);
+    grid.add(new Label(description), 1, row);
+  }
+
+  private static boolean sleepAndReturn(boolean result) {
+    try {
+      Thread.sleep(2000);
+      return result;
+    } catch (InterruptedException exception) {
+      Thread.currentThread().interrupt();
+      return false;
     }
-    
-    /**
-     * Main method to launch the application.
-     * 
-     * @param args Command line arguments
-     */
-    public static void main(String[] args) {
-        launch(args);
-    }
+  }
+
+  private static CompletableFuture<Boolean> delayedResult(boolean result) {
+    var future = new CompletableFuture<Boolean>();
+    var delay = new PauseTransition(Duration.seconds(2));
+    delay.setOnFinished(event -> future.complete(result));
+    delay.play();
+    return future;
+  }
+
+  public static void main(String[] args) {
+    launch(args);
+  }
 }

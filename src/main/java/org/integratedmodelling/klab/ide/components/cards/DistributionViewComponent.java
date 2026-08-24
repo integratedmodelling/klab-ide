@@ -11,7 +11,6 @@ import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Alert;
-import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tooltip;
@@ -167,7 +166,7 @@ public class DistributionViewComponent extends BaseAssetViewComponent {
       currentLabel.setTooltip(tooltip("This is the distribution used by the IDE"));
       currentControl = currentLabel;
     } else {
-      var makeCurrent = new Button("Make current");
+      var makeCurrent = new WaitButton("Make current");
       makeCurrent.getStyleClass().addAll(Styles.SMALL, Styles.ACCENT);
       makeCurrent.setDisable(
           !tag.availableLocally() || !mutable || busy || controller.isSoftwareStackChangePending());
@@ -183,11 +182,22 @@ public class DistributionViewComponent extends BaseAssetViewComponent {
                               ? "Make this the current IDE distribution"
                               : "Make current and restart the language server"));
       makeCurrent.setOnAction(
-          event -> {
-            if (controller.switchDistributionTag(tag)) {
-              notifySuccess("Switching to " + displayName(tag));
-            }
-            refreshCards();
+          () -> {
+            // switchDistributionTag may wait for a local language server to stop. WaitButton runs
+            // this supplier away from the FX thread, after entering WAITING synchronously, so the
+            // initial click always produces immediate visible feedback.
+            var accepted = controller.switchDistributionTag(tag);
+            runOnFx(
+                () -> {
+                  if (accepted) {
+                    notifySuccess("Switching to " + displayName(tag));
+                  }
+                  // Rebuild from authoritative controller state. A pending switch gets the
+                  // persistent "Switching..." spinner; a completed switch gets the Current label.
+                  // This also removes the transient WaitButton before it can show a terminal icon.
+                  refreshCards();
+                });
+            return accepted;
           });
       currentControl = makeCurrent;
     }

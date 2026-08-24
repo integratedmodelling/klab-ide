@@ -234,6 +234,13 @@
                             </options>
                         </configuration>
                     </execution>
+                    <execution>
+                        <!-- Isolated visual contract check: ./mvnw javafx:run@wait-button-test -->
+                        <id>wait-button-test</id>
+                        <configuration>
+                            <mainClass>org.integratedmodelling.klab.ide.test.WaitButtonTest</mainClass>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
             <!-- 1. Generate classpath.txt for the LSP launcher -->

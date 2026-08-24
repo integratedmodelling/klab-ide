@@ -1,8 +1,16 @@
 package org.integratedmodelling.klab.ide.components.generic;
 
 import atlantafx.base.theme.Styles;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.Supplier;
 import javafx.application.Platform;
-import javafx.concurrent.Task;
+import javafx.beans.property.ReadOnlyObjectProperty;
+import javafx.beans.property.ReadOnlyObjectWrapper;
+import javafx.css.PseudoClass;
 import javafx.scene.control.Button;
 import javafx.scene.control.ContentDisplay;
 import javafx.scene.control.ProgressIndicator;
@@ -11,255 +19,216 @@ import javafx.scene.paint.Color;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.function.Supplier;
-
 /**
- * A button that shows a spinning progress indicator when clicked and executes a task. The button is
- * disabled during task execution and returns to its normal state when the task completes.
+ * A button with an explicit lifecycle for work that may take time.
  *
- * <p>The button shows: - A right arrow icon before the task is started - A spinning progress
- * indicator during task execution - A checkmark icon if the task succeeds - An error icon if the
- * task fails
+ * <p>A {@code WaitButton} is initially {@link State#READY}. While work is running it is
+ * {@link State#WAITING}, ignores additional clicks, and displays an indeterminate progress
+ * indicator. Completion leaves a success or failure icon visible until the next invocation or
+ * {@link #reset()}.
  *
- * <p>Usage example:
+ * <p>There are three supported ways to manage the work:
  *
- * <pre>
- * WaitButton button = new WaitButton("Click Me");
- * button.setOnAction(() -> {
- *     // This code will run in a background thread
- *     try {
- *         Thread.sleep(2000); // ... do work
- *         return true; // Task succeeded
- *     } catch (InterruptedException e) {
- *         Thread.currentThread().interrupt();
- *         return false; // Task failed
- *     }
- * });
- * </pre>
+ * <ul>
+ *   <li>{@link #setOnAction(Supplier)} runs blocking work on a shared background executor.
+ *   <li>{@link #setOnActionAsync(Supplier)} observes an already asynchronous operation until its
+ *       returned stage completes.
+ *   <li>{@link #showWaiting()}, {@link #showSucceeded()}, and {@link #showFailed()} expose the same
+ *       lifecycle for work managed by another component.
+ * </ul>
+ *
+ * <p>The component and the externally managed lifecycle methods follow the normal JavaFX rule and
+ * must be used on the FX application thread. Completion of configured actions is automatically
+ * marshalled back to that thread.
  */
 public class WaitButton extends Button {
 
-  private final StackPane iconContainer;
+  public enum State {
+    READY,
+    WAITING,
+    SUCCEEDED,
+    FAILED
+  }
+
+  private static final PseudoClass WAITING_PSEUDO_CLASS = PseudoClass.getPseudoClass("waiting");
+  private static final PseudoClass SUCCEEDED_PSEUDO_CLASS = PseudoClass.getPseudoClass("succeeded");
+  private static final PseudoClass FAILED_PSEUDO_CLASS = PseudoClass.getPseudoClass("failed");
+  private static final ExecutorService ACTION_EXECUTOR =
+      Executors.newCachedThreadPool(
+          runnable -> {
+            var thread = new Thread(runnable, "wait-button-action");
+            thread.setDaemon(true);
+            return thread;
+          });
+
+  private final StackPane graphicContainer;
   private final ProgressIndicator progressIndicator;
   private final IconLabel arrowIcon;
   private final IconLabel successIcon;
   private final IconLabel errorIcon;
-  private final ExecutorService executorService;
+  private final ReadOnlyObjectWrapper<State> state =
+      new ReadOnlyObjectWrapper<>(this, "state", State.READY);
+
   private Supplier<Boolean> action;
-  private String originalText;
-  private boolean taskSucceeded;
+  private Supplier<? extends CompletionStage<Boolean>> asyncAction;
 
   public WaitButton(String text) {
     this(text, 16);
   }
 
-  /**
-   * Creates a new WaitButton with the specified text.
-   *
-   * @param text The text to display on the button
-   */
   public WaitButton(String text, int size) {
-    super();
-    this.originalText = text;
-    this.executorService = Executors.newCachedThreadPool();
+    super(text);
 
-    setText(text);
+    arrowIcon = new IconLabel(Material2MZ.NAVIGATE_NEXT, size, Color.GRAY);
+    successIcon = new IconLabel(Material2AL.CHECK_CIRCLE, size, Color.GREEN);
+    errorIcon = new IconLabel(Material2AL.ERROR, size, Color.RED);
 
-    // Create icons for different states
-    this.arrowIcon = new IconLabel(Material2MZ.NAVIGATE_NEXT, size, Color.GRAY);
-    this.successIcon = new IconLabel(Material2AL.CHECK_CIRCLE, size, Color.GREEN);
-    this.errorIcon = new IconLabel(Material2AL.ERROR, size, Color.RED);
-
-    // Initially only show the arrow icon
-    this.arrowIcon.setVisible(true);
-    this.successIcon.setVisible(false);
-    this.errorIcon.setVisible(false);
-
-    // Create progress indicator with AtlantaFX styling
-    this.progressIndicator = new ProgressIndicator();
-    // Make the indicator larger for better visibility
-    progressIndicator.setMaxSize(size + 8, size + 8);
+    progressIndicator = new ProgressIndicator(ProgressIndicator.INDETERMINATE_PROGRESS);
     progressIndicator.setMinSize(size + 8, size + 8);
     progressIndicator.setPrefSize(size + 8, size + 8);
-    progressIndicator.setVisible(false);
-
-    // Ensure the indicator is always fully visible, even when the button is in a "disabled" state
-    progressIndicator.setStyle(
-        "-fx-opacity: 1.0; -fx-background-color: transparent;"
-            + " -fx-progress-color: -color-accent-emphasis;");
-
-    // Apply AtlantaFX styling for consistent look and feel
+    progressIndicator.setMaxSize(size + 8, size + 8);
+    progressIndicator.setMouseTransparent(true);
     Styles.addStyleClass(progressIndicator, Styles.ACCENT);
 
-    // Make sure the indicator is always on top
-    progressIndicator.setViewOrder(-1);
-
-    // Create a stack pane to hold the icons and progress indicator
-    this.iconContainer = new StackPane();
-    iconContainer.setMinSize(size + 8, size + 8);
-    iconContainer.setPrefSize(size + 8, size + 8);
-    iconContainer.getChildren().addAll(arrowIcon, successIcon, errorIcon);
-
-    // Set up the button
-    setGraphic(iconContainer);
+    // Keep every state graphic in one attached container. In particular, an initially invisible
+    // ProgressIndicator must be attached to the scene graph so its skin and animation are ready
+    // when the state changes to WAITING.
+    graphicContainer = new StackPane(arrowIcon, successIcon, errorIcon, progressIndicator);
+    graphicContainer.setMinSize(size + 8, size + 8);
+    graphicContainer.setPrefSize(size + 8, size + 8);
+    setGraphic(graphicContainer);
     setContentDisplay(ContentDisplay.RIGHT);
     setGraphicTextGap(5);
     getStyleClass().add("wait-button");
 
-    // Set up the action handler
+    state.addListener((observable, oldState, newState) -> render(newState));
+    render(State.READY);
+
     super.setOnAction(
         event -> {
-          if (action != null) {
-            executeTask();
+          if (getState() != State.WAITING) {
+            executeConfiguredAction();
           }
         });
   }
 
   /**
-   * Sets the action to be executed when the button is clicked. The action will be executed in a
-   * background thread. The action should return true if the task succeeded, false otherwise.
-   *
-   * @param action The action to execute
+   * Configures blocking work. The supplier is invoked on a background thread and its Boolean result
+   * determines the terminal state; {@code null}, an exception, and {@code false} all mean failure.
    */
   public void setOnAction(Supplier<Boolean> action) {
-    this.action = action;
+    this.action = Objects.requireNonNull(action, "action");
+    this.asyncAction = null;
   }
 
-  /** Executes the task in a background thread and updates the button UI accordingly. */
-  private void executeTask() {
-    showWaiting();
-
-    Task<Boolean> task =
-        new Task<>() {
-          @Override
-          protected Boolean call() throws Exception {
-            try {
-              if (action != null) {
-                return action.get();
-              }
-              return false;
-            } catch (Exception e) {
-              // Log the exception but don't rethrow to ensure cleanup happens
-              e.printStackTrace();
-              return false;
-            }
-          }
-
-          @Override
-          protected void succeeded() {
-            Boolean result = getValue();
-            taskSucceeded = result != null && result;
-            Platform.runLater(() -> resetButton());
-          }
-
-          @Override
-          protected void failed() {
-            taskSucceeded = false;
-            Platform.runLater(() -> resetButton());
-          }
-
-          @Override
-          protected void cancelled() {
-            taskSucceeded = false;
-            Platform.runLater(() -> resetButton());
-          }
-        };
-
-    // Execute the task
-    executorService.submit(task);
+  /**
+   * Configures non-blocking work. The supplier itself is invoked on the FX thread and must return
+   * promptly; the button remains waiting until the returned stage completes.
+   */
+  public void setOnActionAsync(Supplier<? extends CompletionStage<Boolean>> action) {
+    this.asyncAction = Objects.requireNonNull(action, "action");
+    this.action = null;
   }
 
-  /** Show the indeterminate wait state for work whose lifecycle is managed externally. */
+  public State getState() {
+    return state.get();
+  }
+
+  public ReadOnlyObjectProperty<State> stateProperty() {
+    return state.getReadOnlyProperty();
+  }
+
+  public boolean isWaiting() {
+    return getState() == State.WAITING;
+  }
+
+  /** Starts an externally managed wait phase. Must be called on the FX application thread. */
   public void showWaiting() {
-    // Instead of disabling the entire button (which affects all children),
-    // just disable the click functionality and update the visual state manually
-    setMouseTransparent(true); // Prevents clicks but doesn't change visual styling
-
-    // Hide all icons
-    arrowIcon.setVisible(false);
-    successIcon.setVisible(false);
-    errorIcon.setVisible(false);
-
-    // Show progress indicator with full opacity
-    progressIndicator.setVisible(true);
-    progressIndicator.setManaged(true);
-    progressIndicator.setOpacity(1.0);
-    progressIndicator.setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
-    setGraphic(progressIndicator);
-
-    // Keep the control and spinner fully opaque while preventing further clicks.
-    setOpacity(1.0);
-    progressIndicator.setStyle(
-        "-fx-opacity: 1.0; -fx-progress-color: -color-accent-emphasis;");
+    setState(State.WAITING);
   }
 
-  /**
-   * Resets the button to its original state and shows the appropriate icon based on task result.
-   * The success or failure icon will remain visible until reset() is called.
-   */
-  private void resetButton() {
-    // Restore text and opacity
-    setText(originalText);
-
-    // Hide progress indicator
-    progressIndicator.setVisible(false);
-    progressIndicator.setProgress(0);
-
-    // Show the appropriate icon based on task result
-    arrowIcon.setVisible(false);
-    successIcon.setVisible(taskSucceeded);
-    errorIcon.setVisible(!taskSucceeded);
-    setGraphic(iconContainer);
-
-    // Restore button interactivity and styling
-    setMouseTransparent(false);
-    setOpacity(1.0);
-    progressIndicator.setStyle("-fx-opacity: 1.0;"); // Keep this style for next use
+  /** Completes an externally managed wait phase successfully. */
+  public void showSucceeded() {
+    setState(State.SUCCEEDED);
   }
 
-  /**
-   * Resets the button to its initial state with the arrow icon visible. This can be used to
-   * manually clear the success/failure state.
-   */
+  /** Completes an externally managed wait phase unsuccessfully. */
+  public void showFailed() {
+    setState(State.FAILED);
+  }
+
+  /** Restores the initial, interactive state. */
   public void reset() {
-    // Restore text and opacity
-    setText(originalText);
-
-    // Hide progress indicator
-    progressIndicator.setVisible(false);
-    progressIndicator.setProgress(0);
-
-    // Show only the arrow icon
-    arrowIcon.setVisible(true);
-    successIcon.setVisible(false);
-    errorIcon.setVisible(false);
-    setGraphic(iconContainer);
-
-    // Ensure button is interactive
-    setMouseTransparent(false);
-    setOpacity(1.0);
+    setState(State.READY);
   }
 
-  /**
-   * Updates the text of the button and stores it for reset.
-   *
-   * @param text The new text for the button
-   */
+  /** Compatibility helper equivalent to {@link #setText(String)}. */
   public void updateText(String text) {
     setText(text);
-    // Only update the original text if the button is not in processing state
-    if (!isMouseTransparent()) {
-      this.originalText = text;
-    }
   }
 
   /**
-   * Shuts down the executor service when the button is no longer needed. Call this method to clean
-   * up resources when the button is being removed from the scene.
+   * Retained for source compatibility. Actions now use a shared daemon executor, so instances own
+   * no executor that requires shutdown.
    */
-  public void shutdown() {
-    executorService.shutdown();
+  @Deprecated(forRemoval = false)
+  public void shutdown() {}
+
+  private void executeConfiguredAction() {
+    if (action == null && asyncAction == null) {
+      return;
+    }
+
+    showWaiting();
+    CompletionStage<Boolean> completion;
+    try {
+      completion =
+          asyncAction == null
+              ? CompletableFuture.supplyAsync(action, ACTION_EXECUTOR)
+              : asyncAction.get();
+      if (completion == null) {
+        completion = CompletableFuture.completedFuture(false);
+      }
+    } catch (RuntimeException exception) {
+      completion = CompletableFuture.failedFuture(exception);
+    }
+
+    completion.whenComplete(
+        (succeeded, error) ->
+            runOnFxThread(
+                () ->
+                    setState(
+                        error == null && Boolean.TRUE.equals(succeeded)
+                            ? State.SUCCEEDED
+                            : State.FAILED)));
+  }
+
+  private void setState(State newState) {
+    if (!Platform.isFxApplicationThread()) {
+      throw new IllegalStateException("WaitButton state must be changed on the FX application thread");
+    }
+    state.set(Objects.requireNonNull(newState, "newState"));
+  }
+
+  private void render(State currentState) {
+    var ready = currentState == State.READY;
+    var waiting = currentState == State.WAITING;
+    arrowIcon.setVisible(ready);
+    successIcon.setVisible(currentState == State.SUCCEEDED);
+    errorIcon.setVisible(currentState == State.FAILED);
+    progressIndicator.setVisible(waiting);
+    setMouseTransparent(waiting);
+
+    pseudoClassStateChanged(WAITING_PSEUDO_CLASS, waiting);
+    pseudoClassStateChanged(SUCCEEDED_PSEUDO_CLASS, currentState == State.SUCCEEDED);
+    pseudoClassStateChanged(FAILED_PSEUDO_CLASS, currentState == State.FAILED);
+  }
+
+  private static void runOnFxThread(Runnable runnable) {
+    if (Platform.isFxApplicationThread()) {
+      runnable.run();
+    } else {
+      Platform.runLater(runnable);
+    }
   }
 }
