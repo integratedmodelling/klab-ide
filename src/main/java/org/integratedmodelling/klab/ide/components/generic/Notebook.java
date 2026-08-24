@@ -200,6 +200,11 @@ public class Notebook extends BorderPane {
     }
   }
 
+  /** Scrolls the unpinned card area to its last card after the next layout pass. */
+  public void scrollToBottom() {
+    Platform.runLater(() -> Platform.runLater(() -> mainScroll.setVvalue(1.0)));
+  }
+
   /**
    * Pins the card with the given id to the top of the notebook. Any previously pinned card is
    * automatically unpinned first, since only one card may be pinned at a time. No-op if the card is

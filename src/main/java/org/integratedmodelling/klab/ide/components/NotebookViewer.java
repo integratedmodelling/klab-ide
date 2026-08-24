@@ -136,6 +136,7 @@ public class NotebookViewer extends BorderPane implements Page {
         component.getTitle(),
         component.getDescription(),
         component);
+    notebook.scrollToBottom();
   }
 
   public void toggle(AssetViewComponent.Type type) {
@@ -161,6 +162,7 @@ public class NotebookViewer extends BorderPane implements Page {
           };
       notebook.addCard(type.name(), card.getIcon(), card.getTitle(), card.getDescription(), card);
       notebook.focusCard(type.name());
+      notebook.scrollToBottom();
     }
   }
 
@@ -174,6 +176,7 @@ public class NotebookViewer extends BorderPane implements Page {
         input,
         "Output of command: " + input,
         card.createContent());
+    notebook.scrollToBottom();
   }
 
   @Override

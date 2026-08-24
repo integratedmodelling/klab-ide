@@ -66,8 +66,8 @@ public enum Theme {
   DARK_DEFAULT("Dark Default", true),
   LIGHT_COOL("Light Cool", false),
   DARK_COOL("Dark Cool", true),
-  LIGHT_HC("Light High Contrast", false),
-  DARK_HC("Dark High Contrast", true),
+  LIGHT_HC("Light Warm", false),
+  DARK_HC("Dark Warm", true),
   DARK_ALTERNATIVE("Dark Alternative", true);
 
   public enum Detail {
