@@ -90,7 +90,6 @@ import org.integratedmodelling.klab.ide.api.DigitalTwinReactor;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.integratedmodelling.klab.ide.components.*;
 import org.integratedmodelling.klab.ide.components.cards.AssetViewComponent;
-import org.integratedmodelling.klab.ide.components.cards.DistributionViewComponent;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
@@ -514,7 +513,8 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
    * Boot and authenticate away from the JavaFX application thread. The returned future completes
    * only after the JavaFX-side startup state has also been installed.
    */
-  public synchronized CompletableFuture<Void> startInitialization() {
+  public synchronized CompletableFuture<Void> startInitialization(DownloadMonitor startupProgress) {
+    Objects.requireNonNull(startupProgress, "startupProgress");
     if (initializationFuture == null) {
       createModeler();
       initializationFuture =
@@ -527,14 +527,20 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
                             .engine()
                             .getSettings()
                             .get(Setting.NOTIFICATIONS_CACHED, Integer.class);
-                    return new StartupState(authenticatedUser, notificationCapacity);
+                    return new StartupState(
+                        authenticatedUser,
+                        notificationCapacity,
+                        startupStackSynchronizationTarget());
                   })
-              .thenAcceptAsync(this::completeInitialization, Platform::runLater);
+              .thenComposeAsync(
+                  startupState -> completeInitialization(startupState, startupProgress),
+                  Platform::runLater);
     }
     return initializationFuture;
   }
 
-  private void completeInitialization(StartupState startupState) {
+  private CompletableFuture<Void> completeInitialization(
+      StartupState startupState, DownloadMonitor startupProgress) {
     this.user = startupState.user();
 
     // Must be explicit because the callback is not used before boot.
@@ -542,13 +548,83 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     notifications =
         Queues.synchronizedQueue(EvictingQueue.create(startupState.notificationCapacity()));
 
-    if (!showStartupStackSynchronization()) {
+    if (startupState.synchronizationTarget() == null) {
       initializeSoftwareStack();
+      scheduleSoftwareStackUpdateChecks();
+      return CompletableFuture.completedFuture(null);
     }
-    scheduleSoftwareStackUpdateChecks();
+
+    var target = startupState.synchronizationTarget();
+    startupProgress.setManaged(true);
+    startupProgress.setVisible(true);
+    startupProgress.prepare("Preparing automatic software stack update");
+
+    return StartupInitialization.run(
+            () -> {
+              synchronizeStartupStack(target, startupProgress);
+              return null;
+            })
+        .thenRunAsync(
+            () -> {
+              startupProgress.setVisible(false);
+              startupProgress.setManaged(false);
+              initializeSoftwareStack();
+              scheduleSoftwareStackUpdateChecks();
+            },
+            Platform::runLater);
   }
 
-  private record StartupState(UserScope user, int notificationCapacity) {}
+  private Stack.Tag startupStackSynchronizationTarget() {
+    var settings = engine().getSettings();
+    var enabled =
+        Boolean.TRUE.equals(settings.get(Setting.SYNCHRONIZE_STACK_ON_STARTUP, Boolean.class));
+    var stack = engine().getSoftwareStack();
+    if (!enabled || stack == null) {
+      return null;
+    }
+    try {
+      // Authentication may take long enough for the network catalog to change. Base the decision
+      // on a fresh catalog, while startup is still running away from the JavaFX thread.
+      stack.refresh();
+      var current = stack.resolve(engine().getDistributionTag());
+      if (!StartupInitialization.isNetworkSynchronizationCandidate(enabled, current)) {
+        return null;
+      }
+      return StartupInitialization.hasAvailableUpdate(stack.status(current)) ? current : null;
+    } catch (Throwable throwable) {
+      Logging.INSTANCE.warn("Unable to check for software stack updates during startup", throwable);
+      return null;
+    }
+  }
+
+  private void synchronizeStartupStack(Stack.Tag target, DownloadMonitor startupProgress) {
+    try {
+      var synchronizedSuccessfully =
+          engine().getSoftwareStack().synchronize(target, startupProgress.synchronization());
+      if (synchronizedSuccessfully) {
+        startupProgress.complete("Software stack update completed");
+        handleNotification(
+            Notification.info(
+                "Software stack updated automatically", Notification.Outcome.Success));
+      } else {
+        startupProgress.fail("Software stack update failed");
+        handleNotification(
+            Notification.warning(
+                "Automatic software stack update failed", Notification.Outcome.Failure));
+      }
+    } catch (Throwable throwable) {
+      Logging.INSTANCE.error("Automatic software stack update failed", throwable);
+      startupProgress.fail(
+          "Software stack update failed"
+              + (throwable.getMessage() == null ? "" : ": " + throwable.getMessage()));
+      handleNotification(
+          Notification.warning(
+              "Automatic software stack update failed", Notification.Outcome.Failure));
+    }
+  }
+
+  private record StartupState(
+      UserScope user, int notificationCapacity, Stack.Tag synchronizationTarget) {}
 
   public <T extends BrowsablePage<?, ?>> T getView(View view, Class<T> cls) {
     return (T)
@@ -1848,23 +1924,6 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
             listener.run();
           }
         });
-  }
-
-  private boolean showStartupStackSynchronization() {
-    var stack = engine().getSoftwareStack();
-    var current = stack == null ? null : stack.resolve(engine().getDistributionTag());
-    if (!engine().getSettings().get(Setting.SYNCHRONIZE_STACK_ON_STARTUP, Boolean.class)
-        || current == null
-        || current.version() == Version.HEAD
-        || current.orphan()) {
-      return false;
-    }
-    var component = new DistributionViewComponent(current, true, this::removeModalOverlay);
-    component.setMaxWidth(760);
-    component.setStyle(
-        "-fx-background-color: -color-bg-default; -fx-background-radius: 10; -fx-padding: 18;");
-    showInModalOverlay(component, false);
-    return true;
   }
 
   private void scheduleSoftwareStackUpdateChecks() {

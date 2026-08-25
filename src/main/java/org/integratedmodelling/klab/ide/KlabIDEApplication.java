@@ -15,6 +15,7 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import org.integratedmodelling.common.logging.Logging;
+import org.integratedmodelling.klab.ide.components.DownloadMonitor;
 import org.integratedmodelling.klab.ide.utils.AppContext;
 
 public class KlabIDEApplication extends Application {
@@ -66,7 +67,7 @@ public class KlabIDEApplication extends Application {
     stage.show();
 
     controller
-        .startInitialization()
+        .startInitialization(waitScreen.distributionProgress())
         .whenComplete(
             (unused, failure) ->
                 Platform.runLater(
@@ -93,16 +94,32 @@ public class KlabIDEApplication extends Application {
     detail.setMaxWidth(520);
     detail.setAlignment(Pos.CENTER);
 
-    var content = new VBox(18, progress, title, detail);
+    var distributionProgress = new DownloadMonitor();
+    distributionProgress.setVisible(false);
+    distributionProgress.setManaged(false);
+    distributionProgress.setMaxWidth(680);
+    distributionProgress
+        .visibleProperty()
+        .addListener(
+            (observable, wasVisible, isVisible) -> {
+              progress.setVisible(!isVisible);
+              progress.setManaged(!isVisible);
+              if (isVisible) {
+                title.setText("Updating the k.LAB software stack");
+                detail.setText("The IDE will become available when synchronization finishes.");
+              }
+            });
+
+    var content = new VBox(18, progress, title, detail, distributionProgress);
     content.setAlignment(Pos.CENTER);
-    content.setMaxSize(620, 300);
+    content.setMaxSize(760, 520);
     content.setStyle(
         "-fx-background-color: -color-bg-default; -fx-background-radius: 12;"
             + " -fx-border-color: -color-border-default; -fx-border-radius: 12; -fx-padding: 36;");
 
     var container = new StackPane(content);
     container.setStyle("-fx-background-color: rgba(0, 0, 0, 0.38);");
-    return new WaitScreen(container, progress, title, detail);
+    return new WaitScreen(container, progress, title, detail, distributionProgress);
   }
 
   private static Throwable rootCause(Throwable failure) {
@@ -114,7 +131,11 @@ public class KlabIDEApplication extends Application {
   }
 
   private record WaitScreen(
-      StackPane container, ProgressIndicator progress, Label title, Label detail) {
+      StackPane container,
+      ProgressIndicator progress,
+      Label title,
+      Label detail,
+      DownloadMonitor distributionProgress) {
 
     private void showFailure(Throwable failure) {
       progress.setVisible(false);
