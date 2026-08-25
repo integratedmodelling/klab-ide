@@ -23,7 +23,8 @@ import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
 
-import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 
 public class ResourceSmallViewComponent extends BaseAssetViewComponent {
@@ -56,20 +57,12 @@ public class ResourceSmallViewComponent extends BaseAssetViewComponent {
                 ResourcesService.class, s -> s.serviceId().equals(descriptor.getServiceId()))
             .orElse(null); // TODO  handle
 
-    var label = this.descriptor.getUrn();
-    if (this.descriptor.getMetadata().containsKey(Metadata.DC_LABEL)) {
-      label = this.descriptor.getMetadata().get(Metadata.DC_LABEL).toString();
-    } else if (this.descriptor.getMetadata().containsKey(Metadata.DC_TITLE)) {
-      label = this.descriptor.getMetadata().get(Metadata.DC_TITLE).toString();
-    }
+    var label = displayName(this.descriptor);
     if (service != null) {
-      label += "@" + service.serviceName();
+      label += " @ " + service.serviceName();
     }
 
-    var comment = "No description available";
-    if (this.descriptor.getMetadata().containsKey(Metadata.DC_COMMENT)) {
-      comment = this.descriptor.getMetadata().get(Metadata.DC_COMMENT).toString();
-    }
+    var comment = description(this.descriptor);
 
     var tooltip = label + "\n" + this.descriptor.getUrn();
 
@@ -89,6 +82,7 @@ public class ResourceSmallViewComponent extends BaseAssetViewComponent {
       openButton.setCursor(Cursor.HAND);
       openButton.setOnMouseClicked(
           e -> {
+            e.consume();
             selectHandler.accept(this.descriptor);
           });
       buttonContainer.getChildren().add(openButton);
@@ -100,6 +94,7 @@ public class ResourceSmallViewComponent extends BaseAssetViewComponent {
     linkButton.setCursor(Cursor.HAND);
     linkButton.setOnMouseClicked(
         e -> {
+          e.consume();
           final var clipboard = Clipboard.getSystemClipboard();
           final var ct = new ClipboardContent();
           ct.putString(descriptor.getUrn());
@@ -113,6 +108,7 @@ public class ResourceSmallViewComponent extends BaseAssetViewComponent {
       deleteButton.setCursor(Cursor.HAND);
       deleteButton.setOnMouseClicked(
           e -> {
+            e.consume();
             deleteHandler.accept(this.descriptor);
           });
       buttonContainer.getChildren().add(deleteButton);
@@ -131,15 +127,16 @@ public class ResourceSmallViewComponent extends BaseAssetViewComponent {
     description.setPrefRowCount(3);
     body.getChildren().add(description);
 
-    Label status =
-        new Label("Status: " + this.descriptor.getStage().name() + " " + LocalDateTime.now());
+    Label status = new Label(details(this.descriptor));
     status.setStyle("-fx-font-size: 10px;");
     HBox footer = new HBox(status);
     footer.setAlignment(Pos.CENTER_RIGHT);
 
     card.setOnMouseClicked(
         event -> {
-          selectHandler.accept(this.descriptor);
+          if (selectHandler != null) {
+            selectHandler.accept(this.descriptor);
+          }
         });
 
     card.setBody(body);
@@ -147,5 +144,54 @@ public class ResourceSmallViewComponent extends BaseAssetViewComponent {
     card.setFooter(footer);
     this.getChildren().add(card);
     return card;
+  }
+
+  static String displayName(ResourceInfo descriptor) {
+    return firstMetadata(
+        descriptor,
+        descriptor.getUrn(),
+        Metadata.DC_LABEL,
+        Metadata.DC_TITLE,
+        Metadata.DC_NAME,
+        Metadata.RDFS_LABEL);
+  }
+
+  static String description(ResourceInfo descriptor) {
+    return firstMetadata(
+        descriptor,
+        "No description available",
+        Metadata.DC_DESCRIPTION,
+        Metadata.DC_DESCRIPTION_ABSTRACT,
+        Metadata.DC_COMMENT,
+        Metadata.RDFS_COMMENT);
+  }
+
+  static String details(ResourceInfo descriptor) {
+    List<String> details = new ArrayList<>();
+    if (descriptor.getType() != null) {
+      details.add(descriptor.getType().name().toLowerCase().replace('_', ' '));
+    }
+    if (descriptor.getOwner() != null && !descriptor.getOwner().isBlank()) {
+      details.add("by " + descriptor.getOwner());
+    }
+    Object adapter =
+        descriptor.getMetadata() == null ? null : descriptor.getMetadata().get("im:adapter");
+    if (adapter != null && !adapter.toString().isBlank()) {
+      details.add(adapter.toString());
+    }
+    return details.isEmpty() ? "Resource" : String.join(" · ", details);
+  }
+
+  private static String firstMetadata(
+      ResourceInfo descriptor, String fallback, String... metadataKeys) {
+    if (descriptor.getMetadata() != null) {
+      for (String key : metadataKeys) {
+        Object value = descriptor.getMetadata().get(key);
+        if (value != null && !value.toString().isBlank()) {
+          return value.toString();
+        }
+      }
+    }
+    return fallback;
   }
 }

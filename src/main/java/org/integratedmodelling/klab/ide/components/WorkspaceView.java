@@ -95,17 +95,23 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
   public List<ResourceInfo> getWorkspaceList() {
     List<ResourceInfo> ret = new ArrayList<>();
     for (var rService : getServices()) {
-      for (var workspace :
-          rService.capabilities(KlabIDEController.instance().user()).getWorkspaceNames()) {
-        if (openEditors.containsKey(workspace)) {
-          continue;
+      try {
+        for (var workspace :
+            rService.capabilities(KlabIDEController.instance().user()).getWorkspaceNames()) {
+          if (openEditors.containsKey(workspace)) {
+            continue;
+          }
+          ret.add(
+              rService.info(
+                  workspace,
+                  KlabAsset.KnowledgeClass.WORKSPACE,
+                  ResourceInfo.class,
+                  KlabIDEController.instance().user()));
         }
-        ret.add(
-            rService.info(
-                workspace,
-                KlabAsset.KnowledgeClass.WORKSPACE,
-                ResourceInfo.class,
-                KlabIDEController.instance().user()));
+      } catch (Throwable t) {
+        KlabIDEController.instance()
+            .handleNotification(
+                Notification.error("Error loading workspace list: " + t.getMessage()));
       }
     }
     return ret;

@@ -2,17 +2,20 @@ package org.integratedmodelling.klab.ide.components;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
-import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.VBox;
+import javafx.util.Duration;
+import org.integratedmodelling.klab.api.collections.Parameters;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.Resource;
 import org.integratedmodelling.klab.api.services.Resolver;
@@ -26,6 +29,9 @@ import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 import org.kordamp.ikonli.javafx.FontIcon;
 
 public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
+
+  private static final int SEARCH_RESULT_LIMIT = 30;
+  private static final Duration SEARCH_DEBOUNCE = Duration.millis(250);
 
   private final Map<String, ResourceEditor> openEditors = new HashMap<>();
 
@@ -54,9 +60,6 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
   @Override
   protected void assetEditorClosed(ResourceEditor asset) {}
 
-  // List to store components
-  private final List<Node> components = new ArrayList<>();
-
   @Override
   protected void defineBrowser(VBox vBox) {
     // Create a search box
@@ -68,8 +71,9 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
     VBox resultsBox = new VBox(10);
     resultsBox.setPadding(new Insets(10, 0, 0, 0));
 
-    // Set up search functionality with debouncing
+    // Debounce keyboard input and keep only the most recent in-flight request.
     AtomicReference<Task<List<ResourceInfo>>> currentTask = new AtomicReference<>();
+    PauseTransition debounce = new PauseTransition(SEARCH_DEBOUNCE);
 
     List<Resource> resolverResources = new ArrayList<>();
     if (KlabIDEController.instance().getFocalScope() != null) {
@@ -80,102 +84,25 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
               .getSubmittedResources(KlabIDEController.instance().getFocalScope()));
     }
 
-    for (var resource : resolverResources) {
-      resultsBox
-          .getChildren()
-          .add(
-              new ResourceSmallViewComponent(
-                  makeResourceInfo(resource), this::viewResource, null /* TODO */));
-    }
+    showResults(resultsBox, resolverResources, List.of(), "");
+
+    debounce.setOnFinished(
+        event -> startResourceSearch(searchBox.getText(), resultsBox, resolverResources, currentTask));
 
     searchBox
         .textProperty()
         .addListener(
             (observable, oldValue, newValue) -> {
-              // Cancel previous task if it's still running
-              if (currentTask.get() != null && currentTask.get().isRunning()) {
-                currentTask.get().cancel();
+              var runningTask = currentTask.getAndSet(null);
+              if (runningTask != null) {
+                runningTask.cancel();
               }
-
-              // Create a new task for the search
-              Task<List<ResourceInfo>> searchTask =
-                  new Task<>() {
-                    @Override
-                    protected List<ResourceInfo> call() throws Exception {
-                      List<ResourceInfo> results = new ArrayList<>();
-
-                      // Get all ResourceServices,
-                      var services =
-                          KlabIDEController.instance().user().getServices(ResourcesService.class);
-
-                      // Query each service for resources matching the search term
-                      for (ResourcesService service : services) {
-                        if (isCancelled()) {
-                          break;
-                        }
-                        throw new UnsupportedOperationException(
-                            "Resource query must be reimplemented");
-                        /*
-                                                results.addAll(
-                                                    service.queryResources(
-                                                        newValue,
-                                                        KlabIDEController.instance().user(),
-                                                        KlabAsset.KnowledgeClass.RESOURCE));
-                        */
-                      }
-
-                      return results;
-                    }
-                  };
-
-              // Update the UI when the search is complete
-              searchTask.setOnSucceeded(
-                  event -> {
-                    List<ResourceInfo> results = searchTask.getValue();
-                    Platform.runLater(
-                        () -> {
-                          resultsBox.getChildren().clear();
-                          for (var resource : resolverResources) {
-                            resultsBox
-                                .getChildren()
-                                .add(
-                                    new ResourceSmallViewComponent(
-                                        makeResourceInfo(resource),
-                                        this::viewResource,
-                                        null /* TODO */));
-                          }
-                          if (results.isEmpty()) {
-                            Label noResults = new Label("No resources found");
-                            noResults.setStyle("-fx-text-fill: -color-fg-subtle;");
-                            resultsBox.getChildren().add(noResults);
-                          } else {
-                            // Add resource cards to the results box
-                            for (ResourceInfo resource : results) {
-                              resultsBox
-                                  .getChildren()
-                                  .add(
-                                      new ResourceSmallViewComponent(
-                                          resource, this::viewResource, null /* TODO */));
-                            }
-                          }
-                        });
-                  });
-
-              // Handle errors
-              searchTask.setOnFailed(
-                  event -> {
-                    Platform.runLater(
-                        () -> {
-                          resultsBox.getChildren().clear();
-                          Label error = new Label("Error searching resources");
-                          error.setStyle("-fx-text-fill: -color-danger;");
-                          resultsBox.getChildren().add(error);
-                        });
-                  });
-
-              // Store the current task and start it
-              currentTask.set(searchTask);
-              new Thread(searchTask).start();
+              debounce.stop();
+              if (newValue == null || newValue.isBlank()) {
+                showResults(resultsBox, resolverResources, List.of(), "");
+              } else {
+                debounce.playFromStart();
+              }
             });
 
     // Clear existing components and add new ones
@@ -184,6 +111,153 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
           vBox.getChildren().clear();
           vBox.getChildren().addAll(searchBox, resultsBox);
         });
+  }
+
+  private void startResourceSearch(
+      String text,
+      VBox resultsBox,
+      List<Resource> resolverResources,
+      AtomicReference<Task<List<ResourceInfo>>> currentTask) {
+    String queryText = text == null ? "" : text.strip();
+    if (queryText.isEmpty()) {
+      showResults(resultsBox, resolverResources, List.of(), "");
+      return;
+    }
+
+    Task<List<ResourceInfo>> searchTask =
+        new Task<>() {
+          @Override
+          protected List<ResourceInfo> call() {
+            var results = new LinkedHashMap<String, ResourceInfo>();
+            var scope = KlabIDEController.instance().user();
+            int successfulServices = 0;
+            RuntimeException lastFailure = null;
+            for (ResourcesService service : scope.getServices(ResourcesService.class)) {
+              if (isCancelled()) {
+                return List.of();
+              }
+              try {
+                var serviceResults =
+                    service.query(
+                        Parameters.create("query", queryText, "limit", SEARCH_RESULT_LIMIT),
+                        KlabAsset.KnowledgeClass.RESOURCE,
+                        ResourceInfo.class,
+                        scope);
+                successfulServices++;
+                for (var resource : serviceResults) {
+                  if (resource != null && resource.getUrn() != null) {
+                    // A resource can be advertised by more than one service; retain each host.
+                    results.put(resource.getServiceId() + "\n" + resource.getUrn(), resource);
+                  }
+                }
+              } catch (RuntimeException failure) {
+                lastFailure = failure;
+              }
+            }
+            if (successfulServices == 0 && lastFailure != null) {
+              throw lastFailure;
+            }
+            return results.values().stream()
+                .sorted(
+                    (first, second) ->
+                        Float.compare(searchScore(second), searchScore(first)))
+                .toList();
+          }
+        };
+
+    searchTask.setOnSucceeded(
+        event -> {
+          if (currentTask.compareAndSet(searchTask, null) && !searchTask.isCancelled()) {
+            showResults(resultsBox, resolverResources, searchTask.getValue(), queryText);
+          }
+        });
+    searchTask.setOnFailed(
+        event -> {
+          if (currentTask.compareAndSet(searchTask, null)) {
+            showSearchError(resultsBox, resolverResources, queryText);
+          }
+        });
+
+    currentTask.set(searchTask);
+    Thread thread = new Thread(searchTask, "resource-catalog-search");
+    thread.setDaemon(true);
+    thread.start();
+  }
+
+  private void showResults(
+      VBox resultsBox,
+      List<Resource> resolverResources,
+      List<ResourceInfo> serviceResults,
+      String queryText) {
+    resultsBox.getChildren().clear();
+    var displayed = new LinkedHashMap<String, ResourceInfo>();
+    for (var resource : resolverResources) {
+      if (matches(resource, queryText)) {
+        var info = makeResourceInfo(resource);
+        displayed.put(info.getServiceId() + "\n" + info.getUrn(), info);
+      }
+    }
+    for (var info : serviceResults) {
+      displayed.put(info.getServiceId() + "\n" + info.getUrn(), info);
+    }
+    if (displayed.isEmpty() && !queryText.isBlank()) {
+      Label noResults = new Label("No resources found");
+      noResults.setStyle("-fx-text-fill: -color-fg-subtle;");
+      resultsBox.getChildren().add(noResults);
+      return;
+    }
+    for (var resource : displayed.values()) {
+      resultsBox
+          .getChildren()
+          .add(new ResourceSmallViewComponent(resource, this::viewResource, null /* TODO */));
+    }
+  }
+
+  private static boolean matches(Resource resource, String queryText) {
+    if (queryText == null || queryText.isBlank()) {
+      return true;
+    }
+    String query = queryText.toLowerCase(java.util.Locale.ROOT);
+    if (contains(resource.getUrn(), query)
+        || contains(resource.getLocalName(), query)
+        || contains(resource.getAdapterType(), query)) {
+      return true;
+    }
+    return resource.getMetadata() != null
+        && resource.getMetadata().values().stream().anyMatch(value -> contains(value, query));
+  }
+
+  private static boolean contains(Object value, String lowerCaseQuery) {
+    return value != null
+        && value.toString().toLowerCase(java.util.Locale.ROOT).contains(lowerCaseQuery);
+  }
+
+  private static float searchScore(ResourceInfo info) {
+    if (info == null || info.getMetadata() == null) {
+      return 0;
+    }
+    Object score =
+        info.getMetadata().get(org.integratedmodelling.klab.api.data.Metadata.IM_SEARCH_SCORE);
+    if (score instanceof Number number) {
+      return number.floatValue();
+    }
+    try {
+      return score == null ? 0 : Float.parseFloat(score.toString());
+    } catch (NumberFormatException ignored) {
+      return 0;
+    }
+  }
+
+  private void showSearchError(
+      VBox resultsBox, List<Resource> resolverResources, String queryText) {
+    showResults(resultsBox, resolverResources, List.of(), queryText);
+    resultsBox
+        .getChildren()
+        .removeIf(
+            node -> node instanceof Label label && "No resources found".equals(label.getText()));
+    Label error = new Label("Resource services could not be searched");
+    error.setStyle("-fx-text-fill: -color-danger;");
+    resultsBox.getChildren().addFirst(error);
   }
 
   /**
@@ -197,6 +271,11 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
     ret.setUrn(resource.getUrn());
     ret.setServiceId(resource.getServiceId());
     ret.setKnowledgeClass(KlabAsset.KnowledgeClass.RESOURCE);
+    if (resource.getMetadata() != null) {
+      ret.getMetadata().putAll(resource.getMetadata());
+    }
+    ret.getMetadata().put("im:adapter", resource.getAdapterType());
+    ret.getMetadata().put("im:version", resource.getVersion());
     return ret;
   }
 
