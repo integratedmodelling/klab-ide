@@ -6,12 +6,32 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.EnumSet;
+import org.integratedmodelling.klab.api.authentication.CRUDOperation;
 import org.integratedmodelling.klab.api.data.Version;
+import org.integratedmodelling.klab.api.services.KlabService;
+import org.integratedmodelling.klab.api.services.impl.AbstractServiceCapabilities;
 import org.integratedmodelling.klab.api.services.impl.ServiceStatusImpl;
 import org.integratedmodelling.klab.api.services.runtime.extension.Extensions;
 import org.junit.jupiter.api.Test;
 
 class ServiceDashboardTest {
+
+  @Test
+  void serviceSettingsRequireAdvertisedAdministerPermission() {
+    var capabilities =
+        new AbstractServiceCapabilities() {
+          @Override
+          public KlabService.Type getType() {
+            return KlabService.Type.RUNTIME;
+          }
+        };
+
+    assertFalse(ServiceDashboard.hasAdministerPermission(null));
+    assertFalse(ServiceDashboard.hasAdministerPermission(capabilities));
+    capabilities.setPermissions(EnumSet.of(CRUDOperation.READ, CRUDOperation.ADMINISTER));
+    assertTrue(ServiceDashboard.hasAdministerPermission(capabilities));
+  }
 
   @Test
   void sampleWindowKeepsItsWidthAndRollsAfterItFills() {

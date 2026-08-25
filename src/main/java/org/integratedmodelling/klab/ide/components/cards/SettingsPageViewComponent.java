@@ -5,6 +5,7 @@ import atlantafx.base.theme.Styles;
 import atlantafx.base.theme.Tweaks;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleObjectProperty;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.control.*;
@@ -14,6 +15,7 @@ import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.configuration.Setting;
+import org.integratedmodelling.klab.api.configuration.Settings;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 
 import java.io.File;
@@ -22,8 +24,18 @@ import java.util.Map;
 
 public abstract class SettingsPageViewComponent extends VBox {
 
+  private final Settings settings;
+
   public SettingsPageViewComponent(Setting.Page settingPage) {
+    this(settingPage, KlabIDEController.instance().engine().getSettings());
+  }
+
+  public SettingsPageViewComponent(Setting.Page settingPage, Settings settings) {
     super(10);
+    this.settings = settings;
+    settings.addResultListener(
+        (setting, request, result) ->
+            Platform.runLater(() -> onOperationResult(setting, request, result)));
     setPadding(new Insets(0));
     VBox.setVgrow(this, Priority.ALWAYS);
     setMinHeight(360);
@@ -60,10 +72,7 @@ public abstract class SettingsPageViewComponent extends VBox {
           if (data.getValue().valueClass == Boolean.class) {
             ToggleSwitch toggle = new ToggleSwitch();
             toggle.setSelected(
-                KlabIDEController.instance()
-                    .engine()
-                    .getSettings()
-                    .get(data.getValue(), Boolean.class));
+                settings.get(data.getValue(), Boolean.class));
             input = toggle;
             toggle.setOnMouseClicked(
                 e -> {
@@ -72,10 +81,7 @@ public abstract class SettingsPageViewComponent extends VBox {
           } else if (Integer.class.isAssignableFrom(data.getValue().valueClass)) {
             TextField field = new TextField();
             field.setText(
-                KlabIDEController.instance()
-                        .engine()
-                        .getSettings()
-                        .get(data.getValue(), Integer.class)
+                settings.get(data.getValue(), Integer.class)
                     + "");
             field.setTextFormatter(
                 new TextFormatter<>(
@@ -119,10 +125,7 @@ public abstract class SettingsPageViewComponent extends VBox {
                 });
 
             File currentValue =
-                KlabIDEController.instance()
-                    .engine()
-                    .getSettings()
-                    .get(data.getValue(), File.class);
+                settings.get(data.getValue(), File.class);
             if (currentValue != null) {
               fileField.setText(currentValue.getAbsolutePath());
             }
@@ -134,10 +137,7 @@ public abstract class SettingsPageViewComponent extends VBox {
             TextField field = new TextField();
             if (data.getValue().defaultValue != null) {
               field.setText(
-                  KlabIDEController.instance()
-                      .engine()
-                      .getSettings()
-                      .get(data.getValue(), Object.class)
+                  settings.get(data.getValue(), (Class<Object>) data.getValue().valueClass)
                       .toString());
             }
             field.setOnAction(
@@ -167,4 +167,7 @@ public abstract class SettingsPageViewComponent extends VBox {
   }
 
   protected abstract void onChangedSetting(Setting setting, Object newValue);
+
+  protected void onOperationResult(
+      Setting setting, Map<String, Object> request, Map<String, Object> result) {}
 }

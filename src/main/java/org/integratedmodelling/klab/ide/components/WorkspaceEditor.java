@@ -21,6 +21,7 @@ import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.organization.ProjectStorage;
 import org.integratedmodelling.klab.api.knowledge.organization.Workspace;
+import org.integratedmodelling.klab.api.lang.kactors.KActorsAction;
 import org.integratedmodelling.klab.api.lang.kactors.KActorsBehavior;
 import org.integratedmodelling.klab.api.lang.kim.KlabDocument;
 import org.integratedmodelling.klab.api.lang.kim.KlabStatement;
@@ -472,7 +473,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       super.updateItem(asset, empty);
       if (asset != null && !empty) {
         setText(Theme.getLabel(asset));
-        setGraphic(Theme.getGraphics(asset));
+        setGraphic(getTreeGraphics(asset));
         setOnContextMenuRequested(
             event -> {
               var contextMenu = new ContextMenu();
@@ -523,11 +524,17 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   private TreeItem<NavigableAsset> defineTree(NavigableAsset asset) {
     var root = new TreeItem<>(asset);
-    root.setGraphic(Theme.getGraphics(asset));
+    root.setGraphic(getTreeGraphics(asset));
     for (var child : asset.children()) {
       root.getChildren().add(defineTree(child));
     }
     return root;
+  }
+
+  private static IconLabel getTreeGraphics(NavigableAsset asset) {
+    return asset instanceof KActorsAction
+        ? new IconLabel(Theme.ACTION_ICON, 15, THEME_ICON_COLOR)
+        : Theme.getGraphics(asset);
   }
 
   @Override

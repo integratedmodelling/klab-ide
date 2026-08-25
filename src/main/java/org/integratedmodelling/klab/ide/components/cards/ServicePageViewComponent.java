@@ -106,8 +106,8 @@ public class ServicePageViewComponent extends VBox {
 
     ComboBox<String> importSchemaSelector = new ComboBox<>();
     importSchemaSelector.setPromptText("Select Import Schema");
-    var importSchemata =
-        service.capabilities(KlabIDEController.instance().user()).getImportSchemata();
+    var capabilities = service.capabilities(KlabIDEController.instance().user());
+    var importSchemata = capabilities.getImportSchemata();
     final var schemaKey = new HashMap<String, ResourceTransport.Schema>();
     for (var schemaName : importSchemata.keySet()) {
       for (var schema : importSchemata.get(schemaName)) {
@@ -153,28 +153,31 @@ public class ServicePageViewComponent extends VBox {
       //        }
     }
 
-    settingsPane
-        .getChildren()
-        .add(
-            new SettingsPageViewComponent(
+    if (ServiceDashboard.hasAdministerPermission(capabilities)) {
+      settingsPane
+          .getChildren()
+          .add(
+              new SettingsPageViewComponent(
                 switch (service.status().getServiceType()) {
                   case REASONER -> Setting.Page.REASONER;
                   case RESOURCES -> Setting.Page.RESOURCES;
                   case RESOLVER -> Setting.Page.RESOLVER;
                   case RUNTIME -> Setting.Page.RUNTIME;
                   default -> null; // won't happen
-                }) {
+                },
+                service.settings()) {
               @Override
-              protected void onChangedSetting(Setting setting, Object newValue) {}
+              protected void onChangedSetting(Setting setting, Object newValue) {
+                service.settings().set(setting, newValue);
+              }
             });
-    settingsScroll.setContent(settingsPane);
-    settingsTab.setContent(settingsScroll);
-
-    if (logTab != null) {
-      tabPane.getTabs().addAll(infoTab, /*exportTab, */ importTab, settingsTab, logTab);
-    } else {
-      tabPane.getTabs().addAll(infoTab, /*exportTab, */ importTab, settingsTab);
+      settingsScroll.setContent(settingsPane);
+      settingsTab.setContent(settingsScroll);
     }
+
+    tabPane.getTabs().addAll(infoTab, /*exportTab, */ importTab);
+    if (ServiceDashboard.hasAdministerPermission(capabilities)) tabPane.getTabs().add(settingsTab);
+    if (logTab != null) tabPane.getTabs().add(logTab);
 
     content.getChildren().addAll(tabPane);
     VBox.setVgrow(tabPane, Priority.ALWAYS);

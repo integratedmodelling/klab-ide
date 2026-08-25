@@ -40,6 +40,7 @@ import javafx.scene.paint.Color;
 import javafx.util.Duration;
 import javafx.util.StringConverter;
 import org.integratedmodelling.common.utils.Utils;
+import org.integratedmodelling.klab.api.authentication.CRUDOperation;
 import org.integratedmodelling.klab.api.configuration.Configuration;
 import org.integratedmodelling.klab.api.configuration.Setting;
 import org.integratedmodelling.klab.api.knowledge.Urn;
@@ -66,8 +67,10 @@ public class ServiceDashboard extends BaseAssetViewComponent {
 
   private static final int SAMPLE_LIMIT = 80;
   private static final Duration SAMPLE_INTERVAL = Duration.seconds(1);
+
   /** The horizontal carousel and its cards share this cross-axis size. */
   private static final double COMPONENT_CARD_HEIGHT = 250;
+
   private final KlabService service;
   private final CarouselBox components = new CarouselBox(Orientation.HORIZONTAL);
   private final XYChart.Series<Number, Number> loadSeries = new XYChart.Series<>();
@@ -100,7 +103,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
     links
         .getChildren()
         .addAll(
-            link("Capabilities", MaterialDesign.MDI_FILE_TREE, "/public/capabilities"),
+            link("Public Capabilities", MaterialDesign.MDI_FILE_TREE, "/public/capabilities"),
             link("Status", Evaicons.ACTIVITY, "/public/status"),
             link("API documentation", MaterialDesign.MDI_BOOK_OPEN_PAGE_VARIANT, "/api.html"));
     links.setAlignment(Pos.CENTER_LEFT);
@@ -110,12 +113,17 @@ public class ServiceDashboard extends BaseAssetViewComponent {
     var viewGroup = new ToggleGroup();
     var dashboardButton = viewButton(MaterialDesign.MDI_VIEW_DASHBOARD, "Dashboard");
     var importButton = viewButton(MaterialDesign.MDI_IMPORT, "Import components");
-    var settingsButton = viewButton(MaterialDesign.MDI_SETTINGS, "Service settings");
+    var capabilities = service.capabilities(KlabIDEController.instance().user());
+    var settingsButton =
+        hasAdministerPermission(capabilities)
+            ? viewButton(MaterialDesign.MDI_SETTINGS, "Service settings")
+            : null;
     dashboardButton.setToggleGroup(viewGroup);
     importButton.setToggleGroup(viewGroup);
-    settingsButton.setToggleGroup(viewGroup);
+    if (settingsButton != null) settingsButton.setToggleGroup(viewGroup);
     dashboardButton.setSelected(true);
-    navigation.getChildren().addAll(dashboardButton, importButton, settingsButton);
+    navigation.getChildren().addAll(dashboardButton, importButton);
+    if (settingsButton != null) navigation.getChildren().add(settingsButton);
     ToggleButton logsButton = null;
     if (isLocalService()) {
       logsButton = viewButton(MaterialDesign.MDI_FILE_DOCUMENT, "Service logs");
@@ -167,7 +175,9 @@ public class ServiceDashboard extends BaseAssetViewComponent {
 
     dashboardButton.setOnAction(e -> display.getChildren().setAll(dashboard));
     importButton.setOnAction(e -> display.getChildren().setAll(importView()));
-    settingsButton.setOnAction(e -> display.getChildren().setAll(settingsView()));
+    if (settingsButton != null) {
+      settingsButton.setOnAction(e -> display.getChildren().setAll(settingsView()));
+    }
     if (logsButton != null) logsButton.setOnAction(e -> display.getChildren().setAll(logView()));
     return this;
   }
@@ -185,32 +195,62 @@ public class ServiceDashboard extends BaseAssetViewComponent {
   }
 
   private Node settingsView() {
-    var page = switch (service.status().getServiceType()) {
-      case REASONER -> Setting.Page.REASONER;
-      case RESOURCES -> Setting.Page.RESOURCES;
-      case RESOLVER -> Setting.Page.RESOLVER;
-      case RUNTIME -> Setting.Page.RUNTIME;
-      default -> null;
-    };
-    var settings = new SettingsPageViewComponent(page) {
-      @Override
-      protected void onChangedSetting(Setting setting, Object newValue) {}
-    };
+    var page =
+        switch (service.status().getServiceType()) {
+          case REASONER -> Setting.Page.REASONER;
+          case RESOURCES -> Setting.Page.RESOURCES;
+          case RESOLVER -> Setting.Page.RESOLVER;
+          case RUNTIME -> Setting.Page.RUNTIME;
+          default -> null;
+        };
+    var settings =
+        new SettingsPageViewComponent(page, service.settings()) {
+          @Override
+          protected void onChangedSetting(Setting setting, Object newValue) {
+            service.settings().set(setting, newValue);
+          }
+
+          @Override
+          protected void onOperationResult(
+              Setting setting, Map<String, Object> request, Map<String, Object> result) {
+            KlabIDEController.instance()
+                .handleNotification(
+                    Notification.create(
+                        "Service operation " + setting + " completed: " + result,
+                        Notification.Level.Info));
+          }
+        };
     var scroll = new ScrollPane(settings);
     scroll.setFitToWidth(true);
     scroll.setMaxHeight(Double.MAX_VALUE);
     return scroll;
   }
 
+  static boolean hasAdministerPermission(KlabService.ServiceCapabilities capabilities) {
+    return capabilities != null
+        && capabilities.getPermissions() != null
+        && capabilities.getPermissions().contains(CRUDOperation.ADMINISTER);
+  }
+
   private Node logView() {
     // getInstance() only returns running services. The logs view must remain
     // available for a selected local service even while its process is stopped.
-    var instance = KlabIDEController.instance().engine().getServiceInstance(service.status().getServiceType());
+    var instance =
+        KlabIDEController.instance().engine().getServiceInstance(service.status().getServiceType());
     if (instance == null) return new Label("No local service instance is available.");
-    var logFile = instance.getConfigurationPath().resolve(
-        "logs" + File.separator + instance.getProduct().getType().relativeConfigurationPath() + ".log").toFile();
-    var viewer = new LogViewer(logFile.toPath(),
-        EnumSet.of(LogViewer.Column.TIME, LogViewer.Column.LEVEL, LogViewer.Column.MESSAGE));
+    var logFile =
+        instance
+            .getConfigurationPath()
+            .resolve(
+                "logs"
+                    + File.separator
+                    + instance.getProduct().getType().relativeConfigurationPath()
+                    + ".log")
+            .toFile();
+    var viewer =
+        new LogViewer(
+            logFile.toPath(),
+            EnumSet.of(LogViewer.Column.TIME, LogViewer.Column.LEVEL, LogViewer.Column.MESSAGE));
     return viewer;
   }
 
@@ -224,14 +264,17 @@ public class ServiceDashboard extends BaseAssetViewComponent {
     var schemata = service.capabilities(KlabIDEController.instance().user()).getImportSchemata();
     for (var schemaName : schemata.keySet()) {
       for (var schema : schemata.get(schemaName)) {
-        var description = schema.getProperties().isEmpty()
-            ? " (" + Utils.Strings.join(schema.getMediaTypes(), ", ") + ")" : " (parameters)";
+        var description =
+            schema.getProperties().isEmpty()
+                ? " (" + Utils.Strings.join(schema.getMediaTypes(), ", ") + ")"
+                : " (parameters)";
         var name = schemaName + description;
         schemaSelector.getItems().add(name);
         schemaKey.put(name, schema);
       }
     }
-    schemaSelector.setOnAction(e -> updateImportForm(schemaKey.get(schemaSelector.getValue()), parameterForm));
+    schemaSelector.setOnAction(
+        e -> updateImportForm(schemaKey.get(schemaSelector.getValue()), parameterForm));
     var formScroll = new ScrollPane(parameterForm);
     formScroll.setFitToWidth(true);
     VBox.setVgrow(formScroll, Priority.ALWAYS);
@@ -247,16 +290,27 @@ public class ServiceDashboard extends BaseAssetViewComponent {
     if (schema.getType() == ResourceTransport.Schema.Type.PROPERTIES) {
       for (var parameter : schema.getProperties().entrySet()) {
         var label = new Label(parameter.getKey());
-        label.setStyle(parameter.getValue().optional() ? "-fx-font-weight: bold;" : "-fx-text-fill: #dd0000; -fx-font-weight: bold;");
+        label.setStyle(
+            parameter.getValue().optional()
+                ? "-fx-font-weight: bold;"
+                : "-fx-text-fill: #dd0000; -fx-font-weight: bold;");
         var input = new javafx.scene.control.TextField();
         input.setPromptText(parameter.getValue().defaultValue());
-        input.textProperty().addListener((obs, oldValue, newValue) -> userInput.put(parameter.getKey(), newValue));
+        input
+            .textProperty()
+            .addListener((obs, oldValue, newValue) -> userInput.put(parameter.getKey(), newValue));
         parameterForm.getChildren().addAll(label, input);
       }
     } else {
-      var upload = new UploadBox(Configuration.INSTANCE.getTemporaryDataPath().toString(),
-          "Drop file or URL to upload", file::set,
-          (message, throwable) -> KlabIDEController.instance().handleNotifications(List.of(Notification.error("Upload error: " + message))));
+      var upload =
+          new UploadBox(
+              Configuration.INSTANCE.getTemporaryDataPath().toString(),
+              "Drop file or URL to upload",
+              file::set,
+              (message, throwable) ->
+                  KlabIDEController.instance()
+                      .handleNotifications(
+                          List.of(Notification.error("Upload error: " + message))));
       parameterForm.getChildren().add(upload);
     }
     var submit = new WaitButton("Submit");
@@ -270,8 +324,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
             return CompletableFuture.completedFuture(false);
           }
           return service
-              .importAsset(
-                  schema, asset, Urn.UNDEFINED_URN, KlabIDEController.instance().user())
+              .importAsset(schema, asset, Urn.UNDEFINED_URN, KlabIDEController.instance().user())
               .thenApply(
                   resourceSet -> {
                     KlabIDEController.instance()
@@ -280,8 +333,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
                   })
               .exceptionally(
                   throwable -> {
-                    KlabIDEController.instance()
-                        .handleNotification(Notification.error(throwable));
+                    KlabIDEController.instance().handleNotification(Notification.error(throwable));
                     return false;
                   });
         });
@@ -522,23 +574,17 @@ public class ServiceDashboard extends BaseAssetViewComponent {
             });
     var statusIcon =
         switch (state.updateStatus()) {
-          case UPDATE_AVAILABLE ->
-              new IconLabel(Evaicons.DOWNLOAD, 14, "-color-warning-fg");
-          case UP_TO_DATE ->
-              new IconLabel(Evaicons.CHECKMARK_CIRCLE_2, 14, "-color-success-fg");
+          case UPDATE_AVAILABLE -> new IconLabel(Evaicons.DOWNLOAD, 14, "-color-warning-fg");
+          case UP_TO_DATE -> new IconLabel(Evaicons.CHECKMARK_CIRCLE_2, 14, "-color-success-fg");
           case UNKNOWN -> new IconLabel(Evaicons.FLAG, 14, "-color-fg-muted");
-          case NOT_UPDATEABLE ->
-              new IconLabel(MaterialDesign.MDI_LOCK, 14, "-color-fg-muted");
+          case NOT_UPDATEABLE -> new IconLabel(MaterialDesign.MDI_LOCK, 14, "-color-fg-muted");
         };
     var statusBox = new HBox(5, statusIcon, status);
     statusBox.setAlignment(Pos.CENTER_LEFT);
 
     var header =
         new HBox(
-            8,
-            new IconLabel(Theme.COMPONENT_ICON, 16, "-color-fg-default"),
-            titleBox,
-            statusBox);
+            8, new IconLabel(Theme.COMPONENT_ICON, 16, "-color-fg-default"), titleBox, statusBox);
     header.setAlignment(Pos.CENTER_LEFT);
     header.setPadding(new Insets(10, 12, 6, 12));
 
