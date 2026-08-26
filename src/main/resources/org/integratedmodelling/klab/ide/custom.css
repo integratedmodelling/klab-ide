@@ -74,6 +74,20 @@
     -fx-background-color: #03a9f4;
 }
 
+/* UserViewComponent certificate drop target */
+.user-certificate-drop-zone {
+    -fx-background-color: -color-bg-subtle;
+    -fx-background-radius: 10;
+    -fx-border-color: -color-border-default;
+    -fx-border-radius: 10;
+    -fx-border-style: dashed;
+    -fx-border-width: 3;
+}
+
+.user-certificate-drop-zone-label {
+    -fx-text-fill: -color-fg-muted;
+}
+
 .inspector-view {
     -fx-background-color: -color-bg-default;
     -fx-border-color: -color-border-muted transparent transparent transparent;

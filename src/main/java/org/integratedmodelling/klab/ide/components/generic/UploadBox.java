@@ -13,7 +13,6 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color;
 import org.kordamp.ikonli.material2.Material2AL;
 
 import java.io.File;
@@ -69,34 +68,34 @@ public class UploadBox extends StackPane {
 
   // CSS styles
   private static final String DEFAULT_STYLE =
-      "-fx-background-color: #f5f5f5;"
-          + "-fx-border-color: #999999;"
+      "-fx-background-color: -color-bg-subtle;"
+          + "-fx-border-color: -color-border-muted;"
           + "-fx-border-width: 3;"
           + "-fx-border-style: dashed;"
           + "-fx-border-radius: 10;"
           + "-fx-background-radius: 10;"
           + "-fx-min-height: 150;"
-          + "-fx-min-width: 300;";
+          + "-fx-min-width: 200;";
 
   private static final String DRAG_OVER_STYLE =
-      "-fx-background-color: #e8f4fd;"
-          + "-fx-border-color: #2196F3;"
+      "-fx-background-color: -color-accent-subtle;"
+          + "-fx-border-color: -color-accent-fg;"
           + "-fx-border-width: 2;"
           + "-fx-border-style: dashed;"
           + "-fx-border-radius: 10;"
           + "-fx-background-radius: 10;"
           + "-fx-min-height: 150;"
-          + "-fx-min-width: 300;";
+          + "-fx-min-width: 200;";
 
   private static final String ERROR_STYLE =
-      "-fx-background-color: #ffebee;"
-          + "-fx-border-color: #f44336;"
+      "-fx-background-color: -color-danger-subtle;"
+          + "-fx-border-color: -color-danger-fg;"
           + "-fx-border-width: 2;"
           + "-fx-border-style: dashed;"
           + "-fx-border-radius: 10;"
           + "-fx-background-radius: 10;"
           + "-fx-min-height: 150;"
-          + "-fx-min-width: 300;";
+          + "-fx-min-width: 200;";
 
   /**
    * Creates a new UploadBox component.
@@ -131,7 +130,7 @@ public class UploadBox extends StackPane {
   private void initializeComponent() {
     // Create content elements
     promptLabel = new Label(promptText);
-    promptLabel.setStyle("-fx-font-size: 14px; -fx-text-fill: #666666;");
+    promptLabel.setStyle("-fx-font-size: 14px; -fx-text-fill: -color-fg-muted;");
     promptLabel.setWrapText(true);
     promptLabel.setMaxWidth(250);
     promptLabel.setAlignment(Pos.CENTER);
@@ -182,11 +181,13 @@ public class UploadBox extends StackPane {
     HBox fileItem = new HBox(5);
     fileItem.setAlignment(Pos.CENTER_LEFT);
     fileItem.setPadding(new Insets(3, 5, 3, 5));
-    fileItem.setStyle("-fx-background-color: #f0f0f0; -fx-background-radius: 4;");
+    fileItem.setStyle(
+        "-fx-background-color: -color-bg-default; -fx-background-radius: 4;");
 
     // Create appropriate icon based on file type
     IconLabel fileIcon =
-        new IconLabel(isUrl ? Material2AL.LINK : Material2AL.DESCRIPTION, 16, Color.GRAY);
+        new IconLabel(
+            isUrl ? Material2AL.LINK : Material2AL.DESCRIPTION, 16, "-color-fg-muted");
 
     // Create file name label
     Label fileNameLabel = new Label(file.getName());
@@ -194,8 +195,9 @@ public class UploadBox extends StackPane {
     HBox.setHgrow(fileNameLabel, Priority.ALWAYS);
 
     // Create delete button
-    IconLabel deleteIcon = new IconLabel(Material2AL.DELETE, 16, Color.RED);
-    deleteIcon.setStyle("-fx-cursor: hand;");
+    IconLabel deleteIcon =
+        new IconLabel(Material2AL.DELETE, 16, "-color-danger-fg");
+    deleteIcon.setStyle("-fx-cursor: hand; -fx-text-fill: -color-danger-fg;");
 
     // Add delete action
     deleteIcon.setOnMouseClicked(
@@ -659,7 +661,7 @@ public class UploadBox extends StackPane {
 
   private void showProgress(String message) {
     statusLabel.setText(message);
-    statusLabel.setTextFill(Color.BLUE);
+    statusLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: -color-accent-fg;");
     statusLabel.setVisible(true);
     progressBar.setVisible(true);
 
@@ -677,7 +679,7 @@ public class UploadBox extends StackPane {
 
   private void showSuccess(String message) {
     statusLabel.setText(message);
-    statusLabel.setTextFill(Color.GREEN);
+    statusLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: -color-success-fg;");
     statusLabel.setVisible(true);
 
     // Hide success message after 3 seconds
@@ -710,7 +712,7 @@ public class UploadBox extends StackPane {
     }
 
     statusLabel.setText(errorMessage);
-    statusLabel.setTextFill(Color.RED);
+    statusLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: -color-danger-fg;");
     statusLabel.setVisible(true);
 
     // Only hide prompt if no files are displayed

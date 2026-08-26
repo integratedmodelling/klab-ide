@@ -18,6 +18,7 @@ import javafx.scene.control.MenuItem;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.shape.Circle;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -79,17 +80,26 @@ public class AboutViewComponent extends BaseAssetViewComponent {
     ImageView logoView;
     try (var logoStream =
         Objects.requireNonNull(
-            getClass().getResourceAsStream("/org/integratedmodelling/klab/ide/icons/klab-im.png"),
-            "Missing k.LAB logo")) {
-      Image logo = new Image(logoStream, 250, 105, true, true);
+            getClass()
+                .getResourceAsStream(
+                    "/org/integratedmodelling/klab/ide/icons/klab-elephant.png"),
+            "Missing k.LAB elephant logo")) {
+      Image logo = new Image(logoStream, 196, 196, true, true);
       logoView = new ImageView(logo);
       logoView.setPreserveRatio(true);
-      logoView.setFitWidth(230);
+      logoView.setFitWidth(180);
     } catch (IOException e) {
       throw new IllegalStateException("Unable to load the k.LAB logo", e);
     }
 
-    VBox logoBox = new VBox(logoView);
+    Circle logoBackground = new Circle(112);
+    logoBackground.setStyle("-fx-fill: -color-accent-subtle;");
+    StackPane logo = new StackPane(logoBackground, logoView);
+    logo.setMinSize(250, 230);
+    logo.setPrefSize(250, 230);
+    logo.setMaxSize(250, 230);
+
+    VBox logoBox = new VBox(logo);
     logoBox.setAlignment(Pos.CENTER);
     logoBox.setMinWidth(250);
 
@@ -274,14 +284,14 @@ public class AboutViewComponent extends BaseAssetViewComponent {
       contributorRow.getChildren().add(chip);
     }
 
-    Region separator = new Region();
-    separator.setMinHeight(1);
-    separator.setMaxWidth(Double.MAX_VALUE);
-    separator.setStyle("-fx-background-color: -color-border-subtle;");
+//    Region separator = new Region();
+//    separator.setMinHeight(1);
+//    separator.setMaxWidth(Double.MAX_VALUE);
+//    separator.setStyle("-fx-background-color: -color-border-subtle;");
 
     HBox footerContent = new HBox(22, productInfo, contributorRow);
     footerContent.setAlignment(Pos.BOTTOM_LEFT);
-    return new VBox(12, separator, footerContent);
+    return new VBox(12, /*separator,*/ footerContent);
   }
 
   private void openUrl(String url) {

@@ -13,7 +13,6 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color;
 import org.integratedmodelling.common.authentication.Authentication;
 import org.integratedmodelling.klab.api.Klab;
 import org.integratedmodelling.klab.api.scope.UserScope;
@@ -51,7 +50,7 @@ public class UserViewComponent extends BaseAssetViewComponent {
 
   protected Node createContent() {
 
-    var icon = new IconLabel(Material2MZ.PERSON, 32, Color.BLACK);
+    var icon = new IconLabel(Material2MZ.PERSON, 32, "-color-fg-default");
 
     usernameLabel = new Label(user.getUser().getUsername());
     usernameLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
@@ -168,12 +167,10 @@ public class UserViewComponent extends BaseAssetViewComponent {
     dropZone.setAlignment(Pos.CENTER);
     dropZone.setPrefWidth(200);
     dropZone.setPrefHeight(180);
-    dropZone.setStyle(
-        "-fx-border-color: #808080; -fx-border-width: 3; -fx-border-style: dashed; "
-            + "-fx-border-radius: 10; -fx-background-color: #f8f8f8; -fx-background-radius: 10;");
+    dropZone.getStyleClass().add("user-certificate-drop-zone");
 
     Label dropLabel = new Label("Drop a new certificate");
-    dropLabel.setStyle("-fx-text-fill: #808080;");
+    dropLabel.getStyleClass().add("user-certificate-drop-zone-label");
     dropZone.getChildren().add(dropLabel);
 
     dropZone.setOnDragOver(

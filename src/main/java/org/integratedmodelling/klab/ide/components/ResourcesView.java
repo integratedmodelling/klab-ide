@@ -1,5 +1,6 @@
 package org.integratedmodelling.klab.ide.components;
 
+import atlantafx.base.theme.Styles;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -9,13 +10,23 @@ import java.util.concurrent.atomic.AtomicReference;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
+import javafx.geometry.HPos;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.Parent;
+import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
+import javafx.scene.layout.ColumnConstraints;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.util.Duration;
 import org.integratedmodelling.klab.api.collections.Parameters;
+import org.integratedmodelling.klab.api.configuration.Configuration;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.Resource;
 import org.integratedmodelling.klab.api.services.Resolver;
@@ -25,6 +36,8 @@ import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.cards.ResourceSmallViewComponent;
+import org.integratedmodelling.klab.ide.components.generic.IconLabel;
+import org.integratedmodelling.klab.ide.components.generic.UploadBox;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 import org.kordamp.ikonli.javafx.FontIcon;
 
@@ -34,6 +47,7 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
   private static final Duration SEARCH_DEBOUNCE = Duration.millis(250);
 
   private final Map<String, ResourceEditor> openEditors = new HashMap<>();
+  private Node resourceDialog;
 
   public ResourcesView() {
     super(
@@ -63,6 +77,7 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
   @Override
   protected void defineBrowser(VBox vBox) {
     // Create a search box
+
     TextField searchBox = new TextField();
     searchBox.setPromptText("Search resources...");
     searchBox.setPrefWidth(BrowsablePage.BROWSER_WIDTH - 20);
@@ -109,8 +124,105 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
     Platform.runLater(
         () -> {
           vBox.getChildren().clear();
+          vBox.getChildren().add(makeHeader("Resources", this::addResource));
+          if (resourceDialog != null) {
+            vBox.getChildren().add(resourceDialog);
+          }
           vBox.getChildren().addAll(searchBox, resultsBox);
         });
+  }
+
+  private void addResource() {
+    resourceDialog = createResourceDialog();
+    updateBrowser();
+  }
+
+  private Node createResourceDialog() {
+
+    var availableServices =
+        KlabIDEController.instance().user().getServices(ResourcesService.class);
+
+    var dialog = new VBox(8);
+    dialog.setPadding(new Insets(6));
+    dialog.setStyle("-fx-background-color: -color-neutral-muted;");
+
+    var uploadBox =
+        new UploadBox(
+            Configuration.INSTANCE.getTemporaryDataPath().toString(),
+            "Drop resource file or URL to upload",
+            file -> {
+              // Submission is completed by the caller after the Add action is confirmed.
+            },
+            (message, throwable) ->
+                KlabIDEController.instance()
+                    .handleNotification(
+                        Notification.error("Resource upload failed: " + message)));
+    uploadBox.setPrefWidth(270);
+    uploadBox.setMaxWidth(270);
+    uploadBox.setMinWidth(0);
+
+    var serviceSelector = new ComboBox<ResourcesService>();
+    serviceSelector.getItems().addAll(availableServices);
+    serviceSelector.setMaxWidth(250);
+    serviceSelector.setCellFactory(
+        listView ->
+            new javafx.scene.control.ListCell<>() {
+              @Override
+              protected void updateItem(ResourcesService service, boolean empty) {
+                super.updateItem(service, empty);
+                setText(empty || service == null ? null : service.serviceName());
+              }
+            });
+    serviceSelector.setButtonCell(
+        new javafx.scene.control.ListCell<>() {
+          @Override
+          protected void updateItem(ResourcesService service, boolean empty) {
+            super.updateItem(service, empty);
+            setText(empty || service == null ? null : service.serviceName());
+          }
+        });
+
+    var selection = new GridPane();
+    selection.setHgap(6);
+    selection.setVgap(6);
+    selection.add(new IconLabel(Theme.RESOURCES_ICON, 16, Theme.FOREGROUND_COLOR), 0, 0);
+    selection.add(serviceSelector, 1, 0);
+    GridPane.setFillWidth(serviceSelector, true);
+    selection.getColumnConstraints().add(new ColumnConstraints());
+    selection
+        .getColumnConstraints()
+        .add(new ColumnConstraints(200, 200, Double.MAX_VALUE, Priority.ALWAYS, HPos.LEFT, true));
+
+    var accept = new Button("Accept");
+    var cancel = new Button("Cancel");
+    accept.getStyleClass().addAll(Styles.BUTTON_OUTLINED, Styles.SUCCESS, Styles.SMALL);
+    cancel.getStyleClass().addAll(Styles.BUTTON_OUTLINED, Styles.DANGER, Styles.SMALL);
+    var buttons = new HBox(accept, cancel);
+    buttons.setAlignment(Pos.CENTER_RIGHT);
+    buttons.setSpacing(4);
+
+    accept.setOnAction(
+        event -> {
+          // TODO submit uploadBox.getUploadedFiles() to serviceSelector.getValue().
+          uploadBox.dispose();
+          resourceDialog = null;
+          updateBrowser();
+        });
+    cancel.setOnAction(
+        event -> {
+          uploadBox.dispose();
+          resourceDialog = null;
+          updateBrowser();
+        });
+
+    if (availableServices.isEmpty()) {
+      serviceSelector.setDisable(true);
+      accept.setDisable(true);
+    } else {
+      serviceSelector.getSelectionModel().selectFirst();
+    }
+    dialog.getChildren().addAll(uploadBox, selection, buttons);
+    return dialog;
   }
 
   private void startResourceSearch(
