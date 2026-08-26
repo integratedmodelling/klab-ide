@@ -7,7 +7,6 @@ import com.brunomnsilva.smartgraph.containers.ContentZoomScrollPane;
 import com.brunomnsilva.smartgraph.graph.DigraphEdgeList;
 import com.brunomnsilva.smartgraph.graph.Graph;
 import com.brunomnsilva.smartgraph.graphview.*;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -15,7 +14,6 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import javafx.application.Platform;
 import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
@@ -287,11 +285,12 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     return Path.of(filename).toAbsolutePath();
   }
 
-
   private SmartGraphPanel<RuntimeAsset, ClientKnowledgeGraph.Relationship> createGraph(
-          Graph<RuntimeAsset, ClientKnowledgeGraph.Relationship> graph) {
+      Graph<RuntimeAsset, ClientKnowledgeGraph.Relationship> graph) {
 
-    Path cssPath = getApplicationFile("smartgraph.css");
+    Path cssPath =
+        getApplicationFile(
+            Theme.CURRENT_THEME.isDark() ? "smartgraph-dark.css" : "  smartgraph.css");
     Path propertiesPath = getApplicationFile("smartgraph.properties");
 
     SmartGraphProperties properties;
@@ -303,11 +302,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     }
 
     return new SmartGraphPanel<>(
-            graph,
-            properties,
-            new SmartCircularSortedPlacementStrategy(),
-            cssPath.toUri()
-    );
+        graph, properties, new SmartCircularSortedPlacementStrategy(), cssPath.toUri());
   }
 
   private void initializeGraphView() {
