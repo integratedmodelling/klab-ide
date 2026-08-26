@@ -4,6 +4,7 @@ import java.net.URL;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -130,6 +131,10 @@ public class IDEContextScope implements ContextScope {
 
   public void notifySubmissionStarted(Observation observation) {
     executeEvent(() -> notifyViewers(viewer -> viewer.submissionStarted(observation)));
+  }
+
+  public void notifySubmissionTask(CompletableFuture<Observation> task) {
+    executeEvent(() -> notifyViewers(viewer -> viewer.submissionTask(task)));
   }
 
   public void notifySubmissionAborted(Observation observation) {

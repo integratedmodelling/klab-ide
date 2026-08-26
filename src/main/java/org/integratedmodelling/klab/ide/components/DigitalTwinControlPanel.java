@@ -2,6 +2,8 @@ package org.integratedmodelling.klab.ide.components;
 
 import atlantafx.base.theme.Styles;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -22,6 +24,7 @@ import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.ide.components.generic.Switcher;
+import org.integratedmodelling.klab.ide.components.generic.TaskCancellationButton;
 import org.integratedmodelling.klab.ide.components.generic.TreeSearchField;
 import org.integratedmodelling.klab.ide.components.treeviews.ActivityTree;
 import org.integratedmodelling.klab.ide.components.treeviews.ObservationTree;
@@ -52,6 +55,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   private final Button observerButton;
   private final Button homeButton;
   private final Switcher searchArea;
+  private final TaskCancellationButton stopButton;
   private final TreeSearchField<Activity> activitySearch;
   private final TreeSearchField<RuntimeAsset> observationSearch;
   private final TreeSearchField<Observation> observerSearch;
@@ -85,6 +89,9 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   private ObserverTree observerTree;
 
   private View currentView = View.ACTIVITIES;
+  private final AtomicReference<CompletableFuture<Observation>> activeSubmission =
+      new AtomicReference<>();
+  private volatile CompletableFuture<Observation> cancelledSubmission;
 
   public DigitalTwinControlPanel(int size, EditorPage<?, ?> editorPage) {
 
@@ -190,6 +197,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     progressIndicator.setMaxSize(12, 12);
     progressIndicator.setMinSize(12, 12);
     progressIndicator.setManaged(false);
+    this.stopButton = new TaskCancellationButton();
     topBar
         .getChildren()
         .addAll(
@@ -198,6 +206,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
             scenarioButton,
             observerButton,
             searchArea,
+            stopButton,
             progressIndicator,
             homeButton,
             conceptButton,
@@ -471,12 +480,36 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   @Override
   public void submissionStarted(Observation observation) {
+    cancelledSubmission = null;
     setStatus(Status.COMPUTING);
   }
 
   @Override
+  public void submissionTask(CompletableFuture<Observation> task) {
+    if (!(task instanceof org.integratedmodelling.common.utils.Utils.Http.PollingFuture<?>)) {
+      return;
+    }
+    activeSubmission.set(task);
+    stopButton.monitor(task);
+    task.whenComplete(
+        (result, failure) -> {
+          if (activeSubmission.compareAndSet(task, null)) {
+            if (task.isCancelled()) {
+              cancelledSubmission = task;
+              setStatus(Status.IDLE);
+            }
+          }
+        });
+  }
+
+  @Override
   public void submissionAborted(Observation observation) {
-    setStatus(Status.ERROR);
+    var submission = activeSubmission.get();
+    if ((submission != null && submission.isCancelled()) || cancelledSubmission != null) {
+      setStatus(Status.IDLE);
+    } else {
+      setStatus(Status.ERROR);
+    }
   }
 
   @Override

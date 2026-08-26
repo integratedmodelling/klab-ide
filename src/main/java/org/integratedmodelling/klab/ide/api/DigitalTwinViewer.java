@@ -6,6 +6,7 @@ import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedul
 import org.integratedmodelling.klab.ide.IDEContextScope;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * A digital twin viewer is dedicated to a single digital twin and gets informed of any event that
@@ -15,6 +16,9 @@ import java.util.List;
 public interface DigitalTwinViewer extends DigitalTwinReactor {
 
   void submissionStarted(Observation observation);
+
+  /** Supplies the client-side task handle when this viewer owns the submitting scope. */
+  default void submissionTask(CompletableFuture<Observation> task) {}
 
   void submissionAborted(Observation observation);
 

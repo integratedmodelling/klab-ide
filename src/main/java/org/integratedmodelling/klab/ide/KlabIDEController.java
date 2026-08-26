@@ -2118,42 +2118,54 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   @Override
   public CompletableFuture<Observation> observe(ContextScope scope, Object asset, boolean adding) {
-    // call the original after adapting the scope; then notify the UI of whatever happened
-    return modeler
-        .observe(
-            scope instanceof IDEContextScope ideContextScope ? ideContextScope.delegate : scope,
-            asset,
-            adding)
-        .exceptionally(
-            t -> {
-              handleNotification(Notification.error("Observation failed: ", t));
-              return Observation.EMPTY_OBSERVATION;
-            })
-        .thenApply(
-            o -> {
-              if (o.isEmpty()) {
-                if (o.getNotifications().isEmpty()) {
-                  handleNotification(
-                      Notification.error(
-                          "Observation "
-                              + (o.getObservable() == null
-                                  ? ""
-                                  : ("of " + o.getObservable().getUrn()))
-                              + " failed"));
-                }
-                for (var notification : o.getNotifications()) {
-                  handleNotification(notification);
-                }
-              } else if (o.getObservable().is(SemanticType.SUBJECT)
-                  && !o.getObservable().getSemantics().isCollective()
-                  && scope instanceof IDEContextScope) {
-                // set as context to avoid pain
-                // FIXME check - this does not do anything? Also, do we really want it?
-                scope.within(o);
-              }
+    // Keep the original future: remote submissions expose their Job API identity through the
+    // concrete PollingFuture and dependent CompletableFuture stages would erase it.
+    var submissionScope =
+        scope instanceof IDEContextScope ideContextScope ? ideContextScope.delegate : scope;
+    var submission = modeler.observe(submissionScope, asset, adding);
+    if (scope instanceof IDEContextScope ideContextScope) {
+      ideContextScope.notifySubmissionTask(submission);
+    }
+    submission.whenComplete(
+        (observation, failure) -> {
+          if (failure != null) {
+            if (!isCancellation(failure)) {
+              handleNotification(Notification.error("Observation failed: ", failure));
+            }
+            return;
+          }
+          if (observation.isEmpty()) {
+            if (observation.getNotifications().isEmpty()) {
+              handleNotification(
+                  Notification.error(
+                      "Observation "
+                          + (observation.getObservable() == null
+                              ? ""
+                              : ("of " + observation.getObservable().getUrn()))
+                          + " failed"));
+            }
+            for (var notification : observation.getNotifications()) {
+              handleNotification(notification);
+            }
+          } else if (observation.getObservable().is(SemanticType.SUBJECT)
+              && !observation.getObservable().getSemantics().isCollective()
+              && scope instanceof IDEContextScope) {
+            // set as context to avoid pain
+            // FIXME check - this does not do anything? Also, do we really want it?
+            scope.within(observation);
+          }
+        });
+    return submission;
+  }
 
-              return o;
-            });
+  private static boolean isCancellation(Throwable failure) {
+    while (failure != null) {
+      if (failure instanceof java.util.concurrent.CancellationException) {
+        return true;
+      }
+      failure = failure.getCause();
+    }
+    return false;
   }
 
   @Override

@@ -18,14 +18,13 @@ import javafx.scene.control.MenuItem;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.shape.Circle;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.shape.Circle;
 import org.integratedmodelling.klab.api.data.Version;
 import org.integratedmodelling.klab.ide.KlabIDEApplication;
 import org.integratedmodelling.klab.ide.Theme;
@@ -81,8 +80,7 @@ public class AboutViewComponent extends BaseAssetViewComponent {
     try (var logoStream =
         Objects.requireNonNull(
             getClass()
-                .getResourceAsStream(
-                    "/org/integratedmodelling/klab/ide/icons/klab-elephant.png"),
+                .getResourceAsStream("/org/integratedmodelling/klab/ide/icons/klab-elephant.png"),
             "Missing k.LAB elephant logo")) {
       Image logo = new Image(logoStream, 196, 196, true, true);
       logoView = new ImageView(logo);
@@ -189,7 +187,7 @@ public class AboutViewComponent extends BaseAssetViewComponent {
 
     WordPressPostViewer servicesViewer =
         new WordPressPostViewer(Orientation.VERTICAL, "https://aries.integratedmodelling.org");
-//    servicesViewer.setShowingPages(true);
+    //    servicesViewer.setShowingPages(true);
     servicesViewer.setCardHeight(160);
     servicesViewer.setPrefHeight(340);
     servicesViewer.load();
@@ -284,10 +282,10 @@ public class AboutViewComponent extends BaseAssetViewComponent {
       contributorRow.getChildren().add(chip);
     }
 
-//    Region separator = new Region();
-//    separator.setMinHeight(1);
-//    separator.setMaxWidth(Double.MAX_VALUE);
-//    separator.setStyle("-fx-background-color: -color-border-subtle;");
+    //    Region separator = new Region();
+    //    separator.setMinHeight(1);
+    //    separator.setMaxWidth(Double.MAX_VALUE);
+    //    separator.setStyle("-fx-background-color: -color-border-subtle;");
 
     HBox footerContent = new HBox(22, productInfo, contributorRow);
     footerContent.setAlignment(Pos.BOTTOM_LEFT);

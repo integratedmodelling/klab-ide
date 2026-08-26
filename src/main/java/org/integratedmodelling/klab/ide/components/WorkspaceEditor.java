@@ -448,9 +448,13 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         .observe(scope, value, /* TODO check drop params */ false)
         .exceptionally(
             throwable -> {
-              digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.ERROR);
-              KlabIDEController.instance()
-                  .handleNotifications(List.of(Notification.error(throwable)));
+              if (isCancellation(throwable)) {
+                digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.IDLE);
+              } else {
+                digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.ERROR);
+                KlabIDEController.instance()
+                    .handleNotifications(List.of(Notification.error(throwable)));
+              }
               return Observation.EMPTY_OBSERVATION;
             })
         .thenApply(
@@ -458,6 +462,16 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
               digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.IDLE);
               return observation;
             });
+  }
+
+  private static boolean isCancellation(Throwable failure) {
+    while (failure != null) {
+      if (failure instanceof java.util.concurrent.CancellationException) {
+        return true;
+      }
+      failure = failure.getCause();
+    }
+    return false;
   }
 
   private static final class AssetTreeCell extends TreeCell<NavigableAsset> {
