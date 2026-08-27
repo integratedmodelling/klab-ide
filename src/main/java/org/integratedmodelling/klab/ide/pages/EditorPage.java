@@ -324,6 +324,31 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
   }
 
   /**
+   * Rebind an open editor to a refreshed representation of the same asset without recreating its
+   * content. This keeps editor-local state such as cursor and scroll position while updating the
+   * tab label, status graphic, and close lifecycle to use the refreshed asset.
+   *
+   * @return true when the old asset had an open editor and was rebound
+   */
+  protected boolean rebindEditor(T oldAsset, T refreshedAsset) {
+    var tab = assetEditors.remove(oldAsset);
+    if (tab == null) {
+      return false;
+    }
+    var editor = tab.getContent();
+    assetEditors.put(refreshedAsset, tab);
+    tab.setText(Theme.getLabel(refreshedAsset));
+    tab.setGraphic(Theme.getGraphics(refreshedAsset));
+    tab.setOnClosed(
+        event -> {
+          if (assetEditors.remove(refreshedAsset, tab)) {
+            disposeEditor(refreshedAsset, editor);
+          }
+        });
+    return true;
+  }
+
+  /**
    * Replace an open asset and its editor in place, retaining the tab position and selection.
    *
    * @return true when the old asset had an open editor and the replacement was installed

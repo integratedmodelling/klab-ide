@@ -37,29 +37,58 @@ public class ResourceSmallViewComponent extends BaseAssetViewComponent {
       ResourceInfo descriptor,
       Consumer<ResourceInfo> selectHandler,
       Consumer<ResourceInfo> deleteHandler) {
+    this(descriptor, selectHandler, deleteHandler, null, true);
+  }
+
+  /**
+   * Create a card with an already known service label. This overload avoids calling
+   * {@link ResourcesService#serviceName()} while rendering a JavaFX cell/card.
+   */
+  public ResourceSmallViewComponent(
+      ResourceInfo descriptor,
+      Consumer<ResourceInfo> selectHandler,
+      Consumer<ResourceInfo> deleteHandler,
+      String serviceName) {
+    this(descriptor, selectHandler, deleteHandler, serviceName, false);
+  }
+
+  private ResourceSmallViewComponent(
+      ResourceInfo descriptor,
+      Consumer<ResourceInfo> selectHandler,
+      Consumer<ResourceInfo> deleteHandler,
+      String serviceName,
+      boolean resolveServiceName) {
     super(AssetViewComponent.Type.Object, descriptor.getUrn(), false);
     this.descriptor = descriptor;
     this.selectHandler = selectHandler;
     this.deleteHandler = deleteHandler;
-    createContent();
+    createContent(serviceName, resolveServiceName);
   }
 
   protected Node createContent() {
+    return createContent(null, true);
+  }
+
+  private Node createContent(String suppliedServiceName, boolean resolveServiceName) {
     var card = new Card();
     VBox body = new VBox(10);
     var icon = new FontIcon(Theme.getIcon(descriptor.getKnowledgeClass()));
 
     // add @ serviceName to titl
-    var service =
-        KlabIDEController.instance()
-            .user()
-            .findService(
-                ResourcesService.class, s -> s.serviceId().equals(descriptor.getServiceId()))
-            .orElse(null); // TODO  handle
+    var serviceName = suppliedServiceName;
+    if (resolveServiceName) {
+      var service =
+          KlabIDEController.instance()
+              .user()
+              .findService(
+                  ResourcesService.class, s -> s.serviceId().equals(descriptor.getServiceId()))
+              .orElse(null); // TODO handle missing service
+      serviceName = service == null ? null : service.serviceName();
+    }
 
     var label = displayName(this.descriptor);
-    if (service != null) {
-      label += " @ " + service.serviceName();
+    if (serviceName != null && !serviceName.isBlank()) {
+      label += " @ " + serviceName;
     }
 
     var comment = description(this.descriptor);

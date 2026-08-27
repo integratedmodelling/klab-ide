@@ -1,9 +1,14 @@
 package org.integratedmodelling.klab.ide.components;
 
 import atlantafx.base.theme.Styles;
+import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import javafx.application.Platform;
 import javafx.geometry.HPos;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.control.ProgressIndicator;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
@@ -13,7 +18,6 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import org.integratedmodelling.common.logging.Logging;
-import org.integratedmodelling.klab.api.authentication.CRUDOperation;
 import org.integratedmodelling.klab.api.engine.Engine;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.services.ResourcesService;
@@ -38,12 +42,19 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
 
   private final ResourcesNavigatorController controller;
 
-  private final Map<String, ResourceInfo> workspaces = new HashMap<>();
+  private static final Duration SERVICE_DEADLINE = Duration.ofSeconds(4);
+  private static final Duration CATALOG_FRESHNESS = Duration.ofSeconds(15);
+
+  private final WorkspaceCatalogLoader catalogLoader = new WorkspaceCatalogLoader();
+  private final Map<String, List<ResourceInfo>> workspacesByService = new LinkedHashMap<>();
+  private final Map<String, ResourcesService> creatableServices = new LinkedHashMap<>();
+  private final Map<String, String> serviceLabels = new HashMap<>();
+  private final Map<String, String> serviceIssues = new LinkedHashMap<>();
   private final Map<String, WorkspaceEditor> openEditors = new HashMap<>();
-  //  private final Map<ResourceInfo, ResourcesService> services = new HashMap<>();
-  private String localServiceId;
   private List<Node> components = new ArrayList<>();
   private Node workspaceDialog;
+  private boolean catalogLoading;
+  private long catalogLoadedAt;
 
   public WorkspaceView() {
     super(
@@ -59,7 +70,6 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
 
   @Override
   protected void assetEditorClosed(WorkspaceEditor editor) {
-    workspaces.remove(editor.getEditedAsset().getUrn());
     openEditors.remove(editor.getEditedAsset().getUrn());
     editor.close();
   }
@@ -79,47 +89,26 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
 
   public List<ResourcesService> getServices() {
     return KlabIDEController.instance().user().getServices(ResourcesService.class).stream()
-        /* .filter(
-        s ->
-            s.capabilities(KlabIDEController.modeler().user())
-                .getPermissions()
-                .contains(CRUDOperation.CREATE))*/
-        .sorted(
-            (s1, s2) ->
-                Utils.URLs.isLocalHost(s1.getUrl()) && !Utils.URLs.isLocalHost(s2.getUrl())
-                    ? -1
-                    : (Utils.URLs.isLocalHost(s2.getUrl()) ? 0 : 1))
+        .sorted(Comparator.comparing(service -> !Utils.URLs.isLocalHost(service.getUrl())))
         .toList();
   }
 
   public List<ResourceInfo> getWorkspaceList() {
-    List<ResourceInfo> ret = new ArrayList<>();
-    for (var rService : getServices()) {
-      try {
-        for (var workspace :
-            rService.capabilities(KlabIDEController.instance().user()).getWorkspaceNames()) {
-          if (openEditors.containsKey(workspace)) {
-            continue;
-          }
-          ret.add(
-              rService.info(
-                  workspace,
-                  KlabAsset.KnowledgeClass.WORKSPACE,
-                  ResourceInfo.class,
-                  KlabIDEController.instance().user()));
-        }
-      } catch (Throwable t) {
-        KlabIDEController.instance()
-            .handleNotification(
-                Notification.error("Error loading workspace list: " + t.getMessage()));
-      }
-    }
-    return ret;
+    return workspacesByService.values().stream()
+        .flatMap(Collection::stream)
+        .filter(Objects::nonNull)
+        .filter(info -> !openEditors.containsKey(info.getUrn()))
+        .sorted(Comparator.comparing(ResourceInfo::getUrn))
+        .toList();
   }
 
   @Override
   protected void defineBrowser(VBox browserComponents) {
 
+    if (!catalogLoading
+        && System.nanoTime() - catalogLoadedAt > CATALOG_FRESHNESS.toNanos()) {
+      refreshCatalog();
+    }
     browserComponents.getChildren().removeAll(components);
     components.clear();
     components.add(makeHeader("Workspaces", this::addWorkspace));
@@ -129,13 +118,120 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
     for (var workspace : getWorkspaceList()) {
       try {
         components.add(
-            new ResourceSmallViewComponent(workspace, this::raiseWorkspace, /* TODO */ null));
+            new ResourceSmallViewComponent(
+                workspace,
+                this::raiseWorkspace,
+                /* TODO */ null,
+                serviceLabels.getOrDefault(workspace.getServiceId(), workspace.getServiceId())));
       } catch (Throwable e) {
         // TODO temporary - when services are up to date it should be OK
         Logging.INSTANCE.error("Error loading workspace: " + workspace);
       }
     }
+    if (catalogLoading) {
+      var progress = new ProgressIndicator();
+      progress.setMaxSize(18, 18);
+      var loading = new HBox(8, progress, new Label("Loading available workspaces…"));
+      loading.setAlignment(Pos.CENTER_LEFT);
+      loading.setPadding(new Insets(8));
+      components.add(loading);
+    }
+    if (!serviceIssues.isEmpty()) {
+      var issue =
+          new Label(
+              "Some service data is unavailable or invalid; showing the workspaces that could be loaded.");
+      issue.getStyleClass().addAll(Styles.TEXT_SMALL, Styles.TEXT_MUTED);
+      issue.setWrapText(true);
+      issue.setPadding(new Insets(4, 8, 8, 8));
+      components.add(issue);
+    }
     browserComponents.getChildren().addAll(components);
+  }
+
+  private void refreshCatalog() {
+    var services = getServices();
+    var currentServiceIds =
+        services.stream()
+            .map(WorkspaceView::safeServiceId)
+            .collect(java.util.stream.Collectors.toSet());
+    workspacesByService.keySet().retainAll(currentServiceIds);
+    creatableServices.keySet().retainAll(currentServiceIds);
+    serviceLabels.keySet().retainAll(currentServiceIds);
+    serviceIssues.keySet().retainAll(currentServiceIds);
+    catalogLoading = !services.isEmpty();
+    serviceIssues.clear();
+    if (services.isEmpty()) {
+      catalogLoadedAt = System.nanoTime();
+      return;
+    }
+    var remaining = new AtomicInteger(services.size() * 2);
+    var user = KlabIDEController.instance().user();
+    for (var service : services) {
+      catalogLoader.requestWorkspaces(
+          service,
+          user,
+          SERVICE_DEADLINE,
+          result ->
+              Platform.runLater(
+                  () -> {
+                    var serviceId = safeServiceId(result.service());
+                    if (result.succeeded()) {
+                      workspacesByService.put(serviceId, result.workspaces());
+                      if (result.discardedEntries() > 0) {
+                        serviceIssues.put(
+                            serviceId,
+                            result.discardedEntries() + " invalid workspace entries were ignored");
+                      } else {
+                        serviceIssues.remove(serviceId);
+                      }
+                    } else {
+                      serviceIssues.put(serviceId, failureMessage(result.failure()));
+                    }
+                    finishCatalogRequest(remaining, result.late());
+                  }));
+      catalogLoader.requestCapabilities(
+          service,
+          user,
+          SERVICE_DEADLINE,
+          result ->
+              Platform.runLater(
+                  () -> {
+                    var serviceId = safeServiceId(result.service());
+                    if (result.succeeded()) {
+                      if (result.serviceName() != null && !result.serviceName().isBlank()) {
+                        serviceLabels.put(serviceId, result.serviceName());
+                      }
+                      if (result.canCreate()) {
+                        creatableServices.put(serviceId, result.service());
+                      } else {
+                        creatableServices.remove(serviceId);
+                      }
+                    }
+                    finishCatalogRequest(remaining, result.late());
+                  }));
+    }
+  }
+
+  private void finishCatalogRequest(AtomicInteger remaining, boolean late) {
+    if (!late && remaining.decrementAndGet() == 0) {
+      catalogLoading = false;
+      catalogLoadedAt = System.nanoTime();
+    }
+    updateBrowser();
+  }
+
+  private static String failureMessage(Throwable failure) {
+    if (failure == null || failure.getMessage() == null || failure.getMessage().isBlank()) {
+      return "Workspace catalogue unavailable";
+    }
+    return failure.getMessage();
+  }
+
+  private static String safeServiceId(ResourcesService service) {
+    var serviceId = service.serviceId();
+    return serviceId == null || serviceId.isBlank()
+        ? Integer.toHexString(System.identityHashCode(service))
+        : serviceId;
   }
 
   private void addWorkspace() {
@@ -146,12 +242,8 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
   private Node createWorkspaceDialog() {
 
     var availableServices =
-        KlabIDEController.instance().user().getServices(ResourcesService.class).stream()
-            .filter(
-                s ->
-                    s.capabilities(KlabIDEController.instance().user())
-                        .getPermissions()
-                        .contains(CRUDOperation.CREATE))
+        getServices().stream()
+            .filter(service -> creatableServices.containsKey(safeServiceId(service)))
             .toList();
 
     GridPane grid = new GridPane();
@@ -168,13 +260,21 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
     final ComboBox<String> serviceSelector = new ComboBox<>();
     serviceSelector
         .getItems()
-        .addAll(availableServices.stream().map(ResourcesService::serviceName).toList());
+        .addAll(
+            availableServices.stream()
+                .map(
+                    service ->
+                        serviceLabels.getOrDefault(
+                            safeServiceId(service), safeServiceId(service)))
+                .toList());
     serviceSelector.setMaxWidth(Double.MAX_VALUE);
     var ok = new Button("Create");
     var cancel = new Button("Cancel");
-    var service = (ResourcesService) null;
     ok.setOnAction(
         event -> {
+          if (serviceSelector.getSelectionModel().getSelectedIndex() < 0) {
+            return;
+          }
           createWorkspace(
               workspaceTitle.getText(),
               description.getText(),
@@ -255,7 +355,9 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
       openEditors.put(resourceInfo.getUrn(), newEditor);
       addEditor(
           newEditor,
-          resourceInfo.getUrn() + "@" + service.serviceName(),
+          resourceInfo.getUrn()
+              + "@"
+              + serviceLabels.getOrDefault(safeServiceId(service), safeServiceId(service)),
           new IconLabel(Theme.WORKSPACE_ICON, 18, "-color-fg-default"));
     }
   }

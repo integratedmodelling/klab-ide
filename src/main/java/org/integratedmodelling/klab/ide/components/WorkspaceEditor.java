@@ -61,8 +61,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private ProgressBar progressBar;
   private TreeView<NavigableAsset> treeView;
   private final Map<Node, LspDocumentSession> lspSessions = new IdentityHashMap<>();
-  /** Assets whose save request is currently waiting for the corresponding workspace update. */
-  private final Set<String> pendingSavedAssets = new HashSet<>();
+  /** Saved source snapshots waiting for their corresponding parsed workspace updates. */
+  private final Map<String, Deque<String>> pendingSavedSources = new HashMap<>();
 
   public WorkspaceEditor(ResourcesService service, ResourceInfo resourceInfo, WorkspaceView view) {
     super(
@@ -584,6 +584,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           new MonacoEditorView(
               documentUri, content -> Platform.runLater(() -> saveDocument(content, asset)));
 
+      ret.runAfterEditorRendered(() -> ret.markNotifications(document.getNotifications(), false));
       ret.loadEditor(document.getSourceCode(), languageId, theme);
 
       ret.setCursorPositionListener(
@@ -616,7 +617,9 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private void saveDocument(String text, NavigableAsset asset) {
     //    Logging.INSTANCE.info("Save document requested: " + asset.getUrn());
     if (asset instanceof KlabDocument<?> document) {
-      pendingSavedAssets.add(document.getUrn());
+      pendingSavedSources
+          .computeIfAbsent(document.getUrn(), ignored -> new ArrayDeque<>())
+          .add(text);
       KlabIDEController.instance()
           .updateDocument(
               service,
@@ -636,13 +639,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       return;
     }
     var resourceChanges = Utils.Resources.collectChanges(changes);
-    if (changedAssets == null || changedAssets.isEmpty()) {
-      resourceChanges.stream()
-          .filter(change -> change.getOperation() == CRUDOperation.UPDATE)
-          .map(ResourceSet.Resource::getResourceUrn)
-          .forEach(pendingSavedAssets::remove);
-      return;
-    }
+    var hasChangedAssets = changedAssets != null && !changedAssets.isEmpty();
 
     this.workspace = workspace;
     Platform.runLater(
@@ -651,10 +648,18 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           var selectedAsset = selectedItem == null ? null : selectedItem.getValue();
           setWaiting(true);
           for (var change : resourceChanges) {
+            var parsedDocument = findChangedDocument(change);
             boolean causedByOpenEditorSave =
                 change.getOperation() == CRUDOperation.UPDATE
-                    && pendingSavedAssets.remove(change.getResourceUrn());
-            mergeChangeIntoTree(change, causedByOpenEditorSave);
+                    && parsedDocument != null
+                    && consumePendingSave(
+                        pendingSavedSources,
+                        change.getResourceUrn(),
+                        parsedDocument.getSourceCode());
+            if (hasChangedAssets) {
+              mergeChangeIntoTree(change, causedByOpenEditorSave);
+            }
+            updateEditorNotifications(parsedDocument, change.getNotifications());
           }
           // Reconciliation can temporarily invalidate the selection when children are reordered.
           // Select the equivalent surviving node again, without scrolling the tree or selecting
@@ -688,9 +693,50 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     return findTreeNode(this.root, assetUrn);
   }
 
+  private NavigableKlabDocument<?, ?> findChangedDocument(ResourceSet.Resource change) {
+    if (workspace instanceof NavigableKlabAsset<?> root) {
+      var asset =
+          root.findAsset(change.getResourceUrn(), KlabAsset.class, change.getKnowledgeClass());
+      if (asset instanceof NavigableKlabDocument<?, ?> document) {
+        return document;
+      }
+    }
+    var node = findNodeContaining(change.getResourceUrn());
+    return node != null && node.getValue() instanceof NavigableKlabDocument<?, ?> document
+        ? document
+        : null;
+  }
+
+  private void updateEditorNotifications(
+      NavigableKlabDocument<?, ?> document, Collection<Notification> fallbackNotifications) {
+    if (document != null && getEditor(document) instanceof MonacoEditorView editor) {
+      var notifications = document.getNotifications();
+      editor.markNotifications(
+          notifications == null
+              ? Objects.requireNonNullElse(fallbackNotifications, List.of())
+              : notifications,
+          true);
+    }
+  }
+
+  static boolean consumePendingSave(
+      Map<String, Deque<String>> pendingSources, String urn, String parsedSource) {
+    if (parsedSource == null) {
+      return false;
+    }
+    var sources = pendingSources.get(urn);
+    if (sources == null) {
+      return false;
+    }
+    var matched = sources.removeFirstOccurrence(parsedSource);
+    if (sources.isEmpty()) {
+      pendingSources.remove(urn);
+    }
+    return matched;
+  }
+
   private void mergeChangeIntoTree(ResourceSet.Resource change, boolean causedByOpenEditorSave) {
 
-    NavigableDocument document = null;
     TreeItem<NavigableAsset> focus = null;
     if (change.getOperation() == CRUDOperation.DELETE) {
 
@@ -713,10 +759,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       if (root != null) {
         root.getChildren().add(focus = new TreeItem<>((NavigableAsset) newAsset));
       }
-      if (newAsset instanceof NavigableDocument navigableDocument) {
-        document = navigableDocument;
-        // TODO enqueue an event to edit the document. Doing it here hangs everything
-      }
+      // TODO enqueue an event to edit a newly created document. Doing it here hangs everything.
 
     } else if (change.getOperation() == CRUDOperation.UPDATE
         && workspace instanceof NavigableKlabAsset<?> wroot) {
@@ -733,14 +776,13 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         // Recreating it here loses Monaco's cursor/scroll position and makes the save feel like a
         // navigation event.  Other updates still recreate the editor so that external source
         // changes are loaded into it.
-        if (!causedByOpenEditorSave) {
+        if (causedByOpenEditorSave) {
+          rebindEditor(oldAsset, navigableAsset);
+        } else {
           refreshEditor(oldAsset, navigableAsset);
         }
         if (navigableAsset instanceof KActorsBehavior updatedBehavior) {
           KlabIDEController.instance().synchronizeManagedBehavior(service, updatedBehavior);
-        }
-        if (node.getValue() instanceof NavigableDocument navigableDocument) {
-          document = navigableDocument;
         }
       }
     } else if (change.getOperation() == CRUDOperation.UPDATE_METADATA
@@ -760,16 +802,6 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       // TODO incorporate errors and walk the tree upwards to update the status icons
     }
 
-    if (document != null) {
-      /*
-      TODO codeNotifications must be shown in the editors corresponding to the assets they belong to.
-       Icons for those same assets must change color accordingly.
-       */
-      var codeNotifications =
-          change.getNotifications().stream()
-              .filter(notification -> notification.getLexicalContext() != null)
-              .toList();
-    }
   }
 
   private TreeItem<NavigableAsset> findOrAddFolder(NavigableFolder folder) {
@@ -814,6 +846,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     if (root.getValue() != null) {
 
       root.setValue(changed);
+      root.setGraphic(getTreeGraphics(changed));
 
       var existingChildren = new ArrayList<>(root.getChildren());
       var newChildren = new ArrayList<>(changed.children());
