@@ -103,6 +103,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
     links
         .getChildren()
         .addAll(
+            link("Web Dashboard", MaterialDesign.MDI_WEB, "/"),
             link("Public Capabilities", MaterialDesign.MDI_FILE_TREE, "/public/capabilities"),
             link("Status", Evaicons.ACTIVITY, "/public/status"),
             link("API documentation", MaterialDesign.MDI_BOOK_OPEN_PAGE_VARIANT, "/api.html"));
