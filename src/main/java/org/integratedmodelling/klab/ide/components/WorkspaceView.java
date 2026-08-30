@@ -51,6 +51,7 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
   private final Map<String, String> serviceLabels = new HashMap<>();
   private final Map<String, String> serviceIssues = new LinkedHashMap<>();
   private final Map<String, WorkspaceEditor> openEditors = new HashMap<>();
+  private WorkflowUIProvider workflowUIProvider = WorkflowUIProvider.NONE;
   private List<Node> components = new ArrayList<>();
   private Node workspaceDialog;
   private boolean catalogLoading;
@@ -91,6 +92,13 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
     return KlabIDEController.instance().user().getServices(ResourcesService.class).stream()
         .sorted(Comparator.comparing(service -> !Utils.URLs.isLocalHost(service.getUrl())))
         .toList();
+  }
+
+  /** Install workflow discovery and specialized stage editors for all current and future tabs. */
+  public void setWorkflowUIProvider(WorkflowUIProvider workflowUIProvider) {
+    this.workflowUIProvider =
+        workflowUIProvider == null ? WorkflowUIProvider.NONE : workflowUIProvider;
+    openEditors.values().forEach(editor -> editor.setWorkflowUIProvider(this.workflowUIProvider));
   }
 
   public List<ResourceInfo> getWorkspaceList() {
@@ -351,7 +359,7 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
       // TODO handle the unlikely case that the service is unavailable. That will throw an exception
       //  from getService
 
-      var newEditor = new WorkspaceEditor(service, resourceInfo, this);
+      var newEditor = new WorkspaceEditor(service, resourceInfo, this, workflowUIProvider);
       openEditors.put(resourceInfo.getUrn(), newEditor);
       addEditor(
           newEditor,

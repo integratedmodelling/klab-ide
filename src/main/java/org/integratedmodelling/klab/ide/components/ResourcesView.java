@@ -26,13 +26,20 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.util.Duration;
 import org.integratedmodelling.klab.api.collections.Parameters;
+import org.integratedmodelling.klab.api.authentication.CRUDOperation;
+import org.integratedmodelling.klab.api.authentication.ResourcePrivileges;
+import org.integratedmodelling.klab.api.data.Version;
+import org.integratedmodelling.klab.api.geometry.Geometry;
+import org.integratedmodelling.klab.api.knowledge.Artifact;
 import org.integratedmodelling.klab.api.configuration.Configuration;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.Resource;
 import org.integratedmodelling.klab.api.services.Resolver;
 import org.integratedmodelling.klab.api.services.ResourcesService;
 import org.integratedmodelling.klab.api.services.resources.ResourceInfo;
+import org.integratedmodelling.klab.api.services.resources.impl.ResourceImpl;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
+import org.integratedmodelling.klab.api.services.runtime.extension.AdapterDescriptor;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.cards.ResourceSmallViewComponent;
@@ -48,6 +55,7 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
 
   private final Map<String, ResourceEditor> openEditors = new HashMap<>();
   private Node resourceDialog;
+  private WorkflowUIProvider workflowUIProvider = WorkflowUIProvider.NONE;
 
   public ResourcesView() {
     super(
@@ -72,7 +80,15 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
   protected void assetEditorSelected(ResourceEditor asset) {}
 
   @Override
-  protected void assetEditorClosed(ResourceEditor asset) {}
+  protected void assetEditorClosed(ResourceEditor asset) {
+    openEditors.values().removeIf(editor -> editor == asset);
+    asset.close();
+  }
+
+  public void setWorkflowUIProvider(WorkflowUIProvider provider) {
+    workflowUIProvider = provider == null ? WorkflowUIProvider.NONE : provider;
+    openEditors.values().forEach(editor -> editor.setWorkflowUIProvider(workflowUIProvider));
+  }
 
   @Override
   protected void defineBrowser(VBox vBox) {
@@ -138,21 +154,35 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
   }
 
   private Node createResourceDialog() {
-
     var availableServices =
         KlabIDEController.instance().user().getServices(ResourcesService.class);
-
     var dialog = new VBox(8);
     dialog.setPadding(new Insets(6));
     dialog.setStyle("-fx-background-color: -color-neutral-muted;");
 
+    var serviceSelector = new ComboBox<ResourcesService>();
+    serviceSelector.getItems().addAll(availableServices);
+    serviceSelector.setMaxWidth(Double.MAX_VALUE);
+    configureServiceCells(serviceSelector);
+
+    var adapterSelector = new ComboBox<AdapterDescriptor>();
+    adapterSelector.setMaxWidth(Double.MAX_VALUE);
+    adapterSelector.setCellFactory(ignored -> adapterCell());
+    adapterSelector.setButtonCell(adapterCell());
+
+    var originator = creationField("originator", "Originator");
+    var namespace = creationField("catalog", "Namespace");
+    var resourceId = creationField("resource-id", "Resource ID");
+    var urnPreview = new Label();
+    urnPreview.setWrapText(true);
+    urnPreview.getStyleClass().add(Styles.TEXT_SMALL);
+
+    AtomicReference<Runnable> dialogUpdater = new AtomicReference<>(() -> {});
     var uploadBox =
         new UploadBox(
             Configuration.INSTANCE.getTemporaryDataPath().toString(),
-            "Drop resource file or URL to upload",
-            file -> {
-              // Submission is completed by the caller after the Add action is confirmed.
-            },
+            "Drop the primary dataset/file or a URL",
+            file -> Platform.runLater(dialogUpdater.get()),
             (message, throwable) ->
                 KlabIDEController.instance()
                     .handleNotification(
@@ -161,39 +191,22 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
     uploadBox.setMaxWidth(270);
     uploadBox.setMinWidth(0);
 
-    var serviceSelector = new ComboBox<ResourcesService>();
-    serviceSelector.getItems().addAll(availableServices);
-    serviceSelector.setMaxWidth(250);
-    serviceSelector.setCellFactory(
-        listView ->
-            new javafx.scene.control.ListCell<>() {
-              @Override
-              protected void updateItem(ResourcesService service, boolean empty) {
-                super.updateItem(service, empty);
-                setText(empty || service == null ? null : service.serviceName());
-              }
-            });
-    serviceSelector.setButtonCell(
-        new javafx.scene.control.ListCell<>() {
-          @Override
-          protected void updateItem(ResourcesService service, boolean empty) {
-            super.updateItem(service, empty);
-            setText(empty || service == null ? null : service.serviceName());
-          }
-        });
-
     var selection = new GridPane();
-    selection.setHgap(6);
-    selection.setVgap(6);
-    selection.add(new IconLabel(Theme.RESOURCES_ICON, 16, Theme.FOREGROUND_COLOR), 0, 0);
-    selection.add(serviceSelector, 1, 0);
-    GridPane.setFillWidth(serviceSelector, true);
+    selection.setHgap(6); selection.setVgap(6);
+    selection.add(new Label("Service *"), 0, 0); selection.add(serviceSelector, 1, 0);
+    selection.add(new Label("Adapter *"), 0, 1); selection.add(adapterSelector, 1, 1);
+    selection.add(new Label("Originator *"), 0, 2); selection.add(originator, 1, 2);
+    selection.add(new Label("Namespace *"), 0, 3); selection.add(namespace, 1, 3);
+    selection.add(new Label("Resource ID *"), 0, 4); selection.add(resourceId, 1, 4);
+    selection.add(new Label("URN"), 0, 5); selection.add(urnPreview, 1, 5);
     selection.getColumnConstraints().add(new ColumnConstraints());
-    selection
-        .getColumnConstraints()
-        .add(new ColumnConstraints(200, 200, Double.MAX_VALUE, Priority.ALWAYS, HPos.LEFT, true));
+    selection.getColumnConstraints().add(new ColumnConstraints(170, 200, Double.MAX_VALUE, Priority.ALWAYS, HPos.LEFT, true));
 
-    var accept = new Button("Accept");
+    var uploadHint = new Label();
+    uploadHint.setWrapText(true);
+    uploadHint.getStyleClass().add(Styles.TEXT_MUTED);
+
+    var accept = new Button("Continue to editor");
     var cancel = new Button("Cancel");
     accept.getStyleClass().addAll(Styles.BUTTON_OUTLINED, Styles.SUCCESS, Styles.SMALL);
     cancel.getStyleClass().addAll(Styles.BUTTON_OUTLINED, Styles.DANGER, Styles.SMALL);
@@ -201,12 +214,77 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
     buttons.setAlignment(Pos.CENTER_RIGHT);
     buttons.setSpacing(4);
 
+    Runnable update =
+        () -> {
+          var service = serviceSelector.getValue();
+          var adapter = adapterSelector.getValue();
+          String urn =
+              service == null
+                  ? ""
+                  : service.serviceId()
+                      + ":"
+                      + originator.getText().strip().toLowerCase(java.util.Locale.ROOT)
+                      + ":"
+                      + namespace.getText().strip().toLowerCase(java.util.Locale.ROOT)
+                      + ":"
+                      + resourceId.getText().strip().toLowerCase(java.util.Locale.ROOT);
+          urnPreview.setText(urn);
+          boolean requiresUpload = adapterRequiresUpload(adapter);
+          uploadHint.setText(
+              requiresUpload
+                  ? "This adapter imports data: add its primary file before continuing."
+                  : "This adapter can be parameterized without a file. Upload is optional and can also be used for documentation or ancillary data.");
+          accept.setDisable(
+              service == null
+                  || adapter == null
+                  || !validUrnPart(originator.getText())
+                  || !validUrnPart(namespace.getText())
+                  || !validUrnPart(resourceId.getText())
+                  || (requiresUpload && uploadBox.getUploadedFiles().isEmpty()));
+        };
+    dialogUpdater.set(update);
+
+    serviceSelector.valueProperty().addListener(
+        (observable, oldService, newService) -> {
+          adapterSelector.getItems().setAll(adapters(newService));
+          adapterSelector.getSelectionModel().selectFirst();
+          update.run();
+        });
+    adapterSelector.valueProperty().addListener((observable, oldValue, newValue) -> update.run());
+    originator.textProperty().addListener((observable, oldValue, newValue) -> update.run());
+    namespace.textProperty().addListener((observable, oldValue, newValue) -> update.run());
+    resourceId.textProperty().addListener((observable, oldValue, newValue) -> update.run());
+
     accept.setOnAction(
         event -> {
-          // TODO submit uploadBox.getUploadedFiles() to serviceSelector.getValue().
+          var service = serviceSelector.getValue();
+          var adapter = adapterSelector.getValue();
+          var resource = new ResourceImpl();
+          resource.setUrn(urnPreview.getText());
+          resource.setServiceId(service.serviceId());
+          resource.setAdapterType(adapter.getName());
+          resource.setVersion(Version.EMPTY_VERSION);
+          resource.setTimestamp(System.currentTimeMillis());
+          resource.setType(Artifact.Type.NUMBER);
+          resource.setGeometry(Geometry.UNIVERSAL);
+          resource.setLocalFiles(new ArrayList<>(uploadBox.getUploadedFiles()));
+          var info = new ResourceInfo();
+          info.setUrn(resource.getUrn());
+          info.setServiceId(service.serviceId());
+          info.setKnowledgeClass(KlabAsset.KnowledgeClass.RESOURCE);
+          info.setRights(ResourcePrivileges.create(KlabIDEController.instance().user()));
+          info.getPermissions().addAll(
+              List.of(
+                  CRUDOperation.READ,
+                  CRUDOperation.CREATE,
+                  CRUDOperation.UPDATE,
+                  CRUDOperation.UPDATE_METADATA,
+                  CRUDOperation.DELETE));
           uploadBox.dispose();
           resourceDialog = null;
           updateBrowser();
+          hideBrowser();
+          openResourceEditor(service, resource, info, true);
         });
     cancel.setOnAction(
         event -> {
@@ -221,8 +299,68 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
     } else {
       serviceSelector.getSelectionModel().selectFirst();
     }
-    dialog.getChildren().addAll(uploadBox, selection, buttons);
+    update.run();
+    dialog.getChildren().addAll(selection, uploadHint, uploadBox, buttons);
     return dialog;
+  }
+
+  private static TextField creationField(String prompt, String accessibleText) {
+    var ret = new TextField();
+    ret.setPromptText(prompt);
+    ret.setAccessibleText(accessibleText);
+    ret.setMaxWidth(Double.MAX_VALUE);
+    return ret;
+  }
+
+  private static boolean validUrnPart(String value) {
+    return value != null && value.strip().toLowerCase(java.util.Locale.ROOT).matches("[a-z0-9][a-z0-9._-]*");
+  }
+
+  private static boolean adapterRequiresUpload(AdapterDescriptor adapter) {
+    return adapter != null && adapter.getImportSchemata() != null && !adapter.getImportSchemata().isEmpty();
+  }
+
+  private static List<AdapterDescriptor> adapters(ResourcesService service) {
+    if (service == null) return List.of();
+    try {
+      return service.capabilities(KlabIDEController.instance().user()).getComponents().stream()
+          .flatMap(component -> component.adapters().stream())
+          .filter(adapter -> adapter.getServiceId() == null || service.serviceId().equals(adapter.getServiceId()))
+          .sorted(java.util.Comparator.comparing(AdapterDescriptor::getName))
+          .toList();
+    } catch (Throwable error) {
+      return List.of();
+    }
+  }
+
+  private static javafx.scene.control.ListCell<AdapterDescriptor> adapterCell() {
+    return new javafx.scene.control.ListCell<>() {
+      @Override
+      protected void updateItem(AdapterDescriptor adapter, boolean empty) {
+        super.updateItem(adapter, empty);
+        setText(empty || adapter == null ? null : adapter.getName());
+      }
+    };
+  }
+
+  private static void configureServiceCells(ComboBox<ResourcesService> selector) {
+    selector.setCellFactory(
+        ignored ->
+            new javafx.scene.control.ListCell<>() {
+              @Override
+              protected void updateItem(ResourcesService service, boolean empty) {
+                super.updateItem(service, empty);
+                setText(empty || service == null ? null : service.serviceName());
+              }
+            });
+    selector.setButtonCell(
+        new javafx.scene.control.ListCell<>() {
+          @Override
+          protected void updateItem(ResourcesService service, boolean empty) {
+            super.updateItem(service, empty);
+            setText(empty || service == null ? null : service.serviceName());
+          }
+        });
   }
 
   private void startResourceSearch(
@@ -394,20 +532,33 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
   private void viewResource(ResourceInfo resourceInfo) {
 
     hideBrowser();
-    if (openEditors.containsKey(resourceInfo.getUrn())) {
-      openEditors
-          .get(resourceInfo.getUrn())
-          .requestFocus(); // FIXME must remember the tabs and select(tab) - in both cases
+    ResourceInfo requestedInfo = resourceInfo;
+    String editorKey = resourceKey(resourceInfo.getServiceId(), resourceInfo.getUrn());
+    if (openEditors.containsKey(editorKey)) {
+      selectEditor(openEditors.get(editorKey));
     } else {
       Resource resource = null;
       var service =
           KlabIDEController.instance()
               .user()
               .findService(
-                  ResourcesService.class, s -> resourceInfo.getServiceId().equals(s.serviceId()))
+                  ResourcesService.class, s -> requestedInfo.getServiceId().equals(s.serviceId()))
               .orElse(null);
 
       if (service != null) {
+        try {
+          var detailedInfo =
+              service.info(
+                  resourceInfo.getUrn(),
+                  KlabAsset.KnowledgeClass.RESOURCE,
+                  ResourceInfo.class,
+                  KlabIDEController.instance().user());
+          if (detailedInfo != null) {
+            resourceInfo = detailedInfo;
+          }
+        } catch (Throwable ignored) {
+          // Search results already contain enough information for a read-only inspector.
+        }
         resource =
             service.retrieve(
                 resourceInfo.getUrn(), Resource.class, KlabIDEController.instance().user());
@@ -416,13 +567,13 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
         var resolver =
             KlabIDEController.instance()
                 .user()
-                .findService(Resolver.class, s -> resourceInfo.getServiceId().equals(s.serviceId()))
+                .findService(Resolver.class, s -> requestedInfo.getServiceId().equals(s.serviceId()))
                 .orElse(null);
 
         if (resolver != null) {
           resource =
               resolver.getSubmittedResources(KlabIDEController.instance().getFocalScope()).stream()
-                  .filter(r -> r.getUrn().equals(resourceInfo.getUrn()))
+                  .filter(r -> r.getUrn().equals(requestedInfo.getUrn()))
                   .findFirst()
                   .orElse(null);
         }
@@ -434,10 +585,38 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
         return;
       }
 
-      var newEditor = new ResourceEditor(resource /*, resourceInfo, this*/);
-      openEditors.put(resourceInfo.getUrn(), newEditor);
-      addEditor(newEditor, resourceInfo.getUrn(), new FontIcon(Theme.WORKSPACE_ICON));
-      newEditor.edit(resource);
+      openResourceEditor(service, resource, resourceInfo, false);
     }
+  }
+
+  private void openResourceEditor(
+      ResourcesService service, Resource resource, ResourceInfo resourceInfo, boolean draft) {
+    String key = resourceKey(resourceInfo.getServiceId(), resource.getUrn());
+    if (openEditors.containsKey(key)) {
+      selectEditor(openEditors.get(key));
+      return;
+    }
+    var editor =
+        new ResourceEditor(
+            service, resource, resourceInfo, draft, workflowUIProvider);
+    openEditors.put(key, editor);
+    editor.setOnSaved(
+        stored -> {
+          openEditors.remove(key, editor);
+          openEditors.put(resourceKey(stored.getServiceId(), stored.getUrn()), editor);
+          updateBrowser();
+        });
+    editor.setOnDeleted(
+        () -> {
+          openEditors.remove(key, editor);
+          removeEditor(editor);
+          updateBrowser();
+        });
+    addEditor(editor, resource.getUrn() == null ? "New resource" : resource.getUrn(), new FontIcon(Theme.RESOURCES_ICON));
+    Platform.runLater(editor::open);
+  }
+
+  private static String resourceKey(String serviceId, String urn) {
+    return String.valueOf(serviceId) + "\n" + String.valueOf(urn);
   }
 }

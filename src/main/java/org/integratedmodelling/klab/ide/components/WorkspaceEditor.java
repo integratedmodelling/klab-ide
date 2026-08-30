@@ -29,6 +29,10 @@ import org.integratedmodelling.klab.api.services.ResourcesService;
 import org.integratedmodelling.klab.api.services.RuntimeService;
 import org.integratedmodelling.klab.api.services.resources.ResourceInfo;
 import org.integratedmodelling.klab.api.services.resources.ResourceSet;
+import org.integratedmodelling.klab.api.services.resources.workflow.Flow;
+import org.integratedmodelling.klab.api.services.resources.workflow.Workflow;
+import org.integratedmodelling.klab.api.services.resources.workflow.WorkflowParticipant;
+import org.integratedmodelling.klab.api.services.resources.workflow.WorkflowRole;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableAsset;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableDocument;
@@ -57,6 +61,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private final ResourcesService service;
   private NavigableWorkspace workspace;
   private final WorkspaceView view;
+  private WorkflowUIProvider workflowUIProvider;
   private TreeItem<NavigableAsset> root;
   private ProgressBar progressBar;
   private TreeView<NavigableAsset> treeView;
@@ -65,12 +70,22 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private final Map<String, Deque<String>> pendingSavedSources = new HashMap<>();
 
   public WorkspaceEditor(ResourcesService service, ResourceInfo resourceInfo, WorkspaceView view) {
+    this(service, resourceInfo, view, WorkflowUIProvider.NONE);
+  }
+
+  public WorkspaceEditor(
+      ResourcesService service,
+      ResourceInfo resourceInfo,
+      WorkspaceView view,
+      WorkflowUIProvider workflowUIProvider) {
     super(
         new NavigableWorkspace(
             service.retrieve(
                 resourceInfo.getUrn(), Workspace.class, KlabIDEController.instance().user())));
     this.service = service;
     this.view = view;
+    this.workflowUIProvider =
+        workflowUIProvider == null ? WorkflowUIProvider.NONE : workflowUIProvider;
     this.workspace = getEditedAsset();
     // lock all projects that let us
     for (var project : workspace.getProjects()) {
@@ -79,6 +94,132 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         navigableProject.setLocked(true);
       }
     }
+  }
+
+  public void setWorkflowUIProvider(WorkflowUIProvider workflowUIProvider) {
+    this.workflowUIProvider =
+        workflowUIProvider == null ? WorkflowUIProvider.NONE : workflowUIProvider;
+  }
+
+  private void setupWorkflowMenu(ContextMenu contextMenu, NavigableAsset asset) {
+    var scope = KlabIDEController.instance().user();
+    List<Workflow> workflows;
+    List<Flow> flows;
+    try {
+      workflows =
+          Optional.ofNullable(workflowUIProvider.availableWorkflows(asset, scope))
+              .orElseGet(List::of);
+      flows =
+          service.getFlows(true, scope).stream()
+              .filter(flow -> Objects.equals(asset.getUrn(), flow.getAssetUrn()))
+              .toList();
+    } catch (Throwable error) {
+      KlabIDEController.instance().handleNotification(Notification.error(error));
+      return;
+    }
+    var participant = WorkflowParticipant.from(scope);
+    var workflowMenu = new Menu("Workflows");
+
+    if (participant.getRoles().contains(WorkflowRole.EDITOR)
+        || participant.getRoles().contains(WorkflowRole.ADMIN)) {
+      var start = new Menu("Start workflow");
+      workflows.stream()
+          .filter(Objects::nonNull)
+          .sorted(Comparator.comparing(WorkspaceEditor::workflowName))
+          .forEach(
+              workflow -> {
+                var item = new MenuItem(workflowName(workflow));
+                item.setOnAction(event -> startWorkflow(asset, workflow));
+                start.getItems().add(item);
+              });
+      if (!start.getItems().isEmpty()) workflowMenu.getItems().add(start);
+    }
+
+    addFlowSubmenu(workflowMenu, "Open flows", flows, Flow.Status.ACTIVE);
+    addFlowSubmenu(workflowMenu, "Closed flows", flows, Flow.Status.CLOSED);
+    if (!workflowMenu.getItems().isEmpty()) {
+      if (!contextMenu.getItems().isEmpty()) contextMenu.getItems().add(new SeparatorMenuItem());
+      contextMenu.getItems().add(workflowMenu);
+    }
+  }
+
+  private void addFlowSubmenu(
+      Menu workflowMenu, String title, List<Flow> flows, Flow.Status status) {
+    var submenu = new Menu(title);
+    flows.stream()
+        .filter(flow -> flow.getStatus() == status)
+        .sorted(Comparator.comparing(Flow::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
+        .forEach(
+            flow -> {
+              Workflow workflow;
+              try {
+                workflow = service.getWorkflow(flow.getWorkflowId(), KlabIDEController.instance().user());
+              } catch (Throwable error) {
+                workflow = null;
+              }
+              var name = workflow == null ? flow.getWorkflowId() : workflowName(workflow);
+              var item = new MenuItem(name + " — " + shortFlowId(flow));
+              var resolvedWorkflow = workflow;
+              item.setOnAction(event -> openWorkflow(flow, resolvedWorkflow));
+              submenu.getItems().add(item);
+            });
+    if (!submenu.getItems().isEmpty()) workflowMenu.getItems().add(submenu);
+  }
+
+  private void startWorkflow(NavigableAsset asset, Workflow workflow) {
+    try {
+      var participant = WorkflowParticipant.from(KlabIDEController.instance().user());
+      var initialTransition =
+          workflow.getTransitions().values().stream()
+              .filter(transition -> transition.getSourceStates().contains(Workflow.INIT))
+              .filter(transition -> participant.hasAnyRole(transition.getRoles()))
+              .findFirst()
+              .orElseThrow(
+                  () -> new IllegalStateException("No permitted initial stage for " + workflowName(workflow)));
+      var initial = new Flow.State();
+      initial.setSchemaId(initialTransition.getTargetState());
+      initial.setAssetUrn(asset.getUrn());
+      initial.setAssetType(KlabAsset.classify(asset));
+      initial.setOwner(participant.getIdentity());
+      initial.getAssignees().add(participant.getIdentity());
+      var flow =
+          workflowUIProvider.startFlow(
+              service, workflow, initial, KlabIDEController.instance().user());
+      openWorkflow(flow, workflow);
+    } catch (Throwable error) {
+      KlabIDEController.instance().handleNotification(Notification.error(error));
+    }
+  }
+
+  private void openWorkflow(Flow flow, Workflow knownWorkflow) {
+    try {
+      var workflow =
+          knownWorkflow == null
+              ? service.getWorkflow(flow.getWorkflowId(), KlabIDEController.instance().user())
+              : knownWorkflow;
+      var editor =
+          new WorkflowEditor(
+              service,
+              KlabIDEController.instance().user(),
+              workflow,
+              flow,
+              workflowUIProvider::stageEditor);
+      showAuxiliaryEditor(
+          "workflow:" + flow.getId(), workflowName(workflow) + " — workflow", editor);
+    } catch (Throwable error) {
+      KlabIDEController.instance().handleNotification(Notification.error(error));
+    }
+  }
+
+  private static String workflowName(Workflow workflow) {
+    return workflow.getName() == null || workflow.getName().isBlank()
+        ? workflow.getId()
+        : workflow.getName();
+  }
+
+  private static String shortFlowId(Flow flow) {
+    var id = flow.getId();
+    return id == null || id.length() <= 8 ? String.valueOf(id) : id.substring(0, 8);
   }
 
   @Override
@@ -501,7 +642,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                 }
                 default -> {}
               }
-              contextMenu.show(this, event.getScreenX(), event.getScreenY());
+              editor.setupWorkflowMenu(contextMenu, asset);
+              if (!contextMenu.getItems().isEmpty()) {
+                contextMenu.show(this, event.getScreenX(), event.getScreenY());
+              }
               //                  }
             });
         switch (asset) {

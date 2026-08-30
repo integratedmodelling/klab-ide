@@ -290,7 +290,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
 
     Path cssPath =
         getApplicationFile(
-            Theme.CURRENT_THEME.isDark() ? "smartgraph-dark.css" : "  smartgraph.css");
+            Theme.CURRENT_THEME.isDark() ? "smartgraph-dark.css" : "smartgraph.css");
     Path propertiesPath = getApplicationFile("smartgraph.properties");
 
     SmartGraphProperties properties;
