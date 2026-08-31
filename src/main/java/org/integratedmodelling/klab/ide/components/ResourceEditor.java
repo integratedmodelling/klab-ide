@@ -14,8 +14,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
+import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.ObjectProperty;
@@ -35,6 +38,7 @@ import javafx.scene.control.cell.CheckBoxTableCell;
 import javafx.scene.control.cell.ComboBoxTableCell;
 import javafx.scene.control.cell.TextFieldTableCell;
 import javafx.scene.layout.*;
+import javafx.util.Duration;
 import org.integratedmodelling.klab.api.authentication.CRUDOperation;
 import org.integratedmodelling.klab.api.authentication.ResourcePrivileges;
 import org.integratedmodelling.klab.api.collections.Parameters;
@@ -50,6 +54,7 @@ import org.integratedmodelling.klab.api.knowledge.Resource;
 import org.integratedmodelling.klab.api.scope.UserScope;
 import org.integratedmodelling.klab.api.services.ResourcesService;
 import org.integratedmodelling.klab.api.services.resources.ResourceInfo;
+import org.integratedmodelling.klab.api.services.resources.ResourceSet;
 import org.integratedmodelling.klab.api.services.resources.adapters.Adapter;
 import org.integratedmodelling.klab.api.services.resources.impl.AttributeImpl;
 import org.integratedmodelling.klab.api.services.resources.impl.ResourceImpl;
@@ -68,6 +73,7 @@ import org.integratedmodelling.klab.ide.components.cards.MetadataCard;
 import org.integratedmodelling.klab.ide.components.cards.PermissionEditor;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.ide.components.generic.UploadBox;
+import org.integratedmodelling.klab.ide.components.generic.WaitButton;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.kordamp.ikonli.material2.Material2AL;
 
@@ -88,9 +94,34 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
   private TreeView<Resource> index;
   private Button saveButton;
   private Button saveTemporaryButton;
+  private WaitButton publishButton;
+  private ComboBox<PublicationTarget> publicationTarget;
+  private TextField intendedEditor;
+  private CheckBox publicationConfirmation;
+  private Label publicationStatus;
+  private CheckBox editPublishedLocal;
   private Label validationLabel;
   private Result validation = new Result(List.of());
+  private final PauseTransition validationDelay = new PauseTransition(Duration.millis(300));
+  private String persistedPermissions;
+  private String pendingPermissions;
+  private boolean validationPending;
   private boolean busy;
+  private boolean authoritativeServiceAvailable;
+  private boolean publicationAdministrator;
+  private boolean changingPublishedEditing;
+  private volatile List<PublicationTarget> publicationTargets = List.of();
+  private final Map<Section, Node> sectionPages = new EnumMap<>(Section.class);
+
+  private record PublicationTarget(ResourcesService service, boolean editor) {
+    @Override
+    public String toString() {
+      return service.serviceName();
+    }
+  }
+
+  private record PublicationDiscovery(
+      List<PublicationTarget> targets, boolean authorityAvailable, boolean administrator) {}
 
   public ResourceEditor(Object asset) {
     this(
@@ -114,16 +145,18 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
     this.workflowUIProvider =
         workflowUIProvider == null ? WorkflowUIProvider.NONE : workflowUIProvider;
     this.resource = copy(asset == null ? getEditedAsset() : asset);
-    if (this.resourceInfo.getRights() != null
-        && !this.resource.getMetadata().containsKey(ResourceEditorValidator.PERMISSIONS)) {
-      this.resource
-          .getMetadata()
-          .put(ResourceEditorValidator.PERMISSIONS, this.resourceInfo.getRights().toString());
-    }
+    ResourcePrivileges rights =
+        this.resourceInfo.getRights() == null
+            ? ResourcePrivileges.empty()
+            : this.resourceInfo.getRights();
+    this.persistedPermissions = rights.toString();
+    this.pendingPermissions = this.persistedPermissions;
     setEditedAsset(this.resource);
     this.adapters = discoverAdapters(service);
+    validationDelay.setOnFinished(event -> validateResourceNow());
     initializeSections();
-    validateResource();
+    validateResourceNow();
+    discoverPublicationTargets();
   }
 
   public void open() {
@@ -244,6 +277,7 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
     sectionLabels.put(Section.PARAMETERS, "Adapter parameters");
     sectionLabels.put(Section.METADATA, "Metadata");
     sectionLabels.put(Section.LICENSE, "License and usage");
+    sectionLabels.put(Section.PUBLICATION, "Publication");
     sectionLabels.put(Section.PERMISSIONS, "Permissions");
     sectionLabels.put(Section.FILES, "Files and integrity");
     sectionLabels.put(Section.WORKFLOWS, "Workflows");
@@ -277,6 +311,7 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
     publication
         .getChildren()
         .addAll(
+            new TreeItem<>(sectionMarkers.get(Section.PUBLICATION)),
             new TreeItem<>(sectionMarkers.get(Section.METADATA)),
             new TreeItem<>(sectionMarkers.get(Section.LICENSE)),
             new TreeItem<>(sectionMarkers.get(Section.PERMISSIONS)));
@@ -349,18 +384,21 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
   protected Node createEditor(Resource value) {
     Section section = value == resource ? Section.OVERVIEW : markerSections.get(value);
     if (section == null) return new VBox();
-    return switch (section) {
+    Node page = switch (section) {
       case OVERVIEW -> overviewPage();
       case GEOMETRY -> geometryPage();
       case INTERFACE -> interfacePage();
       case PARAMETERS -> parametersPage();
       case METADATA -> metadataPage();
       case LICENSE -> licensePage();
+      case PUBLICATION -> publicationPage();
       case PERMISSIONS -> permissionsPage();
       case FILES -> filesPage();
       case WORKFLOWS -> workflowsPage();
       case HISTORY -> historyPage();
     };
+    sectionPages.put(section, page);
+    return page;
   }
 
   private Node overviewPage() {
@@ -428,6 +466,7 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
     HBox.setHgrow(geometry, Priority.ALWAYS);
     HBox.setHgrow(metadata, Priority.ALWAYS);
     cards.getChildren().addAll(geometry, metadata);
+    setEditable(cards, canEditMetadata());
     validationLabel = new Label();
     validationLabel.setWrapText(true);
     validationLabel.setMaxWidth(Double.MAX_VALUE);
@@ -443,7 +482,22 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
     delete.getStyleClass().addAll(Styles.DANGER, Styles.BUTTON_OUTLINED);
     delete.setDisable(!canDelete() || draft);
     delete.setOnAction(event -> deleteResource());
-    HBox actions = new HBox(8, validationLabel, spacer(), delete, saveTemporaryButton, saveButton);
+    editPublishedLocal = new CheckBox("Edit published local copy");
+    editPublishedLocal.setVisible(isPublishedLocal());
+    editPublishedLocal.setManaged(isPublishedLocal());
+    editPublishedLocal.setSelected(!isPublishedLocal());
+    editPublishedLocal
+        .selectedProperty()
+        .addListener((observable, wasSelected, selected) -> changePublishedEditing(selected));
+    HBox actions =
+        new HBox(
+            8,
+            validationLabel,
+            spacer(),
+            editPublishedLocal,
+            delete,
+            saveTemporaryButton,
+            saveButton);
     actions.setAlignment(Pos.CENTER_LEFT);
     HBox.setHgrow(validationLabel, Priority.ALWAYS);
     content.getChildren().addAll(identity, cards, new Separator(), actions);
@@ -851,25 +905,339 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
 
   private Node permissionsPage() {
     VBox content = page("Permissions", "Access rights are evaluated separately from license terms");
-    ResourcePrivileges rights =
-        resourceInfo.getRights() == null ? ResourcePrivileges.empty() : resourceInfo.getRights();
-    PermissionEditor editor = new PermissionEditor(rights.toString());
-    resource.getMetadata().put(ResourceEditorValidator.PERMISSIONS, rights.toString());
+    PermissionEditor editor = new PermissionEditor(pendingPermissions);
+    Button update = new Button("Update permissions");
+    update.getStyleClass().add(Styles.ACCENT);
+    Label status = new Label();
+    status.setWrapText(true);
+    Runnable refresh =
+        () ->
+            update.setDisable(
+                draft
+                    || service == null
+                    || !canAdministerPermissions()
+                    || Objects.equals(persistedPermissions, pendingPermissions));
     editor
         .permissionsProperty()
         .addListener(
             (o, a, b) -> {
-              resourceInfo.setRights(ResourcePrivileges.create(b));
-              resource.getMetadata().put(ResourceEditorValidator.PERMISSIONS, b);
-              validateResource();
+              pendingPermissions = b;
+              status.setText(
+                  Objects.equals(persistedPermissions, pendingPermissions)
+                      ? ""
+                      : "Permissions have unsaved changes");
+              refresh.run();
             });
+    update.setOnAction(event -> updatePermissions(editor, update, status));
     Label note =
         new Label(
             "An empty permission set means current-owner scope only. Public access is represented by '*'.");
     note.setWrapText(true);
-    content.getChildren().addAll(note, editor);
-    setEditable(editor, canEdit());
+    if (draft) {
+      status.setText("Create the resource before setting its independent permissions.");
+    }
+    HBox actions = new HBox(10, update, status);
+    actions.setAlignment(Pos.CENTER_LEFT);
+    HBox.setHgrow(status, Priority.ALWAYS);
+    content.getChildren().addAll(note, editor, actions);
+    setEditable(editor, canAdministerPermissions());
+    refresh.run();
     return content;
+  }
+
+  private Node publicationPage() {
+    VBox content =
+        page(
+            "Publication",
+            "Submit this local Resource to an authoritative remote Resources service for review");
+    publicationStatus = new Label();
+    publicationStatus.setWrapText(true);
+
+    publicationTarget = new ComboBox<>();
+    publicationTarget.setMaxWidth(Double.MAX_VALUE);
+    publicationTarget.getItems().setAll(publicationTargets);
+    publicationTarget
+        .valueProperty()
+        .addListener(
+            (observable, oldTarget, newTarget) -> {
+              if (publicationConfirmation != null) publicationConfirmation.setSelected(false);
+              refreshPublicationControls();
+            });
+    if (!publicationTarget.getItems().isEmpty()) {
+      publicationTarget.getSelectionModel().selectFirst();
+    }
+
+    intendedEditor = new TextField();
+    intendedEditor.setPromptText("Editor identity for the review");
+    intendedEditor
+        .textProperty()
+        .addListener((observable, oldValue, newValue) -> refreshPublicationControls());
+
+    publicationConfirmation =
+        new CheckBox(
+            "I confirm this target and understand that the local copy becomes read-only by default");
+    publicationConfirmation.setWrapText(true);
+    publicationConfirmation
+        .selectedProperty()
+        .addListener((observable, oldValue, newValue) -> refreshPublicationControls());
+
+    publishButton = new WaitButton(resourceInfo.isPublished() ? "Re-publish" : "Publish");
+    publishButton.getStyleClass().add(Styles.ACCENT);
+    publishButton.setOnActionAsync(this::publishSelectedResource);
+    publishButton
+        .stateProperty()
+        .addListener((observable, oldState, newState) -> refreshPublicationControls());
+
+    GridPane form = form();
+    addRow(form, 0, "Target service", publicationTarget);
+    addRow(form, 1, "Intended editor", intendedEditor);
+    content
+        .getChildren()
+        .addAll(publicationStatus, form, publicationConfirmation, new HBox(8, publishButton));
+    refreshPublicationControls();
+    return content;
+  }
+
+  private void discoverPublicationTargets() {
+    if (service == null || !service.isLocal() || draft) {
+      publicationTargets = List.of();
+      return;
+    }
+    UserScope scope = KlabIDEController.instance().user();
+    CompletableFuture
+        .supplyAsync(
+            () -> {
+              List<PublicationTarget> targets = new ArrayList<>();
+              boolean authorityAvailable = false;
+              boolean administrator =
+                  service
+                      .capabilities(scope)
+                      .getPermissions()
+                      .contains(CRUDOperation.ADMINISTER);
+              var workflowRoles = WorkflowParticipant.from(scope).getRoles();
+              boolean editor =
+                  workflowRoles.contains(WorkflowRole.EDITOR)
+                      || workflowRoles.contains(WorkflowRole.ADMIN);
+              for (ResourcesService candidate : scope.getServices(ResourcesService.class)) {
+                if (candidate == null || candidate.isLocal()) continue;
+                try {
+                  var status = candidate.status();
+                  boolean available = status != null && status.isAvailable();
+                  if (Objects.equals(
+                      candidate.serviceId(), resourceInfo.getAuthoritativeServiceId())) {
+                    authorityAvailable = available;
+                  }
+                  if (!available) continue;
+                  var permissions = candidate.capabilities(scope).getPermissions();
+                  if (permissions.contains(CRUDOperation.CREATE)) {
+                    if (resourceInfo.isPublished()
+                        && Objects.equals(
+                            candidate.serviceId(), resourceInfo.getAuthoritativeServiceId())) {
+                      try {
+                        String authoritativeUrn = resourceInfo.getAuthoritativeResourceUrn();
+                        if (authoritativeUrn == null || authoritativeUrn.isBlank()) {
+                          authoritativeUrn =
+                              ResourcesService.publicationUrn(
+                                  resource.getUrn(), candidate.serviceName());
+                        }
+                        if (candidate.retrieve(authoritativeUrn, Resource.class, scope) != null) {
+                          continue;
+                        }
+                      } catch (RuntimeException cannotConfirmDeletion) {
+                        continue;
+                      }
+                    }
+                    targets.add(
+                        new PublicationTarget(candidate, editor));
+                  }
+                } catch (RuntimeException ignored) {
+                  // An unreachable service is not a publication target.
+                }
+              }
+              boolean mayRepublish =
+                  !resourceInfo.isPublished()
+                      || !authorityAvailable
+                      || administrator;
+              return new PublicationDiscovery(
+                  mayRepublish ? List.copyOf(targets) : List.of(),
+                  authorityAvailable,
+                  administrator);
+            })
+        .whenComplete(
+            (discovery, failure) ->
+                Platform.runLater(
+                    () -> {
+                      publicationTargets =
+                          failure == null && discovery != null ? discovery.targets() : List.of();
+                      authoritativeServiceAvailable =
+                          failure == null && discovery != null && discovery.authorityAvailable();
+                      publicationAdministrator =
+                          failure == null && discovery != null && discovery.administrator();
+                      if (publicationTarget != null) {
+                        publicationTarget.getItems().setAll(publicationTargets);
+                        if (!publicationTargets.isEmpty()) {
+                          publicationTarget.getSelectionModel().selectFirst();
+                        }
+                      }
+                      refreshPublicationControls();
+                    }));
+  }
+
+  private void refreshPublicationControls() {
+    if (publicationTarget == null) return;
+    PublicationTarget selected = publicationTarget.getValue();
+    boolean needsEditor = selected != null && !selected.editor();
+    intendedEditor.setVisible(needsEditor);
+    intendedEditor.setManaged(needsEditor);
+    if (publicationStatus != null) {
+      if (service == null || !service.isLocal()) {
+        publicationStatus.setText("Only a resource hosted by a local service can be published.");
+      } else if (draft) {
+        publicationStatus.setText("Create the local resource before publishing it.");
+      } else if (resourceInfo.isPublished() && authoritativeServiceAvailable
+          && !publicationAdministrator) {
+        publicationStatus.setText(
+            "This resource is authoritative on "
+                + resourceInfo.getAuthoritativeServiceId()
+                + ". Further operations must be performed there.");
+      } else if (publicationTargets.isEmpty()) {
+        publicationStatus.setText(
+            "No available remote Resources service grants CREATE permission to this user.");
+      } else if (resourceInfo.isPublished()) {
+        publicationStatus.setText(
+            "Re-publication changes the authoritative service. The target will still reject this URN if it already exists.");
+      } else {
+        publicationStatus.setText(
+            "The accepted resource will enter tier 1 under review. Local editing will be restricted.");
+      }
+    }
+    if (publishButton != null) {
+      publishButton.setDisable(
+          validationPending
+              || !validation.valid()
+              || selected == null
+              || resourceInfo.isPublished()
+                  && authoritativeServiceAvailable
+                  && !publicationAdministrator
+              || !publicationConfirmation.isSelected()
+              || needsEditor && intendedEditor.getText().isBlank()
+              || publishButton.isWaiting());
+    }
+  }
+
+  private CompletableFuture<Boolean> publishSelectedResource() {
+    validateResourceNow();
+    PublicationTarget selected = publicationTarget == null ? null : publicationTarget.getValue();
+    if (!validation.valid()
+        || selected == null
+        || !publicationConfirmation.isSelected()
+        || !selected.editor() && intendedEditor.getText().isBlank()) {
+      refreshPublicationControls();
+      return CompletableFuture.completedFuture(false);
+    }
+    ResourceImpl submitted = copy(resource);
+    submitted.setServiceId(selected.service().serviceId());
+    if (!selected.editor()) {
+      submitted
+          .getMetadata()
+          .put(ResourcesService.INTENDED_EDITOR_METADATA, intendedEditor.getText().strip());
+    }
+    AtomicReference<String> authoritativeUrn = new AtomicReference<>();
+    return CompletableFuture
+        .supplyAsync(
+            () -> {
+              Collection<ResourceSet> results =
+                  selected
+                      .service()
+                      .submit(
+                          submitted,
+                          ResourcesService.SubmissionMode.PUBLISH,
+                          KlabIDEController.instance().user());
+              ensureSubmissionSucceeded(results);
+              authoritativeUrn.set(authoritativeUrn(results));
+              if (!service.markPublished(
+                  resource.getUrn(),
+                  selected.service().serviceId(),
+                  authoritativeUrn.get(),
+                  KlabIDEController.instance().user())) {
+                throw new IllegalStateException(
+                    "The remote copy was accepted, but the local publication record could not be updated");
+              }
+              return true;
+            })
+        .whenComplete(
+            (published, failure) ->
+                Platform.runLater(
+                    () -> {
+                      if (failure == null && Boolean.TRUE.equals(published)) {
+                        resourceInfo.setPublished(true);
+                        resourceInfo.setAuthoritativeServiceId(selected.service().serviceId());
+                        resourceInfo.setAuthoritativeResourceUrn(authoritativeUrn.get());
+                        resourceInfo.setPublicationTimestamp(System.currentTimeMillis());
+                        authoritativeServiceAvailable = true;
+                        publicationConfirmation.setSelected(false);
+                        if (editPublishedLocal != null) {
+                          editPublishedLocal.setVisible(true);
+                          editPublishedLocal.setManaged(true);
+                          editPublishedLocal.setSelected(false);
+                        }
+                        refreshPublishedEditingState();
+                        KlabIDEController.instance()
+                            .handleNotification(
+                                Notification.info(
+                                    "Resource published to " + selected.service().serviceName()));
+                        discoverPublicationTargets();
+                      } else if (failure != null) {
+                        notifyError("Resource could not be published: " + failure.getMessage());
+                      }
+                      refreshPublicationControls();
+                    }));
+  }
+
+  private void updatePermissions(PermissionEditor editor, Button update, Label status) {
+    if (draft || service == null || !canAdministerPermissions()) return;
+    String submittedPermissions = pendingPermissions;
+    ResourcePrivileges submittedRights = ResourcePrivileges.create(submittedPermissions);
+    update.setDisable(true);
+    setEditable(editor, false);
+    status.setText("Updating permissions…");
+    Task<Void> task =
+        new Task<>() {
+          @Override
+          protected Void call() {
+            if (!service.setRights(
+                resource.getUrn(), submittedRights, KlabIDEController.instance().user())) {
+              throw new IllegalStateException("The service rejected the permission update");
+            }
+            return null;
+          }
+        };
+    task.setOnSucceeded(
+        event -> {
+          resourceInfo.setRights(submittedRights);
+          persistedPermissions = submittedPermissions;
+          setEditable(editor, canAdministerPermissions());
+          update.setDisable(
+              !canAdministerPermissions()
+                  || Objects.equals(persistedPermissions, pendingPermissions));
+          status.setText(
+              Objects.equals(persistedPermissions, pendingPermissions)
+                  ? "Permissions updated"
+                  : "Permissions updated; additional changes remain unsaved");
+          KlabIDEController.instance()
+              .handleNotification(
+                  Notification.info("Permissions updated: " + resource.getUrn()));
+        });
+    task.setOnFailed(
+        event -> {
+          setEditable(editor, canAdministerPermissions());
+          update.setDisable(!canAdministerPermissions());
+          status.setText("Permissions could not be updated");
+          notifyError("Permissions could not be updated: " + task.getException().getMessage());
+        });
+    Thread thread = new Thread(task, "resource-permissions-update");
+    thread.setDaemon(true);
+    thread.start();
   }
 
   private Node filesPage() {
@@ -1106,22 +1474,40 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
   }
 
   private void validateResource() {
+    validationPending = true;
+    refreshValidationControls();
+    validationDelay.playFromStart();
+  }
+
+  private void validateResourceNow() {
+    validationDelay.stop();
     AdapterDescriptor adapter = selectedAdapter();
     Adapter.Parameter[] parameters =
         adapter == null || adapter.getParameters() == null
             ? new Adapter.Parameter[0]
             : adapter.getParameters().toArray(Adapter.Parameter[]::new);
     validation = ResourceEditorValidator.validate(resource, expectedServiceId(), parameters);
+    validationPending = false;
     refreshValidationControls();
     if (index != null) index.refresh();
   }
 
   private void refreshValidationControls() {
     if (saveButton != null)
-      saveButton.setDisable(!validation.valid() || !canEditMetadata() || busy || service == null);
+      saveButton.setDisable(
+          validationPending
+              || !validation.valid()
+              || !canEditMetadata()
+              || busy
+              || service == null);
     if (saveTemporaryButton != null)
       saveTemporaryButton.setDisable(
-          !validation.valid(Section.OVERVIEW) || !canEditMetadata() || busy || service == null);
+          validationPending
+              || !validation.valid(Section.OVERVIEW)
+              || !canEditMetadata()
+              || !canUpdateTemporaryData()
+              || busy
+              || service == null);
     if (validationLabel != null) {
       if (validation.valid()) {
         validationLabel.setText("Ready to " + (draft ? "create" : "save"));
@@ -1148,6 +1534,7 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
         validationLabel.setStyle("-fx-text-fill: -color-danger-fg;");
       }
     }
+    refreshPublicationControls();
   }
 
   private String expectedServiceId() {
@@ -1155,6 +1542,8 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
   }
 
   private boolean canEdit() {
+    if (isPublishedLocal()
+        && (editPublishedLocal == null || !editPublishedLocal.isSelected())) return false;
     if (draft) return true;
     if (resourceInfo.getPermissions() != null && !resourceInfo.getPermissions().isEmpty())
       return resourceInfo.getPermissions().contains(CRUDOperation.UPDATE)
@@ -1169,43 +1558,52 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
   }
 
   private boolean canEditMetadata() {
+    if (isPublishedLocal()
+        && (editPublishedLocal == null || !editPublishedLocal.isSelected())) return false;
     return canEdit()
         || resourceInfo.getPermissions().contains(CRUDOperation.UPDATE_METADATA)
         || resourceInfo.getPermissions().contains(CRUDOperation.ADMINISTER);
   }
 
   private boolean canDelete() {
+    if (isPublishedLocal()
+        && (editPublishedLocal == null || !editPublishedLocal.isSelected())) return false;
     return resourceInfo.getPermissions().contains(CRUDOperation.DELETE)
         || resourceInfo.getPermissions().contains(CRUDOperation.ADMINISTER);
   }
 
   private void submit(boolean temporary) {
-    validateResource();
+    validateResourceNow();
     if ((!temporary && !validation.valid())
         || (temporary && !validation.valid(Section.OVERVIEW))
         || service == null
         || busy) return;
     busy = true;
     refreshValidationControls();
+    ResourceImpl submitted = copy(resource);
+    submitted.setTimestamp(System.currentTimeMillis());
+    submitted.setServiceId(service.serviceId());
     Task<Resource> task =
         new Task<>() {
           @Override
           protected Resource call() throws Exception {
-            resource.setTimestamp(System.currentTimeMillis());
-            resource.setServiceId(service.serviceId());
             if (draft) {
-              Future<?> future =
-                  service.importResource(resource, KlabIDEController.instance().user());
-              future.get();
-            } else
-              service.submit(
-                  resource,
-                  ResourcesService.SubmissionMode.UPDATE,
-                  KlabIDEController.instance().user());
+              Future<ResourceSet> future =
+                  service.importResource(submitted, KlabIDEController.instance().user());
+              ensureSubmissionSucceeded(List.of(future.get()));
+            } else {
+              ensureSubmissionSucceeded(
+                  service.submit(
+                      submitted,
+                      temporary
+                          ? ResourcesService.SubmissionMode.REPLACE
+                          : ResourcesService.SubmissionMode.UPDATE,
+                      KlabIDEController.instance().user()));
+            }
             Resource stored =
                 service.retrieve(
-                    resource.getUrn(), Resource.class, KlabIDEController.instance().user());
-            return stored == null ? resource : stored;
+                    submitted.getUrn(), Resource.class, KlabIDEController.instance().user());
+            return stored == null ? submitted : stored;
           }
         };
     task.setOnSucceeded(
@@ -1217,7 +1615,8 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
             resourceInfo.setStage(ResourceInfo.Stage.STAGING);
           draft = false;
           if (saveButton != null) saveButton.setText("Save new version");
-          validateResource();
+          discoverPublicationTargets();
+          validateResourceNow();
           onSaved.accept(stored);
           KlabIDEController.instance()
               .handleNotification(
@@ -1234,6 +1633,100 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
     Thread thread = new Thread(task, "resource-submit");
     thread.setDaemon(true);
     thread.start();
+  }
+
+  private boolean isPublishedLocal() {
+    return service != null && service.isLocal() && resourceInfo.isPublished();
+  }
+
+  private void changePublishedEditing(boolean selected) {
+    if (changingPublishedEditing || !isPublishedLocal()) return;
+    if (selected) {
+      Alert warning = new Alert(Alert.AlertType.WARNING);
+      warning.setTitle("Edit published local copy");
+      warning.setHeaderText("The authoritative resource is remote");
+      warning.setContentText(
+          "Changes made here do not update "
+              + resourceInfo.getAuthoritativeServiceId()
+              + ". Continue only for a deliberate local amendment or re-publication.");
+      ButtonType confirm = new ButtonType("Enable local editing", ButtonBar.ButtonData.OK_DONE);
+      warning.getButtonTypes().setAll(confirm, ButtonType.CANCEL);
+      if (warning.showAndWait().orElse(ButtonType.CANCEL) != confirm) {
+        changingPublishedEditing = true;
+        editPublishedLocal.setSelected(false);
+        changingPublishedEditing = false;
+      }
+    }
+    refreshPublishedEditingState();
+  }
+
+  private void refreshPublishedEditingState() {
+    for (var entry : sectionPages.entrySet()) {
+      if (entry.getKey() == Section.PUBLICATION
+          || entry.getKey() == Section.PERMISSIONS
+          || entry.getKey() == Section.WORKFLOWS
+          || entry.getKey() == Section.HISTORY) continue;
+      setEditable(
+          entry.getValue(),
+          entry.getKey() == Section.METADATA || entry.getKey() == Section.LICENSE
+              ? canEditMetadata()
+              : canEdit());
+    }
+    if (editPublishedLocal != null) editPublishedLocal.setDisable(false);
+    refreshValidationControls();
+  }
+
+  private boolean canAdministerPermissions() {
+    if (draft || service == null) return false;
+    if (resourceInfo.getPermissionsOwnerUrn() != null
+        && !resource.getUrn().equals(resourceInfo.getPermissionsOwnerUrn())) return false;
+    if (resourceInfo.getPermissions() != null
+        && resourceInfo.getPermissions().contains(CRUDOperation.ADMINISTER)) return true;
+    try {
+      if (resourceInfo.getOwner() != null
+          && resourceInfo
+              .getOwner()
+              .equals(KlabIDEController.instance().user().getUser().getUsername())) return true;
+      return service
+          .capabilities(KlabIDEController.instance().user())
+          .getPermissions()
+          .contains(CRUDOperation.ADMINISTER);
+    } catch (Throwable ignored) {
+      return false;
+    }
+  }
+
+  private boolean canUpdateTemporaryData() {
+    return draft || service != null && (service.isLocal() || resourceInfo.getReviewStatus() == 0);
+  }
+
+  static void ensureSubmissionSucceeded(Collection<ResourceSet> results) {
+    String errors =
+        safe(results).stream()
+            .filter(Objects::nonNull)
+            .flatMap(result -> safe(result.getNotifications()).stream())
+            .filter(
+                notification ->
+                    notification.getLevel().severity >= Notification.Level.Error.severity)
+            .map(Notification::getMessage)
+            .filter(Objects::nonNull)
+            .distinct()
+            .reduce((first, second) -> first + "; " + second)
+            .orElse(null);
+    if (errors != null) throw new IllegalStateException(errors);
+  }
+
+  static String authoritativeUrn(Collection<ResourceSet> results) {
+    return safe(results).stream()
+        .filter(Objects::nonNull)
+        .flatMap(result -> safe(result.getResources()).stream())
+        .map(ResourceSet.Resource::getResourceUrn)
+        .filter(urn -> urn != null && !urn.isBlank())
+        .findFirst()
+        .orElseThrow(
+            () ->
+                new IllegalStateException(
+                    "The remote service accepted publication without returning its authoritative URN"));
   }
 
   private void deleteResource() {
@@ -1370,6 +1863,8 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
     else if (node instanceof ComboBox<?> combo) combo.setDisable(!editable);
     else if (node instanceof DatePicker picker) picker.setDisable(!editable);
     else if (node instanceof CheckBox check) check.setDisable(!editable);
+    if (node instanceof ScrollPane scroll && scroll.getContent() != null)
+      setEditable(scroll.getContent(), editable);
     if (node instanceof Parent parent)
       parent.getChildrenUnmodifiable().forEach(child -> setEditable(child, editable));
   }

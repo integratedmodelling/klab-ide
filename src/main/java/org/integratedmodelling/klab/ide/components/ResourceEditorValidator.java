@@ -21,8 +21,6 @@ public final class ResourceEditorValidator {
   public static final String LICENSE_TEXT = "im:license-text";
   public static final String LICENSE_URL = "im:license-url";
   public static final String USAGE = "im:usage";
-  public static final String PERMISSIONS = "im:permissions";
-
   private static final Pattern URN_TOKEN = Pattern.compile("[^\\s:#@]+");
   private static final Pattern IDENTIFIER = Pattern.compile("[a-z0-9][a-z0-9._-]*");
 
@@ -33,6 +31,7 @@ public final class ResourceEditorValidator {
     PARAMETERS,
     METADATA,
     LICENSE,
+    PUBLICATION,
     PERMISSIONS,
     FILES,
     WORKFLOWS,

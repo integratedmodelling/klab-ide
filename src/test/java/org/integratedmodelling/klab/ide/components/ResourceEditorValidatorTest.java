@@ -1,6 +1,9 @@
 package org.integratedmodelling.klab.ide.components;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -11,6 +14,8 @@ import org.integratedmodelling.klab.api.knowledge.Artifact;
 import org.integratedmodelling.klab.api.services.resources.adapters.Adapter;
 import org.integratedmodelling.klab.api.services.resources.impl.AttributeImpl;
 import org.integratedmodelling.klab.api.services.resources.impl.ResourceImpl;
+import org.integratedmodelling.klab.api.services.resources.ResourceSet;
+import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.junit.jupiter.api.Test;
 
 class ResourceEditorValidatorTest {
@@ -60,6 +65,34 @@ class ResourceEditorValidatorTest {
     assertFalse(result.valid(ResourceEditorValidator.Section.INTERFACE));
   }
 
+  @Test
+  void submissionErrorsAreNotMistakenForSuccessfulSaves() {
+    assertThrows(
+        IllegalStateException.class,
+        () ->
+            ResourceEditor.ensureSubmissionSucceeded(
+                List.of(ResourceSet.empty(Notification.error("update rejected")))));
+    assertDoesNotThrow(
+        () ->
+            ResourceEditor.ensureSubmissionSucceeded(
+                List.of(ResourceSet.empty(Notification.info("resource stored")))));
+  }
+
+  @Test
+  void publicationUsesTheAuthoritativeUrnReturnedByTheRemoteService() {
+    var result = new ResourceSet();
+    var published = new ResourceSet.Resource();
+    published.setResourceUrn("remote:reviewed:namespace:resource");
+    result.getResources().add(published);
+
+    assertEquals(
+        "remote:reviewed:namespace:resource",
+        ResourceEditor.authoritativeUrn(List.of(result)));
+    assertThrows(
+        IllegalStateException.class,
+        () -> ResourceEditor.authoritativeUrn(List.of(new ResourceSet())));
+  }
+
   private static ResourceImpl completeResource() {
     var resource = new ResourceImpl();
     resource.setUrn("resources.one:im:data:temperature");
@@ -67,7 +100,7 @@ class ResourceEditorValidatorTest {
     resource.setAdapterType("table");
     resource.setVersion(new Version("1.0.0"));
     resource.setType(Artifact.Type.NUMBER);
-    resource.setGeometry(Geometry.UNIVERSAL);
+    resource.setGeometry(Geometry.create("S2(1,1)"));
     resource.getMetadata().put(Metadata.DC_LABEL, "Temperature");
     resource.getMetadata().put(Metadata.DC_ORIGINATOR, "Example institute");
     resource.getMetadata().put(ResourceEditorValidator.CONTACT, "data@example.org");

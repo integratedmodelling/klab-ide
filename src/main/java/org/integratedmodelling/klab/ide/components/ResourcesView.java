@@ -16,6 +16,7 @@ import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
@@ -97,6 +98,8 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
     TextField searchBox = new TextField();
     searchBox.setPromptText("Search resources...");
     searchBox.setPrefWidth(BrowsablePage.BROWSER_WIDTH - 20);
+    CheckBox includePublished = new CheckBox("Show published local resources");
+    includePublished.setWrapText(true);
 
     // Create a VBox to hold search results
     VBox resultsBox = new VBox(10);
@@ -118,7 +121,22 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
     showResults(resultsBox, resolverResources, List.of(), "");
 
     debounce.setOnFinished(
-        event -> startResourceSearch(searchBox.getText(), resultsBox, resolverResources, currentTask));
+        event ->
+            startResourceSearch(
+                searchBox.getText(),
+                includePublished.isSelected(),
+                resultsBox,
+                resolverResources,
+                currentTask));
+
+    includePublished
+        .selectedProperty()
+        .addListener(
+            (observable, oldValue, newValue) -> {
+              if (searchBox.getText() != null && !searchBox.getText().isBlank()) {
+                debounce.playFromStart();
+              }
+            });
 
     searchBox
         .textProperty()
@@ -144,7 +162,7 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
           if (resourceDialog != null) {
             vBox.getChildren().add(resourceDialog);
           }
-          vBox.getChildren().addAll(searchBox, resultsBox);
+          vBox.getChildren().addAll(searchBox, includePublished, resultsBox);
         });
   }
 
@@ -365,6 +383,7 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
 
   private void startResourceSearch(
       String text,
+      boolean includePublishedLocal,
       VBox resultsBox,
       List<Resource> resolverResources,
       AtomicReference<Task<List<ResourceInfo>>> currentTask) {
@@ -389,15 +408,20 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
               try {
                 var serviceResults =
                     service.query(
-                        Parameters.create("query", queryText, "limit", SEARCH_RESULT_LIMIT),
+                        Parameters.create(
+                            "query",
+                            queryText,
+                            "limit",
+                            SEARCH_RESULT_LIMIT,
+                            "includePublishedLocal",
+                            includePublishedLocal),
                         KlabAsset.KnowledgeClass.RESOURCE,
                         ResourceInfo.class,
                         scope);
                 successfulServices++;
                 for (var resource : serviceResults) {
                   if (resource != null && resource.getUrn() != null) {
-                    // A resource can be advertised by more than one service; retain each host.
-                    results.put(resource.getServiceId() + "\n" + resource.getUrn(), resource);
+                    mergeResourceInfo(results, resource);
                   }
                 }
               } catch (RuntimeException failure) {
@@ -444,11 +468,11 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
     for (var resource : resolverResources) {
       if (matches(resource, queryText)) {
         var info = makeResourceInfo(resource);
-        displayed.put(info.getServiceId() + "\n" + info.getUrn(), info);
+        mergeResourceInfo(displayed, info);
       }
     }
     for (var info : serviceResults) {
-      displayed.put(info.getServiceId() + "\n" + info.getUrn(), info);
+      mergeResourceInfo(displayed, info);
     }
     if (displayed.isEmpty() && !queryText.isBlank()) {
       Label noResults = new Label("No resources found");
@@ -495,6 +519,28 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
       return score == null ? 0 : Float.parseFloat(score.toString());
     } catch (NumberFormatException ignored) {
       return 0;
+    }
+  }
+
+  static void mergeResourceInfo(Map<String, ResourceInfo> resources, ResourceInfo candidate) {
+    if (candidate == null || candidate.getUrn() == null) return;
+    resources.merge(
+        candidate.getUrn(),
+        candidate,
+        (current, replacement) ->
+            resourceVersion(replacement).compareTo(resourceVersion(current)) >= 0
+                ? replacement
+                : current);
+  }
+
+  private static Version resourceVersion(ResourceInfo info) {
+    Object version = info.getMetadata() == null ? null : info.getMetadata().get("im:version");
+    try {
+      return version instanceof Version value
+          ? value
+          : version == null ? Version.EMPTY_VERSION : Version.create(version.toString());
+    } catch (RuntimeException ignored) {
+      return Version.EMPTY_VERSION;
     }
   }
 
