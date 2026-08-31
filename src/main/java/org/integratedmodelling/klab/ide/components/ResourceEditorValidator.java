@@ -23,7 +23,8 @@ public final class ResourceEditorValidator {
   public static final String USAGE = "im:usage";
   public static final String PERMISSIONS = "im:permissions";
 
-  private static final Pattern URN_PART = Pattern.compile("[a-z0-9][a-z0-9._-]*");
+  private static final Pattern URN_TOKEN = Pattern.compile("[^\\s:#@]+");
+  private static final Pattern IDENTIFIER = Pattern.compile("[a-z0-9][a-z0-9._-]*");
 
   public enum Section {
     OVERVIEW,
@@ -105,12 +106,12 @@ public final class ResourceEditorValidator {
       return;
     }
     for (int i = 0; i < parts.length; i++) {
-      if (!URN_PART.matcher(parts[i]).matches()) {
+      if (!URN_TOKEN.matcher(parts[i]).matches()) {
         issues.add(
             new Issue(
                 Section.OVERVIEW,
                 "urn",
-                "URN fields must use lowercase letters, numbers, '.', '_' or '-'"));
+                "URN fields cannot be empty or contain whitespace, ':', '#' or '@'"));
         break;
       }
     }
@@ -133,7 +134,7 @@ public final class ResourceEditorValidator {
         continue;
       }
       String normalized = attribute.getName().toLowerCase(Locale.ROOT);
-      if (!URN_PART.matcher(normalized).matches()) {
+      if (!IDENTIFIER.matcher(normalized).matches()) {
         issues.add(
             new Issue(
                 Section.INTERFACE,

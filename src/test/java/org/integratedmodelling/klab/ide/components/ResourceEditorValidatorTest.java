@@ -22,6 +22,14 @@ class ResourceEditorValidatorTest {
   }
 
   @Test
+  void acceptsCasePreservingUrnTokensAllowedByTheUrnContract() {
+    var resource = completeResource();
+    resource.setUrn("resources.one:ExampleOrg:Climate_Data:Temperature-2026");
+
+    assertTrue(ResourceEditorValidator.validate(resource, "resources.one", new Adapter.Parameter[0]).valid());
+  }
+
+  @Test
   void locatesIdentityParameterLicenseAndInterfaceErrors() {
     var resource = completeResource();
     resource.setUrn("another.service:im:data:temperature");

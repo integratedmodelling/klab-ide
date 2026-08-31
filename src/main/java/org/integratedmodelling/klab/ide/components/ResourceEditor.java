@@ -87,6 +87,7 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
   private Runnable onDeleted = () -> {};
   private TreeView<Resource> index;
   private Button saveButton;
+  private Button saveTemporaryButton;
   private Label validationLabel;
   private Result validation = new Result(List.of());
   private boolean busy;
@@ -285,9 +286,13 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
     metadata.setMinWidth(260); metadata.setMaxWidth(Double.MAX_VALUE); HBox.setHgrow(geometry, Priority.ALWAYS); HBox.setHgrow(metadata, Priority.ALWAYS);
     cards.getChildren().addAll(geometry, metadata);
     validationLabel = new Label(); validationLabel.setWrapText(true); validationLabel.setMaxWidth(Double.MAX_VALUE);
-    saveButton = new Button(draft ? "Create resource" : "Save new version"); saveButton.getStyleClass().add(Styles.ACCENT); saveButton.setOnAction(event -> submit());
+    saveTemporaryButton = new Button("Update temporary data");
+    saveTemporaryButton.setTooltip(
+        new Tooltip("Store the current information while keeping the resource in staging, even when publication metadata are incomplete."));
+    saveTemporaryButton.setOnAction(event -> submit(true));
+    saveButton = new Button(draft ? "Create resource" : "Save new version"); saveButton.getStyleClass().add(Styles.ACCENT); saveButton.setOnAction(event -> submit(false));
     Button delete = new Button("Delete"); delete.getStyleClass().addAll(Styles.DANGER, Styles.BUTTON_OUTLINED); delete.setDisable(!canDelete() || draft); delete.setOnAction(event -> deleteResource());
-    HBox actions = new HBox(8, validationLabel, spacer(), delete, saveButton); actions.setAlignment(Pos.CENTER_LEFT);
+    HBox actions = new HBox(8, validationLabel, spacer(), delete, saveTemporaryButton, saveButton); actions.setAlignment(Pos.CENTER_LEFT); HBox.setHgrow(validationLabel, Priority.ALWAYS);
     content.getChildren().addAll(identity, cards, new Separator(), actions); VBox.setVgrow(cards, Priority.ALWAYS); refreshValidationControls(); return scroll(content);
   }
 
@@ -468,8 +473,15 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
 
   private void refreshValidationControls() {
     if (saveButton != null) saveButton.setDisable(!validation.valid() || !canEditMetadata() || busy || service == null);
-    if (validationLabel != null) { if (validation.valid()) { validationLabel.setText("Ready to " + (draft ? "create" : "save")); validationLabel.setStyle("-fx-text-fill: -color-success-fg;"); }
-      else { validationLabel.setText(validation.issues().size() + " required or inconsistent field(s). Select red sections in the index."); validationLabel.setStyle("-fx-text-fill: -color-danger-fg;"); } }
+    if (saveTemporaryButton != null) saveTemporaryButton.setDisable(!validation.valid(Section.OVERVIEW) || !canEditMetadata() || busy || service == null);
+    if (validationLabel != null) { if (validation.valid()) { validationLabel.setText("Ready to " + (draft ? "create" : "save")); validationLabel.setTooltip(null); validationLabel.setStyle("-fx-text-fill: -color-success-fg;"); }
+      else {
+        String details = validation.issues().stream().limit(2).map(ResourceEditorValidator.Issue::message).distinct().reduce((a, b) -> a + "; " + b).orElse("Incomplete resource");
+        if (validation.issues().size() > 2) details += "; …";
+        validationLabel.setText(validation.issues().size() + " required or inconsistent field(s): " + details);
+        validationLabel.setTooltip(new Tooltip(validation.issues().stream().map(issue -> sectionLabels.get(issue.section()) + ": " + issue.message()).distinct().reduce((a, b) -> a + "\n" + b).orElse("")));
+        validationLabel.setStyle("-fx-text-fill: -color-danger-fg;");
+      } }
   }
 
   private String expectedServiceId() { return service != null ? service.serviceId() : resource.getServiceId(); }
@@ -481,8 +493,10 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
   private boolean canEditMetadata() { return canEdit() || resourceInfo.getPermissions().contains(CRUDOperation.UPDATE_METADATA) || resourceInfo.getPermissions().contains(CRUDOperation.ADMINISTER); }
   private boolean canDelete() { return resourceInfo.getPermissions().contains(CRUDOperation.DELETE) || resourceInfo.getPermissions().contains(CRUDOperation.ADMINISTER); }
 
-  private void submit() {
-    validateResource(); if (!validation.valid() || service == null || busy) return; busy = true; refreshValidationControls();
+  private void submit(boolean temporary) {
+    validateResource();
+    if ((!temporary && !validation.valid()) || (temporary && !validation.valid(Section.OVERVIEW)) || service == null || busy) return;
+    busy = true; refreshValidationControls();
     Task<Resource> task = new Task<>() { @Override protected Resource call() throws Exception { resource.setTimestamp(System.currentTimeMillis()); resource.setServiceId(service.serviceId());
       if (draft) { Future<?> future = service.importResource(resource, KlabIDEController.instance().user()); future.get(); } else service.submit(resource, ResourcesService.SubmissionMode.UPDATE, KlabIDEController.instance().user());
       Resource stored = service.retrieve(resource.getUrn(), Resource.class, KlabIDEController.instance().user()); return stored == null ? resource : stored; } };
@@ -490,11 +504,12 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
       busy = false;
       Resource stored = task.getValue();
       adoptStoredResource(stored);
+      if (temporary && (resourceInfo.getStage() == null || draft)) resourceInfo.setStage(ResourceInfo.Stage.STAGING);
       draft = false;
       if (saveButton != null) saveButton.setText("Save new version");
       validateResource();
       onSaved.accept(stored);
-      KlabIDEController.instance().handleNotification(Notification.info("Resource saved: " + resource.getUrn()));
+      KlabIDEController.instance().handleNotification(Notification.info((temporary ? "Temporary resource data updated: " : "Resource saved: ") + resource.getUrn()));
     });
     task.setOnFailed(event -> { busy = false; refreshValidationControls(); notifyError("Resource could not be saved: " + task.getException().getMessage()); }); Thread thread = new Thread(task, "resource-submit"); thread.setDaemon(true); thread.start();
   }
