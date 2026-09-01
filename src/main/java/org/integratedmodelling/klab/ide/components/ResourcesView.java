@@ -26,13 +26,13 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.util.Duration;
-import org.integratedmodelling.klab.api.collections.Parameters;
 import org.integratedmodelling.klab.api.authentication.CRUDOperation;
 import org.integratedmodelling.klab.api.authentication.ResourcePrivileges;
+import org.integratedmodelling.klab.api.collections.Parameters;
+import org.integratedmodelling.klab.api.configuration.Configuration;
 import org.integratedmodelling.klab.api.data.Version;
 import org.integratedmodelling.klab.api.geometry.Geometry;
 import org.integratedmodelling.klab.api.knowledge.Artifact;
-import org.integratedmodelling.klab.api.configuration.Configuration;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.Resource;
 import org.integratedmodelling.klab.api.services.Resolver;
@@ -44,7 +44,6 @@ import org.integratedmodelling.klab.api.services.runtime.extension.AdapterDescri
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.cards.ResourceSmallViewComponent;
-import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.ide.components.generic.UploadBox;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 import org.kordamp.ikonli.javafx.FontIcon;
@@ -172,8 +171,7 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
   }
 
   private Node createResourceDialog() {
-    var availableServices =
-        KlabIDEController.instance().user().getServices(ResourcesService.class);
+    var availableServices = KlabIDEController.instance().user().getServices(ResourcesService.class);
     var dialog = new VBox(8);
     dialog.setPadding(new Insets(6));
     dialog.setStyle("-fx-background-color: -color-neutral-muted;");
@@ -203,22 +201,30 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
             file -> Platform.runLater(dialogUpdater.get()),
             (message, throwable) ->
                 KlabIDEController.instance()
-                    .handleNotification(
-                        Notification.error("Resource upload failed: " + message)));
+                    .handleNotification(Notification.error("Resource upload failed: " + message)));
     uploadBox.setPrefWidth(270);
     uploadBox.setMaxWidth(270);
     uploadBox.setMinWidth(0);
 
     var selection = new GridPane();
-    selection.setHgap(6); selection.setVgap(6);
-    selection.add(new Label("Service *"), 0, 0); selection.add(serviceSelector, 1, 0);
-    selection.add(new Label("Adapter *"), 0, 1); selection.add(adapterSelector, 1, 1);
-    selection.add(new Label("Originator *"), 0, 2); selection.add(originator, 1, 2);
-    selection.add(new Label("Namespace *"), 0, 3); selection.add(namespace, 1, 3);
-    selection.add(new Label("Resource ID *"), 0, 4); selection.add(resourceId, 1, 4);
-    selection.add(new Label("URN"), 0, 5); selection.add(urnPreview, 1, 5);
+    selection.setHgap(6);
+    selection.setVgap(6);
+    selection.add(new Label("Service *"), 0, 0);
+    selection.add(serviceSelector, 1, 0);
+    selection.add(new Label("Adapter *"), 0, 1);
+    selection.add(adapterSelector, 1, 1);
+    selection.add(new Label("Originator *"), 0, 2);
+    selection.add(originator, 1, 2);
+    selection.add(new Label("Namespace *"), 0, 3);
+    selection.add(namespace, 1, 3);
+    selection.add(new Label("Resource ID *"), 0, 4);
+    selection.add(resourceId, 1, 4);
+    selection.add(new Label("URN"), 0, 5);
+    selection.add(urnPreview, 1, 5);
     selection.getColumnConstraints().add(new ColumnConstraints());
-    selection.getColumnConstraints().add(new ColumnConstraints(170, 200, Double.MAX_VALUE, Priority.ALWAYS, HPos.LEFT, true));
+    selection
+        .getColumnConstraints()
+        .add(new ColumnConstraints(170, 200, Double.MAX_VALUE, Priority.ALWAYS, HPos.LEFT, true));
 
     var uploadHint = new Label();
     uploadHint.setWrapText(true);
@@ -262,12 +268,14 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
         };
     dialogUpdater.set(update);
 
-    serviceSelector.valueProperty().addListener(
-        (observable, oldService, newService) -> {
-          adapterSelector.getItems().setAll(adapters(newService));
-          adapterSelector.getSelectionModel().selectFirst();
-          update.run();
-        });
+    serviceSelector
+        .valueProperty()
+        .addListener(
+            (observable, oldService, newService) -> {
+              adapterSelector.getItems().setAll(adapters(newService));
+              adapterSelector.getSelectionModel().selectFirst();
+              update.run();
+            });
     adapterSelector.valueProperty().addListener((observable, oldValue, newValue) -> update.run());
     originator.textProperty().addListener((observable, oldValue, newValue) -> update.run());
     namespace.textProperty().addListener((observable, oldValue, newValue) -> update.run());
@@ -291,13 +299,14 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
           info.setServiceId(service.serviceId());
           info.setKnowledgeClass(KlabAsset.KnowledgeClass.RESOURCE);
           info.setRights(ResourcePrivileges.create(KlabIDEController.instance().user()));
-          info.getPermissions().addAll(
-              List.of(
-                  CRUDOperation.READ,
-                  CRUDOperation.CREATE,
-                  CRUDOperation.UPDATE,
-                  CRUDOperation.UPDATE_METADATA,
-                  CRUDOperation.DELETE));
+          info.getPermissions()
+              .addAll(
+                  List.of(
+                      CRUDOperation.READ,
+                      CRUDOperation.CREATE,
+                      CRUDOperation.UPDATE,
+                      CRUDOperation.UPDATE_METADATA,
+                      CRUDOperation.DELETE));
           uploadBox.dispose();
           resourceDialog = null;
           updateBrowser();
@@ -331,11 +340,14 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
   }
 
   private static boolean validUrnPart(String value) {
-    return value != null && value.strip().toLowerCase(java.util.Locale.ROOT).matches("[a-z0-9][a-z0-9._-]*");
+    return value != null
+        && value.strip().toLowerCase(java.util.Locale.ROOT).matches("[a-z0-9][a-z0-9._-]*");
   }
 
   private static boolean adapterRequiresUpload(AdapterDescriptor adapter) {
-    return adapter != null && adapter.getImportSchemata() != null && !adapter.getImportSchemata().isEmpty();
+    return adapter != null
+        && adapter.getImportSchemata() != null
+        && !adapter.getImportSchemata().isEmpty();
   }
 
   private static List<AdapterDescriptor> adapters(ResourcesService service) {
@@ -343,7 +355,10 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
     try {
       return service.capabilities(KlabIDEController.instance().user()).getComponents().stream()
           .flatMap(component -> component.adapters().stream())
-          .filter(adapter -> adapter.getServiceId() == null || service.serviceId().equals(adapter.getServiceId()))
+          .filter(
+              adapter ->
+                  adapter.getServiceId() == null
+                      || service.serviceId().equals(adapter.getServiceId()))
           .sorted(java.util.Comparator.comparing(AdapterDescriptor::getName))
           .toList();
     } catch (Throwable error) {
@@ -432,9 +447,7 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
               throw lastFailure;
             }
             return results.values().stream()
-                .sorted(
-                    (first, second) ->
-                        Float.compare(searchScore(second), searchScore(first)))
+                .sorted((first, second) -> Float.compare(searchScore(second), searchScore(first)))
                 .toList();
           }
         };
@@ -613,7 +626,8 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
         var resolver =
             KlabIDEController.instance()
                 .user()
-                .findService(Resolver.class, s -> requestedInfo.getServiceId().equals(s.serviceId()))
+                .findService(
+                    Resolver.class, s -> requestedInfo.getServiceId().equals(s.serviceId()))
                 .orElse(null);
 
         if (resolver != null) {
@@ -642,9 +656,7 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
       selectEditor(openEditors.get(key));
       return;
     }
-    var editor =
-        new ResourceEditor(
-            service, resource, resourceInfo, draft, workflowUIProvider);
+    var editor = new ResourceEditor(service, resource, resourceInfo, draft, workflowUIProvider);
     openEditors.put(key, editor);
     editor.setOnSaved(
         stored -> {
@@ -658,7 +670,10 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
           removeEditor(editor);
           updateBrowser();
         });
-    addEditor(editor, resource.getUrn() == null ? "New resource" : resource.getUrn(), new FontIcon(Theme.RESOURCES_ICON));
+    addEditor(
+        editor,
+        resource.getUrn() == null ? "New resource" : resource.toString(),
+        new FontIcon(Theme.RESOURCE_ICON));
     Platform.runLater(editor::open);
   }
 

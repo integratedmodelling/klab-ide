@@ -22,6 +22,8 @@ public class KlabIDEApplication extends Application {
 
   public static final int MIN_WIDTH = 1200;
   public static final int SIDEBAR_WIDTH = 270;
+  private static final double WAIT_DIALOG_WIDTH = 420;
+  private static final double WAIT_DIALOG_SYNC_WIDTH = 620;
 
   private static Scene scene;
   private static KlabIDEApplication instance;
@@ -85,19 +87,29 @@ public class KlabIDEApplication extends Application {
 
   private WaitScreen createWaitScreen() {
     var progress = new ProgressIndicator();
-    progress.setMaxSize(72, 72);
+    progress.setMaxSize(48, 48);
 
     var title = new Label("Initializing k.LAB Modeler");
     title.setStyle("-fx-font-size: 20px; -fx-font-weight: bold;");
     var detail = new Label("Authenticating and connecting services…");
     detail.setWrapText(true);
-    detail.setMaxWidth(520);
+    detail.setMaxWidth(WAIT_DIALOG_WIDTH - 48);
     detail.setAlignment(Pos.CENTER);
 
     var distributionProgress = new DownloadMonitor();
     distributionProgress.setVisible(false);
     distributionProgress.setManaged(false);
-    distributionProgress.setMaxWidth(680);
+    distributionProgress.setMaxWidth(WAIT_DIALOG_SYNC_WIDTH - 48);
+
+    var content = new VBox(12, progress, title, detail, distributionProgress);
+    content.setAlignment(Pos.CENTER);
+    content.setPrefWidth(WAIT_DIALOG_WIDTH);
+    content.setMaxWidth(WAIT_DIALOG_WIDTH);
+    content.setMaxHeight(320);
+    content.setPadding(new javafx.geometry.Insets(24));
+    content.setStyle(
+        "-fx-background-color: -color-bg-default; -fx-background-radius: 12;"
+            + " -fx-border-color: -color-border-default; -fx-border-radius: 12;");
     distributionProgress
         .visibleProperty()
         .addListener(
@@ -107,19 +119,23 @@ public class KlabIDEApplication extends Application {
               if (isVisible) {
                 title.setText("Updating the k.LAB software stack");
                 detail.setText("The IDE will become available when synchronization finishes.");
+                detail.setMaxWidth(WAIT_DIALOG_SYNC_WIDTH - 48);
+                content.setPrefWidth(WAIT_DIALOG_SYNC_WIDTH);
+                content.setMaxWidth(WAIT_DIALOG_SYNC_WIDTH);
+                content.setMaxHeight(420);
+                content.setPadding(new javafx.geometry.Insets(20));
+              } else {
+                detail.setMaxWidth(WAIT_DIALOG_WIDTH - 48);
+                content.setPrefWidth(WAIT_DIALOG_WIDTH);
+                content.setMaxWidth(WAIT_DIALOG_WIDTH);
+                content.setMaxHeight(320);
+                content.setPadding(new javafx.geometry.Insets(24));
               }
             });
 
-    var content = new VBox(18, progress, title, detail, distributionProgress);
-    content.setAlignment(Pos.CENTER);
-    content.setMaxSize(760, 520);
-    content.setStyle(
-        "-fx-background-color: -color-bg-default; -fx-background-radius: 12;"
-            + " -fx-border-color: -color-border-default; -fx-border-radius: 12; -fx-padding: 36;");
-
     var container = new StackPane(content);
     container.setStyle("-fx-background-color: rgba(0, 0, 0, 0.38);");
-    return new WaitScreen(container, progress, title, detail, distributionProgress);
+    return new WaitScreen(container, content, progress, title, detail, distributionProgress);
   }
 
   private static Throwable rootCause(Throwable failure) {
@@ -132,6 +148,7 @@ public class KlabIDEApplication extends Application {
 
   private record WaitScreen(
       StackPane container,
+      VBox content,
       ProgressIndicator progress,
       Label title,
       Label detail,
@@ -148,6 +165,11 @@ public class KlabIDEApplication extends Application {
           message == null || message.isBlank()
               ? "The Modeler could not be initialized. Close the window and inspect the application log."
               : "The Modeler could not be initialized: " + message);
+      detail.setMaxWidth(WAIT_DIALOG_WIDTH - 48);
+      content.setPrefWidth(WAIT_DIALOG_WIDTH);
+      content.setMaxWidth(WAIT_DIALOG_WIDTH);
+      content.setMaxHeight(320);
+      content.setPadding(new javafx.geometry.Insets(24));
     }
   }
 
