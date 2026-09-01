@@ -1378,6 +1378,7 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
         for (Workflow workflow :
             Optional.ofNullable(workflowUIProvider.availableWorkflows(resource, scope))
                 .orElseGet(List::of)) {
+          if (workflow == null || !participant.isWorkflowPermitted(workflow)) continue;
           MenuItem item = new MenuItem(workflowName(workflow));
           item.setOnAction(event -> startWorkflow(workflow));
           workflows.getItems().add(item);
@@ -1392,6 +1393,8 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
     try {
       UserScope scope = KlabIDEController.instance().user();
       WorkflowParticipant participant = WorkflowParticipant.from(scope);
+      if (!participant.isWorkflowPermitted(workflow))
+        throw new IllegalStateException("Workflow is not permitted: " + workflowName(workflow));
       Workflow.TransitionSchema initialTransition =
           workflow.getTransitions().values().stream()
               .filter(transition -> transition.getSourceStates().contains(Workflow.INIT))
