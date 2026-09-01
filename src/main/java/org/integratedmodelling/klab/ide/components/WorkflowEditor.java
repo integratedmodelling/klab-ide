@@ -385,10 +385,11 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
         || flow.getStatus() == Flow.Status.CLOSED
         || state.getStatus() == Flow.StateStatus.CLOSED) return false;
     var participant = WorkflowParticipant.from(scope);
-    return participant.getRoles().contains(WorkflowRole.ADMIN)
-        || Objects.equals(state.getOwner(), participant.getIdentity())
-        || (participant.getRoles().contains(WorkflowRole.EDITOR)
-            && state.getAssignees().contains(participant.getIdentity()));
+    return workflow.canAccess(workflow.getStates().get(state.getSchemaId()), participant)
+        && (participant.getRoles().contains(WorkflowRole.ADMIN)
+            || Objects.equals(state.getOwner(), participant.getIdentity())
+            || (participant.getRoles().contains(WorkflowRole.EDITOR)
+                && state.getAssignees().contains(participant.getIdentity())));
   }
 
   private boolean isAdmin() {

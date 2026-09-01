@@ -125,6 +125,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       var start = new Menu("Start workflow");
       workflows.stream()
           .filter(Objects::nonNull)
+          .filter(participant::isWorkflowPermitted)
           .sorted(Comparator.comparing(WorkspaceEditor::workflowName))
           .forEach(
               workflow -> {
@@ -169,6 +170,9 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private void startWorkflow(NavigableAsset asset, Workflow workflow) {
     try {
       var participant = WorkflowParticipant.from(KlabIDEController.instance().user());
+      if (!participant.isWorkflowPermitted(workflow)) {
+        throw new IllegalStateException("Workflow is not permitted: " + workflowName(workflow));
+      }
       var initialTransition =
           workflow.getTransitions().values().stream()
               .filter(transition -> transition.getSourceStates().contains(Workflow.INIT))
