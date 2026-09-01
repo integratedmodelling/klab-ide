@@ -223,6 +223,7 @@ public enum Theme {
 
   // views
   public static Ikon RESOURCES_ICON = FontAwesomeSolid.CUBES;
+  public static Ikon RESOURCE_ICON = FontAwesomeSolid.CUBE;
   public static Ikon WORKSPACES_ICON = Material2AL.APPS; // BootstrapIcons.BORDER_ALL;
   public static Ikon DIGITAL_TWINS_ICON = Material2AL.GRAPHIC_EQ;
   public static Ikon APPLICATION_VIEW_ICON = Material2AL.DIRECTIONS_RUN;
@@ -329,6 +330,7 @@ public enum Theme {
           case NavigableFolder ignored -> FOLDER_ICON;
           case KActorsBehavior behavior -> getIcon(behavior);
           case Cohort ignored -> COHORT_ICON;
+          case Resource ignored -> RESOURCE_ICON;
           case Observation observation -> {
             semanticType =
                 SemanticType.fundamentalType(observation.getObservable().getSemantics().getType());

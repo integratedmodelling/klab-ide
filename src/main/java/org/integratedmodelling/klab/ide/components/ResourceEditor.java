@@ -15,8 +15,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
@@ -384,19 +384,20 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
   protected Node createEditor(Resource value) {
     Section section = value == resource ? Section.OVERVIEW : markerSections.get(value);
     if (section == null) return new VBox();
-    Node page = switch (section) {
-      case OVERVIEW -> overviewPage();
-      case GEOMETRY -> geometryPage();
-      case INTERFACE -> interfacePage();
-      case PARAMETERS -> parametersPage();
-      case METADATA -> metadataPage();
-      case LICENSE -> licensePage();
-      case PUBLICATION -> publicationPage();
-      case PERMISSIONS -> permissionsPage();
-      case FILES -> filesPage();
-      case WORKFLOWS -> workflowsPage();
-      case HISTORY -> historyPage();
-    };
+    Node page =
+        switch (section) {
+          case OVERVIEW -> overviewPage();
+          case GEOMETRY -> geometryPage();
+          case INTERFACE -> interfacePage();
+          case PARAMETERS -> parametersPage();
+          case METADATA -> metadataPage();
+          case LICENSE -> licensePage();
+          case PUBLICATION -> publicationPage();
+          case PERMISSIONS -> permissionsPage();
+          case FILES -> filesPage();
+          case WORKFLOWS -> workflowsPage();
+          case HISTORY -> historyPage();
+        };
     sectionPages.put(section, page);
     return page;
   }
@@ -1004,16 +1005,12 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
       return;
     }
     UserScope scope = KlabIDEController.instance().user();
-    CompletableFuture
-        .supplyAsync(
+    CompletableFuture.supplyAsync(
             () -> {
               List<PublicationTarget> targets = new ArrayList<>();
               boolean authorityAvailable = false;
               boolean administrator =
-                  service
-                      .capabilities(scope)
-                      .getPermissions()
-                      .contains(CRUDOperation.ADMINISTER);
+                  service.capabilities(scope).getPermissions().contains(CRUDOperation.ADMINISTER);
               var workflowRoles = WorkflowParticipant.from(scope).getRoles();
               boolean editor =
                   workflowRoles.contains(WorkflowRole.EDITOR)
@@ -1047,17 +1044,14 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
                         continue;
                       }
                     }
-                    targets.add(
-                        new PublicationTarget(candidate, editor));
+                    targets.add(new PublicationTarget(candidate, editor));
                   }
                 } catch (RuntimeException ignored) {
                   // An unreachable service is not a publication target.
                 }
               }
               boolean mayRepublish =
-                  !resourceInfo.isPublished()
-                      || !authorityAvailable
-                      || administrator;
+                  !resourceInfo.isPublished() || !authorityAvailable || administrator;
               return new PublicationDiscovery(
                   mayRepublish ? List.copyOf(targets) : List.of(),
                   authorityAvailable,
@@ -1094,7 +1088,8 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
         publicationStatus.setText("Only a resource hosted by a local service can be published.");
       } else if (draft) {
         publicationStatus.setText("Create the local resource before publishing it.");
-      } else if (resourceInfo.isPublished() && authoritativeServiceAvailable
+      } else if (resourceInfo.isPublished()
+          && authoritativeServiceAvailable
           && !publicationAdministrator) {
         publicationStatus.setText(
             "This resource is authoritative on "
@@ -1143,8 +1138,7 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
           .put(ResourcesService.INTENDED_EDITOR_METADATA, intendedEditor.getText().strip());
     }
     AtomicReference<String> authoritativeUrn = new AtomicReference<>();
-    return CompletableFuture
-        .supplyAsync(
+    return CompletableFuture.supplyAsync(
             () -> {
               Collection<ResourceSet> results =
                   selected
@@ -1225,8 +1219,7 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
                   ? "Permissions updated"
                   : "Permissions updated; additional changes remain unsaved");
           KlabIDEController.instance()
-              .handleNotification(
-                  Notification.info("Permissions updated: " + resource.getUrn()));
+              .handleNotification(Notification.info("Permissions updated: " + resource.getUrn()));
         });
     task.setOnFailed(
         event -> {
@@ -1542,8 +1535,8 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
   }
 
   private boolean canEdit() {
-    if (isPublishedLocal()
-        && (editPublishedLocal == null || !editPublishedLocal.isSelected())) return false;
+    if (isPublishedLocal() && (editPublishedLocal == null || !editPublishedLocal.isSelected()))
+      return false;
     if (draft) return true;
     if (resourceInfo.getPermissions() != null && !resourceInfo.getPermissions().isEmpty())
       return resourceInfo.getPermissions().contains(CRUDOperation.UPDATE)
@@ -1558,16 +1551,16 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
   }
 
   private boolean canEditMetadata() {
-    if (isPublishedLocal()
-        && (editPublishedLocal == null || !editPublishedLocal.isSelected())) return false;
+    if (isPublishedLocal() && (editPublishedLocal == null || !editPublishedLocal.isSelected()))
+      return false;
     return canEdit()
         || resourceInfo.getPermissions().contains(CRUDOperation.UPDATE_METADATA)
         || resourceInfo.getPermissions().contains(CRUDOperation.ADMINISTER);
   }
 
   private boolean canDelete() {
-    if (isPublishedLocal()
-        && (editPublishedLocal == null || !editPublishedLocal.isSelected())) return false;
+    if (isPublishedLocal() && (editPublishedLocal == null || !editPublishedLocal.isSelected()))
+      return false;
     return resourceInfo.getPermissions().contains(CRUDOperation.DELETE)
         || resourceInfo.getPermissions().contains(CRUDOperation.ADMINISTER);
   }
@@ -1914,6 +1907,14 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
     super.unsetDigitalTwin(scope);
   }
 
+  /**
+   * TODO improve icons in tree and tabs
+   *
+   * The page tabs currently all resolve through Theme.getGraphics(...), while the navigation
+   * tree uses validation-status icons directly. To give each page its own icon, the cleanest change
+   * is to add a Theme mapping keyed by ResourceEditor.Section and apply it when constructing the
+   * page tabs.
+   */
   private final class IndexCell extends TreeCell<Resource> {
     @Override
     protected void updateItem(Resource item, boolean empty) {
