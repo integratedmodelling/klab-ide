@@ -46,6 +46,17 @@ class ValueCardTest {
   }
 
   @Test
+  void leafletCoordinatesMapBackToNormalizedRasterCoordinates() {
+    var geometry = Geometry.builder().grid(-10.0, 30.0, 35.0, 60.0, "5 km").build();
+    var point = ValueCard.mapPoint(geometry, 0.0, 55.0);
+
+    assertEquals(0.25, point.normalizedX());
+    assertEquals(0.20, point.normalizedY());
+    assertEquals(0.0, point.longitude());
+    assertEquals(55.0, point.latitude());
+  }
+
+  @Test
   void temporalStatesMergeEventAndHistogramTimestampsInOrder() {
     var observation = new ObservationImpl();
     observation.setEventTimestamps(List.of(300L, 0L, 200L));

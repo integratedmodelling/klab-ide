@@ -1,6 +1,13 @@
 package org.integratedmodelling.klab.ide.components.cards;
 
-import java.io.ByteArrayInputStream;
+import io.github.makbn.jlmap.fx.JLMapView;
+import io.github.makbn.jlmap.listener.JLAction;
+import io.github.makbn.jlmap.listener.event.ClickEvent;
+import io.github.makbn.jlmap.map.JLMapProvider;
+import io.github.makbn.jlmap.model.JLBounds;
+import io.github.makbn.jlmap.model.JLImageOverlay;
+import io.github.makbn.jlmap.model.JLLatLng;
+import io.github.makbn.jlmap.model.JLOptions;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -10,6 +17,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -21,16 +29,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicLong;
 import javafx.application.Platform;
+import javafx.concurrent.Worker;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.Tooltip;
-import javafx.scene.image.Image;
-import javafx.scene.image.ImageView;
-import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
@@ -61,10 +66,15 @@ public class ValueCard extends BaseCard<Observation> {
 
   private final Options options;
   private final AtomicLong requestGeneration = new AtomicLong();
-  private final StackPane imageFrame = new StackPane();
-  private final ImageView imageView = new ImageView();
+  private final StackPane mapFrame = new StackPane();
   private final Label stateLabel = new Label();
   private final ProgressIndicator progress = new ProgressIndicator();
+  private JLMapView mapView;
+  private JLImageOverlay imageOverlay;
+  private byte[] pendingImage;
+  private Throwable pendingError;
+  private long pendingGeneration;
+  private boolean mapReady;
   private Long selectedTimestamp;
 
   public ValueCard(Observation asset, IDEContextScope scope, boolean extended) {
@@ -90,8 +100,8 @@ public class ValueCard extends BaseCard<Observation> {
       return;
     }
 
-    configureImageFrame();
-    setCenter(imageFrame);
+    configureMapFrame();
+    setCenter(mapFrame);
     setBottom(createStateBar());
     refresh();
   }
@@ -109,28 +119,48 @@ public class ValueCard extends BaseCard<Observation> {
     return selectedTimestamp;
   }
 
-  private void configureImageFrame() {
-    imageFrame.getStyleClass().add("observation-map-frame");
-    imageFrame.setAlignment(Pos.CENTER);
-    imageFrame.setMinSize(0, 0);
-    imageFrame.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+  private void configureMapFrame() {
+    mapFrame.getStyleClass().add("observation-map-frame");
+    mapFrame.setAlignment(Pos.CENTER);
+    mapFrame.setMinSize(0, 0);
+    mapFrame.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
 
-    imageView.getStyleClass().add("observation-map-image");
-    imageView.setPreserveRatio(true);
-    imageView.setSmooth(true);
-    imageView.setCursor(Cursor.CROSSHAIR);
-    imageView.fitWidthProperty().bind(imageFrame.widthProperty());
-    imageView.fitHeightProperty().bind(imageFrame.heightProperty());
-    imageView.setOnMouseClicked(
-        event -> {
-          if (event.getButton() == MouseButton.PRIMARY) {
-            queryPoint(event.getX(), event.getY());
+    List<Double> bounds = boundingBox(asset.getGeometry());
+    mapView =
+        JLMapView.builder()
+            .jlMapProvider(JLMapProvider.getDefault())
+            .startCoordinate(center(bounds))
+            .showZoomController(true)
+            .build();
+    mapView.setMinSize(0, 0);
+    mapView.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+    mapView.setOnActionListener(
+        (source, event) -> {
+          if (event instanceof ClickEvent clickEvent
+              && clickEvent.action() == JLAction.CLICK
+              && clickEvent.center() != null) {
+            queryPoint(clickEvent.center().getLng(), clickEvent.center().getLat());
           }
         });
 
+    var worker = mapView.getWebView().getEngine().getLoadWorker();
+    worker.stateProperty().addListener((observable, oldState, newState) -> onMapState(newState));
+
     progress.setMaxSize(36, 36);
     progress.setVisible(false);
-    imageFrame.getChildren().addAll(imageView, progress);
+    mapFrame.getChildren().addAll(mapView, progress);
+    onMapState(worker.getState());
+  }
+
+  private void onMapState(Worker.State state) {
+    if (state == Worker.State.SUCCEEDED) {
+      mapReady = true;
+      renderPendingImage();
+    } else if (state == Worker.State.FAILED || state == Worker.State.CANCELLED) {
+      mapReady = false;
+      progress.setVisible(false);
+      updateState("Map engine unavailable");
+    }
   }
 
   private Node createStateBar() {
@@ -174,8 +204,13 @@ public class ValueCard extends BaseCard<Observation> {
 
   private void refresh() {
     long generation = requestGeneration.incrementAndGet();
+    pendingGeneration = generation;
+    pendingImage = null;
+    pendingError = null;
     progress.setVisible(true);
-    imageView.setOpacity(0.45);
+    if (imageOverlay != null) {
+      imageOverlay.setJLObjectOpacity(0.45);
+    }
     updateState("Loading " + temporalLabel(selectedTimestamp) + "...");
 
     var request =
@@ -194,44 +229,58 @@ public class ValueCard extends BaseCard<Observation> {
                       if (generation != requestGeneration.get()) {
                         return;
                       }
-                      progress.setVisible(false);
-                      imageView.setOpacity(1);
-                      if (error != null || bytes == null || bytes.length == 0) {
-                        imageView.setImage(null);
-                        updateState("Map unavailable: " + errorMessage(error));
-                        return;
-                      }
-                      Image image = new Image(new ByteArrayInputStream(bytes));
-                      if (image.isError()) {
-                        imageView.setImage(null);
-                        updateState("The runtime returned an unreadable map image");
-                        return;
-                      }
-                      imageView.setImage(image);
-                      updateState(
-                          temporalLabel(selectedTimestamp)
-                              + " \u2022 click the map to retrieve a value");
+                      pendingGeneration = generation;
+                      pendingImage = bytes;
+                      pendingError = error;
+                      renderPendingImage();
                     }));
   }
 
-  private void queryPoint(double viewX, double viewY) {
-    Image image = imageView.getImage();
-    if (image == null) {
+  private void renderPendingImage() {
+    if (!mapReady || pendingGeneration != requestGeneration.get()) {
       return;
     }
-    Optional<NormalizedPoint> normalized =
-        normalizedPoint(
-            viewX,
-            viewY,
-            imageView.getBoundsInLocal().getWidth(),
-            imageView.getBoundsInLocal().getHeight(),
-            image.getWidth(),
-            image.getHeight());
-    if (normalized.isEmpty()) {
+    progress.setVisible(false);
+    if (pendingError != null || pendingImage == null || pendingImage.length == 0) {
+      if (imageOverlay != null) {
+        imageOverlay.remove();
+        imageOverlay = null;
+      }
+      updateState("Map unavailable: " + errorMessage(pendingError));
       return;
     }
 
-    MapPoint point = mapPoint(asset.getGeometry(), normalized.get());
+    try {
+      if (imageOverlay != null) {
+        imageOverlay.remove();
+      }
+      imageOverlay =
+          mapView
+              .getUiLayer()
+              .addImage(
+                  mapBounds(asset.getGeometry()),
+                  pngDataUrl(pendingImage),
+                  JLOptions.DEFAULT);
+      fitBounds(mapView, mapBounds(asset.getGeometry()));
+      pendingImage = null;
+      pendingError = null;
+      updateState(temporalLabel(selectedTimestamp) + " \u2022 click the map to retrieve a value");
+    } catch (RuntimeException e) {
+      updateState("Unable to display map overlay: " + errorMessage(e));
+    }
+  }
+
+  private void queryPoint(double longitude, double latitude) {
+    if (imageOverlay == null) {
+      return;
+    }
+    MapPoint point = mapPoint(asset.getGeometry(), longitude, latitude);
+    if (point.normalizedX() < 0
+        || point.normalizedX() > 1
+        || point.normalizedY() < 0
+        || point.normalizedY() > 1) {
+      return;
+    }
     long generation = requestGeneration.get();
     Long timestamp = selectedTimestamp;
     updateState("Retrieving value at " + point.label() + "...");
@@ -345,6 +394,52 @@ public class ValueCard extends BaseCard<Observation> {
     double longitude = minX + point.x() * (maxX - minX);
     double latitude = maxY - point.y() * (maxY - minY);
     return new MapPoint(point.x(), point.y(), longitude, latitude);
+  }
+
+  static MapPoint mapPoint(Geometry geometry, double longitude, double latitude) {
+    List<Double> bounds = boundingBox(geometry);
+    if (bounds.size() < 4) {
+      return new MapPoint(0, 0, longitude, latitude);
+    }
+    double minX = Math.min(bounds.get(0), bounds.get(1));
+    double maxX = Math.max(bounds.get(0), bounds.get(1));
+    double minY = Math.min(bounds.get(2), bounds.get(3));
+    double maxY = Math.max(bounds.get(2), bounds.get(3));
+    double normalizedX = maxX == minX ? 0 : (longitude - minX) / (maxX - minX);
+    double normalizedY = maxY == minY ? 0 : (maxY - latitude) / (maxY - minY);
+    return new MapPoint(normalizedX, normalizedY, longitude, latitude);
+  }
+
+  private static String pngDataUrl(byte[] bytes) {
+    return "data:image/png;base64," + Base64.getEncoder().encodeToString(bytes);
+  }
+
+  private static JLLatLng center(List<Double> bounds) {
+    if (bounds.size() < 4) {
+      return new JLLatLng(0, 0);
+    }
+    return new JLLatLng(
+        (bounds.get(2) + bounds.get(3)) / 2.0,
+        (bounds.get(0) + bounds.get(1)) / 2.0);
+  }
+
+  private static JLBounds mapBounds(Geometry geometry) {
+    List<Double> bounds = boundingBox(geometry);
+    if (bounds.size() < 4) {
+      throw new IllegalStateException("The observation geometry has no geographic bounds");
+    }
+    double west = Math.min(bounds.get(0), bounds.get(1));
+    double east = Math.max(bounds.get(0), bounds.get(1));
+    double south = Math.min(bounds.get(2), bounds.get(3));
+    double north = Math.max(bounds.get(2), bounds.get(3));
+    return JLBounds.builder()
+        .southWest(new JLLatLng(south, west))
+        .northEast(new JLLatLng(north, east))
+        .build();
+  }
+
+  private static void fitBounds(JLMapView map, JLBounds bounds) {
+    map.getControlLayer().fitBounds(bounds);
   }
 
   private static List<Double> boundingBox(Geometry geometry) {

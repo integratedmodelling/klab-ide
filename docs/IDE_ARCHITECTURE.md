@@ -216,18 +216,27 @@ The detailed card layer includes:
 - `ValueCard`.
 
 `ObservationCard` composes geometry/relationships, central observation content, and metadata.
-Spatially distributed two-dimensional qualities use `ValueCard`; other geometries and observation
-types use explicit stubs.
+Spatially distributed two-dimensional qualities use `ValueCard`. Shape-bearing substantial
+observations use `GeoJsonCard`, which obtains `application/geo+json` from the Runtime export API and
+adds it to a zoomable `JLMapView`; collective exports include their shape-bearing children. Other
+geometries and observation types use explicit stubs.
 
-`ValueCard` separates `MapImageProvider` and `PointValueProvider`. Runtime defaults execute
-`exportAsset` asynchronously:
+`CohortCard` uses the same GeoJSON map for spatial cohorts; the exported feature collection
+contains the cohort extent and its shape-bearing members. This path requires the Runtime export
+endpoint to assign and resolve cohort URNs, which the current service implementation does not yet
+do.
+
+`ValueCard` renders exported PNG states as georeferenced `JLImageOverlay` layers on `JLMapView` and
+separates `MapImageProvider` and `PointValueProvider`. Runtime defaults execute `exportAsset`
+asynchronously:
 
 - `image/png` receives viewport and temporal parameters;
 - `text/plain` receives timestamp plus normalized and, when derivable, geographic coordinates.
 
 Generation counters prevent stale map or point responses from replacing a newer temporal state.
-`GeometryCard` merges event and histogram timestamps, includes a pre-span initialization state, and
-notifies `ValueCard` when the user selects a timeline position.
+Leaflet click coordinates are converted to both normalized raster coordinates and longitude/latitude
+for point queries. `GeometryCard` merges event and histogram timestamps, includes a pre-span
+initialization state, and notifies `ValueCard` when the user selects a timeline position.
 
 ## 6. View and editor behavior
 

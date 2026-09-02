@@ -305,6 +305,10 @@ public class ObservationCard extends BaseCard<Observation> {
       return valueCard;
     }
 
+    if (extended && scope != null && GeoJsonCard.supportsObservation(asset)) {
+      return new GeoJsonCard(asset, scope, true);
+    }
+
     if (histogramSlot != null) {
       var states = ValueCard.temporalStates(asset);
       Long selectedTimestamp = states.isEmpty() ? null : states.getFirst();

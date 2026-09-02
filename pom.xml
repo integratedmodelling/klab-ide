@@ -21,6 +21,11 @@
     <dependencies>
         <dependency>
             <groupId>org.integratedmodelling</groupId>
+            <artifactId>jlmap-fx</artifactId>
+            <version>2.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.integratedmodelling</groupId>
             <artifactId>klab.core.api</artifactId>
             <version>${klab.api.version}</version>
         </dependency>
