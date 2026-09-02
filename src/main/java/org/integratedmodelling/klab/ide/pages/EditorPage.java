@@ -233,7 +233,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
     if (!assetEditors.containsKey(asset)) {
       var editor = createEditor(asset);
       if (editor != null) {
-        var tab = new Tab(Theme.getLabel(asset), editor);
+        var tab = new Tab(editorTitle(asset), editor);
         tab.setGraphic(Theme.getGraphics(asset));
         tab.setOnClosed(
             event -> {
@@ -337,7 +337,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
     }
     var editor = tab.getContent();
     assetEditors.put(refreshedAsset, tab);
-    tab.setText(Theme.getLabel(refreshedAsset));
+    tab.setText(editorTitle(refreshedAsset));
     tab.setGraphic(Theme.getGraphics(refreshedAsset));
     tab.setOnClosed(
         event -> {
@@ -368,7 +368,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
     }
     assetEditors.remove(oldAsset);
     assetEditors.put(refreshedAsset, tab);
-    tab.setText(Theme.getLabel(refreshedAsset));
+    tab.setText(editorTitle(refreshedAsset));
     tab.setGraphic(Theme.getGraphics(refreshedAsset));
     tab.setContent(refreshedEditor);
     tab.setOnClosed(
@@ -386,6 +386,11 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
   }
 
   protected abstract Node createEditor(T asset);
+
+  /** Return the title shown for an editor tab associated with an asset. */
+  protected String editorTitle(T asset) {
+    return Theme.getLabel(asset);
+  }
 
   /**
    * Release resources owned by an individual editor. This is called only when its tab is actually

@@ -6,6 +6,8 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.atomic.AtomicReference;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
@@ -16,9 +18,9 @@ import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.Button;
-import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.Tab;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
@@ -35,6 +37,7 @@ import org.integratedmodelling.klab.api.geometry.Geometry;
 import org.integratedmodelling.klab.api.knowledge.Artifact;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.Resource;
+import org.integratedmodelling.klab.api.knowledge.Urn;
 import org.integratedmodelling.klab.api.services.Resolver;
 import org.integratedmodelling.klab.api.services.ResourcesService;
 import org.integratedmodelling.klab.api.services.resources.ResourceInfo;
@@ -47,6 +50,7 @@ import org.integratedmodelling.klab.ide.components.cards.ResourceSmallViewCompon
 import org.integratedmodelling.klab.ide.components.generic.UploadBox;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 import org.kordamp.ikonli.javafx.FontIcon;
+import org.kordamp.ikonli.material2.Material2AL;
 
 public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
 
@@ -55,6 +59,12 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
 
   private final Map<String, ResourceEditor> openEditors = new HashMap<>();
   private Node resourceDialog;
+  private boolean includePublishedLocal;
+  private BatchResourceInput batchInput;
+  private List<BatchResourceInput.AdapterOption> batchAdapters = List.of();
+  private List<String> batchServiceSignature = List.of();
+  private Task<List<BatchResourceInput.AdapterOption>> batchAdapterTask;
+  private boolean batchAdaptersLoaded;
   private WorkflowUIProvider workflowUIProvider = WorkflowUIProvider.NONE;
 
   public ResourcesView() {
@@ -85,6 +95,17 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
     asset.close();
   }
 
+  @Override
+  protected void onTabClosed(Tab closedTab) {
+    super.onTabClosed(closedTab);
+    if (closedTab.getContent() instanceof BatchResourceInput input) {
+      input.dispose();
+      if (batchInput == input) {
+        batchInput = null;
+      }
+    }
+  }
+
   public void setWorkflowUIProvider(WorkflowUIProvider provider) {
     workflowUIProvider = provider == null ? WorkflowUIProvider.NONE : provider;
     openEditors.values().forEach(editor -> editor.setWorkflowUIProvider(workflowUIProvider));
@@ -92,13 +113,12 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
 
   @Override
   protected void defineBrowser(VBox vBox) {
+    ensureBatchAdaptersLoaded();
     // Create a search box
 
     TextField searchBox = new TextField();
     searchBox.setPromptText("Search resources...");
     searchBox.setPrefWidth(BrowsablePage.BROWSER_WIDTH - 20);
-    CheckBox includePublished = new CheckBox("Show published local resources");
-    includePublished.setWrapText(true);
 
     // Create a VBox to hold search results
     VBox resultsBox = new VBox(10);
@@ -123,19 +143,10 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
         event ->
             startResourceSearch(
                 searchBox.getText(),
-                includePublished.isSelected(),
+                includePublishedLocal,
                 resultsBox,
                 resolverResources,
                 currentTask));
-
-    includePublished
-        .selectedProperty()
-        .addListener(
-            (observable, oldValue, newValue) -> {
-              if (searchBox.getText() != null && !searchBox.getText().isBlank()) {
-                debounce.playFromStart();
-              }
-            });
 
     searchBox
         .textProperty()
@@ -157,12 +168,182 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
     Platform.runLater(
         () -> {
           vBox.getChildren().clear();
-          vBox.getChildren().add(makeHeader("Resources", this::addResource));
+          var headerActions = new ArrayList<HeaderAction>();
+          headerActions.add(
+              new HeaderAction(Theme.ADD_ASSET_ICON, "Create a new resource", this::addResource));
+          headerActions.add(
+              HeaderAction.toggle(
+                  Material2AL.LANGUAGE,
+                  "Show published local resources",
+                  () -> {
+                    includePublishedLocal = !includePublishedLocal;
+                    if (searchBox.getText() != null && !searchBox.getText().isBlank()) {
+                      debounce.playFromStart();
+                    }
+                  },
+                  () -> includePublishedLocal));
+          if (!batchAdapters.isEmpty()) {
+            headerActions.add(
+                new HeaderAction(
+                    Material2AL.BATCH_PREDICTION,
+                    "Import resources in batch",
+                    this::openBatchInput));
+          }
+          vBox.getChildren()
+              .add(makeHeader("Resources", headerActions.toArray(HeaderAction[]::new)));
           if (resourceDialog != null) {
             vBox.getChildren().add(resourceDialog);
           }
-          vBox.getChildren().addAll(searchBox, includePublished, resultsBox);
+          vBox.getChildren().addAll(searchBox, resultsBox);
         });
+  }
+
+  private void ensureBatchAdaptersLoaded() {
+
+    // TODO with this condition, the service will be one at most; keep the list for
+    //  possible future extension for admins.
+    var services =
+        List.copyOf(KlabIDEController.instance().user().getServices(ResourcesService.class))
+            .stream()
+            .filter(s -> s.isLocal())
+            .toList();
+    var signature = services.stream().map(ResourcesService::serviceId).sorted().toList();
+    if (signature.equals(batchServiceSignature)
+        && (batchAdaptersLoaded || batchAdapterTask != null)) {
+      return;
+    }
+    if (batchAdapterTask != null) {
+      batchAdapterTask.cancel();
+    }
+    batchServiceSignature = signature;
+    batchAdaptersLoaded = false;
+    batchAdapters = List.of();
+    var task =
+        new Task<List<BatchResourceInput.AdapterOption>>() {
+          @Override
+          protected List<BatchResourceInput.AdapterOption> call() {
+            var options = new ArrayList<BatchResourceInput.AdapterOption>();
+            for (var service : services) {
+              if (isCancelled()) return List.of();
+              String resolvedServiceName = service.serviceId();
+              try {
+                resolvedServiceName = service.serviceName();
+              } catch (Throwable ignored) {
+              }
+              if (resolvedServiceName == null || resolvedServiceName.isBlank()) {
+                resolvedServiceName = service.serviceId();
+              }
+              String serviceName = resolvedServiceName;
+              try {
+                service.capabilities(KlabIDEController.instance().user()).getComponents().stream()
+                    .flatMap(component -> component.adapters().stream())
+                    .filter(AdapterDescriptor::isBatchable)
+                    .filter(
+                        adapter ->
+                            adapter.getServiceId() == null
+                                || service.serviceId().equals(adapter.getServiceId()))
+                    .forEach(
+                        adapter ->
+                            options.add(
+                                new BatchResourceInput.AdapterOption(
+                                    service, adapter, serviceName)));
+              } catch (Throwable ignored) {
+                // A disconnected service must not suppress adapters reported by other services.
+              }
+            }
+            return options.stream()
+                .sorted(
+                    java.util.Comparator.comparing(BatchResourceInput.AdapterOption::serviceName)
+                        .thenComparing(option -> option.adapter().getName()))
+                .toList();
+          }
+        };
+    batchAdapterTask = task;
+    task.setOnSucceeded(
+        event -> {
+          if (batchAdapterTask == task) {
+            batchAdapterTask = null;
+            batchAdaptersLoaded = true;
+            batchAdapters = task.getValue();
+            updateBrowser();
+          }
+        });
+    task.setOnFailed(
+        event -> {
+          if (batchAdapterTask == task) {
+            batchAdapterTask = null;
+            batchAdaptersLoaded = true;
+            batchAdapters = List.of();
+            updateBrowser();
+          }
+        });
+    var thread = new Thread(task, "batch-adapter-discovery");
+    thread.setDaemon(true);
+    thread.start();
+  }
+
+  private void openBatchInput() {
+    if (batchInput != null) {
+      selectView(batchInput);
+    } else {
+      batchInput =
+          new BatchResourceInput(
+              batchAdapters, this::submitBatchInput, this::closeBatchInput, this::closeBatchInput);
+      addView(batchInput, "Batch input", new FontIcon(Material2AL.BATCH_PREDICTION));
+    }
+    hideBrowser();
+  }
+
+  private CompletionStage<Boolean> submitBatchInput(BatchResourceInput.Input input) {
+    var submitted = new ResourceImpl();
+    submitted.setUrn(Urn.UNDEFINED_URN);
+    submitted.setServiceId(input.service().serviceId());
+    submitted.setAdapterType(input.adapter().getName());
+    submitted.setVersion(Version.EMPTY_VERSION);
+    submitted.setTimestamp(System.currentTimeMillis());
+    submitted.setType(Artifact.Type.NUMBER);
+    submitted.setGeometry(Geometry.UNIVERSAL);
+    submitted.setLocalFiles(new ArrayList<>(input.files()));
+    if (!input.url().isBlank()) {
+      submitted.getParameters().put("url", input.url());
+    }
+    var completion = new CompletableFuture<Boolean>();
+    var thread =
+        new Thread(
+            () -> {
+              try {
+                var result =
+                    input
+                        .service()
+                        .importResource(submitted, KlabIDEController.instance().user())
+                        .get();
+                ResourceEditor.ensureSubmissionSucceeded(List.of(result));
+                Platform.runLater(
+                    () -> {
+                      updateBrowser();
+                      KlabIDEController.instance()
+                          .handleNotification(Notification.info("Batch resource import completed"));
+                    });
+                completion.complete(true);
+              } catch (Throwable failure) {
+                Platform.runLater(
+                    () ->
+                        KlabIDEController.instance()
+                            .handleNotification(
+                                Notification.error("Batch resource import failed", failure)));
+                completion.complete(false);
+              }
+            },
+            "batch-resource-import");
+    thread.setDaemon(true);
+    thread.start();
+    return completion;
+  }
+
+  private void closeBatchInput() {
+    if (batchInput != null) {
+      removeView(batchInput);
+    }
   }
 
   private void addResource() {

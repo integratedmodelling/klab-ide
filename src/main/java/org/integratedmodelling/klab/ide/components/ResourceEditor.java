@@ -66,6 +66,7 @@ import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.api.services.runtime.extension.AdapterDescriptor;
 import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.KlabIDEController;
+import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.ResourceEditorValidator.Result;
 import org.integratedmodelling.klab.ide.components.ResourceEditorValidator.Section;
 import org.integratedmodelling.klab.ide.components.cards.GeometryCard;
@@ -165,6 +166,14 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
 
   public Resource getResource() {
     return resource;
+  }
+
+  @Override
+  protected String editorTitle(Resource value) {
+    Section section = value == resource ? Section.OVERVIEW : markerSections.get(value);
+    return section == null || section == Section.OVERVIEW
+        ? Theme.getLabel(value)
+        : sectionLabels.get(section);
   }
 
   public ResourceInfo getResourceInfo() {

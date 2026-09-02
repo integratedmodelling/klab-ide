@@ -74,6 +74,7 @@ import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.api.scope.UserScope;
 import org.integratedmodelling.klab.api.services.*;
 import org.integratedmodelling.klab.api.services.resources.ResourceSet;
+import org.integratedmodelling.klab.api.services.resources.workflow.Workflow;
 import org.integratedmodelling.klab.api.services.runtime.Message;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.api.view.*;
@@ -203,6 +204,19 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
       }
     }
     return null;
+  }
+
+  public WorkflowUIProvider getDefaultWorkflowProvider() {
+    var ret =
+        new WorkflowUIProvider() {
+          @Override
+          public List<Workflow> availableWorkflows(KlabAsset asset, UserScope scope) {
+
+            return List.of();
+          }
+        };
+
+    return ret;
   }
 
   /** The "circled" (current) view in the main area. */
@@ -745,30 +759,22 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     // this is needed to manage the software stack API
     Klab.INSTANCE.setConfiguration(new CommonConfiguration());
 
-    homeButton.setGraphic(
-        new IconLabel(Material2AL.HOME, 24, "-color-fg-default"));
+    homeButton.setGraphic(new IconLabel(Material2AL.HOME, 24, "-color-fg-default"));
     workspacesButton.setGraphic(new IconLabel(Theme.WORKSPACES_ICON, 24, "-color-fg-muted"));
-    resourcesManagerButton.setGraphic(
-        new IconLabel(Theme.RESOURCES_ICON, 24, "-color-fg-muted"));
-    digitalTwinsButton.setGraphic(
-        new IconLabel(Theme.DIGITAL_TWINS_ICON, 24, "-color-fg-muted"));
-    sessionsButton.setGraphic(
-        new IconLabel(Theme.APPLICATION_VIEW_ICON, 24, "-color-fg-muted"));
+    resourcesManagerButton.setGraphic(new IconLabel(Theme.RESOURCES_ICON, 24, "-color-fg-muted"));
+    digitalTwinsButton.setGraphic(new IconLabel(Theme.DIGITAL_TWINS_ICON, 24, "-color-fg-muted"));
+    sessionsButton.setGraphic(new IconLabel(Theme.APPLICATION_VIEW_ICON, 24, "-color-fg-muted"));
     worldviewButton.setGraphic(new IconLabel(Theme.WORLDVIEW_ICON, 24, "-color-fg-muted"));
     downloadButton.setGraphic(new IconLabel(Material2AL.GET_APP, 16, "-color-fg-muted"));
     startButton.setGraphic(new IconLabel(BootstrapIcons.POWER, 16, "-color-fg-muted"));
     reasonerButton.setGraphic(new IconLabel(Theme.LOCAL_SERVICE_ICON, 16, "-color-fg-muted"));
-    resourcesButton.setGraphic(
-        new IconLabel(Theme.LOCAL_SERVICE_ICON, 16, "-color-fg-muted"));
+    resourcesButton.setGraphic(new IconLabel(Theme.LOCAL_SERVICE_ICON, 16, "-color-fg-muted"));
     resolverButton.setGraphic(new IconLabel(Theme.LOCAL_SERVICE_ICON, 16, "-color-fg-muted"));
     runtimeButton.setGraphic(new IconLabel(Theme.LOCAL_SERVICE_ICON, 16, "-color-fg-muted"));
-    settingsButton.setGraphic(
-        new IconLabel(FontAwesomeSolid.COG, 24, "-color-fg-default"));
-    inspectorButton.setGraphic(
-        new IconLabel(Theme.INSPECTOR_ICON, 24, "-color-fg-default"));
+    settingsButton.setGraphic(new IconLabel(FontAwesomeSolid.COG, 24, "-color-fg-default"));
+    inspectorButton.setGraphic(new IconLabel(Theme.INSPECTOR_ICON, 24, "-color-fg-default"));
     updateInspectorButton();
-    profileButton.setGraphic(
-        new IconLabel(FontAwesomeSolid.USER_CIRCLE, 32, "-color-fg-muted"));
+    profileButton.setGraphic(new IconLabel(FontAwesomeSolid.USER_CIRCLE, 32, "-color-fg-muted"));
 
     viewButtons.put(View.NOTEBOOK, homeButton);
     viewButtons.put(View.DIGITAL_TWINS, digitalTwinsButton);
@@ -869,16 +875,14 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     dtResetButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
     dtResetButton.setTooltip(new Tooltip("Show Digital Twin Control Panel"));
     dtResetButton.setDisable(true);
-    dtResetButton.setGraphic(
-        new IconLabel(FontAwesomeSolid.TIMES_CIRCLE, 14, "-color-danger-fg"));
+    dtResetButton.setGraphic(new IconLabel(FontAwesomeSolid.TIMES_CIRCLE, 14, "-color-danger-fg"));
     dtResetButton.setOnAction(e -> resetCurrentDigitalTwin());
 
     dtSwitchButton = new Button();
     dtSwitchButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
     dtSwitchButton.setTooltip(new Tooltip("Show Digital Twin Control Panel"));
     dtSwitchButton.setDisable(true);
-    dtSwitchButton.setGraphic(
-        new IconLabel(Theme.DIGITAL_TWINS_ICON, 16, "-color-fg-muted"));
+    dtSwitchButton.setGraphic(new IconLabel(Theme.DIGITAL_TWINS_ICON, 16, "-color-fg-muted"));
     dtSwitchButton.setOnAction(
         e -> {
           if (getFocalScope() != null) {
@@ -1102,8 +1106,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
                             ? "-color-success-fg"
                             : "-color-accent-fg");
                 case Warning -> new IconLabel(Material2MZ.WARNING, 16, "-color-warning-fg");
-                case Error, SystemError ->
-                    new IconLabel(Material2AL.ERROR, 16, "-color-danger-fg");
+                case Error, SystemError -> new IconLabel(Material2AL.ERROR, 16, "-color-danger-fg");
               });
           currentPause = new PauseTransition(Duration.seconds(5));
           currentPause.setOnFinished(
@@ -1165,8 +1168,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
                           ? "-color-success-fg"
                           : "-color-accent-fg");
               case Warning -> new IconLabel(Material2MZ.WARNING, 24, "-color-warning-fg");
-              case Error, SystemError ->
-                  new IconLabel(Material2AL.ERROR, 24, "-color-danger-fg");
+              case Error, SystemError -> new IconLabel(Material2AL.ERROR, 24, "-color-danger-fg");
             });
     ret.getStyleClass()
         .addAll(
@@ -1401,7 +1403,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   /** Register a view callback for the status stream emitted by the engine for a service. */
   public void addServiceStatusListener(
       KlabService service, Consumer<KlabService.ServiceStatus> listener) {
-    serviceStatusListeners.computeIfAbsent(service, ignored -> new CopyOnWriteArrayList<>()).add(listener);
+    serviceStatusListeners
+        .computeIfAbsent(service, ignored -> new CopyOnWriteArrayList<>())
+        .add(listener);
   }
 
   /** Remove a previously registered service status callback. */
@@ -1489,21 +1493,13 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
               ? "-color-fg-muted"
               : switch (serviceType) {
                 case REASONER ->
-                    provision.isOperational()
-                        ? "-color-accent-fg"
-                        : "-color-accent-muted";
+                    provision.isOperational() ? "-color-accent-fg" : "-color-accent-muted";
                 case RESOURCES ->
-                    provision.isOperational()
-                        ? "-color-success-fg"
-                        : "-color-success-muted";
+                    provision.isOperational() ? "-color-success-fg" : "-color-success-muted";
                 case RESOLVER ->
-                    provision.isOperational()
-                        ? "-color-warning-fg"
-                        : "-color-warning-muted";
+                    provision.isOperational() ? "-color-warning-fg" : "-color-warning-muted";
                 case RUNTIME ->
-                    provision.isOperational()
-                        ? "-color-danger-fg"
-                        : "-color-danger-muted";
+                    provision.isOperational() ? "-color-danger-fg" : "-color-danger-muted";
                 default -> throw new KlabInternalErrorException("?"); // can't happen
               };
 

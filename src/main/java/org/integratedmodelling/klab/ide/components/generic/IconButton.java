@@ -21,6 +21,10 @@ public abstract class IconButton extends ToggleButton {
   private final String onCssColor;
   private final String offCssColor;
 
+  public static IconButton toggle(Ikon ikon, int size, Callable<Boolean> toggleAction) {
+    return toggle(ikon, size, "-color-fg-default", "-color-fg-muted", toggleAction);
+  }
+
   public static IconButton toggle(
       Ikon ikon, int size, Color colorOn, Color colorOff, Callable<Boolean> toggleAction) {
     return new IconButton(ikon, size, colorOn, colorOff, true) {

@@ -1,6 +1,9 @@
 package org.integratedmodelling.klab.ide.components.cards;
 
 import atlantafx.base.controls.Card;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
 import javafx.geometry.Pos;
 import javafx.scene.Cursor;
 import javafx.scene.Node;
@@ -23,10 +26,6 @@ import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.Consumer;
-
 public class ResourceSmallViewComponent extends BaseAssetViewComponent {
 
   private final Consumer<ResourceInfo> selectHandler;
@@ -41,8 +40,8 @@ public class ResourceSmallViewComponent extends BaseAssetViewComponent {
   }
 
   /**
-   * Create a card with an already known service label. This overload avoids calling
-   * {@link ResourcesService#serviceName()} while rendering a JavaFX cell/card.
+   * Create a card with an already known service label. This overload avoids calling {@link
+   * ResourcesService#serviceName()} while rendering a JavaFX cell/card.
    */
   public ResourceSmallViewComponent(
       ResourceInfo descriptor,
@@ -72,7 +71,7 @@ public class ResourceSmallViewComponent extends BaseAssetViewComponent {
   private Node createContent(String suppliedServiceName, boolean resolveServiceName) {
     var card = new Card();
     VBox body = new VBox(10);
-    var icon = new FontIcon(Theme.getIcon(descriptor.getKnowledgeClass()));
+    var icon = new FontIcon(Theme.RESOURCE_ICON);
 
     // add @ serviceName to titl
     var serviceName = suppliedServiceName;

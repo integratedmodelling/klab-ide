@@ -8,10 +8,10 @@ import javafx.application.Platform;
 import javafx.geometry.HPos;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.control.ProgressIndicator;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
+import javafx.scene.control.ProgressIndicator;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -51,7 +51,7 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
   private final Map<String, String> serviceLabels = new HashMap<>();
   private final Map<String, String> serviceIssues = new LinkedHashMap<>();
   private final Map<String, WorkspaceEditor> openEditors = new HashMap<>();
-  private WorkflowUIProvider workflowUIProvider = WorkflowUIProvider.NONE;
+  //  private WorkflowUIProvider workflowUIProvider = WorkflowUIProvider.NONE;
   private List<Node> components = new ArrayList<>();
   private Node workspaceDialog;
   private boolean catalogLoading;
@@ -94,12 +94,14 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
         .toList();
   }
 
-  /** Install workflow discovery and specialized stage editors for all current and future tabs. */
-  public void setWorkflowUIProvider(WorkflowUIProvider workflowUIProvider) {
-    this.workflowUIProvider =
-        workflowUIProvider == null ? WorkflowUIProvider.NONE : workflowUIProvider;
-    openEditors.values().forEach(editor -> editor.setWorkflowUIProvider(this.workflowUIProvider));
-  }
+  //  /** Install workflow discovery and specialized stage editors for all current and future tabs.
+  // */
+  //  public void setWorkflowUIProvider(WorkflowUIProvider workflowUIProvider) {
+  //    this.workflowUIProvider =
+  //        workflowUIProvider == null ? WorkflowUIProvider.NONE : workflowUIProvider;
+  //    openEditors.values().forEach(editor ->
+  // editor.setWorkflowUIProvider(this.workflowUIProvider));
+  //  }
 
   public List<ResourceInfo> getWorkspaceList() {
     return workspacesByService.values().stream()
@@ -113,8 +115,7 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
   @Override
   protected void defineBrowser(VBox browserComponents) {
 
-    if (!catalogLoading
-        && System.nanoTime() - catalogLoadedAt > CATALOG_FRESHNESS.toNanos()) {
+    if (!catalogLoading && System.nanoTime() - catalogLoadedAt > CATALOG_FRESHNESS.toNanos()) {
       refreshCatalog();
     }
     browserComponents.getChildren().removeAll(components);
@@ -272,8 +273,7 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
             availableServices.stream()
                 .map(
                     service ->
-                        serviceLabels.getOrDefault(
-                            safeServiceId(service), safeServiceId(service)))
+                        serviceLabels.getOrDefault(safeServiceId(service), safeServiceId(service)))
                 .toList());
     serviceSelector.setMaxWidth(Double.MAX_VALUE);
     var ok = new Button("Create");
@@ -359,7 +359,12 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
       // TODO handle the unlikely case that the service is unavailable. That will throw an exception
       //  from getService
 
-      var newEditor = new WorkspaceEditor(service, resourceInfo, this, workflowUIProvider);
+      var newEditor =
+          new WorkspaceEditor(
+              service,
+              resourceInfo,
+              this,
+              KlabIDEController.instance().getDefaultWorkflowProvider());
       openEditors.put(resourceInfo.getUrn(), newEditor);
       addEditor(
           newEditor,

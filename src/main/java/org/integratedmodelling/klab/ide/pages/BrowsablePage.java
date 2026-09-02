@@ -2,23 +2,23 @@ package org.integratedmodelling.klab.ide.pages;
 
 import atlantafx.base.controls.ModalPane;
 import atlantafx.base.theme.Styles;
+import java.util.function.BooleanSupplier;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Side;
 import javafx.scene.Node;
-import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
-import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import org.integratedmodelling.klab.api.view.View;
 import org.integratedmodelling.klab.ide.Theme;
+import org.integratedmodelling.klab.ide.components.generic.IconButton;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.material2.Material2MZ;
@@ -178,8 +178,16 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
 
   protected abstract void assetEditorClosed(T assetEditor);
 
-  protected record HeaderAction(Ikon icon, String tooltip, Runnable action) {
-    public HeaderAction {}
+  protected record HeaderAction(
+      Ikon icon, String tooltip, Runnable action, BooleanSupplier selected) {
+    public HeaderAction(Ikon icon, String tooltip, Runnable action) {
+      this(icon, tooltip, action, null);
+    }
+
+    public static HeaderAction toggle(
+        Ikon icon, String tooltip, Runnable action, BooleanSupplier selected) {
+      return new HeaderAction(icon, tooltip, action, selected);
+    }
   }
 
   protected Node makeHeader(String title, Runnable addAction) {
@@ -200,11 +208,30 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
     buttons.setAlignment(Pos.CENTER_RIGHT);
     for (var action : actions) {
       var button =
-          new Button(
-              "", new IconLabel(action.icon(), 16, Theme.CURRENT_THEME.getDefaultTextColor()));
-      button.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
-      button.setOnAction(event -> action.action().run());
-      button.setTooltip(new Tooltip(action.tooltip()));
+          action.selected() == null
+              ? IconButton.of(
+                  action.icon(),
+                  16,
+                  "-color-fg-muted",
+                  "-color-fg-muted",
+                  () -> {
+                    action.action().run();
+                    return true;
+                  })
+              : IconButton.toggle(
+                  action.icon(),
+                  16,
+                  "-color-accent-fg",
+                  "-color-fg-muted",
+                  () -> {
+                    action.action().run();
+                    return action.selected().getAsBoolean();
+                  });
+      if (action.selected() != null) {
+        button.setToggled(action.selected().getAsBoolean());
+      }
+      button.setAccessibleText(action.tooltip());
+      button.tooltip(action.tooltip());
       buttons.getChildren().add(button);
     }
     var ret = new HBox(workspacesLabel, buttons);
@@ -231,6 +258,33 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
           this.tabPane.getSelectionModel().select(tab);
           node.showContent();
         });
+  }
+
+  /** Add and select a top-level tab whose content is not an asset editor. */
+  protected void addView(Node node, String title, Node icon) {
+    var tab = new Tab(title, node);
+    tab.setGraphic(icon);
+    Platform.runLater(
+        () -> {
+          tabPane.getTabs().add(tab);
+          tabPane.getSelectionModel().select(tab);
+        });
+  }
+
+  /** Select the top-level tab containing the supplied view, if it is open. */
+  protected void selectView(Node node) {
+    tabPane.getTabs().stream()
+        .filter(tab -> tab.getContent() == node)
+        .findFirst()
+        .ifPresent(tab -> tabPane.getSelectionModel().select(tab));
+  }
+
+  /** Close the top-level tab containing the supplied view, if it is open. */
+  protected void removeView(Node node) {
+    tabPane.getTabs().stream()
+        .filter(tab -> tab.getContent() == node)
+        .findFirst()
+        .ifPresent(tabPane.getTabs()::remove);
   }
 
   /** Replace the graphic of the tab hosting the supplied editor. */

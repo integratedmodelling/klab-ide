@@ -33,18 +33,22 @@
 }
 
 .button.klab-icon-button:hover,
-.toggle-button.klab-icon-button:hover,
-.button.klab-icon-button:armed,
-.toggle-button.klab-icon-button:armed {
-    -fx-background-color: transparent;
+.toggle-button.klab-icon-button:hover {
+    -fx-background-color: -color-bg-subtle;
+    -fx-background-radius: 4px;
 }
 
-/* Keep selection visible without adding a surrounding button surface. */
+.button.klab-icon-button:armed,
+.toggle-button.klab-icon-button:armed {
+    -fx-background-color: -color-neutral-muted;
+    -fx-background-radius: 4px;
+}
+
+/* A quiet AtlantaFX surface makes toggle state clear without adding button chrome. */
 .toggle-button.klab-icon-button:selected {
-    -fx-translate-y: 1px;
-    -fx-background-color: -color-accent-muted;
-    -fx-background-radius: 8px;
-    -fx-effect: innershadow( three-pass-box , rgba(0,0,0,0.7) , 3, 0.0 , 0 , 1);
+    -fx-background-color: -color-accent-subtle;
+    -fx-background-radius: 4px;
+    -fx-effect: none;
 }
 
 .round-button {

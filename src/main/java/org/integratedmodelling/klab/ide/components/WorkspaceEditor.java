@@ -41,6 +41,7 @@ import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.KlabIDEApplication;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
+import org.integratedmodelling.klab.ide.components.generic.IconButton;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.ide.components.generic.TreeSearchField;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
@@ -50,6 +51,7 @@ import org.integratedmodelling.klabeditor.lsp.KlabLspService;
 import org.integratedmodelling.klabeditor.lsp.LspDocumentSession;
 import org.kordamp.ikonli.bootstrapicons.BootstrapIcons;
 import org.kordamp.ikonli.carbonicons.CarbonIcons;
+import org.kordamp.ikonli.codicons.Codicons;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
 import org.kordamp.ikonli.materialdesign.MaterialDesign;
@@ -66,6 +68,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private ProgressBar progressBar;
   private TreeView<NavigableAsset> treeView;
   private final Map<Node, LspDocumentSession> lspSessions = new IdentityHashMap<>();
+
   /** Saved source snapshots waiting for their corresponding parsed workspace updates. */
   private final Map<String, Deque<String>> pendingSavedSources = new HashMap<>();
 
@@ -149,12 +152,15 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     var submenu = new Menu(title);
     flows.stream()
         .filter(flow -> flow.getStatus() == status)
-        .sorted(Comparator.comparing(Flow::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
+        .sorted(
+            Comparator.comparing(
+                Flow::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
         .forEach(
             flow -> {
               Workflow workflow;
               try {
-                workflow = service.getWorkflow(flow.getWorkflowId(), KlabIDEController.instance().user());
+                workflow =
+                    service.getWorkflow(flow.getWorkflowId(), KlabIDEController.instance().user());
               } catch (Throwable error) {
                 workflow = null;
               }
@@ -179,7 +185,9 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
               .filter(transition -> participant.hasAnyRole(transition.getRoles()))
               .findFirst()
               .orElseThrow(
-                  () -> new IllegalStateException("No permitted initial stage for " + workflowName(workflow)));
+                  () ->
+                      new IllegalStateException(
+                          "No permitted initial stage for " + workflowName(workflow)));
       var initial = new Flow.State();
       initial.setSchemaId(initialTransition.getTargetState());
       initial.setAssetUrn(asset.getUrn());
@@ -305,8 +313,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         }
         contextMenu.getItems().addAll(editLocally, new SeparatorMenuItem());
       }
-      var delete =
-          new MenuItem("Delete", new IconLabel(Material2AL.DELETE, 16, THEME_ICON_COLOR));
+      var delete = new MenuItem("Delete", new IconLabel(Material2AL.DELETE, 16, THEME_ICON_COLOR));
       delete.setOnAction(e -> KlabIDEController.instance().deleteAsset(service, asset));
       contextMenu.getItems().add(delete);
     }
@@ -371,18 +378,15 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         });
 
     var deleteProject =
-        new MenuItem(
-            "Delete project...", new IconLabel(Material2AL.DELETE, 16, THEME_ICON_COLOR));
+        new MenuItem("Delete project...", new IconLabel(Material2AL.DELETE, 16, THEME_ICON_COLOR));
     deleteProject.setOnAction(
         e -> {
           deleteProject(project);
         });
 
-    var newMenu =
-        new Menu("New", new IconLabel(CarbonIcons.DOCUMENT_ADD, 16, THEME_ICON_COLOR));
+    var newMenu = new Menu("New", new IconLabel(CarbonIcons.DOCUMENT_ADD, 16, THEME_ICON_COLOR));
     var newNamespace =
-        new MenuItem(
-            "Namespace...", new IconLabel(Theme.NAMESPACE_ICON, 16, THEME_ICON_COLOR));
+        new MenuItem("Namespace...", new IconLabel(Theme.NAMESPACE_ICON, 16, THEME_ICON_COLOR));
     var newBehavior =
         new MenuItem(
             "Behavior, Application or test case...",
@@ -391,8 +395,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         new MenuItem("Ontology...", new IconLabel(Theme.ONTOLOGY_ICON, 16, THEME_ICON_COLOR));
     var newObservationStrategy =
         new MenuItem(
-            "Observation strategy...",
-            new IconLabel(Theme.OBSERVATION_ICON, 16, THEME_ICON_COLOR));
+            "Observation strategy...", new IconLabel(Theme.OBSERVATION_ICON, 16, THEME_ICON_COLOR));
 
     newNamespace.setOnAction(
         actionEvent -> {
@@ -486,8 +489,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     hBox.setAlignment(Pos.CENTER_LEFT);
 
     var expand = new Button("", new IconLabel(CarbonIcons.EXPAND_ALL, 16, THEME_ICON_COLOR));
-    var collapse =
-        new Button("", new IconLabel(CarbonIcons.COLLAPSE_ALL, 16, THEME_ICON_COLOR));
+    var collapse = new Button("", new IconLabel(CarbonIcons.COLLAPSE_ALL, 16, THEME_ICON_COLOR));
 
     expand.setOnAction(
         actionEvent -> {
@@ -702,9 +704,6 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   @Override
   protected Node createEditor(NavigableAsset asset) {
     if (asset instanceof NavigableKlabDocument<?, ?> document) {
-      // 1. LSP init for this workspace
-      //      Path workspaceRoot = Paths.get(System.getProperty("user.home") + "/git/klab-ide");
-      //      try {
       boolean lspAvailable =
           KlabLspService.getInstance()
               .ensureInitialized(
@@ -714,9 +713,6 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         KlabIDEController.instance()
             .handleNotification(
                 Notification.error("LSP Server is not running: no edit support available"));
-        //      } catch (Exception e) {
-        //        e.printStackTrace();
-        //        System.err.println("[WorkspaceEditor] Error starting LSP Server" + e);
       }
 
       String languageId =
@@ -727,10 +723,65 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       // For now use the Urn
       String documentUri =
           "inmemory:///klab/" + document.getUrn() + "." + document.getLanguage().fileExtension();
+      var saveButton =
+          IconButton.of(Codicons.SAVE, 12, Theme.FOREGROUND_COLOR, Theme.FOREGROUND_COLOR, null);
+      var status = new Label("Ready");
 
       var ret =
           new MonacoEditorView(
-              documentUri, content -> Platform.runLater(() -> saveDocument(content, asset)));
+              documentUri, content -> Platform.runLater(() -> saveDocument(content, asset))) {
+            @Override
+            protected Collection<BarComponent> createHeaderBarComponents() {
+
+              // TODO save, review mode on the left
+
+              var lineNumbers =
+                  IconButton.toggle(
+                      Material2AL.FORMAT_LIST_NUMBERED,
+                      12,
+                      () -> {
+                        this.setLineNumbers(!this.isLineNumbersVisible());
+                        return this.isLineNumbersVisible();
+                      });
+              lineNumbers.setToggled(true);
+              var minimap =
+                  IconButton.toggle(
+                      BootstrapIcons.LAYOUT_SIDEBAR_REVERSE,
+                      12,
+                      () -> {
+                        this.setMinimapVisible(!this.isMinimapVisible());
+                        return this.isMinimapVisible();
+                      });
+              lineNumbers.setToggled(this.isLineNumbersVisible());
+              minimap.setToggled(this.isMinimapVisible());
+              return List.of(
+                  new BarComponent(saveButton, BarSide.LEFT),
+                  new BarComponent(lineNumbers, BarSide.RIGHT),
+                  new BarComponent(minimap, BarSide.RIGHT));
+            }
+
+            @Override
+            protected Collection<BarComponent> createStatusBarComponents() {
+              return List.of(new BarComponent(status, BarSide.LEFT));
+            }
+          };
+
+      saveButton.setDisable(true);
+      saveButton.setOnAction(
+          event -> {
+            Platform.runLater(() -> saveDocument(ret.getText(), asset));
+          });
+
+      ret.setMinimapVisible(
+          KlabIDEController.instance()
+              .engine()
+              .getSettings()
+              .get(Setting.START_WITH_MINIMAP_VISIBLE, Boolean.class));
+      ret.setLineNumbers(
+          KlabIDEController.instance()
+              .engine()
+              .getSettings()
+              .get(Setting.START_WITH_LINE_NUMBERS_VISIBLE, Boolean.class));
 
       ret.runAfterEditorRendered(() -> ret.markNotifications(document.getNotifications(), false));
       ret.loadEditor(document.getSourceCode(), languageId, theme);
@@ -738,12 +789,18 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       ret.setCursorPositionListener(
           offset -> {
             if (isEditorSelected(document)) {
+              // TODO put description in status bar; check if inspector is open
+              //  and queue descriptor
               focusTreeOn(document.getAssetsAt(offset));
             }
           });
       ret.setOnDirtyChanged(
           dirty -> {
-            // TODO change the tab title with the asterisk on top
+            Platform.runLater(
+                () -> {
+                  saveButton.setDisable(!dirty);
+                  status.setText(dirty ? "Modified" : "Ready");
+                });
           });
       if (lspAvailable) {
         var session = new LspDocumentSession(ret, languageId, document.getSourceCode());
@@ -858,6 +915,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private void updateEditorNotifications(
       NavigableKlabDocument<?, ?> document, Collection<Notification> fallbackNotifications) {
     if (document != null && getEditor(document) instanceof MonacoEditorView editor) {
+      editor.markSaved(document.getSourceCode());
       var notifications = document.getNotifications();
       editor.markNotifications(
           notifications == null
@@ -916,10 +974,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           wroot.findAsset(change.getResourceUrn(), KlabAsset.class, change.getKnowledgeClass());
 
       if (node != null && newAsset instanceof NavigableAsset navigableAsset) {
-         var oldAsset = node.getValue();
-         node.setValue(navigableAsset);
-         focus = node;
-         updateTree(node, navigableAsset);
+        var oldAsset = node.getValue();
+        node.setValue(navigableAsset);
+        focus = node;
+        updateTree(node, navigableAsset);
         // The save callback has already put the new source into the currently visible editor.
         // Recreating it here loses Monaco's cursor/scroll position and makes the save feel like a
         // navigation event.  Other updates still recreate the editor so that external source
@@ -949,7 +1007,6 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     if (focus != null) {
       // TODO incorporate errors and walk the tree upwards to update the status icons
     }
-
   }
 
   private TreeItem<NavigableAsset> findOrAddFolder(NavigableFolder folder) {

@@ -1,6 +1,8 @@
 package org.integratedmodelling.klab.ide.components.generic;
 
 import javafx.application.Platform;
+import javafx.beans.property.ReadOnlyBooleanProperty;
+import javafx.beans.property.ReadOnlyBooleanWrapper;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -62,6 +64,7 @@ public class UploadBox extends StackPane {
 
   // Map to store uploaded files/URLs (path -> File object)
   private Map<String, File> uploadedFiles;
+  private final ReadOnlyBooleanWrapper hasContent = new ReadOnlyBooleanWrapper(false);
 
   // Consumer for exclusive mode - when set, only one file can be uploaded
   private Consumer<File> exclusiveConsumer;
@@ -203,6 +206,7 @@ public class UploadBox extends StackPane {
     deleteIcon.setOnMouseClicked(
         event -> {
           uploadedFiles.remove(file.getPath());
+          hasContent.set(!uploadedFiles.isEmpty());
           filesBox.getChildren().remove(fileItem);
 
           // Hide filesBox if empty
@@ -221,6 +225,7 @@ public class UploadBox extends StackPane {
 
     // Store file in map
     uploadedFiles.put(file.getPath(), file);
+    hasContent.set(true);
   }
 
   private void setupDragAndDrop() {
@@ -786,6 +791,7 @@ public class UploadBox extends StackPane {
 
     // Clear uploaded files map
     uploadedFiles.clear();
+    hasContent.set(false);
 
     // Clear UI elements
     if (filesBox != null) {
@@ -806,6 +812,16 @@ public class UploadBox extends StackPane {
    */
   public List<File> getUploadedFiles() {
     return new ArrayList<>(uploadedFiles.values());
+  }
+
+  /** True whenever one or more uploaded files are represented by this box. */
+  public boolean hasContent() {
+    return hasContent.get();
+  }
+
+  /** Observable content state for validation controls embedding this upload box. */
+  public ReadOnlyBooleanProperty hasContentProperty() {
+    return hasContent.getReadOnlyProperty();
   }
 
   /**
