@@ -20,7 +20,7 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.integratedmodelling</groupId>
+            <groupId>io.github.makbn</groupId>
             <artifactId>jlmap-fx</artifactId>
             <version>2.0.0</version>
         </dependency>
