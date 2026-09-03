@@ -188,7 +188,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                   () ->
                       new IllegalStateException(
                           "No permitted initial stage for " + workflowName(workflow)));
-      var initial = new Flow.State();
+      var initial = Flow.State.create();
       initial.setSchemaId(initialTransition.getTargetState());
       initial.setAssetUrn(asset.getUrn());
       initial.setAssetType(KlabAsset.classify(asset));

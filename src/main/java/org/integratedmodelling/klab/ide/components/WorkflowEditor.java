@@ -287,7 +287,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   private void upload(File file, Workflow.AttachmentRule rule) {
     if (file == null || rule == null) return;
     try {
-      var upload = new Flow.AttachmentUpload();
+      var upload = Flow.AttachmentUpload.create();
       upload.setType(rule.getType());
       upload.setFileName(file.getName());
       upload.setMediaType(
@@ -353,11 +353,11 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
       var update = copyState(selectedState);
       update.setMetadata(selectedEditor.metadata().get());
       service.updateFlowState(flow.getId(), selectedState.getId(), update, scope);
-      var request = new Flow.TransitionRequest();
+      var request = Flow.TransitionRequest.create();
       request.setSourceStateId(selectedState.getId());
       request.setTransitionId(transition.getId());
       request.setExpectedRevision(flow.getRevision() + 1);
-      var target = new Flow.State();
+      var target = Flow.State.create();
       target.setOwner(WorkflowParticipant.from(scope).getIdentity());
       request.setTargetState(target);
       flow = service.transitionFlow(flow.getId(), request, scope);
@@ -368,7 +368,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   }
 
   private Flow.State copyState(Flow.State state) {
-    var copy = new Flow.State();
+    var copy = Flow.State.create();
     copy.setId(state.getId());
     copy.setFlowId(state.getFlowId());
     copy.setSchemaId(state.getSchemaId());

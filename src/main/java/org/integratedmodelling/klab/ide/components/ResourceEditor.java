@@ -1403,7 +1403,7 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
               .filter(transition -> participant.hasAnyRole(transition.getRoles()))
               .findFirst()
               .orElseThrow(() -> new IllegalStateException("No permitted initial stage"));
-      Flow.State initial = new Flow.State();
+      Flow.State initial = Flow.State.create();
       initial.setSchemaId(initialTransition.getTargetState());
       initial.setAssetUrn(resource.getUrn());
       initial.setAssetType(KlabAsset.KnowledgeClass.RESOURCE);
@@ -1922,7 +1922,7 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
   /**
    * TODO improve icons in tree and tabs
    *
-   * The page tabs currently all resolve through Theme.getGraphics(...), while the navigation
+   * <p>The page tabs currently all resolve through Theme.getGraphics(...), while the navigation
    * tree uses validation-status icons directly. To give each page its own icon, the cleanest change
    * is to add a Theme mapping keyed by ResourceEditor.Section and apply it when constructing the
    * page tabs.
