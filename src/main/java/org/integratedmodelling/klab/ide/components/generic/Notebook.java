@@ -72,6 +72,7 @@ public class Notebook extends BorderPane {
   private final VBox indexContainer;
   private final ScrollPane mainScroll;
   private CardEntry activeCard;
+  private CardEntry pendingFocus;
 
   // ---- constructor ----
 
@@ -112,6 +113,13 @@ public class Notebook extends BorderPane {
 
     setCenter(centerPane);
     setRight(indexScroll);
+
+    // A card may be focused before the notebook is attached to the visible view.
+    sceneProperty().addListener((observable, oldScene, newScene) -> {
+      if (newScene != null && pendingFocus != null) {
+        scheduleFocus(pendingFocus);
+      }
+    });
   }
 
   // ---- public API ----
@@ -152,6 +160,9 @@ public class Notebook extends BorderPane {
    */
   public void removeCard(String id) {
     cards.removeIf(e -> e.id.equals(id));
+    if (pendingFocus != null && pendingFocus.id.equals(id)) {
+      pendingFocus = null;
+    }
     if (activeCard != null && activeCard.id.equals(id)) {
       activeCard = null;
     }
@@ -185,19 +196,32 @@ public class Notebook extends BorderPane {
       target.cardView.setCollapsed(false);
     }
     setActiveCard(target);
+    pendingFocus = target;
     // Pinned cards are always visible above the scroll pane — no scrolling needed
     if (!target.pinned) {
-      Platform.runLater(
-          () -> {
-            double cardY = target.cardView.getBoundsInParent().getMinY();
-            double containerH = cardContainer.getHeight();
-            double viewportH = mainScroll.getViewportBounds().getHeight();
-            double scrollable = containerH - viewportH;
-            if (scrollable > 0) {
-              mainScroll.setVvalue(Math.max(0.0, Math.min(1.0, cardY / scrollable)));
-            }
-          });
+      scheduleFocus(target);
+    } else {
+      pendingFocus = null;
     }
+  }
+
+  private void scheduleFocus(CardEntry target) {
+    Platform.runLater(
+        () ->
+            Platform.runLater(
+                () -> {
+                  if (target != pendingFocus || target.pinned || target.cardView.getScene() == null) {
+                    return;
+                  }
+                  double cardY = target.cardView.getBoundsInParent().getMinY();
+                  double containerH = cardContainer.getHeight();
+                  double viewportH = mainScroll.getViewportBounds().getHeight();
+                  double scrollable = containerH - viewportH;
+                  if (scrollable > 0) {
+                    mainScroll.setVvalue(Math.max(0.0, Math.min(1.0, cardY / scrollable)));
+                  }
+                  pendingFocus = null;
+                }));
   }
 
   /** Scrolls the unpinned card area to its last card after the next layout pass. */

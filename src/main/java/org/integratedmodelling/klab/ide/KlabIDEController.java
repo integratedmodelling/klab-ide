@@ -753,6 +753,12 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     return this.currentView;
   }
 
+  /** Shows NotebookView before creating a rail-triggered card, so its initial focus has a viewport. */
+  private void showNotebookComponent(AssetViewComponent.Type type) {
+    selectView(View.NOTEBOOK);
+    Platform.runLater(() -> notebook.toggle(type));
+  }
+
   @FXML
   protected void initialize() {
 
@@ -797,8 +803,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
     downloadButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.toggle(AssetViewComponent.Type.Distribution);
-          selectView(View.NOTEBOOK);
+          showNotebookComponent(AssetViewComponent.Type.Distribution);
         });
     logo.setOnMouseClicked(
         mouseEvent -> {
@@ -807,33 +812,27 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         });
     profileButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.toggle(AssetViewComponent.Type.UserInfo);
-          selectView(View.NOTEBOOK);
+          showNotebookComponent(AssetViewComponent.Type.UserInfo);
         });
     settingsButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.toggle(AssetViewComponent.Type.Settings);
-          selectView(View.NOTEBOOK);
+          showNotebookComponent(AssetViewComponent.Type.Settings);
         });
     reasonerButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.toggle(AssetViewComponent.Type.ReasonerService);
-          selectView(View.NOTEBOOK);
+          showNotebookComponent(AssetViewComponent.Type.ReasonerService);
         });
     resourcesButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.toggle(AssetViewComponent.Type.ResourcesService);
-          selectView(View.NOTEBOOK);
+          showNotebookComponent(AssetViewComponent.Type.ResourcesService);
         });
     resolverButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.toggle(AssetViewComponent.Type.ResolverService);
-          selectView(View.NOTEBOOK);
+          showNotebookComponent(AssetViewComponent.Type.ResolverService);
         });
     runtimeButton.setOnMouseClicked(
         mouseEvent -> {
-          notebook.toggle(AssetViewComponent.Type.RuntimeService);
-          selectView(View.NOTEBOOK);
+          showNotebookComponent(AssetViewComponent.Type.RuntimeService);
         });
 
     for (var key : viewButtons.keySet()) {
