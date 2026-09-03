@@ -160,6 +160,8 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
           event.consume();
         }
       };
+  private WorkflowUIProvider workflowProvider;
+  private long lastWorkflowProviderUpdate = 0;
 
   public CLI getCLI() {
     return cli;
@@ -207,16 +209,19 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   }
 
   public WorkflowUIProvider getDefaultWorkflowProvider() {
-    var ret =
-        new WorkflowUIProvider() {
-          @Override
-          public List<Workflow> availableWorkflows(KlabAsset asset, UserScope scope) {
 
-            return List.of();
-          }
-        };
-
-    return ret;
+    var delay = System.currentTimeMillis() - lastWorkflowProviderUpdate;
+    if (this.workflowProvider == null || delay > 30000) {
+      this.workflowProvider =
+          new WorkflowUIProvider() {
+            @Override
+            public List<Workflow> availableWorkflows(KlabAsset asset, UserScope scope) {
+              var ret = scope.getService(ResourcesService.class).list(Workflow.class, scope);
+              return ret;
+            }
+          };
+    }
+    return this.workflowProvider;
   }
 
   /** The "circled" (current) view in the main area. */
@@ -753,7 +758,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     return this.currentView;
   }
 
-  /** Shows NotebookView before creating a rail-triggered card, so its initial focus has a viewport. */
+  /**
+   * Shows NotebookView before creating a rail-triggered card, so its initial focus has a viewport.
+   */
   private void showNotebookComponent(AssetViewComponent.Type type) {
     selectView(View.NOTEBOOK);
     Platform.runLater(() -> notebook.toggle(type));
