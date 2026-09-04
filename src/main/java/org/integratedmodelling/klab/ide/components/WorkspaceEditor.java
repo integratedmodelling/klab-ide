@@ -1084,9 +1084,9 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   @Override
   protected void onSingleClickItemSelection(NavigableAsset value) {
-    if (KlabIDEApplication.instance().isInspectorShown()) {
-      KlabIDEController.instance().getInspector().inspect(value);
-    }
+//    if (KlabIDEApplication.instance().isInspectorShown()) {
+//      KlabIDEController.instance().getInspector().inspect(value);
+//    }
     navigateToAsset(value, false);
   }
 
@@ -1109,6 +1109,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   private void navigateToAsset(NavigableAsset asset, boolean activateDocument) {
+
     var document = containingDocument(asset);
     if (document == null) {
       return;
@@ -1120,11 +1121,16 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       return;
     }
 
+    // TODO if the editor is in "doc" (link with inspector) mode and the inspector is open,
+    //  we should document the asset. In all cases, we should put the asset URN in the status
+    //  bar along with the dirty status and maybe more.
+
     if (isEditorSelected(document) && getEditor(document) instanceof MonacoEditorView editor) {
       int offset = asset instanceof KlabStatement statement ? statement.getOffsetInDocument() : 0;
       if (offset >= 0) {
         editor.setCursorPosition(offset);
         editor.requestEditorFocus();
+        // HERE
       }
     }
   }
