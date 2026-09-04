@@ -33,7 +33,9 @@ import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.SemanticType;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.services.RuntimeService;
+import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.ide.IDEContextScope;
+import org.integratedmodelling.klab.ide.KlabIDEController;
 
 /** Zoomable GeoJSON map for shape-bearing substantial observations. */
 public class GeoJsonCard extends BaseCard<RuntimeAsset> {
@@ -132,6 +134,8 @@ public class GeoJsonCard extends BaseCard<RuntimeAsset> {
     progress.setVisible(false);
     if (loadError != null || geoJson == null || geoJson.isBlank()) {
       updateState("Spatial features unavailable: " + errorMessage(loadError));
+      KlabIDEController.instance()
+          .handleNotification(Notification.error("Spatial features unavailable", loadError));
       return;
     }
     try {
@@ -140,6 +144,8 @@ public class GeoJsonCard extends BaseCard<RuntimeAsset> {
       rendered = true;
       updateState("Use the map controls to pan and zoom");
     } catch (RuntimeException e) {
+      KlabIDEController.instance()
+          .handleNotification(Notification.error("Unable to display spatial features", loadError));
       updateState("Unable to display spatial features: " + errorMessage(e));
     }
   }
@@ -203,11 +209,12 @@ public class GeoJsonCard extends BaseCard<RuntimeAsset> {
   }
 
   private static String urn(RuntimeAsset asset) {
-    String urn = switch (asset) {
-      case Observation observation -> observation.getUrn();
-      case Cohort cohort -> cohort.getUrn();
-      default -> throw new IllegalArgumentException("Unsupported GeoJSON asset " + asset);
-    };
+    String urn =
+        switch (asset) {
+          case Observation observation -> observation.getUrn();
+          case Cohort cohort -> cohort.getUrn();
+          default -> throw new IllegalArgumentException("Unsupported GeoJSON asset " + asset);
+        };
     if (urn == null || urn.isBlank()) {
       throw new IllegalStateException("The spatial asset has no export URN");
     }
@@ -227,8 +234,7 @@ public class GeoJsonCard extends BaseCard<RuntimeAsset> {
       return new JLLatLng(0, 0);
     }
     return new JLLatLng(
-        (bounds.get(2) + bounds.get(3)) / 2.0,
-        (bounds.get(0) + bounds.get(1)) / 2.0);
+        (bounds.get(2) + bounds.get(3)) / 2.0, (bounds.get(0) + bounds.get(1)) / 2.0);
   }
 
   private static void fitBounds(JLMapView map, List<Double> bounds) {

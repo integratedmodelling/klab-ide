@@ -13,6 +13,7 @@ import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import org.integratedmodelling.common.services.client.ResourcesMerger;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.authentication.CRUDOperation;
 import org.integratedmodelling.klab.api.configuration.Setting;
@@ -88,6 +89,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         new NavigableWorkspace(
             service.retrieve(
                 resourceInfo.getUrn(), Workspace.class, KlabIDEController.instance().user())));
+
+    // this must strictly be the service that provides the asset
+    assert !(service instanceof ResourcesMerger);
+
     this.service = service;
     this.view = view;
     this.workflowUIProvider =
@@ -689,11 +694,11 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         if (editor.assetsWithFlows.contains(asset.getUrn())) {
           var dot = new Label("●");
           dot.setStyle("-fx-text-fill: -color-accent-fg; -fx-font-size: 9px;");
-          var graphic = new HBox(5, icon, label, dot);
+          var graphic = new HBox(3, icon, label, dot);
           graphic.setAlignment(Pos.CENTER_LEFT);
           setGraphic(graphic);
         } else {
-          var graphic = new HBox(5, icon, label);
+          var graphic = new HBox(2, icon, label);
           graphic.setAlignment(Pos.CENTER_LEFT);
           setGraphic(graphic);
         }

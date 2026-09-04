@@ -51,7 +51,7 @@ import java.util.zip.ZipOutputStream;
 public class UploadBox extends StackPane {
 
   private final String targetDirectory;
-  private final String promptText;
+  private String promptText;
   private final Consumer<File> onUploadComplete;
   private final BiConsumer<String, Throwable> onError;
 
@@ -128,6 +128,12 @@ public class UploadBox extends StackPane {
 
     initializeComponent();
     setupDragAndDrop();
+  }
+
+  /** Update the guidance shown in the drop target, for example after an upload type changes. */
+  public void setPromptText(String promptText) {
+    this.promptText = promptText;
+    if (promptLabel != null) promptLabel.setText(promptText);
   }
 
   private void initializeComponent() {
