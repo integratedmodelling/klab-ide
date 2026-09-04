@@ -21,12 +21,20 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.Alert;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
+import javafx.scene.control.Menu;
+import javafx.scene.control.MenuBar;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
+import javafx.scene.control.TextArea;
+import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -88,11 +96,18 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   private final ListView<Flow.State> stateList = new ListView<>();
   private final VBox stageArea = new VBox(12);
   private final Label status = new Label();
+  private final Label errorMessage = new Label();
+  private final Map<String, List<Flow.AttachmentUpload>> pendingAttachments = new LinkedHashMap<>();
+  private final Runnable cancelJob;
+  private final Consumer<Flow> initialized;
+  private final Consumer<Flow> deleted;
   private Flow flow;
+  private boolean provisional;
   private Flow.State selectedState;
   private StageEditor selectedEditor;
   private HBox actionBar;
   private UploadBox uploadBox;
+  private VBox attachmentEntries;
 
   public WorkflowEditor(
       ResourcesService service,
@@ -100,11 +115,52 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
       Workflow workflow,
       Flow flow,
       StageEditorProvider stageEditors) {
+    this(service, scope, workflow, flow, stageEditors, null, null, null);
+  }
+
+  public WorkflowEditor(
+      ResourcesService service,
+      UserScope scope,
+      Workflow workflow,
+      Flow flow,
+      StageEditorProvider stageEditors,
+      Runnable cancelJob) {
+    this(service, scope, workflow, flow, stageEditors, cancelJob, null, null);
+  }
+
+  public WorkflowEditor(
+      ResourcesService service,
+      UserScope scope,
+      Workflow workflow,
+      Flow flow,
+      StageEditorProvider stageEditors,
+      Runnable cancelJob,
+      Consumer<Flow> initialized) {
+    this(service, scope, workflow, flow, stageEditors, cancelJob, initialized, null);
+  }
+
+  public WorkflowEditor(
+      ResourcesService service,
+      UserScope scope,
+      Workflow workflow,
+      Flow flow,
+      StageEditorProvider stageEditors,
+      Runnable cancelJob,
+      Consumer<Flow> initialized,
+      Consumer<Flow> deleted) {
     this.service = Objects.requireNonNull(service);
     this.scope = Objects.requireNonNull(scope);
     this.workflow = Objects.requireNonNull(workflow);
     this.flow = Objects.requireNonNull(flow);
     this.stageEditors = stageEditors;
+    this.cancelJob = cancelJob;
+    this.initialized = initialized;
+    this.deleted = deleted;
+    this.provisional = flow.getRevision() == 0 && flow.getHistory().isEmpty();
+    errorMessage.setWrapText(true);
+    errorMessage.setStyle("-fx-text-fill: -color-danger-fg;");
+    errorMessage.visibleProperty().bind(errorMessage.textProperty().isNotEmpty());
+    errorMessage.managedProperty().bind(errorMessage.visibleProperty());
     setPadding(new Insets(12));
     setTop(header());
     setLeft(stageBrowser());
@@ -132,7 +188,48 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     var box = new HBox(12, new VBox(2, title, asset), spacer, status);
     box.setAlignment(Pos.CENTER_LEFT);
     box.setPadding(new Insets(0, 0, 10, 0));
-    return new VBox(box, new Separator());
+    var header = new VBox();
+    if (canDeleteFlow()) {
+      var delete = new MenuItem("Delete flow…");
+      delete.setOnAction(event -> deleteFlow());
+      var flowMenu = new Menu("Flow");
+      flowMenu.getItems().add(delete);
+      header.getChildren().add(new MenuBar(flowMenu));
+    }
+    header.getChildren().addAll(box, new Separator());
+    return header;
+  }
+
+  private boolean canDeleteFlow() {
+    if (provisional) return false;
+    var participant = WorkflowParticipant.from(scope);
+    return participant.getRoles().contains(WorkflowRole.ADMIN)
+        || (participant.getRoles().contains(WorkflowRole.EDITOR)
+            && participant.isWorkflowPermitted(workflow)
+            && Objects.equals(flow.getOwner(), participant.getIdentity()));
+  }
+
+  private void deleteFlow() {
+    var confirmation = new Alert(Alert.AlertType.CONFIRMATION);
+    confirmation.setTitle("Delete workflow");
+    confirmation.setHeaderText("Delete this flow and its complete history?");
+    confirmation.setContentText(
+        "All stages, transitions, metadata, and attachments in this flow will be permanently deleted.");
+    var delete = new ButtonType("Delete flow", ButtonBar.ButtonData.YES);
+    var cancel = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+    confirmation.getButtonTypes().setAll(delete, cancel);
+    if (getScene() != null && getScene().getWindow() != null)
+      confirmation.initOwner(getScene().getWindow());
+    if (confirmation.showAndWait().orElse(cancel) != delete) return;
+    try {
+      clearError();
+      var removed = flow;
+      service.deleteFlow(flow.getId(), scope);
+      if (deleted != null) deleted.accept(removed);
+      if (cancelJob != null) cancelJob.run();
+    } catch (Throwable error) {
+      fail(error);
+    }
   }
 
   private Node stageBrowser() {
@@ -191,7 +288,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
             + "  •  started "
             + (flow.getCreatedAt() == null ? "unknown" : DATE.format(flow.getCreatedAt()))
             + "  •  revision "
-            + flow.getRevision()
+            + (provisional ? "draft — not yet started" : flow.getRevision())
             + (flow.isPublicRead() ? "  •  public read-only" : ""));
     var states = new ArrayList<>(flow.getStates().values());
     states.sort(
@@ -220,7 +317,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     heading.getStyleClass().add(Styles.TITLE_4);
     var instructions = new Label(schema.getInstructions());
     instructions.setWrapText(true);
-    stageArea.getChildren().addAll(heading, instructions);
+    stageArea.getChildren().addAll(heading, instructions, errorMessage);
 
     boolean readOnly = !canEdit(state);
     selectedEditor =
@@ -240,16 +337,28 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   }
 
   private StageEditor defaultEditor(Flow.State state) {
-    var metadata = new Label(state.getMetadata().toString());
-    metadata.setWrapText(true);
-    return new StageEditor(metadata, () -> true, Map::of, ignored -> {});
+    var title = new TextField(state.getTitle());
+    title.setPromptText("Stage title");
+    var description = new TextArea(state.getDescription());
+    description.setPromptText("Describe this stage, its evidence, or its decision");
+    description.setPrefRowCount(5);
+    title.textProperty().addListener((ignored, old, value) -> state.setTitle(value));
+    description.textProperty().addListener((ignored, old, value) -> state.setDescription(value));
+    var content = new VBox(6, new Label("Title"), title, new Label("Description"), description);
+    return new StageEditor(
+        content,
+        () -> true,
+        state::getMetadata,
+        readOnly -> {
+          title.setEditable(!readOnly);
+          description.setEditable(!readOnly);
+        });
   }
 
   private Node attachments(Workflow.StateSchema schema, boolean readOnly) {
-    var list = new VBox(4, new Label("Attachments"));
-    for (var attachment : selectedState.getAttachments()) {
-      list.getChildren().add(new Label(attachment.getFileName() + " (" + attachment.getType() + ")"));
-    }
+    attachmentEntries = new VBox(4);
+    var list = new VBox(4, new Label("Attachments"), attachmentEntries);
+    refreshAttachmentEntries();
     if (!readOnly) {
       var rules = new ComboBox<Workflow.AttachmentRule>();
       rules.getItems().setAll(schema.getAttachments());
@@ -274,12 +383,30 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     return list;
   }
 
+  private void refreshAttachmentEntries() {
+    if (attachmentEntries == null) return;
+    attachmentEntries.getChildren().clear();
+    for (var attachment : selectedState.getAttachments()) {
+      attachmentEntries
+          .getChildren()
+          .add(new Label(attachment.getFileName() + " (" + attachment.getType() + ")"));
+    }
+    for (var upload : pendingAttachments.getOrDefault(selectedState.getId(), List.of())) {
+      var pending = new Label(upload.getFileName() + " (" + upload.getType() + ", pending)");
+      pending.setStyle("-fx-text-fill: -color-accent-fg;");
+      attachmentEntries.getChildren().add(pending);
+    }
+  }
+
   private ListCell<Workflow.AttachmentRule> attachmentRuleCell() {
     return new ListCell<>() {
       @Override
       protected void updateItem(Workflow.AttachmentRule rule, boolean empty) {
         super.updateItem(rule, empty);
-        setText(empty || rule == null ? null : rule.getType());
+        setText(
+            empty || rule == null
+                ? null
+                : rule.getType() + (rule.isRequired() ? " (required)" : " (optional)"));
       }
     };
   }
@@ -292,10 +419,19 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
       upload.setFileName(file.getName());
       upload.setMediaType(
           rule.getMediaType() == null ? Files.probeContentType(file.toPath()) : rule.getMediaType());
-      upload.setAssetType(rule.getAssetType());
+      upload.setAssetType(
+          rule.getAssetType() == null ? selectedState.getAssetType() : rule.getAssetType());
       upload.setContent(Files.readAllBytes(file.toPath()));
-      service.addFlowAttachment(flow.getId(), selectedState.getId(), upload, scope);
-      reload(selectedState.getId());
+      clearError();
+      if (provisional) {
+        pendingAttachments
+            .computeIfAbsent(selectedState.getId(), ignored -> new ArrayList<>())
+            .add(upload);
+        refreshAttachmentEntries();
+      } else {
+        service.addFlowAttachment(flow.getId(), selectedState.getId(), upload, scope);
+        reload(selectedState.getId());
+      }
     } catch (Throwable e) {
       fail(e);
     }
@@ -312,6 +448,17 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
       return bar;
     }
     if (readOnly) return bar;
+
+    if (provisional) {
+      var cancelWorkflow = new Button("Cancel workflow");
+      cancelWorkflow.getStyleClass().add(Styles.DANGER);
+      cancelWorkflow.setOnAction(
+          event -> {
+            pendingAttachments.clear();
+            if (cancelJob != null) cancelJob.run();
+          });
+      bar.getChildren().add(cancelWorkflow);
+    }
 
     var cancel = new Button("Cancel changes");
     cancel.setOnAction(event -> show(selectedState));
@@ -335,6 +482,12 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
           }
         });
     bar.getChildren().addAll(cancel, delete);
+    if (!provisional) {
+      var update = new Button("Update stage");
+      update.getProperties().put("workflow-update", Boolean.TRUE);
+      update.setOnAction(event -> updateStage());
+      bar.getChildren().add(update);
+    }
     for (var transition :
         workflow.admittedTransitions(flow, selectedState.getId(), scope)) {
       var confirm =
@@ -348,11 +501,24 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     return bar;
   }
 
-  private void confirm(Workflow.TransitionSchema transition) {
+  private void updateStage() {
     try {
+      clearError();
       var update = copyState(selectedState);
       update.setMetadata(selectedEditor.metadata().get());
       service.updateFlowState(flow.getId(), selectedState.getId(), update, scope);
+      reload(selectedState.getId());
+    } catch (Throwable error) {
+      fail(error);
+    }
+  }
+
+  private void confirm(Workflow.TransitionSchema transition) {
+    try {
+      clearError();
+      validateRequiredAttachments();
+      var update = copyState(selectedState);
+      update.setMetadata(selectedEditor.metadata().get());
       var request = Flow.TransitionRequest.create();
       request.setSourceStateId(selectedState.getId());
       request.setTransitionId(transition.getId());
@@ -360,10 +526,43 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
       var target = Flow.State.create();
       target.setOwner(WorkflowParticipant.from(scope).getIdentity());
       request.setTargetState(target);
-      flow = service.transitionFlow(flow.getId(), request, scope);
+      if (provisional) {
+        request.setExpectedRevision(-1);
+        var initialization = Flow.InitializationRequest.create();
+        initialization.setInitialState(update);
+        initialization.setAttachments(
+            new ArrayList<>(
+                pendingAttachments.getOrDefault(selectedState.getId(), List.of())));
+        initialization.setTransition(request);
+        initialization.setPublicRead(flow.isPublicRead());
+        flow = service.initializeFlow(workflow.getId(), initialization, scope);
+        provisional = false;
+        pendingAttachments.clear();
+        if (initialized != null) initialized.accept(flow);
+      } else {
+        service.updateFlowState(flow.getId(), selectedState.getId(), update, scope);
+        request.setExpectedRevision(flow.getRevision() + 1);
+        flow = service.transitionFlow(flow.getId(), request, scope);
+      }
       refresh(selectInitialState());
     } catch (Throwable e) {
       fail(e);
+    }
+  }
+
+  private void validateRequiredAttachments() {
+    var schema = workflow.getStates().get(selectedState.getSchemaId());
+    if (schema == null) return;
+    for (var rule : schema.getAttachments()) {
+      boolean stored =
+          selectedState.getAttachments().stream()
+              .anyMatch(attachment -> Objects.equals(rule.getType(), attachment.getType()));
+      boolean pending =
+          pendingAttachments.getOrDefault(selectedState.getId(), List.of()).stream()
+              .anyMatch(attachment -> Objects.equals(rule.getType(), attachment.getType()));
+      if (rule.isRequired() && !stored && !pending)
+        throw new IllegalStateException(
+            "Add the required '" + rule.getType() + "' attachment before continuing");
     }
   }
 
@@ -373,6 +572,10 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     copy.setFlowId(state.getFlowId());
     copy.setSchemaId(state.getSchemaId());
     copy.setTitle(state.getTitle());
+    copy.setDescription(state.getDescription());
+    copy.setAssetUrn(state.getAssetUrn());
+    copy.setAssetType(state.getAssetType());
+    copy.setPermissionsOwnerUrn(state.getPermissionsOwnerUrn());
     copy.setStatus(state.getStatus());
     copy.setOwner(state.getOwner());
     copy.setAssignees(state.getAssignees());
@@ -400,7 +603,9 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     if (actionBar == null || selectedEditor == null) return;
     boolean valid = selectedEditor.valid().getAsBoolean();
     for (var node : actionBar.getChildren()) {
-      if (Boolean.TRUE.equals(node.getProperties().get("workflow-confirm"))) node.setDisable(!valid);
+      if (Boolean.TRUE.equals(node.getProperties().get("workflow-confirm"))
+          || Boolean.TRUE.equals(node.getProperties().get("workflow-update")))
+        node.setDisable(!valid);
     }
   }
 
@@ -419,8 +624,25 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   }
 
   private void fail(Throwable error) {
+    var message = errorMessage(error);
     Platform.runLater(
-        () -> KlabIDEController.instance().handleNotification(Notification.error(error)));
+        () -> {
+          errorMessage.setText(message);
+          KlabIDEController.instance().handleNotification(Notification.error(message));
+        });
+  }
+
+  private void clearError() {
+    errorMessage.setText("");
+  }
+
+  private static String errorMessage(Throwable error) {
+    Throwable cause = error;
+    while (cause.getCause() != null && cause.getCause() != cause) cause = cause.getCause();
+    var detail = cause.getMessage();
+    return detail == null || detail.isBlank()
+        ? "The workflow action could not be completed. Correct the stage and try again."
+        : "The workflow action could not be completed: " + detail;
   }
 
   @Override

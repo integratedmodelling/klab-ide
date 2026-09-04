@@ -1380,7 +1380,9 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
         for (Workflow workflow :
             Optional.ofNullable(workflowUIProvider.availableWorkflows(resource, scope))
                 .orElseGet(List::of)) {
-          if (workflow == null || !participant.isWorkflowPermitted(workflow)) continue;
+          if (workflow == null
+              || !participant.isWorkflowPermitted(workflow)
+              || !workflow.admitsAsset(KlabAsset.KnowledgeClass.RESOURCE)) continue;
           MenuItem item = new MenuItem(workflowName(workflow));
           item.setOnAction(event -> startWorkflow(workflow));
           workflows.getItems().add(item);
@@ -1397,6 +1399,9 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
       WorkflowParticipant participant = WorkflowParticipant.from(scope);
       if (!participant.isWorkflowPermitted(workflow))
         throw new IllegalStateException("Workflow is not permitted: " + workflowName(workflow));
+      if (!workflow.admitsAsset(KlabAsset.KnowledgeClass.RESOURCE))
+        throw new IllegalStateException(
+            "Workflow " + workflowName(workflow) + " does not admit RESOURCE assets");
       Workflow.TransitionSchema initialTransition =
           workflow.getTransitions().values().stream()
               .filter(transition -> transition.getSourceStates().contains(Workflow.INIT))
@@ -1409,7 +1414,7 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
       initial.setAssetType(KlabAsset.KnowledgeClass.RESOURCE);
       initial.setOwner(participant.getIdentity());
       initial.getAssignees().add(participant.getIdentity());
-      Flow flow = workflowUIProvider.startFlow(service, workflow, initial, scope);
+      Flow flow = workflowUIProvider.draftFlow(workflow, initial, scope);
       openWorkflow(flow, workflow);
     } catch (Throwable error) {
       notifyError(error.getMessage());
@@ -1423,15 +1428,17 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
           known == null
               ? service.getWorkflow(flow.getWorkflowId(), KlabIDEController.instance().user())
               : known;
+      String editorKey = "workflow:" + flow.getId();
       WorkflowEditor editor =
           new WorkflowEditor(
               service,
               KlabIDEController.instance().user(),
               workflow,
               flow,
-              workflowUIProvider::stageEditor);
+              workflowUIProvider::stageEditor,
+              () -> closeAuxiliaryEditor(editorKey));
       showAuxiliaryEditor(
-          "workflow:" + flow.getId(), workflowName(workflow) + " — workflow", editor);
+          editorKey, workflowName(workflow) + " — workflow", editor);
     } catch (Throwable error) {
       notifyError(error.getMessage());
     }

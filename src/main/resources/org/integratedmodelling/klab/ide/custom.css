@@ -818,6 +818,48 @@
     /*-fx-effect: dropshadow(gaussian, rgba(27, 31, 36, 0.08), 10, 0.16, 0, 2);*/
 }
 
+/* A fixed-width, independently scrollable notification drawer. */
+.notification-drawer,
+.notification-drawer > .viewport {
+    -fx-background-color: -color-neutral-muted;
+}
+
+.notification-drawer {
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.notification-card {
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+}
+
+.notification-card .notification-card-title {
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-padding: 0;
+}
+
+.notification-card .notification-card-message {
+    -fx-font-size: 10px;
+}
+
+.notification-card .notification-card-main-icon {
+    -fx-font-size: 14px;
+    -fx-icon-size: 14px;
+    -fx-padding: 0;
+    -fx-alignment: center;
+}
+
+.notification-card .notification-card-action {
+    -fx-padding: 2px;
+    -fx-background-insets: 0;
+}
+
+.notification-card .notification-card-action .ikonli-font-icon {
+    -fx-icon-size: 12px;
+}
+
 /* ServiceDashboard memory chart: Used is series 0, Available is series 1. */
 .area-chart .default-color0.chart-series-area-fill,
 .area-chart .default-color0.chart-series-area-line,

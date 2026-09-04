@@ -92,6 +92,7 @@ import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
 import org.integratedmodelling.klab.ide.components.*;
 import org.integratedmodelling.klab.ide.components.cards.AssetViewComponent;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
+import org.integratedmodelling.klab.ide.notifications.NotificationCard;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.integratedmodelling.klab.ide.utils.NodeUtils;
@@ -236,6 +237,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   @FXML BorderPane rootPane;
   @FXML VBox notificationArea;
+  private javafx.scene.control.ScrollPane notificationScrollPane;
   @FXML Button homeButton;
   @FXML Button workspacesButton;
   @FXML Button digitalTwinsButton;
@@ -796,10 +798,24 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     viewButtons.put(View.WORKSPACES, workspacesButton);
     viewButtons.put(View.WORLDVIEW, worldviewButton);
 
-    notificationArea = new VBox();
-    notificationArea.setMinWidth(280);
+    notificationArea = new VBox(8);
+    notificationArea.setPadding(new Insets(8));
+    notificationArea.setFillWidth(true);
+    notificationArea.setMinWidth(0);
+    notificationArea.setPrefWidth(280);
     BorderPane.setMargin(notificationArea, new Insets(0));
     notificationArea.setStyle("-fx-background-color: -color-neutral-muted;");
+
+    notificationScrollPane = new javafx.scene.control.ScrollPane(notificationArea);
+    notificationScrollPane.setFitToWidth(true);
+    notificationScrollPane.setHbarPolicy(javafx.scene.control.ScrollPane.ScrollBarPolicy.NEVER);
+    notificationScrollPane.setVbarPolicy(
+        javafx.scene.control.ScrollPane.ScrollBarPolicy.AS_NEEDED);
+    notificationScrollPane.setPannable(true);
+    notificationScrollPane.setMinWidth(280);
+    notificationScrollPane.setPrefWidth(280);
+    notificationScrollPane.setMaxWidth(280);
+    notificationScrollPane.getStyleClass().add("notification-drawer");
 
     inspectorButton.setOnMouseClicked(
         event -> {
@@ -1151,10 +1167,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   }
 
   private Node makeNotificationPanel(Notification notification) {
-    var text = Utils.Strings.justifyLeft(notification.getMessage(), 40);
     var date = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).format(ZonedDateTime.now());
     var ret =
-        new atlantafx.base.controls.Message(
+        new NotificationCard(
             switch (notification.getLevel()) {
                   case Debug, Info -> "Information";
                   case Warning -> "Warning";
@@ -1162,19 +1177,19 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
                 }
                 + " "
                 + date,
-            text,
+            notification.getMessage(),
             switch (notification.getLevel()) {
               case Debug, Info ->
                   new IconLabel(
                       Notification.Outcome.Success == notification.getOutcome()
                           ? Material2AL.CHECK_CIRCLE
                           : Material2AL.INFO,
-                      24,
+                      14,
                       Notification.Outcome.Success == notification.getOutcome()
                           ? "-color-success-fg"
                           : "-color-accent-fg");
-              case Warning -> new IconLabel(Material2MZ.WARNING, 24, "-color-warning-fg");
-              case Error, SystemError -> new IconLabel(Material2AL.ERROR, 24, "-color-danger-fg");
+              case Warning -> new IconLabel(Material2MZ.WARNING, 14, "-color-warning-fg");
+              case Error, SystemError -> new IconLabel(Material2AL.ERROR, 14, "-color-danger-fg");
             });
     ret.getStyleClass()
         .addAll(
@@ -1188,8 +1203,8 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
               case Error, SystemError -> List.of(Styles.DANGER);
             });
 
-    ret.setOnClose(
-        e -> {
+    ret.setOnCloseAction(
+        () -> {
           notifications.remove(notification);
           if (notifications.isEmpty()) {
             toggleNotificationPanel();
@@ -1365,7 +1380,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     notificationsVisible.set(!notificationsVisible.get());
     if (notificationsVisible.get()) {
       redrawNotificationBox();
-      rootPane.setRight(notificationArea);
+      rootPane.setRight(notificationScrollPane);
       setButton(
           toggleRightSideButton,
           Material2MZ.NAVIGATE_NEXT,

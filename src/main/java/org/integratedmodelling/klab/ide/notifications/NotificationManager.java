@@ -8,17 +8,16 @@ import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
-import javafx.scene.Scene;
-import javafx.scene.control.Button;
-import javafx.scene.control.Label;
-import javafx.scene.layout.*;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.VBox;
 import javafx.util.Duration;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.klab.ide.Theme;
 import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
-import org.kordamp.ikonli.material2.Material2MZ;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,6 +30,9 @@ import java.util.List;
  * <p>UNUSED - tests work, but unable to make notifications show as needed in the application.
  */
 public class NotificationManager {
+
+  private static final double NOTIFICATION_DRAWER_WIDTH = 280;
+  private static final double NOTIFICATION_CARD_WIDTH = 264;
 
   /** Notification types with corresponding icons and styles */
   public enum NotificationType {
@@ -68,55 +70,26 @@ public class NotificationManager {
   }
 
   /** Custom notification node */
-  public class NotificationBox extends HBox {
+  public class NotificationBox extends NotificationCard {
     private final String title;
     private final String message;
     private final NotificationType type;
 
     public NotificationBox(String title, String message, NotificationType type) {
-      super(10);
+      super(title, message, notificationIcon(type));
       this.title = title;
       this.message = message;
       this.type = type;
-
-      // Set up the notification UI
-      setupUI();
+      getStyleClass().add(type.getStyleClass());
+      setPrefWidth(NOTIFICATION_CARD_WIDTH);
+      setMaxWidth(NOTIFICATION_CARD_WIDTH);
+      setOnCloseAction(this::close);
     }
 
-    private void setupUI() {
-      // Set padding and style
-      setPadding(new Insets(15));
-      setMaxWidth(400);
-      setMinWidth(300);
-      getStyleClass().add("card");
-      getStyleClass().add(type.getStyleClass());
-
-      // Create icon
-      FontIcon icon = new FontIcon(type.getIcon());
+    private static FontIcon notificationIcon(NotificationType type) {
+      var icon = new FontIcon(type.getIcon());
       icon.getStyleClass().add("notification-icon");
-
-      // Create content
-      VBox content = new VBox(5);
-
-      // Create title
-      Label titleLabel = new Label(title);
-      titleLabel.getStyleClass().add("title-4");
-
-      // Create message
-      Label messageLabel = new Label(message);
-      messageLabel.setWrapText(true);
-
-      content.getChildren().addAll(titleLabel, messageLabel);
-      HBox.setHgrow(content, Priority.ALWAYS);
-
-      // Create close button
-      Button closeButton = new Button();
-      closeButton.getStyleClass().addAll("button-icon", "flat");
-      closeButton.setGraphic(new FontIcon(Material2MZ.REMOVE_CIRCLE_OUTLINE));
-      closeButton.setOnAction(e -> close());
-
-      // Add all components to the notification
-      getChildren().addAll(icon, content, closeButton);
+      return icon;
     }
 
     public void close() {
@@ -140,6 +113,7 @@ public class NotificationManager {
 
   //    private static NotificationManager instance;
   private final VBox notificationContainer;
+  private ScrollPane notificationScroller;
   private final List<NotificationBox> activeNotifications = new ArrayList<>();
   private static final int DEFAULT_DURATION_SECONDS = 5;
   private static final int MAX_NOTIFICATIONS = 5;
@@ -151,12 +125,13 @@ public class NotificationManager {
     notificationContainer.setAlignment(Pos.BOTTOM_RIGHT);
     notificationContainer.setMouseTransparent(false);
     notificationContainer.setPickOnBounds(false);
-    notificationContainer.setPadding(new Insets(20));
+    notificationContainer.setPadding(new Insets(8));
     notificationContainer.setMaxWidth(Region.USE_PREF_SIZE);
 
     // Set explicit size and position
-    notificationContainer.setMinWidth(400);
-    notificationContainer.setMaxHeight(Region.USE_PREF_SIZE);
+    notificationContainer.setMinWidth(0);
+    notificationContainer.setPrefWidth(NOTIFICATION_DRAWER_WIDTH);
+    notificationContainer.setFillWidth(true);
 
     // Set style to ensure visibility
     notificationContainer.setStyle("-fx-background-color: transparent;");
@@ -186,11 +161,23 @@ public class NotificationManager {
     javafx.scene.layout.StackPane notificationPane = new javafx.scene.layout.StackPane();
     notificationPane.setPrefSize(scene.getWidth(), scene.getHeight());
     notificationPane.setPickOnBounds(false);
-    notificationPane.setMouseTransparent(true);
+    // Transparent bounds pass clicks through, while cards and scrollbars remain interactive.
+    notificationPane.setMouseTransparent(false);
 
     // Position the notification container at the bottom-right
     notificationPane.setAlignment(Pos.BOTTOM_RIGHT);
-    notificationPane.getChildren().add(notificationContainer);
+    notificationScroller = new ScrollPane(notificationContainer);
+    notificationScroller.setFitToWidth(true);
+    notificationScroller.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+    notificationScroller.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+    notificationScroller.setPannable(true);
+    notificationScroller.setMinWidth(NOTIFICATION_DRAWER_WIDTH);
+    notificationScroller.setPrefWidth(NOTIFICATION_DRAWER_WIDTH);
+    notificationScroller.setMaxWidth(NOTIFICATION_DRAWER_WIDTH);
+    notificationScroller.setStyle(
+        "-fx-background-color: transparent; -fx-background: transparent;");
+    notificationScroller.maxHeightProperty().bind(scene.heightProperty().multiply(0.75));
+    notificationPane.getChildren().add(notificationScroller);
 
     // Add the notification pane to the root
     root.getChildren().add(notificationPane);

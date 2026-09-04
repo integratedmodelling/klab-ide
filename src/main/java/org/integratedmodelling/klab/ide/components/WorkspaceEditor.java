@@ -46,6 +46,7 @@ import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.ide.components.generic.TreeSearchField;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.integratedmodelling.klab.modeler.model.*;
+import org.integratedmodelling.klabeditor.Document;
 import org.integratedmodelling.klabeditor.MonacoEditorView;
 import org.integratedmodelling.klabeditor.lsp.KlabLspService;
 import org.integratedmodelling.klabeditor.lsp.LspDocumentSession;
@@ -55,6 +56,7 @@ import org.kordamp.ikonli.codicons.Codicons;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
 import org.kordamp.ikonli.materialdesign.MaterialDesign;
+import org.kordamp.ikonli.octicons.Octicons;
 
 public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAsset> {
 
@@ -68,6 +70,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private ProgressBar progressBar;
   private TreeView<NavigableAsset> treeView;
   private final Map<Node, LspDocumentSession> lspSessions = new IdentityHashMap<>();
+  private final Set<String> assetsWithFlows = new HashSet<>();
 
   /** Saved source snapshots waiting for their corresponding parsed workspace updates. */
   private final Map<String, Deque<String>> pendingSavedSources = new HashMap<>();
@@ -90,6 +93,14 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     this.workflowUIProvider =
         workflowUIProvider == null ? WorkflowUIProvider.NONE : workflowUIProvider;
     this.workspace = getEditedAsset();
+    try {
+      service.getFlows(true, KlabIDEController.instance().user()).stream()
+          .map(Flow::getAssetUrn)
+          .filter(Objects::nonNull)
+          .forEach(assetsWithFlows::add);
+    } catch (RuntimeException ignored) {
+      // A disconnected service must not prevent the workspace from opening.
+    }
     // lock all projects that let us
     for (var project : workspace.getProjects()) {
       if (service.lockProject(project.getUrn(), KlabIDEController.instance().user())
@@ -121,7 +132,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       return;
     }
     var participant = WorkflowParticipant.from(scope);
-    var workflowMenu = new Menu("Workflows");
+    var workflowMenus = new ArrayList<Menu>();
 
     if (participant.getRoles().contains(WorkflowRole.EDITOR)
         || participant.getRoles().contains(WorkflowRole.ADMIN)) {
@@ -129,6 +140,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       workflows.stream()
           .filter(Objects::nonNull)
           .filter(participant::isWorkflowPermitted)
+          .filter(workflow -> workflow.admitsAsset(assetType(asset)))
           .sorted(Comparator.comparing(WorkspaceEditor::workflowName))
           .forEach(
               workflow -> {
@@ -136,19 +148,19 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                 item.setOnAction(event -> startWorkflow(asset, workflow));
                 start.getItems().add(item);
               });
-      if (!start.getItems().isEmpty()) workflowMenu.getItems().add(start);
+      if (!start.getItems().isEmpty()) workflowMenus.add(start);
     }
 
-    addFlowSubmenu(workflowMenu, "Open flows", flows, Flow.Status.ACTIVE);
-    addFlowSubmenu(workflowMenu, "Closed flows", flows, Flow.Status.CLOSED);
-    if (!workflowMenu.getItems().isEmpty()) {
+    addFlowSubmenu(workflowMenus, "Open flows", flows, Flow.Status.ACTIVE);
+    addFlowSubmenu(workflowMenus, "Closed flows", flows, Flow.Status.CLOSED);
+    if (!workflowMenus.isEmpty()) {
       if (!contextMenu.getItems().isEmpty()) contextMenu.getItems().add(new SeparatorMenuItem());
-      contextMenu.getItems().add(workflowMenu);
+      contextMenu.getItems().addAll(workflowMenus);
     }
   }
 
   private void addFlowSubmenu(
-      Menu workflowMenu, String title, List<Flow> flows, Flow.Status status) {
+      List<Menu> workflowMenus, String title, List<Flow> flows, Flow.Status status) {
     var submenu = new Menu(title);
     flows.stream()
         .filter(flow -> flow.getStatus() == status)
@@ -170,7 +182,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
               item.setOnAction(event -> openWorkflow(flow, resolvedWorkflow));
               submenu.getItems().add(item);
             });
-    if (!submenu.getItems().isEmpty()) workflowMenu.getItems().add(submenu);
+    if (!submenu.getItems().isEmpty()) workflowMenus.add(submenu);
   }
 
   private void startWorkflow(NavigableAsset asset, Workflow workflow) {
@@ -178,6 +190,11 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       var participant = WorkflowParticipant.from(KlabIDEController.instance().user());
       if (!participant.isWorkflowPermitted(workflow)) {
         throw new IllegalStateException("Workflow is not permitted: " + workflowName(workflow));
+      }
+      var assetType = assetType(asset);
+      if (!workflow.admitsAsset(assetType)) {
+        throw new IllegalStateException(
+            "Workflow " + workflowName(workflow) + " does not admit " + assetType + " assets");
       }
       var initialTransition =
           workflow.getTransitions().values().stream()
@@ -191,15 +208,24 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       var initial = Flow.State.create();
       initial.setSchemaId(initialTransition.getTargetState());
       initial.setAssetUrn(asset.getUrn());
-      initial.setAssetType(KlabAsset.classify(asset));
+      initial.setAssetType(assetType);
       initial.setOwner(participant.getIdentity());
       initial.getAssignees().add(participant.getIdentity());
       var flow =
-          workflowUIProvider.startFlow(
-              service, workflow, initial, KlabIDEController.instance().user());
+          workflowUIProvider.draftFlow(
+              workflow, initial, KlabIDEController.instance().user());
       openWorkflow(flow, workflow);
     } catch (Throwable error) {
       KlabIDEController.instance().handleNotification(Notification.error(error));
+    }
+  }
+
+  private static KlabAsset.KnowledgeClass assetType(NavigableAsset asset) {
+    if (asset == null || asset.getDelegate() == null) return null;
+    try {
+      return KlabAsset.classify(asset.getDelegate());
+    } catch (RuntimeException unsupportedAsset) {
+      return null;
     }
   }
 
@@ -209,15 +235,34 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           knownWorkflow == null
               ? service.getWorkflow(flow.getWorkflowId(), KlabIDEController.instance().user())
               : knownWorkflow;
+      var editorKey = "workflow:" + flow.getId();
       var editor =
           new WorkflowEditor(
               service,
               KlabIDEController.instance().user(),
               workflow,
               flow,
-              workflowUIProvider::stageEditor);
+              workflowUIProvider::stageEditor,
+              () -> closeAuxiliaryEditor(editorKey),
+              initialized -> {
+                assetsWithFlows.add(initialized.getAssetUrn());
+                if (treeView != null) treeView.refresh();
+              },
+              deleted -> {
+                try {
+                  boolean anotherFlow =
+                      service.getFlows(true, KlabIDEController.instance().user()).stream()
+                          .anyMatch(
+                              candidate ->
+                                  Objects.equals(deleted.getAssetUrn(), candidate.getAssetUrn()));
+                  if (!anotherFlow) assetsWithFlows.remove(deleted.getAssetUrn());
+                } catch (RuntimeException ignored) {
+                  // The deletion succeeded; refresh the indicator on the next service-backed view.
+                }
+                if (treeView != null) treeView.refresh();
+              });
       showAuxiliaryEditor(
-          "workflow:" + flow.getId(), workflowName(workflow) + " — workflow", editor);
+          editorKey, workflowName(workflow) + " — workflow", editor);
     } catch (Throwable error) {
       KlabIDEController.instance().handleNotification(Notification.error(error));
     }
@@ -633,8 +678,25 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     protected void updateItem(NavigableAsset asset, boolean empty) {
       super.updateItem(asset, empty);
       if (asset != null && !empty) {
-        setText(Theme.getLabel(asset));
-        setGraphic(getTreeGraphics(asset));
+        setText(null);
+        var icon = getTreeGraphics(asset);
+        var label = new Label(Theme.getLabel(asset));
+        if (asset instanceof NavigableProject project && project.isLocked()) {
+          // The cell text became a graphic child when flow indicators were introduced, so preserve
+          // the established locked-project cue on the label itself.
+          label.setStyle("-fx-text-fill: -color-success-fg;");
+        }
+        if (editor.assetsWithFlows.contains(asset.getUrn())) {
+          var dot = new Label("●");
+          dot.setStyle("-fx-text-fill: -color-accent-fg; -fx-font-size: 9px;");
+          var graphic = new HBox(5, icon, label, dot);
+          graphic.setAlignment(Pos.CENTER_LEFT);
+          setGraphic(graphic);
+        } else {
+          var graphic = new HBox(5, icon, label);
+          graphic.setAlignment(Pos.CENTER_LEFT);
+          setGraphic(graphic);
+        }
         setOnContextMenuRequested(
             event -> {
               var contextMenu = new ContextMenu();
@@ -721,10 +783,12 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       String theme = Theme.CURRENT_THEME.isDark() ? "vs-dark" : "vs";
 
       // For now use the Urn
+      // TODO these buttons etc. should be in a dedicated DocumentEditor subclass
       String documentUri =
           "inmemory:///klab/" + document.getUrn() + "." + document.getLanguage().fileExtension();
       var saveButton =
           IconButton.of(Codicons.SAVE, 12, Theme.FOREGROUND_COLOR, Theme.FOREGROUND_COLOR, null);
+      saveButton.setTooltip(new Tooltip("Save"));
       var status = new Label("Ready");
 
       var ret =
@@ -754,14 +818,32 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                       });
               lineNumbers.setToggled(this.isLineNumbersVisible());
               minimap.setToggled(this.isMinimapVisible());
+              lineNumbers.setTooltip(new Tooltip("Toggle line numbers"));
+              minimap.setTooltip(new Tooltip("Toggle the minimap"));
+
+              var reviewMode =
+                  IconButton.toggle(
+                      Octicons.CODE_REVIEW_24,
+                      12,
+                      () -> {
+                        return toggleReviewMode(document, this);
+                      });
+
+              reviewMode.setToggled(this.isReviewMode());
+              // TODO enable only if the doc has some public flow or if user can
+              //  open a review
+              reviewMode.setTooltip(new Tooltip("Toggle review mode"));
+
               return List.of(
                   new BarComponent(saveButton, BarSide.LEFT),
+                  new BarComponent(reviewMode, BarSide.LEFT),
                   new BarComponent(lineNumbers, BarSide.RIGHT),
                   new BarComponent(minimap, BarSide.RIGHT));
             }
 
             @Override
             protected Collection<BarComponent> createStatusBarComponents() {
+
               return List.of(new BarComponent(status, BarSide.LEFT));
             }
           };
@@ -833,6 +915,13 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
               ProjectStorage.ResourceType.classify(document),
               text);
     }
+  }
+
+  public boolean toggleReviewMode(NavigableKlabDocument<?, ?> document, MonacoEditorView editor) {
+    var ret = !editor.isReviewMode();
+    editor.setReviewMode(ret);
+    // TODO the rest
+    return ret;
   }
 
   public void updateWorkspace(
@@ -1084,9 +1173,9 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   @Override
   protected void onSingleClickItemSelection(NavigableAsset value) {
-//    if (KlabIDEApplication.instance().isInspectorShown()) {
-//      KlabIDEController.instance().getInspector().inspect(value);
-//    }
+    //    if (KlabIDEApplication.instance().isInspectorShown()) {
+    //      KlabIDEController.instance().getInspector().inspect(value);
+    //    }
     navigateToAsset(value, false);
   }
 
