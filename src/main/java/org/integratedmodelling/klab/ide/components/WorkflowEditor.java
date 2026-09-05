@@ -18,6 +18,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
+import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
@@ -27,7 +28,6 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
-import javafx.scene.control.ListView;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
@@ -49,10 +49,9 @@ import org.integratedmodelling.klab.api.services.resources.workflow.WorkflowPart
 import org.integratedmodelling.klab.api.services.resources.workflow.WorkflowRole;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.ide.KlabIDEController;
-import org.integratedmodelling.klab.ide.Theme;
-import org.integratedmodelling.klab.ide.components.generic.IconButton;
 import org.integratedmodelling.klab.ide.components.generic.UploadBox;
-import org.kordamp.ikonli.codicons.Codicons;
+import org.integratedmodelling.klab.ide.components.generic.CarouselBox;
+import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
 
 /**
@@ -102,9 +101,13 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   private final UserScope scope;
   private final Workflow workflow;
   private final StageEditorProvider stageEditors;
-  private final ListView<Flow.State> stateList = new ListView<>();
+  private final CarouselBox stageCarousel = new CarouselBox(Orientation.VERTICAL);
+  private final Map<Node, Flow.State> stageCards = new LinkedHashMap<>();
   private final VBox stageArea = new VBox(12);
   private final Label status = new Label();
+  private Label activeStatusChip;
+  private Label startedChip;
+  private Label revisionChip;
   private final Label errorMessage = new Label();
   private final Map<String, List<Flow.AttachmentUpload>> pendingAttachments = new LinkedHashMap<>();
   private final Runnable cancelJob;
@@ -114,7 +117,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   private boolean provisional;
   private Flow.State selectedState;
   private StageEditor selectedEditor;
-  private HBox actionBar;
+  private VBox actionBar;
   private UploadBox uploadBox;
   private VBox attachmentEntries;
   private ComboBox<TransitionChoice> transitionSelector;
@@ -194,21 +197,36 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     title.getStyleClass().add(Styles.TITLE_3);
     var asset = new Label(flow.getAssetUrn());
     asset.setStyle("-fx-text-fill: -color-fg-muted;");
+    var titleArea = new HBox(8, title, new Label("::"), asset);
+    titleArea.setAlignment(Pos.CENTER_LEFT);
+    activeStatusChip = chip("");
+    startedChip = chip("");
+    revisionChip = chip("");
+    var metadata = new HBox(6, activeStatusChip, startedChip, revisionChip);
+    metadata.setAlignment(Pos.CENTER_LEFT);
     var spacer = new HBox();
     HBox.setHgrow(spacer, Priority.ALWAYS);
-    var box = new HBox(12, new VBox(2, title, asset), spacer, status);
+    var box = new HBox(12, titleArea, spacer, metadata);
     box.setAlignment(Pos.CENTER_LEFT);
     box.setPadding(new Insets(0, 0, 10, 0));
     var header = new VBox();
     if (canDeleteFlow()) {
-      var delete = new MenuItem("Delete flow…");
+      var delete = new Button(null, new FontIcon(Material2AL.DELETE));
+      delete.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT, Styles.DANGER);
+      delete.setAccessibleText("Delete flow");
+      delete.setTooltip(new Tooltip("Delete flow"));
       delete.setOnAction(event -> deleteFlow());
-      var flowMenu = new Menu("Flow");
-      flowMenu.getItems().add(delete);
-      header.getChildren().add(new MenuBar(flowMenu));
+      box.getChildren().add(delete);
     }
     header.getChildren().addAll(box, new Separator());
     return header;
+  }
+
+  private Label chip(String text) {
+    var chip = new Label(text);
+    chip.getStyleClass().addAll(Styles.BG_NEUTRAL_SUBTLE, Styles.ROUNDED, Styles.TEXT_SMALL);
+    chip.setPadding(new Insets(3, 7, 3, 7));
+    return chip;
   }
 
   private boolean canDeleteFlow() {
@@ -244,33 +262,12 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   }
 
   private Node stageBrowser() {
-    stateList.setPrefWidth(230);
-    stateList.setCellFactory(
-        ignored ->
-            new ListCell<>() {
-              @Override
-              protected void updateItem(Flow.State state, boolean empty) {
-                super.updateItem(state, empty);
-                if (empty || state == null) {
-                  setText(null);
-                  setGraphic(null);
-                } else {
-                  var schema = workflow.getStates().get(state.getSchemaId());
-                  var name =
-                      state.getTitle() != null && !state.getTitle().isBlank()
-                          ? state.getTitle()
-                          : schema == null ? state.getSchemaId() : schema.getDescription();
-                  setText(name + "\n" + state.getStatus().name().toLowerCase());
-                }
-              }
-            });
-    stateList
-        .getSelectionModel()
-        .selectedItemProperty()
-        .addListener((o, old, state) -> show(state));
-    var box = new VBox(6, new Label("Stages"), stateList);
+    stageCarousel.setPrefWidth(230);
+    stageCarousel.setMaxWidth(Double.MAX_VALUE);
+    stageCarousel.setSelectionListener(card -> show(stageCards.get(card)));
+    var box = new VBox(6, new Label("Stages"), stageCarousel);
     box.setPadding(new Insets(10, 12, 0, 0));
-    VBox.setVgrow(stateList, Priority.ALWAYS);
+    VBox.setVgrow(stageCarousel, Priority.ALWAYS);
     return box;
   }
 
@@ -298,6 +295,13 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   }
 
   private void refresh(Flow.State selection) {
+    var active = flow.getStatus() != Flow.Status.CLOSED;
+    activeStatusChip.setText(flow.getStatus().name());
+    activeStatusChip.getStyleClass().remove(Styles.SUCCESS);
+    if (active) activeStatusChip.getStyleClass().add(Styles.SUCCESS);
+    startedChip.setText(
+        "Started " + (flow.getCreatedAt() == null ? "unknown" : DATE.format(flow.getCreatedAt())));
+    revisionChip.setText("Revision " + (provisional ? "draft" : flow.getRevision()));
     status.setText(
         flow.getStatus()
             + "  •  started "
@@ -309,7 +313,9 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     states.sort(
         Comparator.comparing(
             Flow.State::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())));
-    stateList.getItems().setAll(states);
+    stageCards.clear();
+    var cards = states.stream().map(this::stageCard).toList();
+    stageCarousel.setItems(cards);
     var selected =
         selection == null
             ? null
@@ -318,8 +324,60 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
                 .findFirst()
                 .orElse(null);
     if (selected == null && !states.isEmpty()) selected = states.getFirst();
-    stateList.getSelectionModel().select(selected);
+    var activeSelected = selected;
+    if (activeSelected != null) {
+      stageCards.entrySet().stream()
+          .filter(entry -> Objects.equals(entry.getValue().getId(), activeSelected.getId()))
+          .map(Map.Entry::getKey)
+          .findFirst()
+          .ifPresent(stageCarousel::selectItem);
+    }
     show(selected);
+  }
+
+  private Node stageCard(Flow.State state) {
+    var schema = workflow.getStates().get(state.getSchemaId());
+    var name =
+        state.getTitle() != null && !state.getTitle().isBlank()
+            ? state.getTitle()
+            : schema == null ? state.getSchemaId() : schema.getDescription();
+    var title = new Label(name);
+    title.setWrapText(true);
+    title.setStyle("-fx-font-size: 0.9em;");
+    title.setMaxWidth(Double.MAX_VALUE);
+    var statusIcon =
+        new FontIcon(
+            state.getStatus() == Flow.StateStatus.CLOSED
+                ? Material2AL.LOCK
+                : Material2AL.LOCK_OPEN);
+    statusIcon.setIconSize(14);
+    statusIcon.setStyle(
+        "-fx-icon-color: "
+            + (state.getStatus() == Flow.StateStatus.CLOSED
+                ? "-color-fg-muted"
+                : "-color-success-fg")
+            + ";");
+    statusIcon.setAccessibleText(state.getStatus().name().toLowerCase());
+    var owner = new Label(state.getOwner());
+    owner.setStyle("-fx-font-size: 0.75em; -fx-text-fill: -color-fg-muted;");
+    var footerSpacer = new HBox();
+    HBox.setHgrow(footerSpacer, Priority.ALWAYS);
+    var status = new HBox(owner, footerSpacer, statusIcon);
+    status.setAlignment(Pos.CENTER_RIGHT);
+    var card = new VBox(4, title, status);
+    card.setPadding(new Insets(8));
+    card.setMinHeight(54);
+    card.setPrefHeight(54);
+    card.setPrefWidth(214);
+    card.setMaxWidth(Double.MAX_VALUE);
+    card.setStyle(
+        "-fx-background-color: -color-bg-subtle;"
+            + "-fx-background-radius: 6;"
+            + "-fx-border-color: -color-border-muted;"
+            + "-fx-border-radius: 6;"
+            + "-fx-border-width: 1;");
+    stageCards.put(card, state);
+    return card;
   }
 
   private void show(Flow.State state) {
@@ -396,13 +454,53 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
               file -> upload(file, rules.getValue()),
               (message, error) -> fail(error == null ? new IOException(message) : error));
       uploadBox.setPrefHeight(150);
+      var attachmentDetails = new HBox(6);
+      attachmentDetails.setAlignment(Pos.CENTER_RIGHT);
+      var attachmentSpacer = new HBox();
+      HBox.setHgrow(attachmentSpacer, Priority.ALWAYS);
+      var selectorRow = new HBox(8, rules, attachmentSpacer, attachmentDetails);
+      selectorRow.setAlignment(Pos.CENTER_LEFT);
+      HBox.setHgrow(rules, Priority.ALWAYS);
       rules
           .valueProperty()
           .addListener(
-              (ignored, previous, selected) -> uploadBox.setPromptText(uploadPrompt(selected)));
-      list.getChildren().addAll(rules, uploadBox);
+              (ignored, previous, selected) -> {
+                attachmentDetails.getChildren().setAll(attachmentRuleChips(selected));
+                uploadBox.setPromptText(uploadPrompt(selected));
+              });
+      attachmentDetails.getChildren().setAll(attachmentRuleChips(rules.getValue()));
+      list.getChildren().addAll(selectorRow, uploadBox);
     }
     return list;
+  }
+
+  private List<Node> attachmentRuleChips(Workflow.AttachmentRule rule) {
+    if (rule == null) return List.of();
+    var chips = new ArrayList<Node>();
+    var requirement = new Label(rule.isRequired() ? "Required" : "Optional");
+    requirement.getStyleClass().addAll(rule.isRequired() ? Styles.DANGER : Styles.SUCCESS);
+    styleAttachmentChip(requirement);
+    chips.add(requirement);
+    if (rule.getMediaType() != null && !rule.getMediaType().isBlank()) {
+      var mediaType = new Label(rule.getMediaType());
+      styleAttachmentChip(mediaType);
+      chips.add(mediaType);
+    }
+    var arity = new Label(attachmentArityLabel(rule));
+    styleAttachmentChip(arity);
+    chips.add(arity);
+    return chips;
+  }
+
+  private void styleAttachmentChip(Label chip) {
+    chip.getStyleClass().addAll(Styles.BG_NEUTRAL_SUBTLE, Styles.ROUNDED, Styles.TEXT_SMALL);
+    chip.setPadding(new Insets(3, 7, 3, 7));
+  }
+
+  private String attachmentArityLabel(Workflow.AttachmentRule rule) {
+    if (rule.getArity() < 0) return "Any number";
+    if (rule.getArity() == 1) return "One file";
+    return "Up to " + rule.getArity() + " files";
   }
 
   private void refreshAttachmentEntries() {
@@ -425,7 +523,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
       @Override
       protected void updateItem(Workflow.AttachmentRule rule, boolean empty) {
         super.updateItem(rule, empty);
-        setText(empty || rule == null ? null : attachmentRuleLabel(rule));
+        setText(empty || rule == null ? null : rule.getType());
       }
     };
   }
@@ -480,19 +578,23 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     }
   }
 
-  private HBox actions(Workflow.StateSchema schema, boolean readOnly) {
-    var bar = new HBox(8);
-    bar.setAlignment(Pos.CENTER_RIGHT);
+  private VBox actions(Workflow.StateSchema schema, boolean readOnly) {
+    var bar = new VBox(8);
     transitionSelector = null;
     submitButton = null;
     if (flow.getStatus() == Flow.Status.CLOSED && isAdmin()) {
       var reopen = new Button("Reopen flow");
       reopen.getStyleClass().add(Styles.ACCENT);
       reopen.setOnAction(event -> mutate(() -> service.reopenFlow(flow.getId(), scope), null));
-      bar.getChildren().add(reopen);
+      var buttons = new HBox(8, reopen);
+      buttons.setAlignment(Pos.CENTER_RIGHT);
+      bar.getChildren().add(buttons);
       return bar;
     }
     if (readOnly) return bar;
+
+    var buttons = new HBox(8);
+    buttons.setAlignment(Pos.CENTER_RIGHT);
 
     if (provisional) {
       var cancelWorkflow = new Button("Cancel workflow");
@@ -502,23 +604,13 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
             pendingAttachments.clear();
             if (cancelJob != null) cancelJob.run();
           });
-      bar.getChildren().add(cancelWorkflow);
+      buttons.getChildren().add(cancelWorkflow);
     }
 
     var cancel = new Button("Reset");
     cancel.setOnAction(event -> show(selectedState));
-    var delete =
-        IconButton.of(
-                Material2AL.DELETE,
-                16,
-                "-color-danger-fg",
-                "-color-danger-fg",
-                () -> {
-                  deleteStage();
-                  return true;
-                })
-            .tooltip("Delete stage");
-    delete.setAccessibleText("Delete stage");
+    var delete = new Button("Delete");
+    delete.setOnAction(event -> deleteStage());
     delete.setDisable(
         flow.getCurrentStateIds().contains(selectedState.getId())
             || flow.getHistory().stream()
@@ -527,22 +619,12 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
                         Objects.equals(selectedState.getId(), transaction.getSourceStateId())
                             || Objects.equals(
                                 selectedState.getId(), transaction.getTargetStateId())));
-    bar.getChildren().addAll(cancel, delete);
+    buttons.getChildren().addAll(cancel, delete);
     if (!provisional) {
-      var update =
-          IconButton.of(
-                  Codicons.SAVE,
-                  16,
-                  Theme.FOREGROUND_COLOR,
-                  Theme.FOREGROUND_COLOR,
-                  () -> {
-                    updateStage();
-                    return true;
-                  })
-              .tooltip("Update stage");
-      update.setAccessibleText("Update stage");
+      var update = new Button("Update");
+      update.setOnAction(event -> updateStage());
       update.getProperties().put("workflow-update", Boolean.TRUE);
-      bar.getChildren().add(update);
+      buttons.getChildren().add(update);
     }
     var transitions = workflow.admittedTransitions(flow, selectedState.getId(), scope);
     if (!transitions.isEmpty()) {
@@ -555,7 +637,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
       transitionSelector.setCellFactory(ignored -> transitionChoiceCell());
       transitionSelector.setButtonCell(transitionChoiceCell());
       transitionSelector.getSelectionModel().select(placeholder);
-      transitionSelector.setMaxWidth(480);
+      transitionSelector.setMaxWidth(Double.MAX_VALUE);
       transitionSelector.setAccessibleText("Choose the next workflow stage");
       HBox.setHgrow(transitionSelector, Priority.ALWAYS);
       submitButton = new Button("Submit");
@@ -571,8 +653,12 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
       transitionSelector
           .valueProperty()
           .addListener((ignored, previous, selected) -> updateActions());
-      bar.getChildren().addAll(transitionSelector, submitButton);
+      var transitionRow = new HBox(transitionSelector);
+      HBox.setHgrow(transitionSelector, Priority.ALWAYS);
+      bar.getChildren().add(transitionRow);
+      buttons.getChildren().add(submitButton);
     }
+    bar.getChildren().add(buttons);
     return bar;
   }
 
