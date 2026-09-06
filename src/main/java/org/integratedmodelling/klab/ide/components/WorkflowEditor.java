@@ -2,6 +2,14 @@ package org.integratedmodelling.klab.ide.components;
 
 import atlantafx.base.theme.Styles;
 import java.io.File;
+import java.awt.image.BufferedImage;
+import javafx.concurrent.Task;
+import javafx.embed.swing.SwingFXUtils;
+import javafx.scene.control.Dialog;
+import javafx.scene.control.ProgressIndicator;
+import javafx.scene.image.ImageView;
+import javafx.stage.Modality;
+import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -122,6 +130,8 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   private VBox attachmentEntries;
   private ComboBox<TransitionChoice> transitionSelector;
   private Button submitButton;
+  private Dialog<Void> workflowDiagram;
+  private Task<BufferedImage> diagramTask;
 
   public WorkflowEditor(
       ResourcesService service,
@@ -210,6 +220,13 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     box.setAlignment(Pos.CENTER_LEFT);
     box.setPadding(new Insets(0, 0, 10, 0));
     var header = new VBox();
+    var diagram = new Button(null, new FontIcon(Material2AL.ACCOUNT_TREE));
+    diagram.setId("workflow-diagram-button");
+    diagram.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
+    diagram.setAccessibleText("Show workflow diagram");
+    diagram.setTooltip(new Tooltip("Show workflow diagram"));
+    diagram.setOnAction(event -> showWorkflowDiagram());
+    box.getChildren().add(diagram);
     if (canDeleteFlow()) {
       var delete = new Button(null, new FontIcon(Material2AL.DELETE));
       delete.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT, Styles.DANGER);
@@ -220,6 +237,69 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     }
     header.getChildren().addAll(box, new Separator());
     return header;
+  }
+
+  private void showWorkflowDiagram() {
+    if (workflowDiagram != null && workflowDiagram.isShowing()) {
+      workflowDiagram.getDialogPane().getScene().getWindow().requestFocus();
+      return;
+    }
+    var dialog = new Dialog<Void>();
+    workflowDiagram = dialog;
+    dialog.setTitle("Workflow: " + Objects.toString(workflow.getName(), workflow.getId()));
+    if (getScene() != null && getScene().getWindow() != null) {
+      dialog.initOwner(getScene().getWindow());
+      dialog.initModality(Modality.NONE);
+    } else {
+      dialog.initModality(Modality.NONE);
+    }
+    dialog.setResizable(true);
+    dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+    var loading = new VBox(12, new ProgressIndicator(), new Label("Loading workflow diagram..."));
+    loading.setAlignment(Pos.CENTER);
+    var content = new BorderPane(loading);
+    content.setPrefSize(900, 620);
+    dialog.getDialogPane().setContent(content);
+    var task = new Task<BufferedImage>() {
+      @Override
+      protected BufferedImage call() {
+        var image = service.info(workflow.getUrn(), KlabAsset.KnowledgeClass.WORKFLOW,
+            BufferedImage.class, scope);
+        if (image == null) throw new IllegalStateException("The workflow diagram is unavailable.");
+        return image;
+      }
+    };
+    diagramTask = task;
+    task.setOnSucceeded(event -> {
+      if (!dialog.isShowing()) return;
+      var image = new ImageView(SwingFXUtils.toFXImage(task.getValue(), null));
+      image.setPreserveRatio(true);
+      image.setSmooth(true);
+      image.setAccessibleText("Diagram of " + Objects.toString(workflow.getName(), workflow.getId()));
+      var scroll = new ScrollPane(image);
+      scroll.setPannable(true);
+      scroll.viewportBoundsProperty().addListener((observable, previous, bounds) -> {
+        image.setFitWidth(Math.max(1, bounds.getWidth() - 16));
+        image.setFitHeight(Math.max(1, bounds.getHeight() - 16));
+      });
+      content.setCenter(scroll);
+    });
+    task.setOnFailed(event -> {
+      if (!dialog.isShowing()) return;
+      var message = new Label("Could not load the workflow diagram. " + errorMessage(task.getException()));
+      message.setWrapText(true);
+      message.setStyle("-fx-text-fill: -color-danger-fg;");
+      BorderPane.setMargin(message, new Insets(20));
+      content.setCenter(message);
+    });
+    dialog.setOnHidden(event -> {
+      task.cancel(true);
+      if (workflowDiagram == dialog) { workflowDiagram = null; diagramTask = null; }
+    });
+    dialog.show();
+    var worker = new Thread(task, "workflow-diagram");
+    worker.setDaemon(true);
+    worker.start();
   }
 
   private Label chip(String text) {
@@ -850,6 +930,10 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
 
   @Override
   public void close() {
+    if (diagramTask != null) diagramTask.cancel(true);
+    Runnable closeDiagram = () -> { if (workflowDiagram != null) workflowDiagram.close(); };
+    if (Platform.isFxApplicationThread()) closeDiagram.run();
+    else Platform.runLater(closeDiagram);
     // UploadBox uses daemon workers; detaching the editor is sufficient until it gains lifecycle
     // API.
   }

@@ -1699,6 +1699,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         viewer.closeDigitalTwin(ideContextScope);
       }
     }
+    inspectorView.closeDigitalTwin(ideContextScope);
     contextMap.remove(ideContextScope.getId());
     updateDigitalTwinChoices();
     handleNotification(

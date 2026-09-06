@@ -25,6 +25,7 @@ import javafx.util.Duration;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
+import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
@@ -192,6 +193,20 @@ public class InspectorView extends BorderPane {
           currentObject = null;
           showEmptyState();
           updateToolbar();
+        });
+  }
+
+  /** Remove runtime assets from the inspector when their owning digital twin closes. */
+  public void closeDigitalTwin(IDEContextScope scope) {
+
+   Logging.INSTANCE.info("CLOSING INSPECTOR STUFF");
+    runOnFx(
+        () -> {
+          boolean changed = stack.removeIf(item -> item.value() instanceof RuntimeAsset);
+          if (changed) {
+            currentIndex = Math.min(currentIndex, stack.size() - 1);
+            renderCurrent();
+          }
         });
   }
 

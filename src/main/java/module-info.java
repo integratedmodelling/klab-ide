@@ -21,6 +21,7 @@ module org.integratedmodelling.klab.ide {
   requires klab.cli;
   requires org.kordamp.ikonli.materialdesign;
   requires javafx.controls;
+  requires javafx.swing;
   requires org.integratedmodelling.klabeditor;
   requires javafx.media;
   requires devtoolsfx.gui;
