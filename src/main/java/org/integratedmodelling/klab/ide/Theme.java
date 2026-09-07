@@ -243,7 +243,7 @@ public enum Theme {
   public static final Ikon LOCAL_SERVICE_ICON = Material2AL.DONUT_SMALL;
   public static final Ikon REMOTE_SERVICE_ICON_ONE = BootstrapIcons.CLOUD_FILL;
   public static final Ikon REMOTE_SERVICE_ICON_MANY = BootstrapIcons.CLOUDS;
-  public static final Ikon LOCAL_AND_REMOTE_SERVICE_ICON = MaterialDesign.MDI_CLOUD_SYNC;
+  public static final Ikon LOCAL_AND_REMOTE_SERVICE_ICON = BootstrapIcons.CLOUD_SUN_FILL;
 
   public static Ikon getIcon(Notification.Level level) {
     return switch (level) {
