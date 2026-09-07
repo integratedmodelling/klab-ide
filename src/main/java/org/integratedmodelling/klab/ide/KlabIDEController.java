@@ -1336,9 +1336,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
       }
       detachedInspectorStage = new Stage(StageStyle.DECORATED);
       detachedInspectorStage.setTitle("k.LAB Inspector");
-      if (KlabIDEApplication.primaryStage() != null) {
-        detachedInspectorStage.initOwner(KlabIDEApplication.primaryStage());
-      }
+      // Keep the inspector independent of the primary stage. An owned JavaFX window is
+      // constrained to remain above its owner, which prevents another IDE window from
+      // becoming the active window after the inspector has been opened.
       detachedInspectorStage.setScene(scene);
       detachedInspectorStage.setOnCloseRequest(
           event -> {
