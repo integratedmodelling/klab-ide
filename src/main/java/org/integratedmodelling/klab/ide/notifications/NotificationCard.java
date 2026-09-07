@@ -68,6 +68,12 @@ public class NotificationCard extends VBox {
     if (icon != null) {
       icon.getStyleClass().add("notification-card-main-icon");
       icon.setMouseTransparent(true);
+      // IconLabel is a Label whose default alignment is centered-left. Keep its glyph centered
+      // inside the fixed slot just like FontIcon, otherwise some glyphs can intrude into the title.
+      if (icon instanceof Label label) {
+        label.setAlignment(Pos.CENTER);
+        label.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+      }
       if (icon instanceof Region region) {
         region.setMinSize(MAIN_ICON_SIZE, MAIN_ICON_SIZE);
         region.setPrefSize(MAIN_ICON_SIZE, MAIN_ICON_SIZE);
