@@ -262,6 +262,19 @@ public final class TestCaseResultsView extends DomainObjectView {
             source);
     row.setAlignment(Pos.TOP_LEFT);
     box.getChildren().add(row);
+    if (assertion.description() != null && !assertion.description().isBlank()) {
+      var description = new Label(assertion.description());
+      description.setWrapText(true);
+      box.getChildren().add(description);
+    }
+    var messageError = assertion.get("messageError", String.class);
+    if (messageError != null && !messageError.isBlank()) {
+      var error = new Label(messageError);
+      error.setWrapText(true);
+      var details = new TitledPane("Assertion message error", error);
+      details.setExpanded(false);
+      box.getChildren().add(details);
+    }
     var stacktrace = assertion.get("stacktrace", String.class);
     if (stacktrace != null && !stacktrace.isBlank()) {
       var trace = new Label(stacktrace);

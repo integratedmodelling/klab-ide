@@ -1,6 +1,7 @@
 package org.integratedmodelling.klab.ide.pages;
 
 import atlantafx.base.theme.Styles;
+import org.integratedmodelling.klab.ide.components.generic.DockableTabPane;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -31,7 +32,7 @@ import org.integratedmodelling.klab.ide.components.treeviews.TreeViewClickBehavi
 public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwinReactor {
 
   private final BorderPane browsingArea;
-  private final TabPane editorTabs;
+  private final DockableTabPane editorTabs;
   final Timeline clickTimeline = new Timeline();
   Duration clickDuration = Duration.millis(350);
   KeyFrame clickKeyFrame = new KeyFrame(clickDuration);
@@ -49,7 +50,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
   public EditorPage(A asset) {
     this.currentAsset = asset;
     this.browsingArea = new BorderPane();
-    this.editorTabs = new TabPane();
+    this.editorTabs = new DockableTabPane();
     this.editorTabs.getStyleClass().add(Styles.TABS_CLASSIC);
     this.editorTabs.setSide(Side.BOTTOM);
 
@@ -243,11 +244,11 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
             });
         editorTabs.getTabs().add(tab);
         assetEditors.put(asset, tab);
-        editorTabs.getSelectionModel().select(tab);
+        editorTabs.select(tab);
       }
     }
     if (assetEditors.containsKey(asset)) {
-      editorTabs.getSelectionModel().select(assetEditors.get(asset));
+      editorTabs.select(assetEditors.get(asset));
     }
   }
 
@@ -260,7 +261,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
   /** Return true when the asset is open in the current foreground editor tab. */
   protected boolean isEditorSelected(T asset) {
     var tab = assetEditors.get(asset);
-    return tab != null && editorTabs.getSelectionModel().getSelectedItem() == tab;
+    return tab != null && editorTabs.isSelected(tab);
   }
 
   /** Replace the graphic of the editor tab associated with an asset. */
@@ -283,7 +284,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
       tab.setOnClosed(event -> auxiliaryEditors.remove(key, newTab));
       auxiliaryEditors.put(key, tab);
       editorTabs.getTabs().add(tab);
-      editorTabs.getSelectionModel().select(tab);
+      editorTabs.select(tab);
     } else {
       tab.setText(title);
       if (tab.getContent() != editor) {
@@ -297,7 +298,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
   protected void selectAuxiliaryEditor(String key) {
     var tab = auxiliaryEditors.get(key);
     if (tab != null) {
-      editorTabs.getSelectionModel().select(tab);
+      editorTabs.select(tab);
     }
   }
 
@@ -305,7 +306,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
   protected void closeAuxiliaryEditor(String key) {
     var tab = auxiliaryEditors.remove(key);
     if (tab != null) {
-      editorTabs.getTabs().remove(tab);
+      editorTabs.removeTab(tab);
     }
   }
 
@@ -459,6 +460,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
 
   @Override
   public void close() {
+    editorTabs.dockAll();
     for (var entry : Map.copyOf(assetEditors).entrySet()) {
       var editor = entry.getValue().getContent();
       if (editor != null) {

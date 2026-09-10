@@ -2,6 +2,7 @@ package org.integratedmodelling.klab.ide.pages;
 
 import atlantafx.base.controls.ModalPane;
 import atlantafx.base.theme.Styles;
+import org.integratedmodelling.klab.ide.components.generic.DockableTabPane;
 import java.util.function.BooleanSupplier;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
@@ -11,7 +12,6 @@ import javafx.geometry.Side;
 import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
@@ -27,7 +27,7 @@ import org.kordamp.ikonli.material2.Material2MZ;
 public abstract class BrowsablePage<T extends Node, A> extends StackPane implements Page, View {
 
   protected static final int BROWSER_WIDTH = 280;
-  private final TabPane tabPane;
+  private final DockableTabPane tabPane;
   private final Label messageLabel;
   private final Label descriptionLabel;
 
@@ -61,7 +61,7 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
     this.browserArea = new Dialog(BROWSER_WIDTH, -1);
     this.browserArea.setAlignment(Pos.TOP_CENTER);
     this.browserArea.setPadding(new Insets(2.0));
-    this.tabPane = new TabPane();
+    this.tabPane = new DockableTabPane();
     this.tabPane.getStyleClass().addAll(Styles.DENSE, Styles.SMALL);
     this.messageLabel = new Label(message == null ? "" : message);
     this.messageLabel.getStyleClass().add(Styles.TITLE_2);
@@ -76,7 +76,7 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
     this.descriptionLabel.setPadding(new Insets(0, 10, 10, 10));
     this.descriptionLabel.setWrapText(true);
     this.descriptionLabel.setStyle("-fx-opacity: 0.65;");
-    var noEditors = Bindings.size(this.tabPane.getTabs()).isEqualTo(1);
+    var noEditors = Bindings.size(this.tabPane.allTabs()).isEqualTo(1);
     this.messageLabel
         .visibleProperty()
         .bind(this.messageLabel.textProperty().isNotEmpty().and(noEditors));
@@ -97,16 +97,8 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
               showBrowser();
             });
     this.tabPane.getTabs().add(menuTab);
-    this.tabPane
-        .getTabs()
-        .addListener(
-            (javafx.collections.ListChangeListener.Change<? extends Tab> c) -> {
-              while (c.next()) {
-                if (c.wasRemoved()) {
-                  onTabClosed(c.getRemoved().getFirst());
-                }
-              }
-            });
+    this.tabPane.setOnTabRemoved(this::onTabClosed);
+    this.tabPane.setOnFloatingSelected(this::onTabSelected);
     this.tabPane
         .getSelectionModel()
         .selectedItemProperty()
@@ -167,7 +159,7 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
   }
 
   public EditorPage<?, ?> getSelectedEditor() {
-    Tab selectedTab = tabPane.getSelectionModel().getSelectedItem();
+    Tab selectedTab = tabPane.selectedTab();
     if (selectedTab != null && selectedTab.getContent() instanceof EditorPage<?, ?> editor) {
       return editor;
     }
@@ -241,9 +233,9 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
   }
 
   public void selectEditor(EditorPage<?, ?> node) {
-    for (var tab : tabPane.getTabs()) {
+    for (var tab : tabPane.allTabs()) {
       if (tab.getContent() == node) {
-        tabPane.getSelectionModel().select(tab);
+        tabPane.select(tab);
         break;
       }
     }
@@ -255,7 +247,7 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
     Platform.runLater(
         () -> {
           this.tabPane.getTabs().add(tab);
-          this.tabPane.getSelectionModel().select(tab);
+          this.tabPane.select(tab);
           node.showContent();
         });
   }
@@ -267,50 +259,50 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
     Platform.runLater(
         () -> {
           tabPane.getTabs().add(tab);
-          tabPane.getSelectionModel().select(tab);
+          tabPane.select(tab);
         });
   }
 
   /** Select the top-level tab containing the supplied view, if it is open. */
   protected void selectView(Node node) {
-    tabPane.getTabs().stream()
+    tabPane.allTabs().stream()
         .filter(tab -> tab.getContent() == node)
         .findFirst()
-        .ifPresent(tab -> tabPane.getSelectionModel().select(tab));
+        .ifPresent(tab -> tabPane.select(tab));
   }
 
   /** Close the top-level tab containing the supplied view, if it is open. */
   protected void removeView(Node node) {
-    tabPane.getTabs().stream()
+    tabPane.allTabs().stream()
         .filter(tab -> tab.getContent() == node)
         .findFirst()
-        .ifPresent(tabPane.getTabs()::remove);
+        .ifPresent(tabPane::removeTab);
   }
 
   /** Replace the graphic of the tab hosting the supplied editor. */
   protected void setEditorGraphic(T editor, Node graphic) {
     Platform.runLater(
         () ->
-            tabPane.getTabs().stream()
+            tabPane.allTabs().stream()
                 .filter(tab -> tab.getContent() == editor)
                 .findFirst()
                 .ifPresent(tab -> tab.setGraphic(graphic)));
   }
 
   public boolean isEmpty() {
-    return tabPane.getTabs().size() == 1;
+    return tabPane.allTabs().size() == 1;
   }
 
   public void removeEditor(EditorPage<?, ?> node) {
     Platform.runLater(
         () -> {
           Tab tab =
-              this.tabPane.getTabs().stream()
+              this.tabPane.allTabs().stream()
                   .filter(t -> t.getContent() == node)
                   .findFirst()
                   .orElse(null);
           if (tab != null) {
-            tabPane.getTabs().remove(tab);
+            tabPane.removeTab(tab);
           }
         });
   }
