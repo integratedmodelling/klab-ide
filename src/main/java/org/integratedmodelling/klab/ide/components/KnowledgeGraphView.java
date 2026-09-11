@@ -187,14 +187,14 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
                 visibleTypes.add(RuntimeAsset.Type.ACTIVITY);
                 visibleTypes.add(RuntimeAsset.Type.PROVENANCE);
                 visibleRelationships.add(GraphModel.Relationship.HAS_ACTIVITY);
-                visibleRelationships.add(GraphModel.Relationship.CONTEXTUALIZED);
+                visibleRelationships.addAll(GraphModel.Relationship.CONTEXTUALIZATION_EFFECTS);
                 visibleRelationships.add(GraphModel.Relationship.TRIGGERED);
                 visibleRelationships.add(GraphModel.Relationship.HAS_PROVENANCE);
               } else {
                 visibleTypes.remove(RuntimeAsset.Type.ACTIVITY);
                 visibleTypes.remove(RuntimeAsset.Type.PROVENANCE);
                 visibleRelationships.remove(GraphModel.Relationship.HAS_ACTIVITY);
-                visibleRelationships.remove(GraphModel.Relationship.CONTEXTUALIZED);
+                visibleRelationships.removeAll(GraphModel.Relationship.CONTEXTUALIZATION_EFFECTS);
                 visibleRelationships.remove(GraphModel.Relationship.TRIGGERED);
                 visibleRelationships.remove(GraphModel.Relationship.HAS_PROVENANCE);
               }

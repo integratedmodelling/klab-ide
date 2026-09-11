@@ -15,6 +15,7 @@ import javafx.util.Duration;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.provenance.Activity;
 import org.integratedmodelling.klab.ide.IDEContextScope;
+import org.integratedmodelling.klab.ide.ActivityPresentation;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.cards.ActivityCard;
@@ -68,18 +69,20 @@ public class ActivityTree extends KlabTreeTableView<Activity> {
     if (activity == null) {
       return false;
     }
-    return activity.getDescription().toLowerCase().contains(string.toLowerCase());
+    return ActivityPresentation.description(activity).toLowerCase(Locale.ROOT).contains(string.toLowerCase(Locale.ROOT));
   }
 
   private HBox activityDescription(Activity activity) {
 
+    if (activity == null) return new HBox();
     var icon =
         new IconLabel(
             switch (activity.getType()) {
+              case null -> MaterialDesign.MDI_RUN;
               case CONTEXT_INITIALIZATION, SUBMISSION -> Evaicons.DOWNLOAD;
               case INITIALIZATION -> BootstrapIcons.PLAY_BTN;
               case RESOLUTION -> CarbonIcons.TREE_VIEW_ALT;
-              case CONTEXTUALIZATION -> MaterialDesign.MDI_RUN;
+              default -> MaterialDesign.MDI_RUN;
             },
             16,
             "-color-fg-default");
@@ -88,13 +91,12 @@ public class ActivityTree extends KlabTreeTableView<Activity> {
 
     var description =
         Utils.Strings.abbreviate(
-            Utils.Strings.replaceWhitespace(activity.getDescription(), " "), 42);
+            Utils.Strings.replaceWhitespace(ActivityPresentation.description(activity), " "), 42);
     var label = new Label(description);
     HBox.setHgrow(label, Priority.ALWAYS);
     var ret = new HBox(icon, label);
     ret.setSpacing(2);
     ret.setAlignment(Pos.CENTER_LEFT);
-    ret.setOnMouseClicked(mouseEvent -> System.out.println(activity.getDescription()));
 
     // set the tooltip card. FIXME no way to not show borders in the tooltip, tried them all
     Tooltip tooltip = new Tooltip();
@@ -132,10 +134,11 @@ public class ActivityTree extends KlabTreeTableView<Activity> {
   public void update(IDEContextScope scope) {
 
     // Create defensive copies of the data to avoid ConcurrentModificationException
-    var vertices = new ArrayList<>(scope.getActivityGraph().vertexSet());
+    var graph = scope.getActivityGraph();
+    var vertices = new ArrayList<>(graph.vertexSet());
     var rootActivities =
         vertices.stream()
-            .filter(activity -> scope.getActivityGraph().incomingEdgesOf(activity).isEmpty())
+            .filter(activity -> graph.incomingEdgesOf(activity).isEmpty())
             .sorted(Comparator.comparingLong(Activity::getStart))
             .toList();
 
@@ -143,39 +146,44 @@ public class ActivityTree extends KlabTreeTableView<Activity> {
     var activityChildren = new HashMap<Activity, List<Activity>>();
     for (Activity activity : vertices) {
       var children =
-          scope.getActivityGraph().outgoingEdgesOf(activity).stream()
-              .map(scope.getActivityGraph()::getEdgeTarget)
+          graph.outgoingEdgesOf(activity).stream()
+              .map(graph::getEdgeTarget)
+              .sorted(Comparator.comparingLong(Activity::getStart))
               .toList();
       activityChildren.put(activity, children);
     }
 
     Platform.runLater(
         () -> {
+          Set<Long> expanded = new HashSet<>();
+          rememberExpanded(getRoot(), expanded);
           getRoot().getChildren().clear();
           for (Activity activity : rootActivities) {
-            getRoot().getChildren().add(makeItem(activity, activityChildren));
+            getRoot().getChildren().add(makeItem(activity, activityChildren, expanded, new HashSet<>()));
           }
-          // Refresh all columns to ensure proper cell rendering - otherwise the columns that were
-          // previously visible won't change.
-          getColumns()
-              .forEach(
-                  column -> {
-                    column.setVisible(false);
-                    column.setVisible(true);
-                  });
+          refresh();
         });
   }
 
   private TreeItem<Activity> makeItem(
-      Activity activity, Map<Activity, List<Activity>> activityChildren) {
+      Activity activity, Map<Activity, List<Activity>> activityChildren,
+      Set<Long> expanded, Set<Long> ancestors) {
     TreeItem<Activity> ret = new TreeItem<>(activity);
+    ret.setExpanded(expanded.contains(activity.getTransientId()));
+    if (!ancestors.add(activity.getTransientId())) return ret;
     List<Activity> children = activityChildren.get(activity);
     if (children != null) {
       for (Activity child : children) {
-        ret.getChildren().add(makeItem(child, activityChildren));
+        ret.getChildren().add(makeItem(child, activityChildren, expanded, ancestors));
       }
     }
+    ancestors.remove(activity.getTransientId());
     return ret;
+  }
+
+  private void rememberExpanded(TreeItem<Activity> item, Set<Long> expanded) {
+    if (item.getValue() != null && item.isExpanded()) expanded.add(item.getValue().getTransientId());
+    for (var child : item.getChildren()) rememberExpanded(child, expanded);
   }
 
   public void reset() {

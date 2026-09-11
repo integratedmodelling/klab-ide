@@ -436,7 +436,7 @@ public enum Theme {
       } else if (asset instanceof Actuator) {
         return "Actuator"; // TODO
       } else if (asset instanceof Activity activity) {
-        return Utils.Strings.capitalize(activity.getType().name().toLowerCase())
+        return ActivityPresentation.type(activity)
             + " activity"; // TODO improve
       }
       return "CARAJO " + asset;

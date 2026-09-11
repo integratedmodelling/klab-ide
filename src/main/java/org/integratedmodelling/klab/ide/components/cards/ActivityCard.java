@@ -5,6 +5,10 @@ import atlantafx.base.theme.Styles;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.control.Label;
+import javafx.scene.layout.VBox;
+import org.integratedmodelling.klab.api.data.Metadata;
+import org.integratedmodelling.klab.api.documentation.FlowChart;
+import org.integratedmodelling.klab.ide.ActivityPresentation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.TimeInstant;
 import org.integratedmodelling.klab.api.provenance.Activity;
 import org.integratedmodelling.klab.ide.IDEContextScope;
@@ -21,8 +25,8 @@ public class ActivityCard extends BaseCard<Activity> {
   protected void drawContent() {
     var tile = new Tile();
 
-    tile.setTitle("Activity");
-    tile.setDescription(asset.getDescription());
+    tile.setTitle(ActivityPresentation.type(asset));
+    tile.setDescription(ActivityPresentation.description(asset));
     tile.setGraphic(Theme.getGraphics(asset));
     setTop(tile);
     setCenter(createBody());
@@ -35,27 +39,37 @@ public class ActivityCard extends BaseCard<Activity> {
 
   private Node createFooter() {
     return new Label(
-        TimeInstant.create(asset.getStart()) + " to " + TimeInstant.create(asset.getEnd()));
+        (asset.getStart() > 0 ? TimeInstant.create(asset.getStart()).toString() : "Start unknown")
+            + (asset.getEnd() > 0 ? " to " + TimeInstant.create(asset.getEnd()) : " - running"));
   }
 
   private Node createBody() {
+    var body = new VBox(6);
+    body.getChildren().add(new Label("Outcome: "
+        + (asset.getOutcome() == null ? "Running" : asset.getOutcome().name())));
     if (extended) {
-      if (asset.getStackTrace() != null) {
-        var ret = new TextResult(asset.getStackTrace());
-        ret.setPrefHeight(230);
-        ret.setMaxHeight(230);
-        ret.setMessageStyle(Styles.BORDERED, Styles.DANGER, Styles.SMALL);
-        return ret;
+      if (asset.getServiceName() != null)
+        body.getChildren().add(new Label("Service: " + asset.getServiceName()));
+      if (asset.getObservationUrn() != null)
+        body.getChildren().add(new Label("Observation: " + asset.getObservationUrn()));
+      if (asset.getMetadata() != null) {
+        addChart(body, Metadata.IM_RESOLUTION_GRAPH, "Resolution graph");
+        addChart(body, Metadata.IM_DATAFLOW_GRAPH, "Contextualization plan");
       }
-      if (asset.getMetadata().containsKey("dataflow")) {
-        var ret = new TextResult(asset.getMetadata().get("dataflow", String.class));
-        ret.setPrefHeight(230);
-        ret.setMaxHeight(230);
-        ret.setMessageStyle(Styles.BORDERED, Styles.SUCCESS, Styles.SMALL);
-        return ret;
+      if (asset.getStackTrace() != null) {
+        var trace = new TextResult(asset.getStackTrace());
+        trace.setPrefHeight(230);
+        trace.setMaxHeight(230);
+        trace.setMessageStyle(Styles.BORDERED, Styles.DANGER, Styles.SMALL);
+        body.getChildren().add(trace);
       }
     }
-    // TODO
-    return null;
+    return body;
+  }
+
+  private void addChart(VBox body, String key, String label) {
+    if (asset.getMetadata().get(key) instanceof FlowChart) {
+      body.getChildren().add(new Label(label + " available (rendering not yet supported)"));
+    }
   }
 }

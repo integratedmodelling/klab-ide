@@ -60,9 +60,7 @@ public class IDEContextScope implements ContextScope {
   private final ExecutorService executor = Executors.newSingleThreadExecutor();
   private final AtomicBoolean closed = new AtomicBoolean();
 
-  private Graph<Activity, DefaultEdge> activityGraph =
-      new DefaultDirectedGraph<>(DefaultEdge.class);
-  private HashMap<Long, Activity> activities = new HashMap<>();
+  private final ActivityCatalog activityCatalog = new ActivityCatalog();
   private volatile Schedule schedule;
   private AtomicReference<RuntimeAsset> focalRoot =
       new AtomicReference<>(RuntimeAsset.CONTEXT_ASSET);
@@ -206,29 +204,7 @@ public class IDEContextScope implements ContextScope {
   }
 
   private void upsertActivity(Activity activity, boolean finished) {
-    var stored = activities.get(activity.getTransientId());
-    if (stored == null) {
-      stored = activity;
-      activities.put(activity.getTransientId(), stored);
-      activityGraph.addVertex(stored);
-    } else if (finished && stored instanceof ActivityImpl impl) {
-      impl.setStackTrace(activity.getStackTrace());
-      impl.setObservationUrn(activity.getObservationUrn());
-      impl.setEnd(activity.getEnd());
-      impl.setOutcome(activity.getOutcome());
-      impl.getMetadata().putAll(activity.getMetadata());
-    }
-
-    var parent = activities.get(stored.getParentTransientId());
-    if (parent != null && !activityGraph.containsEdge(parent, stored)) {
-      activityGraph.addEdge(parent, stored);
-    }
-    for (var possibleChild : activities.values()) {
-      if (possibleChild.getParentTransientId() == stored.getTransientId()
-          && !activityGraph.containsEdge(stored, possibleChild)) {
-        activityGraph.addEdge(stored, possibleChild);
-      }
-    }
+    activityCatalog.accept(activity, finished);
   }
 
   private void processSubmissionFinished(Observation observation, boolean knowledgeGraphCurrent) {
@@ -274,7 +250,7 @@ public class IDEContextScope implements ContextScope {
   }
 
   public Graph<Activity, DefaultEdge> getActivityGraph() {
-    return activityGraph;
+    return activityCatalog.snapshot();
   }
 
   public Schedule getSchedule() {

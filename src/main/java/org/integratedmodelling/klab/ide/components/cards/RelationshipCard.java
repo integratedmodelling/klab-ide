@@ -479,7 +479,9 @@ public class RelationshipCard extends BaseCard<RuntimeAsset> {
       return RELATIONSHIP_COLORS[0];
     }
     Color color = switch (relationship.name()) {
-      case "HAS_CHILD", "HAS_MEMBER", "HAS_CONTEXT", "CONTEXTUALIZED", "CONTEXTUALIZED_BY" ->
+      case "HAS_CHILD", "HAS_MEMBER", "HAS_CONTEXT", "INSTANTIATED", "ACKNOWLEDGED", "DETECTED", "SIMULATED", "MEASURED",
+          "QUANTIFIED", "VALUED", "CATEGORIZED", "VERIFIED", "CLASSIFIED",
+          "CHARACTERIZED", "TRANSFORMED", "CONNECTED", "CONTEXTUALIZED_BY" ->
           Color.web("#2f7f6f40");
       case "AFFECTS", "TRIGGERED", "CONTRIBUTED_TO" -> Color.web("#9a341240");
       case "HAS_DATA", "HAS_GEOMETRY", "HAS_DATAFLOW" -> Color.web("#0550ae40");
