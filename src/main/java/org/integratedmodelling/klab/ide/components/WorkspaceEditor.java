@@ -71,6 +71,9 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private ProgressBar progressBar;
   private TreeView<NavigableAsset> treeView;
   private final Map<Node, LspDocumentSession> lspSessions = new IdentityHashMap<>();
+  private final Map<String, WorkflowEditor> workflowEditors = new HashMap<>();
+  private final Map<String, IconButton> pairButtons = new HashMap<>();
+  private final Map<String, IconButton> reviewButtons = new HashMap<>();
   private final Set<String> assetsWithFlows = new HashSet<>();
 
   /** Saved source snapshots waiting for their corresponding parsed workspace updates. */
@@ -241,6 +244,11 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
               ? service.getWorkflow(flow.getWorkflowId(), KlabIDEController.instance().user())
               : knownWorkflow;
       var editorKey = "workflow:" + flow.getId();
+      if (workflowEditors.containsKey(editorKey)) {
+        restorePairedEditors();
+        selectAuxiliaryEditor(editorKey);
+        return;
+      }
       var editor =
           new WorkflowEditor(
               service,
@@ -266,11 +274,92 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                 }
                 if (treeView != null) treeView.refresh();
               });
-      showAuxiliaryEditor(
-          editorKey, workflowName(workflow) + " — workflow", editor);
+      workflowEditors.put(editorKey, editor);
+      var node = findNodeContaining(flow.getAssetUrn());
+      if (node != null && node.getValue() instanceof NavigableKlabDocument<?, ?> document) {
+        editor.configureSideBySide(() -> toggleWorkflowPair(document, editorKey, false));
+        refreshPairButton(document.getUrn());
+      }
+      showAuxiliaryEditor(editorKey, workflowName(workflow) + " — workflow", editor);
     } catch (Throwable error) {
       KlabIDEController.instance().handleNotification(Notification.error(error));
     }
+  }
+
+  private boolean toggleWorkflowPair(NavigableKlabDocument<?, ?> document, String key,
+      boolean fromDocument) {
+    edit(document);
+    var editor = (MonacoEditorView) getEditor(document);
+    var workflowEditor = workflowEditors.get(key);
+    if (workflowEditor == null) return false;
+    boolean paired = togglePairedEditors(document, key, fromDocument, () -> {
+      pairButtons.values().forEach(button -> button.setToggled(false));
+      workflowEditors.values().forEach(value -> value.setSideBySide(false));
+      editor.setOnReviewMarkerClicked(null);
+      editor.setOnReviewMarginDoubleClicked(null);
+    });
+    if (paired) {
+      editor.setReviewMode(true);
+      var review = reviewButtons.get(document.getUrn());
+      if (review != null) review.setToggled(true);
+      editor.setOnReviewMarkerClicked(workflowEditor::reviewMarkerClicked);
+      editor.setOnReviewMarginDoubleClicked(workflowEditor::reviewCommentRequested);
+    }
+    workflowEditor.setSideBySide(paired);
+    var button = pairButtons.get(document.getUrn());
+    if (button != null) button.setToggled(paired);
+    return paired;
+  }
+
+  private boolean pairDocument(NavigableKlabDocument<?, ?> document) {
+    var existing = workflowEditors.entrySet().stream()
+        .filter(entry -> Objects.equals(document.getUrn(), entry.getValue().getFlow().getAssetUrn()))
+        .findFirst();
+    if (existing.isPresent()) return toggleWorkflowPair(document, existing.get().getKey(), true);
+    var flows = service.getFlows(true, KlabIDEController.instance().user()).stream()
+        .filter(flow -> Objects.equals(document.getUrn(), flow.getAssetUrn())).toList();
+    if (flows.isEmpty()) return false;
+    if (flows.size() > 1) {
+      var menu = new ContextMenu();
+      for (var flow : flows) {
+        var item = new MenuItem(flow.getWorkflowId() + " — " + shortFlowId(flow));
+        item.setOnAction(event -> {
+          openWorkflow(flow, null);
+          toggleWorkflowPair(document, "workflow:" + flow.getId(), true);
+        });
+        menu.getItems().add(item);
+      }
+      menu.show(pairButtons.get(document.getUrn()), javafx.geometry.Side.BOTTOM, 0, 0);
+      return false;
+    }
+    var flow = flows.getFirst();
+    openWorkflow(flow, null);
+    return toggleWorkflowPair(document, "workflow:" + flow.getId(), true);
+  }
+
+  @Override
+  protected void disposeAuxiliaryEditor(Node editor) {
+    if (editor instanceof WorkflowEditor workflowEditor) {
+      workflowEditors.values().removeIf(value -> value == workflowEditor);
+      refreshPairButton(workflowEditor.getFlow().getAssetUrn());
+      workflowEditor.close();
+    }
+  }
+
+  private boolean hasLinkedWorkflow(String assetUrn) {
+    return assetsWithFlows.contains(assetUrn)
+        || workflowEditors.values().stream()
+            .anyMatch(editor -> Objects.equals(assetUrn, editor.getFlow().getAssetUrn()));
+  }
+
+  /** Recompute availability after a draft is opened, cancelled, or closed. */
+  private void refreshPairButton(String assetUrn) {
+    var button = pairButtons.get(assetUrn);
+    if (button == null) return;
+    boolean available = hasLinkedWorkflow(assetUrn);
+    button.setVisible(available);
+    button.setManaged(available);
+    if (!available) button.setToggled(false);
   }
 
   private static String workflowName(Workflow workflow) {
@@ -834,6 +923,22 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                         return toggleReviewMode(document, this);
                       });
 
+              reviewButtons.put(document.getUrn(), reviewMode);
+              var paired = IconButton.toggle(BootstrapIcons.LAYOUT_SPLIT, 12, () -> {
+                try {
+                  boolean enabled = pairDocument(document);
+                  pairButtons.get(document.getUrn()).setToggled(enabled);
+                  return enabled;
+                } catch (RuntimeException error) {
+                  pairButtons.get(document.getUrn()).setToggled(false);
+                  throw error;
+                }
+              });
+              paired.setTooltip(new Tooltip("Side-to-side workflow review"));
+              paired.setAccessibleText("Side-to-side workflow review");
+              paired.setVisible(hasLinkedWorkflow(document.getUrn()));
+              paired.setManaged(paired.isVisible());
+              pairButtons.put(document.getUrn(), paired);
               reviewMode.setToggled(this.isReviewMode());
               // TODO enable only if the doc has some public flow or if user can
               //  open a review
@@ -843,7 +948,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                   new BarComponent(saveButton, BarSide.LEFT),
                   new BarComponent(reviewMode, BarSide.LEFT),
                   new BarComponent(lineNumbers, BarSide.RIGHT),
-                  new BarComponent(minimap, BarSide.RIGHT));
+                  new BarComponent(minimap, BarSide.RIGHT),
+                  new BarComponent(paired, BarSide.RIGHT));
             }
 
             @Override
@@ -900,6 +1006,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   @Override
   protected void disposeEditor(NavigableAsset asset, Node editor) {
+    pairButtons.remove(asset.getUrn());
+    reviewButtons.remove(asset.getUrn());
     var session = lspSessions.remove(editor);
     if (session != null) {
       session.close();

@@ -241,9 +241,9 @@ public enum Theme {
 
   // services
   public static final Ikon LOCAL_SERVICE_ICON = Material2AL.DONUT_SMALL;
-  public static final Ikon REMOTE_SERVICE_ICON_ONE = BootstrapIcons.CLOUD_FILL;
+  public static final Ikon REMOTE_SERVICE_ICON_ONE = BootstrapIcons.CLOUD;
   public static final Ikon REMOTE_SERVICE_ICON_MANY = BootstrapIcons.CLOUDS;
-  public static final Ikon LOCAL_AND_REMOTE_SERVICE_ICON = BootstrapIcons.CLOUD_SUN_FILL;
+  public static final Ikon LOCAL_AND_REMOTE_SERVICE_ICON = BootstrapIcons.CLOUD_SUN;
 
   public static Ikon getIcon(Notification.Level level) {
     return switch (level) {

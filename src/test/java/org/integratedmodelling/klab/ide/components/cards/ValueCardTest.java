@@ -10,6 +10,21 @@ import org.integratedmodelling.klab.api.knowledge.observation.impl.ObservationIm
 import org.junit.jupiter.api.Test;
 
 class ValueCardTest {
+  @Test
+  void pngAvailabilityDoesNotImplyPointValueExport() {
+    var capabilities = new org.integratedmodelling.common.services.RuntimeCapabilitiesImpl();
+    var png = org.integratedmodelling.klab.api.services.resources.ResourceTransport.Schema.create(
+        "test.png", org.integratedmodelling.klab.api.services.resources.ResourceTransport.Schema.Type.STREAM,
+        org.integratedmodelling.klab.api.knowledge.KlabAsset.KnowledgeClass.OBSERVATION, "PNG").mediaType("image/png");
+    capabilities.getExportSchemata().put("test", List.of(png));
+    assertFalse(ValueCard.supportsPointExport(capabilities));
+    var text = org.integratedmodelling.klab.api.services.resources.ResourceTransport.Schema.create(
+        "test.point", org.integratedmodelling.klab.api.services.resources.ResourceTransport.Schema.Type.STREAM,
+        org.integratedmodelling.klab.api.knowledge.KlabAsset.KnowledgeClass.OBSERVATION, "Point").mediaType("text/plain");
+    capabilities.getExportSchemata().put("test", List.of(png, text));
+    assertTrue(ValueCard.supportsPointExport(capabilities));
+  }
+
 
   @Test
   void onlyDistributedTwoDimensionalSpaceUsesMapRenderer() {

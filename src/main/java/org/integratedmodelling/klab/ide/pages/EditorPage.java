@@ -238,6 +238,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
         tab.setGraphic(Theme.getGraphics(asset));
         tab.setOnClosed(
             event -> {
+              restorePairedEditors();
               if (assetEditors.remove(asset, tab)) {
                 disposeEditor(asset, editor);
               }
@@ -248,20 +249,67 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
       }
     }
     if (assetEditors.containsKey(asset)) {
-      editorTabs.select(assetEditors.get(asset));
+      editorTabs.select(pairedContents.containsKey(assetEditors.get(asset))
+          ? pairedHost : assetEditors.get(asset));
     }
+  }
+
+  private final Map<Tab, Node> pairedContents = new HashMap<>();
+  private Tab pairedHost;
+  private Tab pairedOther;
+  private Runnable pairChanged = () -> {};
+
+  /** Pair existing editors without recreating either model or transferring ownership. */
+  protected boolean togglePairedEditors(T asset, String auxiliaryKey, boolean fromDocument,
+      Runnable changed) {
+    if (pairedHost != null) {
+      var selected = fromDocument ? assetEditors.get(asset) : auxiliaryEditors.get(auxiliaryKey);
+      restorePairedEditors();
+      if (selected != null) editorTabs.select(selected);
+      return false;
+    }
+    var left = assetEditors.get(asset);
+    var right = auxiliaryEditors.get(auxiliaryKey);
+    if (left == null || right == null) return false;
+    pairedHost = fromDocument ? left : right;
+    pairedOther = fromDocument ? right : left;
+    pairChanged = changed;
+    pairedContents.put(left, left.getContent());
+    pairedContents.put(right, right.getContent());
+    left.setContent(null);
+    right.setContent(null);
+    var split = new SplitPane(pairedContents.get(left), pairedContents.get(right));
+    split.setOrientation(Orientation.HORIZONTAL);
+    split.setDividerPositions(0.5);
+    pairedHost.setContent(split);
+    editorTabs.removeTab(pairedOther);
+    editorTabs.select(pairedHost);
+    return true;
+  }
+
+  protected void restorePairedEditors() {
+    if (pairedHost == null) return;
+    ((SplitPane) pairedHost.getContent()).getItems().clear();
+    pairedContents.forEach(Tab::setContent);
+    editorTabs.getTabs().add(pairedOther);
+    pairedHost = null;
+    pairedOther = null;
+    pairedContents.clear();
+    pairChanged.run();
+    pairChanged = () -> {};
   }
 
   /** Return the editor node for an asset, or {@code null} when the asset is not open. */
   protected Node getEditor(T asset) {
     var tab = assetEditors.get(asset);
-    return tab == null ? null : tab.getContent();
+    return tab == null ? null : pairedContents.getOrDefault(tab, tab.getContent());
   }
 
   /** Return true when the asset is open in the current foreground editor tab. */
   protected boolean isEditorSelected(T asset) {
     var tab = assetEditors.get(asset);
-    return tab != null && editorTabs.isSelected(tab);
+    return tab != null && (editorTabs.isSelected(tab)
+        || (pairedContents.containsKey(tab) && editorTabs.isSelected(pairedHost)));
   }
 
   /** Replace the graphic of the editor tab associated with an asset. */
@@ -281,7 +329,11 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
     if (tab == null) {
       tab = new Tab(title, editor);
       var newTab = tab;
-      tab.setOnClosed(event -> auxiliaryEditors.remove(key, newTab));
+      tab.setOnClosed(event -> {
+        restorePairedEditors();
+        auxiliaryEditors.remove(key, newTab);
+        disposeAuxiliaryEditor(editor);
+      });
       auxiliaryEditors.put(key, tab);
       editorTabs.getTabs().add(tab);
       editorTabs.select(tab);
@@ -297,6 +349,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
   /** Select an open auxiliary editor tab without creating or changing it. */
   protected void selectAuxiliaryEditor(String key) {
     var tab = auxiliaryEditors.get(key);
+    if (pairedContents.containsKey(tab)) tab = pairedHost;
     if (tab != null) {
       editorTabs.select(tab);
     }
@@ -304,8 +357,10 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
 
   /** Close an auxiliary editor tab if it is currently open. */
   protected void closeAuxiliaryEditor(String key) {
+    restorePairedEditors();
     var tab = auxiliaryEditors.remove(key);
     if (tab != null) {
+      disposeAuxiliaryEditor(tab.getContent());
       editorTabs.removeTab(tab);
     }
   }
@@ -336,12 +391,13 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
     if (tab == null) {
       return false;
     }
-    var editor = tab.getContent();
+    var editor = pairedContents.getOrDefault(tab, tab.getContent());
     assetEditors.put(refreshedAsset, tab);
     tab.setText(editorTitle(refreshedAsset));
     tab.setGraphic(Theme.getGraphics(refreshedAsset));
     tab.setOnClosed(
         event -> {
+          restorePairedEditors();
           if (assetEditors.remove(refreshedAsset, tab)) {
             disposeEditor(refreshedAsset, editor);
           }
@@ -359,6 +415,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
     if (tab == null) {
       return false;
     }
+    restorePairedEditors();
     var refreshedEditor = createEditor(refreshedAsset);
     if (refreshedEditor == null) {
       return false;
@@ -374,6 +431,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
     tab.setContent(refreshedEditor);
     tab.setOnClosed(
         event -> {
+          restorePairedEditors();
           if (assetEditors.remove(refreshedAsset, tab)) {
             disposeEditor(refreshedAsset, refreshedEditor);
           }
@@ -398,6 +456,8 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
    * closed, not when JavaFX temporarily detaches the tab content from a scene.
    */
   protected void disposeEditor(T asset, Node editor) {}
+
+  protected void disposeAuxiliaryEditor(Node editor) {}
 
   /**
    * Handle a single click in the browse tree. Note: runs inside the platform UI thread
@@ -460,6 +520,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
 
   @Override
   public void close() {
+    restorePairedEditors();
     editorTabs.dockAll();
     for (var entry : Map.copyOf(assetEditors).entrySet()) {
       var editor = entry.getValue().getContent();
@@ -468,6 +529,7 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
       }
     }
     assetEditors.clear();
+    auxiliaryEditors.values().forEach(tab -> disposeAuxiliaryEditor(tab.getContent()));
     auxiliaryEditors.clear();
     if (digitalTwinControlPanel != null) {
       digitalTwinControlPanel.close();

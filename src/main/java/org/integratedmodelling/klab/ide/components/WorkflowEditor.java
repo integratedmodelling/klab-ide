@@ -71,6 +71,38 @@ import org.kordamp.ikonli.material2.Material2AL;
  */
 public class WorkflowEditor extends BorderPane implements AutoCloseable {
 
+  private final javafx.scene.control.ToggleButton sideBySide =
+      new javafx.scene.control.ToggleButton("", new FontIcon(org.kordamp.ikonli.bootstrapicons.BootstrapIcons.LAYOUT_SPLIT));
+  private final Map<String, String> reviewMarkerStages = new LinkedHashMap<>();
+
+  /** Enable pairing after the host resolves the flow's document. */
+  public void configureSideBySide(BooleanSupplier toggle) {
+    sideBySide.setVisible(true);
+    sideBySide.setManaged(true);
+    sideBySide.setOnAction(event -> sideBySide.setSelected(toggle.getAsBoolean()));
+  }
+
+  public void setSideBySide(boolean enabled) { sideBySide.setSelected(enabled); }
+
+  /** Bind glyph IDs to concrete stage IDs, for example from attachment comments. */
+  public void setReviewMarkerStages(Map<String, String> stages) {
+    reviewMarkerStages.clear();
+    reviewMarkerStages.putAll(stages);
+  }
+
+  public void reviewMarkerClicked(org.integratedmodelling.klabeditor.MonacoEditorView.ReviewMarkerClick click) {
+    var stateId = reviewMarkerStages.get(click.id());
+    if (stateId == null) return;
+    var state = flow.getStates().get(stateId);
+    if (state == null) return;
+    if (selectedState == null || !Objects.equals(selectedState.getId(), state.getId())) show(state);
+    if (selectedEditor != null) selectedEditor.focusReview().accept(click);
+  }
+
+  public void reviewCommentRequested(int lineNumber) {
+    if (selectedEditor != null) selectedEditor.createComment().accept(lineNumber);
+  }
+
   private static final DateTimeFormatter DATE =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
@@ -81,13 +113,21 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
       Node content,
       BooleanSupplier valid,
       Supplier<Map<String, Object>> metadata,
-      Consumer<Boolean> readOnly) {
+      Consumer<Boolean> readOnly,
+      Consumer<org.integratedmodelling.klabeditor.MonacoEditorView.ReviewMarkerClick> focusReview,
+      Consumer<Integer> createComment) {
+    public StageEditor(Node content, BooleanSupplier valid, Supplier<Map<String, Object>> metadata,
+        Consumer<Boolean> readOnly) {
+      this(content, valid, metadata, readOnly, null, null);
+    }
 
     public StageEditor {
       Objects.requireNonNull(content, "Stage editor content");
       valid = valid == null ? () -> true : valid;
       metadata = metadata == null ? Map::of : metadata;
       readOnly = readOnly == null ? ignored -> {} : readOnly;
+      focusReview = focusReview == null ? ignored -> {} : focusReview;
+      createComment = createComment == null ? ignored -> {} : createComment;
     }
   }
 
@@ -216,7 +256,11 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     metadata.setAlignment(Pos.CENTER_LEFT);
     var spacer = new HBox();
     HBox.setHgrow(spacer, Priority.ALWAYS);
-    var box = new HBox(12, titleArea, spacer, metadata);
+    sideBySide.setVisible(false);
+    sideBySide.setManaged(false);
+    sideBySide.setTooltip(new Tooltip("Side-to-side workflow review"));
+    sideBySide.setAccessibleText("Side-to-side workflow review");
+    var box = new HBox(12, titleArea, spacer, metadata, sideBySide);
     box.setAlignment(Pos.CENTER_LEFT);
     box.setPadding(new Insets(0, 0, 10, 0));
     var header = new VBox();

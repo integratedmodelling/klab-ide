@@ -565,7 +565,10 @@ public class ValueCard extends BaseCard<Observation> {
                                   request.viewportHeight()),
                               scope))),
           query ->
-              CompletableFuture.supplyAsync(
+              !supportsPointExport(runtime.capabilities(scope))
+                  ? CompletableFuture.failedFuture(new UnsupportedOperationException(
+                      "Point-value lookup is not available from this Runtime service"))
+                  : CompletableFuture.supplyAsync(
                   () ->
                       new String(
                               readAll(
@@ -582,6 +585,11 @@ public class ValueCard extends BaseCard<Observation> {
     }
   }
 
+  static boolean supportsPointExport(org.integratedmodelling.klab.api.services.KlabService.ServiceCapabilities capabilities) {
+    return capabilities.getExportSchemata().values().stream().flatMap(List::stream)
+        .anyMatch(schema -> schema.getKnowledgeClass() == KlabAsset.KnowledgeClass.OBSERVATION
+            && schema.getMediaTypes().contains("text/plain"));
+  }
   static Parameters<String> exportParameters(Long timestamp, int width, int height) {
     Parameters<String> ret =
         Parameters.create("viewportX", width, "viewportY", height);
