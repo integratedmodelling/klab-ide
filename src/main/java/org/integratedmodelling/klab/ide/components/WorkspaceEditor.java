@@ -782,8 +782,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         }
         if (editor.assetsWithFlows.contains(asset.getUrn())) {
           var dot = new Label("●");
-          dot.setStyle("-fx-text-fill: -color-accent-fg; -fx-font-size: 9px;");
-          var graphic = new HBox(3, icon, label, dot);
+          dot.setStyle("-fx-text-fill: -color-accent-fg; -fx-font-size: 12px;");
+          var graphic = new HBox(6, icon, label, dot);
           graphic.setAlignment(Pos.CENTER_LEFT);
           setGraphic(graphic);
         } else {
