@@ -149,7 +149,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   private final UserScope scope;
   private final Workflow workflow;
   private final StageEditorProvider stageEditors;
-  private final CarouselBox stageCarousel = new CarouselBox(Orientation.VERTICAL);
+  private final CarouselBox stageCarousel = new CarouselBox(Orientation.HORIZONTAL);
   private final Map<Node, Flow.State> stageCards = new LinkedHashMap<>();
   private final VBox stageArea = new VBox(12);
   private final Label status = new Label();
@@ -226,8 +226,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     errorMessage.visibleProperty().bind(errorMessage.textProperty().isNotEmpty());
     errorMessage.managedProperty().bind(errorMessage.visibleProperty());
     setPadding(new Insets(12));
-    setTop(header());
-    setLeft(stageBrowser());
+    setTop(new VBox(header(), stageBrowser()));
     var scroll = new ScrollPane(stageArea);
     scroll.setFitToWidth(true);
     setCenter(scroll);
@@ -386,12 +385,13 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   }
 
   private Node stageBrowser() {
-    stageCarousel.setPrefWidth(230);
+    stageCarousel.setPrefHeight(70);
+    stageCarousel.setMaxHeight(70);
     stageCarousel.setMaxWidth(Double.MAX_VALUE);
     stageCarousel.setSelectionListener(card -> show(stageCards.get(card)));
-    var box = new VBox(6, new Label("Stages"), stageCarousel);
-    box.setPadding(new Insets(10, 12, 0, 0));
-    VBox.setVgrow(stageCarousel, Priority.ALWAYS);
+    var box = new HBox(stageCarousel);
+    box.setPadding(new Insets(10, 0, 0, 0));
+    HBox.setHgrow(stageCarousel, Priority.ALWAYS);
     return box;
   }
 
