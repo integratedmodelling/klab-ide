@@ -128,6 +128,10 @@ public class CommandResult extends BaseAssetViewComponent {
               ret.setMessageStyle(Styles.DANGER);
               yield ret;
             }
+            case org.integratedmodelling.klab.api.cli.MarkdownDocument markdown -> {
+              var bbCode = org.integratedmodelling.klab.ide.utils.BBCodeNodeRenderer.fromMarkdown(markdown.content());
+              yield BBCodeParser.createLayout(bbCode);
+            }
             case FormattedString formattedString -> {
               var ret = BBCodeParser.createLayout(formattedString.render(BBCodeRenderer.INSTANCE));
               ret.setStyle(

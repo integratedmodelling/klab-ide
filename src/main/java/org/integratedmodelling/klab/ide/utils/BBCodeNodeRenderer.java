@@ -20,6 +20,11 @@ import java.util.regex.Pattern;
 /** Renders Flexmark's core Markdown nodes using the BBCode understood by AtlantaFX. */
 public class BBCodeNodeRenderer implements NodeRenderer {
 
+  /** Shared Markdown conversion without a JavaFX toolkit dependency. */
+  public static String fromMarkdown(String markdown) {
+    return org.integratedmodelling.common.utils.Utils.Markdown.render(markdown, new BBCodeNodeRenderer());
+  }
+
   /* A word joiner makes a source BBCode tag inert without changing how the text is displayed. */
   private static final String INERT_TAG_PREFIX = "[\u2060";
   private static final Pattern BB_CODE_TAG =

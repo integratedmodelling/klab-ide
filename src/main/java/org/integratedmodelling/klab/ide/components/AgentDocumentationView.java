@@ -15,7 +15,7 @@ import javafx.scene.control.TreeView;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
-import org.integratedmodelling.common.utils.Utils;
+
 import org.integratedmodelling.klab.api.collections.DomainObject;
 import org.integratedmodelling.klab.ide.components.generic.DomainObjectView;
 import org.integratedmodelling.klab.ide.components.generic.TreeSearchField;
@@ -36,7 +36,7 @@ public final class AgentDocumentationView extends DomainObjectView {
 
   private final Function<String, String> markdownToBBCode;
   private final TreeView<DomainObject> documentationTree = new TreeView<>();
-  private static final BBCodeNodeRenderer bbcCodeRenderer = new BBCodeNodeRenderer();
+
 
   /** Create the view with mock data and the intentionally replaceable translation stub. */
   public AgentDocumentationView() {
@@ -121,7 +121,7 @@ public final class AgentDocumentationView extends DomainObjectView {
    * Use Flexmark with the BBCode renderer in this project.
    */
   static String markdownToBBCode(String markdown) {
-    return Utils.Markdown.render(markdown, bbcCodeRenderer);
+    return BBCodeNodeRenderer.fromMarkdown(markdown);
   }
 
   private final class DocumentationTreeCell extends TreeCell<DomainObject> {
