@@ -766,6 +766,16 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
     public AssetTreeCell(WorkspaceEditor workspaceEditor) {
       this.editor = workspaceEditor;
+      javafx.beans.value.ChangeListener<javafx.scene.Node> decorationListener =
+          (observable, oldGraphic, newGraphic) -> updateItem(getItem(), isEmpty());
+      treeItemProperty().addListener((observable, oldItem, newItem) -> {
+        if (oldItem != null) {
+          oldItem.graphicProperty().removeListener(decorationListener);
+        }
+        if (newItem != null) {
+          newItem.graphicProperty().addListener(decorationListener);
+        }
+      });
     }
 
     @Override
@@ -1207,7 +1217,20 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     }
 
     if (focus != null) {
-      // TODO incorporate errors and walk the tree upwards to update the status icons
+      refreshDecorations(focus);
+      for (var parent = focus.getParent(); parent != null; parent = parent.getParent()) {
+        parent.setGraphic(getTreeGraphics(parent.getValue()));
+        rebindEditor(parent.getValue(), parent.getValue());
+      }
+    }
+  }
+
+  private void refreshDecorations(TreeItem<NavigableAsset> node) {
+    var asset = node.getValue();
+    node.setGraphic(getTreeGraphics(asset));
+    rebindEditor(asset, asset);
+    for (var child : node.getChildren()) {
+      refreshDecorations(child);
     }
   }
 
