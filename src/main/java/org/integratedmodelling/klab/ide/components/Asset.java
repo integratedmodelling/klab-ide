@@ -81,16 +81,16 @@ public class Asset implements RuntimeAsset {
         switch (classify()) {
           case OBSERVATION -> null;
           case ACTUATOR -> null;
-          case CONTEXT -> "-fx-fill: url(\"file:icons8-home-24.png\");";
+          case CONTEXT -> GraphResources.iconFill("icons8-home-24.png");
           case DATAFLOW -> null;
           case PROVENANCE -> null;
           case ACTIVITY -> null;
           case PLAN -> null;
           case AGENT -> null;
-          case COMMIT -> "-fx-fill: url(\"file:icons8-update-30.png\");";
+          case COMMIT -> GraphResources.iconFill("icons8-update-30.png");
           case DATA -> null;
           case LINK -> null;
-          case COHORT ->  "-fx-fill: url(\"file:icons8-box-30.png\");";
+          case COHORT -> GraphResources.iconFill("icons8-box-30.png");
         };
     if (style != null) {
       var stylableVertex = graphView.getStylableVertex(this);

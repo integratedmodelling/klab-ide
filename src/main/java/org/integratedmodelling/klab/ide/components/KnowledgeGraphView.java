@@ -276,22 +276,11 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     return this.scope.getId().equals(scope.getId());
   }
 
-  private static Path getApplicationFile(String filename) {
-
-    String appDir = System.getProperty("app.dir");
-    if (appDir != null && !appDir.isBlank()) {
-      return Path.of(appDir, filename);
-    }
-    return Path.of(filename).toAbsolutePath();
-  }
-
   private SmartGraphPanel<RuntimeAsset, ClientKnowledgeGraph.Relationship> createGraph(
       Graph<RuntimeAsset, ClientKnowledgeGraph.Relationship> graph) {
 
-    Path cssPath =
-        getApplicationFile(
-            Theme.CURRENT_THEME.isDark() ? "smartgraph-dark.css" : "smartgraph.css");
-    Path propertiesPath = getApplicationFile("smartgraph.properties");
+    Path cssPath = GraphResources.applicationFile("smartgraph.css");
+    Path propertiesPath = GraphResources.applicationFile("smartgraph.properties");
 
     SmartGraphProperties properties;
 
@@ -301,8 +290,11 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
       properties = new SmartGraphProperties();
     }
 
-    return new SmartGraphPanel<>(
+    var panel = new SmartGraphPanel<>(
         graph, properties, new SmartCircularSortedPlacementStrategy(), cssPath.toUri());
+    // SmartGraph's default dark stylesheet is relative to the process working directory.
+    panel.setDarkModeStylesheet(GraphResources.applicationFile("smartgraph-dark.css").toUri());
+    return panel;
   }
 
   private void initializeGraphView() {
