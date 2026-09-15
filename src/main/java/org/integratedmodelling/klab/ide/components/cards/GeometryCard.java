@@ -215,7 +215,12 @@ public class GeometryCard extends BaseCard<Geometry> {
     return copyButton;
   }
 
-  private Node createSpatialPreview(SpatialSummary summary) {
+  /** Spatial extent preview shared with transient observation drop targets. */
+  public static Node spatialPreview(Geometry geometry) {
+    return createSpatialPreview(SpatialSummary.from(geometry.dimension(Dimension.Type.SPACE)));
+  }
+
+  private static Node createSpatialPreview(SpatialSummary summary) {
     StackPane frame = new StackPane();
     frame.getStyleClass().add("geometry-card-spatial");
     frame.setAlignment(Pos.CENTER);
@@ -262,12 +267,12 @@ public class GeometryCard extends BaseCard<Geometry> {
     return frame;
   }
 
-  private void layoutUnmanagedCanvas(Canvas canvas, Region owner) {
+  private static void layoutUnmanagedCanvas(Canvas canvas, Region owner) {
     canvas.setWidth(Math.max(0, owner.getWidth()));
     canvas.setHeight(Math.max(0, owner.getHeight()));
   }
 
-  private void layoutSpatialImage(ImageView image, Region frame, double aspectRatio) {
+  private static void layoutSpatialImage(ImageView image, Region frame, double aspectRatio) {
     Rect area =
         imageArea(Math.max(1, frame.getWidth()), Math.max(1, frame.getHeight()), aspectRatio);
     image.setFitWidth(area.width());
@@ -276,7 +281,7 @@ public class GeometryCard extends BaseCard<Geometry> {
     image.setLayoutY(area.y());
   }
 
-  private void drawSpatialOverlay(Canvas canvas, SpatialSummary summary) {
+  private static void drawSpatialOverlay(Canvas canvas, SpatialSummary summary) {
     GraphicsContext gc = canvas.getGraphicsContext2D();
     double width = canvas.getWidth();
     double height = canvas.getHeight();
@@ -325,7 +330,7 @@ public class GeometryCard extends BaseCard<Geometry> {
     gc.strokeRoundRect(box.x(), box.y(), box.width(), box.height(), 5, 5);
   }
 
-  private void drawSpatialPlaceholder(
+  private static void drawSpatialPlaceholder(
       GraphicsContext gc, double width, double height, SpatialSummary summary) {
     // The frame background and border are supplied by AtlantaFX CSS. Keep the canvas transparent
     // so they follow the active theme.
@@ -344,7 +349,7 @@ public class GeometryCard extends BaseCard<Geometry> {
     gc.fillText(text, 10, Math.max(18, height - 12));
   }
 
-  private void drawGrid(GraphicsContext gc, Rect box, long xCells, long yCells) {
+  private static void drawGrid(GraphicsContext gc, Rect box, long xCells, long yCells) {
     int xLines = (int) Math.min(12, Math.max(1, xCells));
     int yLines = (int) Math.min(12, Math.max(1, yCells));
     gc.setStroke(Color.rgb(255, 255, 255, 0.45));

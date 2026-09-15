@@ -12,6 +12,7 @@ import javafx.scene.input.*;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import org.integratedmodelling.common.services.client.ResourcesMerger;
 import org.integratedmodelling.common.utils.Utils;
@@ -378,19 +379,24 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     KlabIDEController.instance().setFocalEditor(this, visibleAfterCall);
   }
 
+  private NavigableAsset draggedAsset;
+  private boolean dropCompleted;
+  private boolean panelShownBeforeDrag;
+
   @Override
   protected void configureDigitalTwinWidget(DigitalTwinControlPanel digitalTwinMinified) {
     // TODO contents
     digitalTwinMinified.setOnDragOver(
         event -> {
-          if (event.getGestureSource() == this.treeView) {
+          if (event.getGestureSource() == this.treeView && draggedAsset != null) {
             event.acceptTransferModes(TransferMode.ANY);
           }
           event.consume();
         });
     digitalTwinMinified.setOnDragDropped(
         event -> {
-          if (event.getGestureSource() == this.treeView) {
+          if (event.getGestureSource() == this.treeView && draggedAsset != null) {
+            dropCompleted = true;
             event.setDropCompleted(true);
             event.consume();
           }
@@ -411,7 +417,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           TreeItem<NavigableAsset> item = treeView.getSelectionModel().getSelectedItem();
           if (item != null) {
             // TODO check if this is draggable in the current conditions
-            digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.RECEIVING);
+            draggedAsset = item.getValue();
+            dropCompleted = false;
+            panelShownBeforeDrag = isDigitalTwinControlPanelShown();
+            digitalTwinControlPanel.beginReceiving(draggedAsset);
             showDigitalTwinControlPanel();
             var dragboard = treeView.startDragAndDrop(TransferMode.ANY);
             var content = new ClipboardContent();
@@ -425,10 +434,15 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
     treeView.setOnDragDone(
         event -> {
-          TreeItem<NavigableAsset> item = treeView.getSelectionModel().getSelectedItem();
-          if (item != null && event.isAccepted()) {
-            handleAssetDrop(item.getValue());
+          var asset = draggedAsset;
+          draggedAsset = null;
+          digitalTwinControlPanel.endReceiving();
+          if (asset != null && dropCompleted && event.getTransferMode() != null) {
+            handleAssetDrop(asset);
+          } else if (!panelShownBeforeDrag || digitalTwinControlPanel.getScope() == null) {
+            hideDigitalTwinControlPanel();
           }
+          dropCompleted = false;
           event.consume();
         });
 
@@ -721,7 +735,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
     var scope = KlabIDEController.instance().requireDefaultContext();
     if (scope == null) {
-      // This shouldn't happen when the drop action and panel become smarter
+      hideDigitalTwinControlPanel();
+      // No runtime is available to create the requested twin.
       digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.IDLE);
       KlabIDEController.instance()
           .handleNotification(
@@ -782,24 +797,25 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     protected void updateItem(NavigableAsset asset, boolean empty) {
       super.updateItem(asset, empty);
       if (asset != null && !empty) {
-        setText(null);
+        // Let the cell skin truncate the name without shrinking the icon glyphs.
+        setText(Theme.getLabel(asset));
+        setTextOverrun(OverrunStyle.ELLIPSIS);
+        setTooltip(new Tooltip(getText()));
         var icon = getTreeGraphics(asset);
-        var label = new Label(Theme.getLabel(asset));
-        if (asset instanceof NavigableProject project && project.isLocked()) {
-          // The cell text became a graphic child when flow indicators were introduced, so preserve
-          // the established locked-project cue on the label itself.
-          label.setStyle("-fx-text-fill: -color-success-fg;");
-        }
+        icon.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        icon.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        icon.setTextOverrun(OverrunStyle.CLIP);
         if (editor.assetsWithFlows.contains(asset.getUrn())) {
           var dot = new Label("●");
           dot.setStyle("-fx-text-fill: -color-accent-fg; -fx-font-size: 12px;");
-          var graphic = new HBox(6, icon, label, dot);
+          dot.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+          var graphic = new HBox(6, icon, dot);
           graphic.setAlignment(Pos.CENTER_LEFT);
+          graphic.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+          graphic.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
           setGraphic(graphic);
         } else {
-          var graphic = new HBox(2, icon, label);
-          graphic.setAlignment(Pos.CENTER_LEFT);
-          setGraphic(graphic);
+          setGraphic(icon);
         }
         setOnContextMenuRequested(
             event -> {
@@ -822,9 +838,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
             });
         switch (asset) {
           case NavigableProject navigableProject -> {
-            if (navigableProject.isLocked()) {
-              setStyle("-fx-text-fill: -color-success-fg;");
-            }
+            setStyle(navigableProject.isLocked() ? "-fx-text-fill: -color-success-fg;" : null);
           }
           case NavigableDocument navigableProject -> {
             // leave these - there is an unclear style "leaking" phenomenon otherwise
@@ -844,6 +858,9 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       } else {
         setText(null);
         setGraphic(null);
+        setTooltip(null);
+        setStyle(null);
+        setOnContextMenuRequested(null);
       }
     }
   }

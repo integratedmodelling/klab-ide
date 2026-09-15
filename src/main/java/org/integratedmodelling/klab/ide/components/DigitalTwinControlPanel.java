@@ -9,7 +9,6 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
-import javafx.scene.paint.Color;
 import javafx.util.Duration;
 import org.integratedmodelling.klab.api.data.KnowledgeGraph;
 import org.integratedmodelling.klab.api.data.Metadata;
@@ -22,6 +21,7 @@ import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.api.DigitalTwinViewer;
+import org.integratedmodelling.klab.ide.components.cards.GeometryCard;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.ide.components.generic.Switcher;
 import org.integratedmodelling.klab.ide.components.generic.TaskCancellationButton;
@@ -110,10 +110,8 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
         new Button("", new IconLabel(Theme.ACTIVITY_ICON, 14, "-color-fg-muted"));
     this.observationButton =
         new Button("", new IconLabel(Theme.KNOWLEDGE_GRAPH_ICON, 14, "-color-fg-muted"));
-    this.observerButton =
-        new Button("", new IconLabel(Theme.OBSERVER_ICON, 14, "-color-fg-muted"));
-    this.scenarioButton =
-        new Button("", new IconLabel(Theme.SCENARIO_ICON, 14, "-color-fg-muted"));
+    this.observerButton = new Button("", new IconLabel(Theme.OBSERVER_ICON, 14, "-color-fg-muted"));
+    this.scenarioButton = new Button("", new IconLabel(Theme.SCENARIO_ICON, 14, "-color-fg-muted"));
     this.resetButton =
         new Button("", new IconLabel(Material2AL.DELETE_FOREVER, 18, "-color-danger-fg"));
 
@@ -231,6 +229,59 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     dropLabel.setStyle("-fx-text-fill: -color-fg-muted; -fx-font-size: 14px;");
     dropZone.getChildren().add(dropLabel);
     setCenter(null); // TODO use some idle view
+  }
+
+  private Status statusBeforeDrag;
+  private long previewGeneration;
+
+  public void beginReceiving(Object asset) {
+    statusBeforeDrag = status;
+    long generation = ++previewGeneration;
+    Label prompt = new Label("Drop asset here");
+    prompt.setStyle("-fx-text-fill: -color-fg-muted; -fx-font-size: 14px;");
+    dropZone.getChildren().setAll(prompt);
+    setStatus(Status.RECEIVING);
+    var targetScope = scope;
+    if (targetScope == null) return;
+    var context = targetScope.getContextObservation();
+    var observer = targetScope.getObserver();
+    CompletableFuture.supplyAsync(
+            () -> ObservationDropTarget.resolve(asset, targetScope, context, observer))
+        .whenComplete(
+            (target, failure) ->
+                runOnFxThread(
+                    () -> {
+                      if (generation != previewGeneration
+                          || status != Status.RECEIVING
+                          || scope != targetScope
+                          || failure != null
+                          || target == null) return;
+                      var preview = GeometryCard.spatialPreview(target.geometry());
+                      preview.setMouseTransparent(true);
+                      Label label = new Label(target.label());
+                      label.setWrapText(true);
+                      label.setMaxWidth(200);
+                      label.setAlignment(Pos.CENTER);
+                      label.setStyle(
+                          "-fx-text-fill: -color-fg-default; -fx-padding: 6;");
+                      Region labelBackground = new Region();
+                      labelBackground.setStyle(
+                          "-fx-background-color: -color-bg-default; -fx-background-radius: 5;");
+                      labelBackground.setOpacity(0.7);
+                      StackPane caption = new StackPane(labelBackground, label);
+                      caption.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+                      caption.setMouseTransparent(true);
+                      dropZone.getChildren().setAll(preview, caption);
+                    }));
+  }
+
+  public void endReceiving() {
+    ++previewGeneration;
+    if (status == Status.RECEIVING) {
+      setStatus(statusBeforeDrag == null ? Status.IDLE : statusBeforeDrag);
+    }
+    statusBeforeDrag = null;
+    dropZone.getChildren().clear();
   }
 
   /** Action for the home button, which resets the graph to the root of the KG */
@@ -374,9 +425,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
             14,
             scope == null
                 ? "-color-fg-muted"
-                : (currentView == View.OBSERVATIONS
-                    ? "-color-success-fg"
-                    : "-color-fg-default")));
+                : (currentView == View.OBSERVATIONS ? "-color-success-fg" : "-color-fg-default")));
     this.observerButton.setGraphic(
         new IconLabel(
             Theme.OBSERVER_ICON,
@@ -397,13 +446,13 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
                 ? Material2AL.HOME
                 : FontAwesomeSolid.HOME,
             (scope == null || scope.getContextObservation() == null) ? 16 : 14,
-            scope == null
-                ? "-color-fg-muted"
-                : "-color-fg-default"));
+            scope == null ? "-color-fg-muted" : "-color-fg-default"));
 
     this.resetButton.setGraphic(
         new IconLabel(
-            Material2AL.DELETE_FOREVER, 18, scope == null ? "-color-fg-muted" : "-color-danger-fg"));
+            Material2AL.DELETE_FOREVER,
+            18,
+            scope == null ? "-color-fg-muted" : "-color-danger-fg"));
 
     outlineButton(this.activitiesButton, currentView == View.ACTIVITIES);
     outlineButton(this.observationButton, currentView == View.OBSERVATIONS);
@@ -550,9 +599,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
             observerTree.reset();
           } else {
             observationTree.update(
-                RuntimeAsset.CONTEXT_ASSET,
-                scopeToReset.getContextObservation(),
-                scopeToReset);
+                RuntimeAsset.CONTEXT_ASSET, scopeToReset.getContextObservation(), scopeToReset);
             activityTree.reset();
             // TODO fill up scenarios and observers
           }
