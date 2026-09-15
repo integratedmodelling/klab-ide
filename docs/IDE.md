@@ -1,11 +1,16 @@
 # k.LAB IDE User Guide
 
+[Repository overview and documentation](../README.md)
+
 ## About this guide
 
 The k.LAB IDE is a desktop workbench for authoring k.LAB knowledge, managing resources, running
 behaviors, and interacting with observations held in digital twins. The current application
 identifies itself as a pre-alpha release. The central workflows are usable, but several screens and
 commands are still incomplete. Known limitations are listed at the end of this guide.
+
+This guide was reviewed against the IDE source on 2026-09-15. Feature descriptions reflect
+implemented client paths; availability and results still depend on the connected services.
 
 The IDE assumes that most knowledge and runtime data are supplied by connected k.LAB services.
 What appears in the workbench therefore depends on:
@@ -71,7 +76,9 @@ The main area displays the selected section. Most sections use the same interact
 3. The item opens in a tab.
 4. Editors may contain their own tabs and a tree index on the right.
 
-Closing a tab closes its editor and releases any editor-specific session.
+Editor tabs can be dragged into floating windows and returned to their original tab pane. During
+re-docking, a compact preview indicates the destination; releasing outside it leaves the floating
+window in place. Closing a tab closes its editor and releases its editor-specific session.
 
 ### Knowledge Inspector
 
@@ -157,6 +164,8 @@ when it is visible. A double click opens the containing document and moves the s
 selected statement.
 
 Moving the source cursor also selects the most specific matching item in the workspace tree.
+Long names are truncated independently of the asset icons; a tooltip exposes the full name.
+A dot beside an icon marks an asset with an associated workflow.
 
 ### Create project content
 
@@ -173,9 +182,9 @@ project requires confirmation and permanently removes its contents for all users
 ### Edit and save a document
 
 Documents open in a source editor with syntax support when the language service is available.
-Saving sends the complete document back to the hosting Resources service. Validation results may
-change the icons in the workspace tree, although complete per-editor diagnostic propagation is not
-yet implemented.
+Saving sends the complete document back to the hosting Resources service. The returned parsed
+document updates the workspace tree and the open editor's diagnostics. The saved source becomes
+the editor's clean baseline; the toolbar reports whether subsequent edits remain unsaved.
 
 For a behavior, application, script, component, or test case, saving replaces the corresponding
 source in the managed project. If the declared behavior name changes, its canonical project path
@@ -188,9 +197,20 @@ To run or test a project behavior with the local agent tools, open its context m
 **Edit and run locally**. This action is available when a local Runtime service is present and is
 described in more detail under “Working with behaviors and agents.”
 
+### Review changes and workflows
+
+The source-editor toolbar offers a review mode and, when a linked workflow is available, a
+side-to-side workflow view. The asset context menu lists accessible open and closed flows.
+Starting a new workflow requires an installed workflow provider with a schema applicable to that
+asset; the default provider does not offer startable workflows.
+
+Workflow editors present stages, instructions, attachments, and permitted transitions. Editing
+and reopening depend on the flow state and the user's role; public-read and closed flows open
+read-only. See [Workflow editor integration](WORKFLOWS.md) for the provider contract.
+
 ### Resolve a workspace asset
 
-When a digital twin is selected:
+To submit a workspace asset:
 
 1. Drag a resolvable asset from the workspace tree.
 2. The digital-twin panel opens and displays a drop target.
@@ -198,7 +218,20 @@ When a digital twin is selected:
 4. The panel switches to activity progress and then to resulting observations.
 
 If no digital twin is selected, the IDE attempts to create a default local context. This requires
-an available local runtime.
+an available local runtime. Cancelling the drag restores the panel's previous state and visibility;
+when no twin exists, the temporary empty panel is removed.
+
+The target preview explains where the request will be observed:
+
+- For a dependent observation, such as a Quality or Process, it shows the current context
+  observation's spatial geometry and name. This applies to models, observables, concepts, and
+  observation definitions whose semantics identify a dependent request.
+- For substantials or collectives, it uses the current observer's perceived geometry, when
+  available. This is distinct from the geometry occupied by the observer itself.
+- If the relevant context, observer, or geometry is unavailable, the target keeps a neutral prompt.
+
+The name overlay has a semi-transparent background so the geometry remains visible. Creating and
+assigning observers through a complete IDE workflow is still pending.
 
 ## Working with digital twins
 
@@ -246,12 +279,15 @@ The status-bar arrow shows or hides the panel in the current editor. Its views a
 
 - **Activities**: the contextualization activity hierarchy and outcomes;
 - **Observations**: the current knowledge-graph hierarchy;
-- **Observers**: available observers;
-- **Scenarios**: available scenarios.
+- **Observers**: the current observer, when supplied by the scope;
+- **Scenarios**: a view reserved for scenario selection; its catalog is not populated yet.
 
 Each view has its own search field. The home button returns the observation tree to the graph root.
 Right-clicking it offers the current context and recorded commits. Clicking the icon beside an
 eligible individual subject makes it the current context; clicking it again clears that context.
+
+During a supported asynchronous submission, the stop control requests cancellation of the active
+job. Progress and final outcomes are reported through the Activities view.
 
 The delete control in the panel removes the digital twin after confirmation. This operation also
 removes its observations, storage, and schedule.
@@ -363,12 +399,38 @@ automatically. A mirror containing unsubmitted local changes is not overwritten;
 The Resources browser searches every connected Resources service. When a digital twin is focal, it
 also lists resources submitted specifically to that context.
 
-Selecting a result opens a resource editor with sections for resource data, space and time,
-attributes, inputs, outputs, metadata, provenance, adapter parameters, and operations.
+### Create, import, and edit
 
-At present, much of this editor is a visual prototype: many fields are not populated from the
-selected resource and changes are not saved. Treat it as a structural preview rather than a
-complete resource-management workflow.
+Use **Create a new resource** to select a hosting service and adapter, supply the resource identity,
+and attach files where required by the adapter. Batch import is offered when a connected adapter
+supports it. A resource can also be parameterized without a source file when its adapter allows it.
+
+Selecting a result opens an editor with sections for overview, geometry, interface (attributes,
+inputs, and outputs), adapter parameters, metadata, license, publication, permissions, files,
+workflows, and history. Fields are populated from the resource; validation identifies missing or
+inconsistent values and controls whether submission is available.
+
+- **Create resource** submits a new draft to its hosting service.
+- **Save new version** submits changes to an existing resource.
+- **Update temporary data** uses the temporary-data path where the resource and service allow it.
+- The Files section attaches or removes local ancillary data and documentation.
+
+Editing depends on service and resource permissions. A published local copy is protected until
+**Edit published local copy** is enabled. Submission uses a snapshot of the form; edits made while
+a save is running remain distinguishable from the source that was submitted.
+
+### Publish and manage access
+
+The Publication section offers eligible destination services for a saved local resource. Select a
+destination, supply an intended editor when required, and confirm publication. On success the IDE
+records the authoritative service and resource identity and marks the local copy as published.
+Re-publication is available when permitted. The browser can include published local copies through
+**Show published local resources**.
+
+The Permissions section submits access changes separately when the user can administer the
+resource. Resource workflows use the same provider-based stage editor as workspace workflows.
+The History section displays the history available in the resource information returned by the
+service. Adapter behavior, remote acceptance, and review permissions remain service responsibilities.
 
 ## Using the dashboard
 
@@ -391,17 +453,16 @@ trees.
 The following limitations are important when planning work:
 
 - The Worldview explorer has no functional browser or editor yet.
-- Resource editing is mostly a mock-up and does not persist most changes or execute its displayed
-  operations.
+- Resource creation, publication, and batch import depend on compatible service and adapter
+  capabilities; not every service offers every operation.
 - Concept search in the digital-twin panel is a placeholder.
-- Scenario selection and the full catalog of available observers are not populated yet. A resolved
-  current observer is shown, but observer discovery remains incomplete.
+- Scenario catalogs and observer creation/assignment are incomplete. A current observer can be
+  displayed, but its perceived geometry may be unavailable in the current runtime implementation.
+- Starting new workflows and specialized stage forms requires a configured workflow provider.
 - The access-rights editor shown while creating a digital twin is incomplete.
 - Workspace settings, project settings, version-control branch selection, detach/untrack, and
   operation confirmation are incomplete.
-- Workspace validation results are not reliably routed into every affected open source editor.
 - Dirty source tabs are not marked with an asterisk.
-- Resource and workspace browsers do not always bring an already-open tab to the foreground.
 - The digital-twin map depends on runtime export support. Point-value lookup currently depends on a
   compatible text export from the runtime.
 - Unsupported observation types and geometries display placeholders instead of specialized content.
