@@ -35,6 +35,7 @@ import org.integratedmodelling.klab.ide.pages.EditorPage;
 public class DigitalTwinEditor extends EditorPage<IDEContextScope, RuntimeAsset>
     implements DigitalTwinViewer {
 
+  private final Map<Long, org.integratedmodelling.klab.ide.components.cards.ObserverCard> observerCards = new HashMap<>();
   private final RuntimeService runtimeService;
   private final DigitalTwinView view;
   private ClientKnowledgeGraph knowledgeGraph;
@@ -62,6 +63,7 @@ public class DigitalTwinEditor extends EditorPage<IDEContextScope, RuntimeAsset>
 
   @Override
   public void knowledgeGraphModified() {
+    Platform.runLater(() -> observerCards.values().forEach(org.integratedmodelling.klab.ide.components.cards.ObserverCard::geometryChanged));
     if (treeView != null) {
       treeView.knowledgeGraphModified();
     }
@@ -239,6 +241,24 @@ public class DigitalTwinEditor extends EditorPage<IDEContextScope, RuntimeAsset>
     }
   }
 
+  public void openObserver(Observation observer) {
+    if (observer.getId() <= 0 || !observer.getObservable().is(SemanticType.AGENT)) return;
+    String key = "observer:" + observer.getId();
+    var card = observerCards.computeIfAbsent(observer.getId(), id ->
+        new org.integratedmodelling.klab.ide.components.cards.ObserverCard(observer, contextScope, runtimeService));
+    showAuxiliaryEditor(key, "Observer: " + Theme.getLabel(observer), card);
+    selectAuxiliaryEditor(key);
+  }
+
+  @Override
+  protected void disposeAuxiliaryEditor(Node node) {
+    if (node instanceof org.integratedmodelling.klab.ide.components.cards.ObserverCard card) {
+      observerCards.values().removeIf(value -> value == card);
+      card.close();
+    }
+    super.disposeAuxiliaryEditor(node);
+  }
+
   public void setupAssetMenu(ContextMenu contextMenu, RuntimeAsset asset) {
 
     contextMenu.getItems().clear();
@@ -249,6 +269,11 @@ public class DigitalTwinEditor extends EditorPage<IDEContextScope, RuntimeAsset>
     contextMenu.getItems().add(showDetails);
 
     if (asset instanceof Observation observation) {
+      if (observation.getObservable().is(SemanticType.AGENT)) {
+        var audit = new MenuItem("Audit / edit observer geometry");
+        audit.setOnAction(event -> openObserver(observation));
+        contextMenu.getItems().add(audit);
+      }
       if (observation.getObservable().is(SemanticType.QUALITY)) {
         var exportMenu = new MenuItem("Export to filesystem...");
         exportMenu.setOnAction(event -> exportToFilesystem(asset));

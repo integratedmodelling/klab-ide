@@ -9,6 +9,23 @@ import org.integratedmodelling.klab.api.knowledge.observation.impl.ObservationIm
 import org.junit.jupiter.api.Test;
 
 class TreeModelTest {
+  @Test
+  void agentsAreOnlyShownAfterExplicitSubmission() {
+    var concept = new org.integratedmodelling.common.knowledge.ConceptImpl();
+    concept.setType(java.util.Set.of(org.integratedmodelling.klab.api.knowledge.SemanticType.AGENT));
+    var observable = new org.integratedmodelling.common.knowledge.ObservableImpl();
+    observable.setSemantics(concept);
+    var agent = new ObservationImpl(); agent.setObservable(observable); agent.setId(99);
+    assertFalse(TreeModel.visibleInObservationTree(agent));
+    agent.getMetadata().put(org.integratedmodelling.klab.api.knowledge.DefaultObserver.AUTOMATIC, true);
+    assertFalse(TreeModel.visibleInObservationTree(agent));
+    agent.getMetadata().put(org.integratedmodelling.klab.api.knowledge.DefaultObserver.EXPLICIT, true);
+    assertTrue(TreeModel.visibleInObservationTree(agent));
+    concept.setType(java.util.Set.of(org.integratedmodelling.klab.api.knowledge.SemanticType.SUBJECT));
+    agent.getMetadata().clear();
+    assertTrue(TreeModel.visibleInObservationTree(agent));
+  }
+
 
   @Test
   void unresolvedAndQueryAssetsAreNeverGraphAddressable() {

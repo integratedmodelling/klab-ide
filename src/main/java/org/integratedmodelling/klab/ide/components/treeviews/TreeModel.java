@@ -332,6 +332,14 @@ public class TreeModel {
     return ret;
   }
 
+  static boolean visibleInObservationTree(RuntimeAsset asset) {
+    return !(asset instanceof Observation observation)
+        || observation.getObservable() == null
+        || !observation.getObservable().is(org.integratedmodelling.klab.api.knowledge.SemanticType.AGENT)
+        || Boolean.TRUE.equals(observation.getMetadata().get(
+            org.integratedmodelling.klab.api.knowledge.DefaultObserver.EXPLICIT));
+  }
+
   static boolean isKnowledgeGraphAsset(RuntimeAsset asset) {
     if (asset == null) {
       return false;
@@ -443,6 +451,7 @@ public class TreeModel {
         }
       }
 
+      ret.removeIf(asset -> !visibleInObservationTree(asset));
       return ret;
     }
 

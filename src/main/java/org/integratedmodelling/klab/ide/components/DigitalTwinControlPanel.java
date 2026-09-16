@@ -58,7 +58,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   private final TaskCancellationButton stopButton;
   private final TreeSearchField<Activity> activitySearch;
   private final TreeSearchField<RuntimeAsset> observationSearch;
-  private final TreeSearchField<Observation> observerSearch;
+  private final TreeSearchField<RuntimeAsset> observerSearch;
   private final TreeSearchField<KimNamespace> scenarioSearch;
 
   @Deprecated
@@ -117,6 +117,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
     resetButton.setOnAction(e -> editorPage.deleteScope(scope));
 
+
     activitiesButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
     observationButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
     observerButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
@@ -125,7 +126,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
     activitiesButton.setOnAction(click -> setView(View.ACTIVITIES));
     observationButton.setOnAction(click -> setView(View.OBSERVATIONS));
-    observerButton.setOnAction(click -> setView(View.OBSERVERS));
+    observerButton.setOnAction(click -> { observerTree.update(scope); setView(View.OBSERVERS); });
     scenarioButton.setOnAction(click -> setView(View.SCENARIOS));
 
     var aTooltip = new Tooltip("Activities");
@@ -147,6 +148,9 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     observationTree = new ObservationTree();
     scenarioTree = new ScenarioTree();
     observerTree = new ObserverTree();
+    if (editorPage instanceof DigitalTwinEditor twinEditor) {
+      observerTree.setObserverEditor(twinEditor::openObserver);
+    }
 
     this.activitySearch = new TreeSearchField<>(activityTree, activityTree::matches);
     this.observationSearch = new TreeSearchField<>(observationTree, observationTree::matches);
@@ -182,9 +186,35 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
         new Button("", new IconLabel(Theme.WORLDVIEW_ICON, 14, "-color-fg-default"));
     conceptButton.setOnAction(
         e -> {
-          var button = new Button("PLACEHOLDER FOR FUTURE CONCEPT SEARCH");
-          button.setOnAction(ex -> KlabIDEController.instance().removeModalOverlay());
-          KlabIDEController.instance().showInModalOverlay(button);
+          var targetScope = scope;
+          var controller = KlabIDEController.instance();
+          var composer = new SemanticComposer(
+              () -> KlabIDEController.scope().getService(org.integratedmodelling.klab.api.services.Reasoner.class),
+              observable -> {
+                if (scope != targetScope) {
+                  return CompletableFuture.failedFuture(new IllegalStateException(
+                      "The selected digital twin changed. Reopen the composer in the intended context."));
+                }
+                return CompletableFuture.supplyAsync(() -> {
+                  if (scope != targetScope) {
+                    throw new IllegalStateException("The selected digital twin changed. Reopen the composer.");
+                  }
+                  var submissionScope = targetScope == null ? controller.requireDefaultContext() : targetScope;
+                  if (submissionScope == null) throw new IllegalStateException("No runtime is available.");
+                  var submission = controller.observe(submissionScope, observable, false);
+                  // Keep immediate adaptation failures in the composer. Once dispatched, the twin
+                  // owns progress, cancellation and eventual failure notifications.
+                  if (submission.isDone()) {
+                    var observation = submission.join();
+                    if (observation == null || observation.isEmpty()) {
+                      throw new IllegalStateException("The observation could not be submitted. Review the activity notifications.");
+                    }
+                  }
+                  return submission;
+                });
+              },
+              controller::removeModalOverlay);
+          controller.showInModalOverlay(composer, false);
         });
     conceptButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
     HBox.setHgrow(searchArea, Priority.ALWAYS);
@@ -332,7 +362,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
           () -> {
             if (this.scope != scope) return;
             observationTree.update(scope.getFocalRoot(), scope.getFocalAsset(), scope);
-            observerTree.update(scope.getObserver());
+            observerTree.update(scope);
             if (!scope.getActivityGraph().vertexSet().isEmpty()) {
               activityTree.update(scope);
             }
@@ -601,7 +631,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
             observationTree.update(
                 RuntimeAsset.CONTEXT_ASSET, scopeToReset.getContextObservation(), scopeToReset);
             activityTree.reset();
-            // TODO fill up scenarios and observers
+            observerTree.update(scopeToReset);
           }
         });
   }
@@ -637,8 +667,9 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     runOnFxThread(
         () -> {
           if (scope != eventScope) return;
-          observerTree.update(observation);
-          setView(View.OBSERVERS);
+          observerTree.update(eventScope);
+          observerButton.setTooltip(new Tooltip(observation == null ? "No observer selected"
+              : "Observer: " + Theme.getLabel(observation)));
         });
   }
 
@@ -651,6 +682,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
             if (scope == currentScope) {
               observationTree.update(
                   currentScope.getFocalRoot(), currentScope.getFocalAsset(), currentScope);
+              observerTree.update(currentScope);
             }
           });
     }

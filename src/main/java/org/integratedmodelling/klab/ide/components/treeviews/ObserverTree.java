@@ -2,74 +2,138 @@ package org.integratedmodelling.klab.ide.components.treeviews;
 
 import atlantafx.base.theme.Styles;
 import atlantafx.base.theme.Tweaks;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import javafx.application.Platform;
 import javafx.beans.property.SimpleObjectProperty;
-import javafx.scene.control.Label;
-import javafx.scene.control.TreeItem;
-import javafx.scene.control.TreeTableColumn;
-import javafx.scene.control.TreeTableView;
+import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
-import javafx.scene.paint.Color;
+import org.integratedmodelling.klab.api.data.RuntimeAsset;
+import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
+import org.integratedmodelling.klab.api.knowledge.Cohort;
+import org.integratedmodelling.klab.api.knowledge.SemanticType;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
+import org.integratedmodelling.klab.ide.IDEContextScope;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 
-public class ObserverTree extends KlabTreeTableView<Observation> {
+/** The twin's agent catalog, independent of the observation tree's focus and depth. */
+public class ObserverTree extends KlabTreeTableView<RuntimeAsset> {
+  private IDEContextScope scope;
+  private long generation;
+  private java.util.function.Consumer<Observation> observerEditor;
+  public void setObserverEditor(java.util.function.Consumer<Observation> editor) { observerEditor = editor; }
 
   public ObserverTree() {
-
     setColumnResizePolicy(TreeTableView.UNCONSTRAINED_RESIZE_POLICY);
     getStyleClass().addAll(Styles.DENSE, Tweaks.EDGE_TO_EDGE, Tweaks.NO_HEADER);
     setShowRoot(false);
+    setRowFactory(table -> {
+      var row = new TreeTableRow<RuntimeAsset>();
+      row.setOnContextMenuRequested(event -> {
+        if (observerEditor != null && row.getItem() instanceof Observation observer
+            && observer.getObservable().is(SemanticType.AGENT)) {
+          var item = new MenuItem("Audit / edit observer geometry");
+          item.setOnAction(action -> observerEditor.accept(observer));
+          new ContextMenu(item).show(row, event.getScreenX(), event.getScreenY());
+          event.consume();
+        }
+      });
+      return row;
+    });
     setPlaceholder(new Label("No agents available"));
-
-    TreeTableColumn<Observation, HBox> descriptionColumn = new TreeTableColumn<>("Description");
-    descriptionColumn.setCellValueFactory(
-        param -> new SimpleObjectProperty<>(observationDescription(param.getValue().getValue())));
-
-    TreeTableColumn<Observation, IconLabel> statusColumn = new TreeTableColumn<>("Status");
-    statusColumn.setMinWidth(40);
-    statusColumn.setMaxWidth(40);
-    statusColumn.setCellValueFactory(
-        param -> {
-          var activity = param.getValue() == null ? null : param.getValue().getValue();
-          var ikon = Theme.OBSERVATION_ICON;
-          var color = Color.GOLDENROD;
-          //          if (activity != null && activity.getOutcome() != null) {
-          //            ikon =
-          //                activity.getOutcome() == Activity.Outcome.SUCCESS
-          //                    ? Material2AL.CHECK_CIRCLE
-          //                    : Material2AL.ERROR;
-          //            color = activity.getOutcome() == Activity.Outcome.SUCCESS ? Color.GREEN :
-          // Color.RED;
-          //          }
-          var icon = new IconLabel(ikon, 14, color);
-          return new SimpleObjectProperty<>(icon);
-        });
-
-    descriptionColumn.prefWidthProperty().bind(widthProperty().subtract(40));
-
-    getColumns().setAll(descriptionColumn, statusColumn);
+    TreeTableColumn<RuntimeAsset, HBox> description = new TreeTableColumn<>("Observer");
+    description.setCellValueFactory(p -> new SimpleObjectProperty<>(describe(p.getValue().getValue())));
+    description.prefWidthProperty().bind(widthProperty().subtract(10));
+    getColumns().setAll(description);
     setRoot(new TreeItem<>());
   }
 
-  public boolean matches(String string, Observation asset) {
-    return Theme.getLabel(asset).toLowerCase().contains(string.toLowerCase());
+  public boolean matches(String text, RuntimeAsset asset) {
+    return Theme.getLabel(asset).toLowerCase(Locale.ROOT).contains(text.toLowerCase(Locale.ROOT));
   }
 
-  private HBox observationDescription(Observation value) {
-    var ret = new HBox(new Label(value == null ? "" : Theme.getLabel(value)));
-    return ret;
-  }
-
-  public void update(Observation observer) {
-    var root = new TreeItem<Observation>();
-    if (observer != null) {
-      root.getChildren().add(new TreeItem<>(observer));
+  private HBox describe(RuntimeAsset asset) {
+    if (asset == null) return new HBox();
+    var selected = scope == null ? null : scope.getObserver();
+    var icon = selected != null && selected.getId() == asset.getId()
+        ? new IconLabel(Theme.OBSERVER_ICON, 16, "-color-accent-fg") : Theme.getGraphics(asset);
+    icon.setMinWidth(24);
+    icon.setMaxWidth(24);
+    if (asset instanceof Observation observation && observation.getObservable().is(SemanticType.AGENT)) {
+      Tooltip.install(icon, new Tooltip("Choose observer"));
+      icon.setOnMouseClicked(event -> {
+        if (scope != null) {
+          var current = scope.getObserver();
+          scope.withObserver(current != null && current.getId() == observation.getId() ? null : observation);
+          refresh();
+        }
+        event.consume();
+      });
     }
-    setRoot(root);
+    var label = new Label(Theme.getLabel(asset));
+    label.setTextOverrun(OverrunStyle.ELLIPSIS);
+    Tooltip.install(label, new Tooltip(Theme.getLabel(asset)));
+    return new HBox(4, icon, label);
   }
 
-  public void reset() {
-    setRoot(new TreeItem<>());
+  private record AgentCohort(Cohort cohort, List<Observation> agents) {}
+
+  public void update(IDEContextScope nextScope) {
+    scope = nextScope;
+    long request = ++generation;
+    if (nextScope == null) { setRoot(new TreeItem<>()); return; }
+    Set<Long> expanded = new HashSet<>();
+    getRoot().getChildren().stream().filter(TreeItem::isExpanded)
+        .forEach(item -> expanded.add(item.getValue().getId()));
+    CompletableFuture.supplyAsync(() -> {
+      var result = new ArrayList<AgentCohort>();
+      var graph = nextScope.getDigitalTwin().getKnowledgeGraph();
+      for (var link : graph.getLinks(RuntimeAsset.CONTEXT_ASSET,
+          GraphModel.Relationship.Direction.OUTGOING, nextScope, GraphModel.Relationship.HAS_CHILD)) {
+        if (link.target() instanceof Cohort cohort) {
+          var agents = graph.getLinks(cohort, GraphModel.Relationship.Direction.OUTGOING,
+              nextScope, GraphModel.Relationship.HAS_MEMBER).stream()
+              .map(l -> l.target()).filter(Observation.class::isInstance).map(Observation.class::cast)
+              .filter(o -> o.getObservable().is(SemanticType.AGENT))
+              .sorted(Comparator.comparing(Theme::getLabel)).toList();
+          if (!agents.isEmpty()) result.add(new AgentCohort(cohort, agents));
+        }
+      }
+      result.sort(Comparator.comparing(c -> Theme.getLabel(c.cohort())));
+      return result;
+    }).whenComplete((cohorts, error) -> Platform.runLater(() -> {
+      if (scope != nextScope || generation != request) return;
+      if (error != null) { nextScope.warn("Cannot refresh observers: " + error.getMessage()); return; }
+      var root = new TreeItem<RuntimeAsset>();
+      var selected = nextScope.getObserver();
+      TreeItem<RuntimeAsset> focal = null;
+      for (var cohort : cohorts) {
+        var group = new TreeItem<RuntimeAsset>(cohort.cohort());
+        group.setExpanded(expanded.contains(cohort.cohort().getId()));
+        for (var agent : cohort.agents()) {
+          var item = new TreeItem<RuntimeAsset>(agent);
+          group.getChildren().add(item);
+          if (selected != null && selected.getId() == agent.getId()) {
+            focal = item;
+            group.setExpanded(true);
+          }
+        }
+        root.getChildren().add(group);
+      }
+      // Keep the selection visible even while catalog links are still arriving.
+      if (selected != null && focal == null) {
+        focal = new TreeItem<>(selected);
+        root.getChildren().add(focal);
+      }
+      root.setExpanded(true);
+      setRoot(root);
+      if (focal != null) {
+        getSelectionModel().select(focal);
+        scrollTo(getRow(focal));
+      }
+    }));
   }
+
+  public void reset() { generation++; scope = null; setRoot(new TreeItem<>()); }
 }

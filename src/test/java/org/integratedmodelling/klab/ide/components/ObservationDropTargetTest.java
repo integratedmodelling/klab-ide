@@ -35,7 +35,7 @@ class ObservationDropTargetTest {
     for (var asset : new Object[] {observable, model, definition, concept(SemanticType.PROCESS, false)}) {
       var target = ObservationDropTarget.resolve(asset, null, context, null);
       assertSame(context.getGeometry(), target.geometry());
-      assertEquals("Within Catchment", target.label());
+      assertEquals("Context: Catchment", target.label());
       assertNull(ObservationDropTarget.resolve(asset, null, null, null));
     }
   }

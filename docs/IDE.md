@@ -231,7 +231,7 @@ The target preview explains where the request will be observed:
 - If the relevant context, observer, or geometry is unavailable, the target keeps a neutral prompt.
 
 The name overlay has a semi-transparent background so the geometry remains visible. Creating and
-assigning observers through a complete IDE workflow is still pending.
+choosing an observer is supported in the Observers tab.
 
 ## Working with digital twins
 
@@ -279,7 +279,7 @@ The status-bar arrow shows or hides the panel in the current editor. Its views a
 
 - **Activities**: the contextualization activity hierarchy and outcomes;
 - **Observations**: the current knowledge-graph hierarchy;
-- **Observers**: the current observer, when supplied by the scope;
+- **Observers**: all agents, grouped by cohort, with the current observer selected;
 - **Scenarios**: a view reserved for scenario selection; its catalog is not populated yet.
 
 Each view has its own search field. The home button returns the observation tree to the graph root.
@@ -456,8 +456,8 @@ The following limitations are important when planning work:
 - Resource creation, publication, and batch import depend on compatible service and adapter
   capabilities; not every service offers every operation.
 - Concept search in the digital-twin panel is a placeholder.
-- Scenario catalogs and observer creation/assignment are incomplete. A current observer can be
-  displayed, but its perceived geometry may be unavailable in the current runtime implementation.
+- Scenario catalogs are incomplete. Observer selection and perceived-geometry maintenance are
+  supported, including perceived-space editing in the twin editor. Automatic user-behavior attachment remains pending.
 - Starting new workflows and specialized stage forms requires a configured workflow provider.
 - The access-rights editor shown while creating a digital twin is incomplete.
 - Workspace settings, project settings, version-control branch selection, detach/untrack, and
@@ -472,3 +472,73 @@ The following limitations are important when planning work:
 
 Because this is a pre-alpha application, preserve source files and important project content in
 version control and verify destructive operations before confirming them.
+
+### Choosing an observer
+
+The runtime preselects the default observer configured by the worldview or your groups when you
+connect to a twin. The **Observers** tab lists the twin's agents in their cohorts, including agents
+created by models. Click an agent's icon to choose it; the active agent uses the observer icon.
+Click that icon again to clear the choice. Selecting a context does not clear your observer, and
+selecting an observer does not clear your context. Returning to the observer tab expands and
+scrolls to the current agent.
+
+Agents appear in the regular observation tree only after an explicit submission. Automatically
+created default agents and other model-created agents remain available in the observer tab.
+
+Successful observations grow the observer's **perceived geometry** by union. This is distinct from
+its occupied geometry. Without a context observation or an explicit extent, subsequent observations
+use the perceived extent; drop previews use the same geometry. A new default observer may have no
+perceived extent yet; supply geometry in the first observation or set it in the Observer editor.
+Geometry updates refresh the selected
+observer without switching the active panel tab.
+
+The service contract, persistence guarantees and verification boundaries are documented in
+[Default observers](https://github.com/integratedmodelling/klab-services/blob/develop/docs/OBSERVERS.md).
+
+### Auditing and editing observer geometry
+
+In the DigitalTwinEditor knowledge tree, right-click an agent and choose **Audit / edit observer
+geometry**. The same action is available in the Observers section of the control panel owned by
+that editor. Each agent has one Observer tab, independent of the currently selected observer.
+
+The tab has separately labeled maps for **perceived geometry** and **occupied geometry**. Saved
+shapes are blue; missing spatial geometry is reported explicitly. Occupied geometry is read only.
+Expand **Geometry details, including time** to audit both geometries. Temporal geometry is read
+only and is preserved by spatial edits.
+
+1. Pan or zoom the perceived map to the desired area. **Fit saved extent** returns to its saved shape.
+2. Click **Use map view** to preview an amber rectangle. This is an unsaved replacement, not an addition.
+3. Click **Save perceived space**, or **Discard draft and reload** to abandon it.
+
+A save replaces perceived space with the rectangle. Subsequent observations can expand it again:
+the automatic policy remains union. Open clean tabs refresh after graph changes without resetting
+the viewport; unsaved drafts remain visible. If perception changed since the draft was based on it,
+the runtime rejects the save. Reload and review the newer extent before retrying.
+
+This first editor supports nonempty WGS84 rectangles within ordinary longitude/latitude bounds.
+Polygon drawing, trimming, clearing, antimeridian-spanning edits, and temporal editing remain future
+work. The existing Leaflet component is sufficient for this viewport-based workflow.
+
+### Composing an observable
+
+The concept icon in the Digital Twin control panel opens the assisted observable composer. Search
+for a concept or operator, choose a row and press Enter or **Add selected**. The Reasoner proposes
+subsequent components. **Undo**, parentheses and **Add value** support incremental construction;
+the current observable card appears when the expression is complete and validated. The upper pane
+uses the IDE's k.IM semantic colors and styles for both complete and incomplete expressions.
+
+You can also type `(` or `)` to open or close a group, and press Backspace on an empty search field
+to undo the last component. Consecutive opening parentheses and held-key repeats are guarded;
+separate closing presses still close nested groups. When entering a literal value, parentheses remain
+ordinary text. `each` is available explicitly, including in inherents such as `Height of each Tree`
+(using the corresponding qualified concept names from your worldview).
+
+**Continue** adapts the observable to an unresolved observation and submits it in the selected twin.
+Qualities require a context observation and use its geometry. Substantials become collectives and
+use the selected observer's perceived extent. Missing context, observer or geometry is reported in
+the composer. After dispatch, the existing twin controls show progress and support cancellation.
+
+`SemanticComposer` accepts a host-supplied asynchronous action, so other views can reuse it without
+submitting an observation. Multi-operand unary operators, units/currencies and `where` conditions
+remain unfinished. The [semantic-search rule catalog and extension guide](https://github.com/integratedmodelling/klab-services/blob/develop/klab.services.reasoner/SEMANTIC_SEARCH.md)
+distinguishes implemented checks from missing semantic validation.

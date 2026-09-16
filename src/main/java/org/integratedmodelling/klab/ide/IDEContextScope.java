@@ -55,7 +55,7 @@ import org.jgrapht.graph.DefaultEdge;
  */
 public class IDEContextScope implements ContextScope {
 
-  ClientContextScope delegate;
+  volatile ClientContextScope delegate;
   private final DigitalTwinEventRouter eventRouter = new DigitalTwinEventRouter();
   private final ExecutorService executor = Executors.newSingleThreadExecutor();
   private final AtomicBoolean closed = new AtomicBoolean();
@@ -185,8 +185,13 @@ public class IDEContextScope implements ContextScope {
           processSubmissionFinished(message.getPayload(Observation.class), true);
       case ContextObservationResolved ->
           notifyViewers(viewer -> viewer.setContext(message.getPayload(Observation.class)));
-      case ObserverResolved ->
-          notifyViewers(viewer -> viewer.setObserver(message.getPayload(Observation.class)));
+      case ObserverResolved, ObserverGeometryChanged -> {
+        var updated = message.getPayload(Observation.class);
+        if (replaceObserverSnapshot(updated)) {
+          notifyViewers(view -> view.setObserver(updated));
+        }
+        notifyViewers(DigitalTwinViewer::knowledgeGraphModified);
+      }
       case ActivityFinished -> {
         upsertActivity(message.getPayload(Activity.class), true);
         notifyViewers(DigitalTwinViewer::activitiesModified);
@@ -207,7 +212,28 @@ public class IDEContextScope implements ContextScope {
     activityCatalog.accept(activity, finished);
   }
 
+  private synchronized boolean replaceObserverSnapshot(Observation observation) {
+    var selected = delegate.getObserver();
+    if (selected == null || observation == null || selected.getId() != observation.getId()) return false;
+    delegate = (ClientContextScope) delegate.withObserver(observation);
+    return true;
+  }
+
   private void processSubmissionFinished(Observation observation, boolean knowledgeGraphCurrent) {
+    if (knowledgeGraphCurrent && delegate.getObserver() != null) {
+      var current = delegate.getObserver();
+      var refreshed = getDigitalTwin().getKnowledgeGraph().getAsset(current.getId(), this, Observation.class);
+      if (replaceObserverSnapshot(refreshed)) {
+        notifyViewers(viewer -> viewer.setObserver(refreshed));
+      }
+    }
+    if (observation != null && observation.getObservable() != null
+        && observation.getObservable().is(org.integratedmodelling.klab.api.knowledge.SemanticType.AGENT)
+        && !Boolean.TRUE.equals(observation.getMetadata().get(
+            org.integratedmodelling.klab.api.knowledge.DefaultObserver.EXPLICIT))) {
+      notifyViewers(DigitalTwinViewer::knowledgeGraphModified);
+      return;
+    }
     if (!isKnowledgeGraphAsset(observation) || observation.isEmpty()) {
       notifyViewers(viewer -> viewer.submissionAborted(observation));
       return;
@@ -455,21 +481,16 @@ public class IDEContextScope implements ContextScope {
   }
 
   @Override
-  public ContextScope withObserver(Observation observer) {
-    this.delegate =
-        (ClientContextScope)
-            (observer == null ? delegate.getRootContextScope() : delegate.withObserver(observer));
-    notifyViewers(view -> view.setObserver(observer));
+  public synchronized ContextScope withObserver(Observation observer) {
+    this.delegate = (ClientContextScope) delegate.withObserver(observer);
+    notifyObserverChanged(observer);
     return this;
   }
 
   @Override
-  public ContextScope within(Observation contextObservation) {
+  public synchronized ContextScope within(Observation contextObservation) {
     // FIXME for now we keep a single layer of inheritance. This may become a problem or not.
-    this.delegate = (ClientContextScope) delegate.getRootContextScope();
-    if (contextObservation != null) {
-      delegate = (ClientContextScope) delegate.within(contextObservation);
-    }
+    this.delegate = delegate.withCurrentContext(contextObservation);
     notifyViewers(view -> view.setContext(contextObservation));
     return this;
   }

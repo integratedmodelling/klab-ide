@@ -394,6 +394,42 @@ public enum Theme {
     };
   }
 
+  /**
+   * Render accepted semantic-search tokens with the same k.IM palette and font styles used by
+   * getDisplayObject's concept renderer. Works for incomplete expressions without fetching syntax
+   * from Resources. Text nodes keep literal values (including BBCode-like text) literal.
+   */
+  public static javafx.scene.text.TextFlow semanticExpression(
+      java.util.List<org.integratedmodelling.klab.api.services.reasoner.objects.StyledKimToken> tokens) {
+    var flow = new javafx.scene.text.TextFlow();
+    flow.setTextAlignment(TextAlignment.LEFT);
+    org.integratedmodelling.klab.api.services.reasoner.objects.StyledKimToken previous = null;
+    for (var token : tokens) {
+      if (previous != null && token.isNeedsWhitespaceBefore() && previous.isNeedsWhitespaceAfter()) {
+        flow.getChildren().add(new javafx.scene.text.Text(" "));
+      }
+      var text = new javafx.scene.text.Text(token.getValue());
+      var color = token.getColor();
+      if (color != null && color != KimStyle.Color.UNKNOWN) {
+        int[] rgb = color.rgb;
+        text.setFill(Color.rgb(rgb[0], rgb[1], rgb[2]));
+      } else {
+        text.setStyle("-fx-fill: -color-fg-default;");
+      }
+      var font = token.getFont();
+      boolean bold = font == KimStyle.FontStyle.BOLD || font == KimStyle.FontStyle.BOLD_ITALIC;
+      boolean italic = font == KimStyle.FontStyle.ITALIC || font == KimStyle.FontStyle.BOLD_ITALIC;
+      text.setStyle(text.getStyle() + " -fx-font-weight: " + (bold ? "bold" : "normal")
+          + "; -fx-font-style: " + (italic ? "italic" : "normal") + ";");
+      if (token.getDescription() != null && !token.getDescription().isBlank()) {
+        Tooltip.install(text, new Tooltip(token.getDescription()));
+      }
+      flow.getChildren().add(text);
+      previous = token;
+    }
+    return flow;
+  }
+
   public static <T> String getLabel(T asset) {
 
     if (asset instanceof NavigableAsset navigableAsset) {
