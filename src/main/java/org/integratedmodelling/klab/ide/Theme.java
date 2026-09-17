@@ -451,7 +451,10 @@ public enum Theme {
     } else if (asset instanceof RuntimeAsset runtimeAsset) {
       // TODO all real chances first
       if (asset instanceof Observation observation) {
-        return Branding.observationDescription(observation, Branding.DescriptionStyle.SHORTEST);
+        var semantics = Branding.conceptDescription(
+            observation.getObservable(), Branding.DescriptionStyle.SHORTEST);
+        var name = observation.getName();
+        return name == null || name.isBlank() ? semantics : name + " (" + semantics + ")";
       } else if (asset instanceof Cohort cohort) {
         return English.plural(
             Branding.conceptDescription(

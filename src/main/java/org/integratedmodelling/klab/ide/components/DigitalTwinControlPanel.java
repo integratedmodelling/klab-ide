@@ -148,9 +148,15 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     observationTree = new ObservationTree();
     scenarioTree = new ScenarioTree();
     observerTree = new ObserverTree();
-    if (editorPage instanceof DigitalTwinEditor twinEditor) {
-      observerTree.setObserverEditor(twinEditor::openObserver);
-    }
+    observerTree.setObserverEditor(observer -> {
+      var targetScope = scope;
+      if (targetScope == null) return;
+      var controller = KlabIDEController.instance();
+      var twinEditor = controller.getView(KlabIDEController.View.DIGITAL_TWINS, DigitalTwinView.class)
+          .showDigitalTwin(targetScope);
+      controller.selectView(KlabIDEController.View.DIGITAL_TWINS);
+      twinEditor.openObserver(observer);
+    });
 
     this.activitySearch = new TreeSearchField<>(activityTree, activityTree::matches);
     this.observationSearch = new TreeSearchField<>(observationTree, observationTree::matches);

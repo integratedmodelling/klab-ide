@@ -12,6 +12,7 @@ import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
@@ -30,7 +31,7 @@ public class NotificationCard extends VBox {
   static final int PREVIEW_CHARACTERS = 80;
 
   private static final double EXPANDED_MESSAGE_HEIGHT = 140;
-  private static final double MAIN_ICON_SIZE = 18;
+  private static final double MAIN_ICON_SIZE = 24;
   private static final double ACTION_SIZE = 22;
 
   private final String message;
@@ -62,7 +63,7 @@ public class NotificationCard extends VBox {
     titleLabel.setTextOverrun(javafx.scene.control.OverrunStyle.ELLIPSIS);
     HBox.setHgrow(titleLabel, Priority.ALWAYS);
 
-    var header = new HBox(6);
+    var header = new HBox(8);
     header.setAlignment(Pos.CENTER_LEFT);
     header.setMinWidth(0);
     if (icon != null) {
@@ -79,19 +80,26 @@ public class NotificationCard extends VBox {
         region.setPrefSize(MAIN_ICON_SIZE, MAIN_ICON_SIZE);
         region.setMaxSize(MAIN_ICON_SIZE, MAIN_ICON_SIZE);
       }
-      header.getChildren().add(icon);
+      var iconSlot = new StackPane(icon);
+      iconSlot.setMinSize(MAIN_ICON_SIZE, MAIN_ICON_SIZE);
+      iconSlot.setPrefSize(MAIN_ICON_SIZE, MAIN_ICON_SIZE);
+      iconSlot.setMaxSize(MAIN_ICON_SIZE, MAIN_ICON_SIZE);
+      header.getChildren().add(iconSlot);
     }
     header.getChildren().addAll(titleLabel, expandButton, copyButton, closeButton);
 
     previewLabel.setText(preview(this.message));
     previewLabel.getStyleClass().add("notification-card-message");
     previewLabel.setWrapText(true);
+    previewLabel.setMinWidth(0);
     previewLabel.setMaxWidth(Double.MAX_VALUE);
 
     fullMessage.setText(this.message);
     fullMessage.getStyleClass().add("notification-card-message");
     fullMessage.setEditable(false);
     fullMessage.setWrapText(true);
+    fullMessage.setMinWidth(0);
+    fullMessage.setPrefColumnCount(1);
     fullMessage.setMinHeight(EXPANDED_MESSAGE_HEIGHT);
     fullMessage.setPrefHeight(EXPANDED_MESSAGE_HEIGHT);
     fullMessage.setMaxHeight(EXPANDED_MESSAGE_HEIGHT);

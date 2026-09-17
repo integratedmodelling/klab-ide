@@ -812,6 +812,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     notificationScrollPane.setVbarPolicy(
         javafx.scene.control.ScrollPane.ScrollBarPolicy.AS_NEEDED);
     notificationScrollPane.setPannable(true);
+    // The drawer scrolls within the window; its contents must not set the window's height.
+    notificationScrollPane.setMinHeight(0);
+    notificationScrollPane.setPrefHeight(0);
     notificationScrollPane.setMinWidth(280);
     notificationScrollPane.setPrefWidth(280);
     notificationScrollPane.setMaxWidth(280);
@@ -932,6 +935,10 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     this.warningLabel =
         new Label(null, new IconLabel(Material2AL.FIBER_MANUAL_RECORD, 16, "-color-warning-fg"));
     this.messageLabel = new Label();
+    messageLabel.setMinWidth(0);
+    messageLabel.setMaxWidth(Double.MAX_VALUE);
+    messageLabel.setGraphicTextGap(8);
+    messageLabel.setTextOverrun(javafx.scene.control.OverrunStyle.ELLIPSIS);
     HBox.setHgrow(messageLabel, Priority.ALWAYS);
     this.warningLabel.setTooltip(new Tooltip("No unread warnings."));
     this.errorLabel.setTooltip(new Tooltip("No unread errors."));
@@ -1168,6 +1175,19 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   private Node makeNotificationPanel(Notification notification) {
     var date = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).format(ZonedDateTime.now());
+    var icon = new org.kordamp.ikonli.javafx.FontIcon(switch (notification.getLevel()) {
+      case Debug, Info -> Notification.Outcome.Success == notification.getOutcome()
+          ? Material2AL.CHECK_CIRCLE : Material2AL.INFO;
+      case Warning -> Material2MZ.WARNING;
+      case Error, SystemError -> Material2AL.ERROR;
+    });
+    icon.setIconSize(14);
+    icon.setStyle("-fx-icon-color: " + switch (notification.getLevel()) {
+      case Debug, Info -> Notification.Outcome.Success == notification.getOutcome()
+          ? "-color-success-fg" : "-color-accent-fg";
+      case Warning -> "-color-warning-fg";
+      case Error, SystemError -> "-color-danger-fg";
+    } + ";");
     var ret =
         new NotificationCard(
             switch (notification.getLevel()) {
@@ -1178,19 +1198,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
                 + " "
                 + date,
             notification.getMessage(),
-            switch (notification.getLevel()) {
-              case Debug, Info ->
-                  new IconLabel(
-                      Notification.Outcome.Success == notification.getOutcome()
-                          ? Material2AL.CHECK_CIRCLE
-                          : Material2AL.INFO,
-                      14,
-                      Notification.Outcome.Success == notification.getOutcome()
-                          ? "-color-success-fg"
-                          : "-color-accent-fg");
-              case Warning -> new IconLabel(Material2MZ.WARNING, 14, "-color-warning-fg");
-              case Error, SystemError -> new IconLabel(Material2AL.ERROR, 14, "-color-danger-fg");
-            });
+            icon);
     ret.getStyleClass()
         .addAll(
             switch (notification.getLevel()) {

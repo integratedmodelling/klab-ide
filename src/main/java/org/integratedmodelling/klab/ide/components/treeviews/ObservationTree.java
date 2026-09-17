@@ -5,6 +5,8 @@ import atlantafx.base.theme.Tweaks;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;
+import javafx.scene.control.OverrunStyle;
+import javafx.scene.control.Tooltip;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeTableColumn;
 import javafx.scene.control.TreeTableView;
@@ -73,9 +75,13 @@ public class ObservationTree extends KlabTreeTableView<RuntimeAsset> {
     icon.setMaxWidth(24);
     icon.setMinWidth(24);
 
-    var description = Utils.Strings.abbreviate(Theme.getLabel(observation), 42);
+    var description = Theme.getLabel(observation);
 
     var label = new Label(description);
+    label.setMinWidth(0);
+    label.setMaxWidth(Double.MAX_VALUE);
+    label.setTextOverrun(OverrunStyle.ELLIPSIS);
+    label.setTooltip(new Tooltip(description));
     HBox.setHgrow(label, Priority.ALWAYS);
 
     int level = 0;

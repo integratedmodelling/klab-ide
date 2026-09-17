@@ -845,7 +845,6 @@
 }
 
 .notification-card .notification-card-main-icon {
-    -fx-font-size: 14px;
     -fx-icon-size: 14px;
     -fx-padding: 0;
     -fx-alignment: center;
