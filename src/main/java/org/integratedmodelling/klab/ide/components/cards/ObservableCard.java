@@ -3,14 +3,50 @@ package org.integratedmodelling.klab.ide.components.cards;
 import javafx.geometry.Insets;
 import javafx.scene.control.Label;
 import javafx.scene.layout.VBox;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.control.Tooltip;
+import java.util.*;
+import org.integratedmodelling.klab.api.knowledge.Concept;
+import org.integratedmodelling.klab.api.lang.SemanticLexicalElement;
+import org.integratedmodelling.klab.api.services.reasoner.objects.*;
+import org.integratedmodelling.klab.ide.Theme;
+import org.kordamp.ikonli.javafx.FontIcon;
+import org.kordamp.ikonli.material2.Material2AL;
 import org.integratedmodelling.klab.api.knowledge.Observable;
 import org.integratedmodelling.klab.api.knowledge.SemanticType;
 
 /** A compact, reusable description of the currently validated observable. */
 public class ObservableCard extends BaseCard<Observable> {
   public ObservableCard(Observable asset, boolean extended) { super(asset, null, extended); }
+  /** Uses the server snapshot; drawing a card must never perform remote reasoning on the FX thread. */
+  public ObservableCard(Concept concept, List<SemanticClauseRestriction> clauses) {
+    this(preview(concept), true);
+    var content = (VBox) getCenter();
+    if (clauses == null) return;
+    for (var clause : clauses) {
+      var code = new ArrayList<>(clause.getCode());
+      if (code.isEmpty() && clause.getFiller() != null) {
+        Arrays.stream(SemanticLexicalElement.values()).filter(m -> m.role == clause.getRole())
+            .findFirst().ifPresent(m -> code.add(StyledKimToken.create(m)));
+        code.add(StyledKimToken.create(clause.getFiller()));
+      }
+      var icon = new FontIcon(clause.isInherited() ? Material2AL.CALL_MERGE : Material2AL.LABEL);
+      icon.setIconSize(14);
+      var origin = new Label(null, icon);
+      String explanation = clause.isInherited() ? "Inherited restriction" : "Direct restriction";
+      origin.setTooltip(new Tooltip(explanation)); origin.setAccessibleText(explanation);
+      var text = Theme.semanticExpression(code);
+      HBox.setHgrow(text, Priority.ALWAYS);
+      content.getChildren().add(new HBox(6, origin, text));
+    }
+  }
+  private static Observable preview(Concept concept) {
+    var observable = new org.integratedmodelling.common.knowledge.ObservableImpl();
+    observable.setSemantics(concept); observable.setUrn(concept.getUrn()); return observable;
+  }
   @Override protected void drawContent() {
-    var title = new Label(asset.getUrn()); title.setWrapText(true); title.setStyle("-fx-font-weight: bold;");
+    var title = Theme.semanticExpression(List.of(StyledKimToken.create(asset.getSemantics())));
     var type = SemanticType.fundamentalType(asset.getSemantics().getType());
     var detail = new Label((type == null ? "Observable" : type.name().toLowerCase().replace('_', ' '))
         + (asset.getSemantics().isCollective() ? " / collective" : "") + (asset.isAbstract() ? " / abstract" : ""));

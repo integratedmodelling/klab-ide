@@ -157,7 +157,7 @@ The right-hand tree contains projects, folders, documents, and statements. Use t
 - add a project;
 - search the tree by URN;
 - expand or collapse the complete tree;
-- access workspace settings when implemented.
+- audit or edit workspace metadata and permissions through the workspace settings button.
 
 A single click synchronizes the tree with an already-open source editor and updates the inspector
 when it is visible. A double click opens the containing document and moves the source cursor to the
@@ -455,12 +455,11 @@ The following limitations are important when planning work:
 - The Worldview explorer has no functional browser or editor yet.
 - Resource creation, publication, and batch import depend on compatible service and adapter
   capabilities; not every service offers every operation.
-- Concept search in the digital-twin panel is a placeholder.
 - Scenario catalogs are incomplete. Observer selection and perceived-geometry maintenance are
   supported, including perceived-space editing in the twin editor. Automatic user-behavior attachment remains pending.
 - Starting new workflows and specialized stage forms requires a configured workflow provider.
 - The access-rights editor shown while creating a digital twin is incomplete.
-- Workspace settings, project settings, version-control branch selection, detach/untrack, and
+- Advanced project manifest editing, version-control branch selection, detach/untrack, and
   operation confirmation are incomplete.
 - Dirty source tabs are not marked with an asterisk.
 - The digital-twin map depends on runtime export support. Point-value lookup currently depends on a
@@ -524,7 +523,9 @@ work. The existing Leaflet component is sufficient for this viewport-based workf
 The concept icon in the Digital Twin control panel opens the assisted observable composer. Search
 for a concept or operator, choose a row and press Enter or **Add selected**. The Reasoner proposes
 subsequent components. **Undo**, parentheses and **Add value** support incremental construction;
-the current observable card appears when the expression is complete and validated. The upper pane
+the current concept card remains visible while a clause is pending. Direct restrictions have a label
+icon; inherited restrictions have a merge icon. Tooltips explain both, and clauses use semantic colors.
+The Reasoner filters clause operands against existing ontology restrictions. The upper pane
 uses the IDE's k.IM semantic colors and styles for both complete and incomplete expressions.
 
 You can also type `(` or `)` to open or close a group, and press Backspace on an empty search field
@@ -535,10 +536,53 @@ ordinary text. `each` is available explicitly, including in inherents such as `H
 
 **Continue** adapts the observable to an unresolved observation and submits it in the selected twin.
 Qualities require a context observation and use its geometry. Substantials become collectives and
-use the selected observer's perceived extent. Missing context, observer or geometry is reported in
-the composer. After dispatch, the existing twin controls show progress and support cancellation.
+use the selected observer's perceived extent. A predicate qualified with an inherent can also be
+submitted: a substantial inherent is promoted to a collective, using the observer's perceived extent.
+A quality inherent remains singular and uses the mandatory context observation's geometry.
+These submission adaptations do not change the expression in the composer. Missing context,
+observer or geometry is reported in the composer. After dispatch, the existing twin controls show progress and support cancellation.
 
 `SemanticComposer` accepts a host-supplied asynchronous action, so other views can reuse it without
 submitting an observation. Multi-operand unary operators, units/currencies and `where` conditions
 remain unfinished. The [semantic-search rule catalog and extension guide](https://github.com/integratedmodelling/klab-services/blob/develop/klab.services.reasoner/SEMANTIC_SEARCH.md)
 distinguishes implemented checks from missing semantic validation.
+
+### Project settings: metadata and permissions
+
+Right-click a project in the workspace editor and choose **Project settings**. The tab contains
+the worldview declaration, a conditional default observer field, the same **PermissionEditor** used for resources, and a metadata editor.
+Lock the project before editing. The service must also grant you project edit access; a lock alone
+does not grant access. Lock/unlock actions refresh the open tab, and the service checks both access
+and lock ownership again at save time.
+
+**Save settings** saves the complete draft. Permissions belong to the Resources service's catalog
+and are never written into the manifest. An empty permission selection
+means owner-only access. The catalog retains project ownership and existing service grants.
+
+Metadata comes from `META-INF/manifest.json`, excluding service-generated values. Edit scalar
+values inline; use **Add / replace** or **Remove key** for keys. Choose **Text** for literal text or
+**JSON** for numbers, booleans, arrays, objects and null. Existing structured values have an
+**Edit JSON** action. The default-observer key is edited in its dedicated field above the metadata
+rows. Blank observer text contributes no observer. Only projects with a nonblank manifest `definedWorldview` show the observer field. Administrators can set or clear that declaration; other users can audit it.
+
+Saving is asynchronous. A rejected save leaves the draft visible; closing and reopening loads the
+latest stored snapshot. Successful saves refresh the manifest, metadata and Git status shown in the workspace tree.
+If the permission write fails, the service restores the previous settings file and attempts to
+restore the old catalog rights. These two stores do not form a crash-atomic transaction.
+### Workspace settings
+
+Use the workspace settings button above the workspace tree to open its settings tab. The
+permission editor and metadata editor show the Resources service catalog values. The workspace
+owner/creator and service administrators can save changes; other users with workspace access
+can inspect both editors read-only. Workspace settings do not require a project lock.
+
+Metadata supports text, structured JSON, replacement and removal. Saves update the workspace
+catalog record without changing project membership or project settings. Failed saves retain the
+draft. Reopening the tab refreshes access and clean settings; unsaved drafts are retained.
+Workspaces created before ownership was recorded require an administrator to edit settings.
+Project settings now use the manifest as their sole storage file. Existing `META-INF/project.json`
+metadata is read for compatibility with its former override precedence; saving migrates the draft
+into the manifest and removes the legacy file. Both original files are restored if saving fails.
+Git sees the manifest edit and legacy-file deletion as pending changes. Use the normal repository
+Save/Publish actions to commit/push them. Saving settings leaves the Git index and HEAD unchanged;
+conflicted settings files or an ignored manifest must be resolved first.

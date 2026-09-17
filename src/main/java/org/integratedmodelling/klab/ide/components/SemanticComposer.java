@@ -155,7 +155,9 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
               : Theme.semanticExpression(reply.getCode()));
           results.getItems().setAll(reply.getMatches()); results.getSelectionModel().selectFirst();
           card.getChildren().clear();
-          if (reply.getObservable() != null) card.getChildren().add(new ObservableCard(reply.getObservable(), true));
+          if (reply.getCurrentConcept() != null)
+            card.getChildren().add(new ObservableCard(reply.getCurrentConcept(), reply.getClauses()));
+          else if (reply.getObservable() != null) card.getChildren().add(new ObservableCard(reply.getObservable(), true));
           status.setText(!reply.getErrors().isEmpty() ? String.join("\n", reply.getErrors())
               : reply.isAcceptsValue() ? "Enter a number, boolean, or quoted text value, then press Enter."
               : reply.getObservable() != null ? "Observable validated. Continue when ready, or add another clause."

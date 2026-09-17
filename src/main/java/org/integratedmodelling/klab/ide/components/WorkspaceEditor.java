@@ -340,6 +340,14 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   @Override
   protected void disposeAuxiliaryEditor(Node editor) {
+    if (editor instanceof WorkspaceSettingsEditor settingsEditor) {
+      if (workspaceSettingsEditor == settingsEditor) workspaceSettingsEditor = null;
+      settingsEditor.close();
+    }
+    if (editor instanceof ProjectSettingsEditor settingsEditor) {
+      projectSettingsEditors.values().removeIf(value -> value == settingsEditor);
+      settingsEditor.close();
+    }
     if (editor instanceof WorkflowEditor workflowEditor) {
       workflowEditors.values().removeIf(value -> value == workflowEditor);
       refreshPairButton(workflowEditor.getFlow().getAssetUrn());
@@ -472,76 +480,28 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     }
   }
 
-  private record ProjectSettingsTab(TextField observer, Button save) {}
-
-  private final Map<String, ProjectSettingsTab> projectSettingsEditors = new HashMap<>();
+  private final Map<String, ProjectSettingsEditor> projectSettingsEditors = new HashMap<>();
 
   private void openProjectSettings(NavigableProject project) {
     String key = "project-settings:" + project.getUrn();
     var existing = projectSettingsEditors.get(key);
     if (existing != null) {
-      existing.save().setDisable(existing.observer().isDisabled() || !project.isLocked());
+      existing.refreshAccess();
       selectAuxiliaryEditor(key);
       return;
     }
-    var observerKey = org.integratedmodelling.klab.api.knowledge.Worldview.USER_OBSERVER_SEMANTICS;
-    var observer = new TextField(Objects.toString(project.getMetadata().get(observerKey), ""));
-    observer.setPromptText("worldview:AgentConcept");
-    var explanation = new Label("Default observer semantics contributed by this worldview project. Group settings may override it.");
-    explanation.setWrapText(true);
-    var status = new Label();
-    var save = new Button("Save settings");
-    save.setDisable(!project.isLocked());
-    var content = new VBox(12, new Label("Default user observer"), observer, explanation, save, status);
-    content.setStyle("-fx-padding: 16;");
-    projectSettingsEditors.put(key, new ProjectSettingsTab(observer, save));
-    var tab = showAuxiliaryEditor(key, project.getUrn() + " settings", content);
-    tab.setOnCloseRequest(event -> {
-      if (observer.isDisabled()) event.consume();
-    });
-    tab.addEventHandler(Tab.CLOSED_EVENT, event -> projectSettingsEditors.remove(key));
-    save.setOnAction(event -> {
-      String snapshot = observer.getText().trim();
-      save.setDisable(true);
-      observer.setDisable(true);
-      status.setText("Saving...");
-      Thread.ofVirtual().start(() -> {
-        try {
-          var user = KlabIDEController.instance().user();
-          var current = service.retrieve(project.getUrn(),
-              org.integratedmodelling.klab.api.knowledge.organization.Project.class, user);
-          if (current == null) throw new IllegalStateException("Project is unavailable");
-          var settings = new org.integratedmodelling.klab.api.settings.ProjectSettings();
-          settings.setMetadata(current.getSettings().getMetadata());
-          // Empty text deliberately masks a legacy manifest declaration in this project.
-          settings.getMetadata().put(observerKey, snapshot);
-          var request = new org.integratedmodelling.klab.api.knowledge.organization.impl.ProjectImpl();
-          request.setUrn(workspace.getUrn() + "/" + project.getUrn());
-          request.setSettings(settings);
-          var results = service.submit(request, ResourcesService.SubmissionMode.REPLACE, user);
-          boolean failed = results == null || results.isEmpty();
-          if (results != null) {
-            for (var result : results) {
-              if (Utils.Notifications.hasErrors(result.getNotifications())) failed = true;
-              for (var notification : result.getNotifications()) {
-                Platform.runLater(() -> KlabIDEController.instance().handleNotification(notification));
-              }
-            }
-          }
-          if (failed) throw new IllegalStateException("Settings were not saved; see notifications");
-          Platform.runLater(() -> {
-            project.getMetadata().put(observerKey, snapshot);
-            status.setText("Settings saved");
-          });
-        } catch (Exception failure) {
-          Platform.runLater(() -> status.setText("Save failed: " + failure.getMessage()));
-        } finally {
-          Platform.runLater(() -> {
-            observer.setDisable(false);
-            save.setDisable(!project.isLocked());
-          });
-        }
-      });
+    var editor = new ProjectSettingsEditor(service, KlabIDEController.instance().user(),
+        workspace.getUrn(), project.getUrn(), project::isLocked, updated -> {
+          project.refreshSettings(updated);
+          if (treeView != null) treeView.refresh();
+        });
+    projectSettingsEditors.put(key, editor);
+    var tab = showAuxiliaryEditor(key, project.getUrn() + " settings", editor);
+    tab.setOnCloseRequest(event -> { if (editor.isBusy()) event.consume(); });
+    tab.selectedProperty().addListener((value, old, selected) -> { if (selected) editor.refreshAccess(); });
+    tab.addEventHandler(Tab.CLOSED_EVENT, event -> {
+      projectSettingsEditors.remove(key);
+      editor.close();
     });
   }
 
@@ -586,13 +546,16 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     lockUnlock.setOnAction(
         e -> {
           if (project.isLocked()) {
-            service.unlockProject(project.getUrn(), KlabIDEController.instance().user());
-            project.setLocked(false);
+            if (service.unlockProject(project.getUrn(), KlabIDEController.instance().user())) project.setLocked(false);
           } else {
-            service.lockProject(project.getUrn(), KlabIDEController.instance().user());
-            project.setLocked(true);
+            if (service.lockProject(project.getUrn(), KlabIDEController.instance().user())) project.setLocked(true);
           }
         });
+
+    lockUnlock.addEventHandler(javafx.event.ActionEvent.ACTION, event -> {
+      var editor = projectSettingsEditors.get("project-settings:" + project.getUrn());
+      if (editor != null) editor.refreshAccess();
+    });
 
     var projectSettings =
         new MenuItem(
@@ -751,8 +714,22 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     return new VBox(hBox /*, new Separator()*/);
   }
 
+  private WorkspaceSettingsEditor workspaceSettingsEditor;
+
   private void showWorkspaceSettings() {
-    // TODO add settings tab or switch to it
+    String key = "workspace-settings:" + workspace.getUrn();
+    if (workspaceSettingsEditor != null) {
+      workspaceSettingsEditor.refreshAccess(); selectAuxiliaryEditor(key); return;
+    }
+    workspaceSettingsEditor = new WorkspaceSettingsEditor(service, KlabIDEController.instance().user(),
+        workspace.getUrn(), info -> {
+          workspace.updateSettings(info.getMetadata(), info.getRights());
+          if (treeView != null) treeView.refresh();
+        });
+    var editor = workspaceSettingsEditor;
+    var tab = showAuxiliaryEditor(key, workspace.getUrn() + " settings", editor);
+    tab.setOnCloseRequest(event -> { if (editor.isBusy()) event.consume(); });
+    tab.selectedProperty().addListener((value, old, selected) -> { if (selected) editor.refreshAccess(); });
   }
 
   private boolean createNewProject() {

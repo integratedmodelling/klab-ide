@@ -27,6 +27,27 @@ class SemanticComposerTest {
     ready.get(15, TimeUnit.SECONDS);
   }
 
+  @Test void observableCardShowsColoredClausesWithDistinctOriginIcons() throws Exception {
+    fx(() -> {
+      var concept = new org.integratedmodelling.common.knowledge.ConceptImpl();
+      concept.setUrn("test:Tree");
+      concept.getType().addAll(List.of(org.integratedmodelling.klab.api.knowledge.SemanticType.SUBJECT,
+          org.integratedmodelling.klab.api.knowledge.SemanticType.OBSERVABLE));
+      var direct = new SemanticClauseRestriction(org.integratedmodelling.klab.api.knowledge.SemanticRole.INHERENT, concept, false);
+      var inherited = new SemanticClauseRestriction(org.integratedmodelling.klab.api.knowledge.SemanticRole.GOAL, concept, true);
+      var card = new org.integratedmodelling.klab.ide.components.cards.ObservableCard(concept, List.of(direct, inherited));
+      var content = (javafx.scene.layout.VBox) card.getCenter();
+      assertInstanceOf(javafx.scene.text.TextFlow.class, content.getChildren().getFirst());
+      var directRow = (HBox) content.getChildren().get(2);
+      var inheritedRow = (HBox) content.getChildren().get(3);
+      assertEquals("Direct restriction", ((Label) directRow.getChildren().getFirst()).getTooltip().getText());
+      assertEquals("Inherited restriction", ((Label) inheritedRow.getChildren().getFirst()).getTooltip().getText());
+      var flow = (javafx.scene.text.TextFlow) directRow.getChildren().get(1);
+      assertTrue(flow.getChildren().stream().anyMatch(n -> n instanceof Text t && t.getText().equals("test:Tree")));
+      return null;
+    });
+  }
+
   @Test void typingAParenthesisDoesNotEnterSearchTextOrRepeatAndBackspaceUndoes() throws Exception {
     var fake = new FakeSearch();
     var composer = fx(() -> new SemanticComposer(() -> fake.reasoner(), o -> CompletableFuture.completedFuture(null), () -> {}));
