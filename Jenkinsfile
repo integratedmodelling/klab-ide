@@ -137,6 +137,7 @@ pipeline {
                         -DskipTests \
                         -Pconveyor \
                         -Dconveyor.target=site \
+                        -U \
                         clean package
 
                     if [ ! -d output ]; then
