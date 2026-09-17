@@ -209,6 +209,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
             KlabIDEController.instance().getLanguageServer(), KlabIDEController.instance().user());
 
     monacoEditor = new MonacoEditorView(documentUri, this::save);
+    monacoEditor.setOnComposeObservable(() -> ObservableComposerDialog.show(monacoEditor));
     monacoEditor.runAfterEditorRendered(
         () -> monacoEditor.markNotifications(currentNotifications, false));
     monacoEditor.loadEditor(source, languageId, theme);
@@ -535,6 +536,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       var javaDocumentUri = documentUri + ".java";
       var theme = Theme.CURRENT_THEME.isDark() ? "vs-dark" : "vs";
       javaCodeEditor = new MonacoEditorView(javaDocumentUri, ignored -> {});
+      javaCodeEditor.setOnComposeObservable(() -> ObservableComposerDialog.show(javaCodeEditor));
       javaCodeEditor.loadEditor(javaCode, "java", theme);
     } else if (updated) {
       javaCodeEditor.setText(javaCode);

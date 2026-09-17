@@ -8,6 +8,9 @@ import javafx.application.Platform;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.input.MouseButton;
+import org.kordamp.ikonli.evaicons.Evaicons;
 import org.integratedmodelling.klab.api.data.RuntimeAsset;
 import org.integratedmodelling.klab.api.digitaltwin.GraphModel;
 import org.integratedmodelling.klab.api.knowledge.Cohort;
@@ -56,16 +59,25 @@ public class ObserverTree extends KlabTreeTableView<RuntimeAsset> {
   private HBox describe(RuntimeAsset asset) {
     if (asset == null) return new HBox();
     var selected = scope == null ? null : scope.getObserver();
-    var icon = selected != null && selected.getId() == asset.getId()
-        ? new IconLabel(Theme.OBSERVER_ICON, 16, "-color-accent-fg") : Theme.getGraphics(asset);
-    icon.setMinWidth(24);
-    icon.setMaxWidth(24);
-    if (asset instanceof Observation observation && observation.getObservable().is(SemanticType.AGENT)) {
-      Tooltip.install(icon, new Tooltip("Choose observer"));
+    boolean agent = asset instanceof Observation observation
+        && observation.getObservable().is(SemanticType.AGENT);
+    boolean current = agent && selected != null && selected.getId() == asset.getId();
+    var icon = agent
+        ? new IconLabel(current ? Evaicons.PERSON : Evaicons.PERSON_OUTLINE, 16,
+            current ? "-color-accent-fg" : "-color-fg-default")
+        : Theme.getGraphics(asset);
+    icon.setMinWidth(24); icon.setPrefWidth(24); icon.setMaxWidth(24);
+    if (agent) {
+      var observation = (Observation) asset;
+      String hint = current ? "Current observer" : "Use as current observer";
+      Tooltip.install(icon, new Tooltip(hint));
+      icon.setAccessibleText(hint + ": " + Theme.getLabel(asset));
       icon.setOnMouseClicked(event -> {
+        if (event.getButton() != MouseButton.PRIMARY) return;
         if (scope != null) {
-          var current = scope.getObserver();
-          scope.withObserver(current != null && current.getId() == observation.getId() ? null : observation);
+          var previous = scope.getObserver();
+          var chosen = ObserverSelection.choose(previous, observation);
+          if (chosen != previous) scope.withObserver(chosen);
           refresh();
         }
         event.consume();
@@ -73,6 +85,7 @@ public class ObserverTree extends KlabTreeTableView<RuntimeAsset> {
     }
     var label = new Label(Theme.getLabel(asset));
     label.setTextOverrun(OverrunStyle.ELLIPSIS);
+    label.setMinWidth(0); label.setMaxWidth(Double.MAX_VALUE); HBox.setHgrow(label, Priority.ALWAYS);
     Tooltip.install(label, new Tooltip(Theme.getLabel(asset)));
     return new HBox(4, icon, label);
   }
@@ -106,7 +119,10 @@ public class ObserverTree extends KlabTreeTableView<RuntimeAsset> {
       if (scope != nextScope || generation != request) return;
       if (error != null) { nextScope.warn("Cannot refresh observers: " + error.getMessage()); return; }
       var root = new TreeItem<RuntimeAsset>();
-      var selected = nextScope.getObserver();
+      var previous = nextScope.getObserver();
+      var selected = ObserverSelection.currentOrSole(previous,
+          cohorts.stream().flatMap(cohort -> cohort.agents().stream()).toList());
+      if (selected != previous) nextScope.withObserver(selected);
       TreeItem<RuntimeAsset> focal = null;
       for (var cohort : cohorts) {
         var group = new TreeItem<RuntimeAsset>(cohort.cohort());

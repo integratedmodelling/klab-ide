@@ -27,6 +27,36 @@ class SemanticComposerTest {
     ready.get(15, TimeUnit.SECONDS);
   }
 
+  @Test void selectionDialogReturnsObservableAndNullOnCancelOrWindowClose() throws Exception {
+    var owner = fx(() -> {
+      var stage = new javafx.stage.Stage();
+      stage.setScene(new javafx.scene.Scene(new javafx.scene.layout.VBox(), 200, 100)); stage.show(); return stage;
+    });
+    var concept = new org.integratedmodelling.common.knowledge.ConceptImpl();
+    concept.setUrn("test:Tree");
+    concept.getType().add(org.integratedmodelling.klab.api.knowledge.SemanticType.SUBJECT);
+    var observable = new org.integratedmodelling.common.knowledge.ObservableImpl();
+    observable.setSemantics(concept); observable.setUrn(concept.getUrn());
+    var reasoner = (Reasoner) Proxy.newProxyInstance(Reasoner.class.getClassLoader(), new Class<?>[]{Reasoner.class}, (p, method, args) -> {
+      if (!method.getName().equals("semanticSearch")) return null;
+      var request = (SemanticSearchRequest) args[0];
+      var response = new SemanticSearchResponse(42, request.getRequestId());
+      response.setObservable(observable); return response;
+    });
+    try {
+      for (String action : List.of("Continue", "Cancel", "window-close")) {
+        var result = fx(() -> ObservableComposerDialog.show(owner.getScene().getRoot(), () -> reasoner));
+        var stage = fx(() -> (javafx.stage.Stage) javafx.stage.Window.getWindows().stream()
+            .filter(w -> w != owner && w instanceof javafx.stage.Stage st && st.getTitle().equals("Compose observable"))
+            .findFirst().orElseThrow());
+        var composer = fx(() -> (SemanticComposer) stage.getScene().getRoot());
+        ready(composer);
+        fx(() -> { if (action.equals("window-close")) stage.close(); else button(composer, action).fire(); return null; });
+        assertSame(action.equals("Continue") ? observable : null, result.get(10, TimeUnit.SECONDS));
+      }
+    } finally { fx(() -> { owner.close(); return null; }); }
+  }
+
   @Test void observableCardShowsColoredClausesWithDistinctOriginIcons() throws Exception {
     fx(() -> {
       var concept = new org.integratedmodelling.common.knowledge.ConceptImpl();

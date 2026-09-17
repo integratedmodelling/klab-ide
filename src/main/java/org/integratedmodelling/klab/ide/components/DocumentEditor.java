@@ -30,6 +30,7 @@ public class DocumentEditor extends MonacoEditorView {
         "inmemory:///klab/" + document.getUrn() + "." + document.getLanguage().fileExtension(),
         saveCallback);
     this.document = document;
+    setOnComposeObservable(() -> ObservableComposerDialog.show(this));
     this.saveButton =
         IconButton.of(Codicons.SAVE, 12, Theme.FOREGROUND_COLOR, Theme.FOREGROUND_COLOR, null);
     saveButton.setTooltip(new Tooltip("Save"));

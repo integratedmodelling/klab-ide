@@ -1036,6 +1036,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
             }
           };
 
+      ret.setOnComposeObservable(() -> ObservableComposerDialog.show(ret));
       saveButton.setDisable(true);
       saveButton.setOnAction(
           event -> {

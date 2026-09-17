@@ -476,8 +476,11 @@ version control and verify destructive operations before confirming them.
 
 The runtime preselects the default observer configured by the worldview or your groups when you
 connect to a twin. The **Observers** tab lists the twin's agents in their cohorts, including agents
-created by models. Click an agent's icon to choose it; the active agent uses the observer icon.
-Click that icon again to clear the choice. Selecting a context does not clear your observer, and
+created by models. An outline person icon means available; a filled, accented person icon marks the
+current observer. Click an outline icon to switch. Clicking the current icon keeps it selected, and
+a sole agent is automatically selected when there is no current observer. Right-click does not change
+the current observer and preserves access to the geometry audit/edit menu where available.
+Selecting a context does not clear your observer, and
 selecting an observer does not clear your context. Returning to the observer tab expands and
 scrolls to the current agent.
 
@@ -586,3 +589,11 @@ into the manifest and removes the legacy file. Both original files are restored 
 Git sees the manifest edit and legacy-file deletion as pending changes. Use the normal repository
 Save/Publish actions to commit/push them. Saving settings leaves the Git index and HEAD unchanged;
 conflicted settings files or an ignored manifest must be resolved first.
+
+In file editors, **Ctrl+Shift+Space** opens the same composer in a modal window owned by the editor,
+including detached editor windows. **Continue** inserts the resulting observable URN at the invoking
+cursor; **Cancel**, Escape or closing the composer leaves the document unchanged. This action does
+not submit an observation or promote concepts to collectives. Insertion is one undoable edit and
+marks the document modified. If the document changes while composition is pending, the late result
+is discarded. Other views can reuse `ObservableComposerDialog.show(owner)` to obtain an asynchronous
+Observable (or null on cancellation).
