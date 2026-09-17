@@ -200,12 +200,17 @@ public class ProjectSettingsEditor extends VBox implements AutoCloseable {
       var request = new ProjectImpl(); request.setUrn(workspace + "/" + project); request.setSettings(settings);
       var results = service.submit(request, ResourcesService.SubmissionMode.REPLACE, user);
       boolean failed = results == null || results.isEmpty();
+      var details = new ArrayList<String>();
       if (results != null) for (var result : results) {
-        if (Utils.Notifications.hasErrors(result.getNotifications())) failed = true;
+        if (Utils.Notifications.hasErrors(result.getNotifications())) {
+          failed = true;
+          result.getNotifications().forEach(notification -> details.add(notification.getMessage()));
+        }
         result.getNotifications().forEach(notification -> Platform.runLater(() ->
             KlabIDEController.instance().handleNotification(notification)));
       }
-      if (failed) throw new IllegalStateException("The service rejected the settings; see notifications");
+      if (failed) throw new IllegalStateException(details.isEmpty()
+          ? "The service returned no settings save result" : String.join("; ", details));
       try { return service.retrieve(project, Project.class, user); }
       catch (RuntimeException refreshFailure) { return null; }
     }).whenComplete((updated, error) -> Platform.runLater(() -> {
