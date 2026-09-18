@@ -6,6 +6,7 @@ module org.integratedmodelling.klab.ide {
   requires klab.modeler;
   requires atlantafx.base;
   requires klab.core.common;
+  requires com.fasterxml.jackson.databind;
   requires org.kordamp.ikonli.core;
   requires org.kordamp.ikonli.material2;
   requires org.kordamp.ikonli.fontawesome5;

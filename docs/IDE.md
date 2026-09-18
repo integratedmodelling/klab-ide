@@ -547,8 +547,29 @@ observer or geometry is reported in the composer. After dispatch, the existing t
 
 `SemanticComposer` accepts a host-supplied asynchronous action, so other views can reuse it without
 submitting an observation. Multi-operand unary operators, units/currencies and `where` conditions
-remain unfinished. The [semantic-search rule catalog and extension guide](https://github.com/integratedmodelling/klab-services/blob/develop/klab.services.reasoner/SEMANTIC_SEARCH.md)
+remain unfinished. The [semantic-search rule catalog and extension guide](https://github.com/integratedmodelling/klab-services/blob/develop/docs/REASONING.md#assisted-observable-composition)
 distinguishes implemented checks from missing semantic validation.
+
+### Semantic validation in workspace editors
+
+Parsed namespaces and ontologies are checked asynchronously when a workspace loads, when an
+editor opens, and after Resources returns a saved document. Validation uses the user's selected
+reasoner and never blocks editing or saving on an HTTP request. Tree badges show aggregated
+semantic errors for documents and projects; their tooltips include diagnostic messages. The
+editor status distinguishes pending, unavailable, syntax-blocked and unsynchronized knowledge
+from completed validation. Successful documents have no validation badge. Failure reasons appear
+in the editor status and as document-start markers; they are not only tooltips. Green project text
+still denotes an editing lock.
+
+Semantic diagnostics use a separate Monaco marker owner, preserving parser and LSP markers.
+Editing clears semantic markers until the next saved source is validated. Late responses for
+superseded documents or a closed workspace are discarded. The background worker checks reasoner
+availability and knowledge revision every 30 seconds, retrying unavailable or unsynchronized
+validation and rechecking documents after knowledge changes. It stops when the workspace leaves
+the scene and resumes when reopened. Failed checks are retried after source/revision changes or
+workspace reopening. For saved ontologies, the reasoner synchronizes the authoritative source and
+its imports before validation; missing sources are reported as unavailable. Validation does not
+publish ontology drafts. See the [reasoner validation contract](https://github.com/integratedmodelling/klab-services/blob/develop/docs/REASONING.md#semantic-document-validation).
 
 ### Project settings: metadata and permissions
 

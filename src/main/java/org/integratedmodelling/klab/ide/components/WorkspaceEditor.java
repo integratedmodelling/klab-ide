@@ -76,6 +76,13 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private final Map<String, IconButton> pairButtons = new HashMap<>();
   private final Map<String, IconButton> reviewButtons = new HashMap<>();
   private final Set<String> assetsWithFlows = new HashSet<>();
+  private final Map<String, WorkspaceSemanticValidation.Update> semanticUpdates = new HashMap<>();
+  private final Map<String, Label> semanticStatusLabels = new HashMap<>();
+  private final WorkspaceSemanticValidation semanticValidation =
+      new WorkspaceSemanticValidation(
+          () -> KlabIDEController.instance().user(),
+          Platform::runLater,
+          this::semanticValidationCompleted);
 
   /** Saved source snapshots waiting for their corresponding parsed workspace updates. */
   private final Map<String, Deque<String>> pendingSavedSources = new HashMap<>();
@@ -102,6 +109,15 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     this.workflowUIProvider =
         workflowUIProvider == null ? WorkflowUIProvider.NONE : workflowUIProvider;
     this.workspace = getEditedAsset();
+    sceneProperty()
+        .addListener(
+            (property, oldScene, newScene) -> {
+              if (newScene == null) semanticValidation.close();
+              else {
+                semanticValidation.start();
+                requestSemanticValidation();
+              }
+            });
     try {
       service.getFlows(true, KlabIDEController.instance().user()).stream()
           .map(Flow::getAssetUrn)
@@ -221,8 +237,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       initial.setOwner(participant.getIdentity());
       initial.getAssignees().add(participant.getIdentity());
       var flow =
-          workflowUIProvider.draftFlow(
-              workflow, initial, KlabIDEController.instance().user());
+          workflowUIProvider.draftFlow(workflow, initial, KlabIDEController.instance().user());
       openWorkflow(flow, workflow);
     } catch (Throwable error) {
       KlabIDEController.instance().handleNotification(Notification.error(error));
@@ -287,18 +302,23 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     }
   }
 
-  private boolean toggleWorkflowPair(NavigableKlabDocument<?, ?> document, String key,
-      boolean fromDocument) {
+  private boolean toggleWorkflowPair(
+      NavigableKlabDocument<?, ?> document, String key, boolean fromDocument) {
     edit(document);
     var editor = (MonacoEditorView) getEditor(document);
     var workflowEditor = workflowEditors.get(key);
     if (workflowEditor == null) return false;
-    boolean paired = togglePairedEditors(document, key, fromDocument, () -> {
-      pairButtons.values().forEach(button -> button.setToggled(false));
-      workflowEditors.values().forEach(value -> value.setSideBySide(false));
-      editor.setOnReviewMarkerClicked(null);
-      editor.setOnReviewMarginDoubleClicked(null);
-    });
+    boolean paired =
+        togglePairedEditors(
+            document,
+            key,
+            fromDocument,
+            () -> {
+              pairButtons.values().forEach(button -> button.setToggled(false));
+              workflowEditors.values().forEach(value -> value.setSideBySide(false));
+              editor.setOnReviewMarkerClicked(null);
+              editor.setOnReviewMarginDoubleClicked(null);
+            });
     if (paired) {
       editor.setReviewMode(true);
       var review = reviewButtons.get(document.getUrn());
@@ -313,21 +333,27 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   private boolean pairDocument(NavigableKlabDocument<?, ?> document) {
-    var existing = workflowEditors.entrySet().stream()
-        .filter(entry -> Objects.equals(document.getUrn(), entry.getValue().getFlow().getAssetUrn()))
-        .findFirst();
+    var existing =
+        workflowEditors.entrySet().stream()
+            .filter(
+                entry ->
+                    Objects.equals(document.getUrn(), entry.getValue().getFlow().getAssetUrn()))
+            .findFirst();
     if (existing.isPresent()) return toggleWorkflowPair(document, existing.get().getKey(), true);
-    var flows = service.getFlows(true, KlabIDEController.instance().user()).stream()
-        .filter(flow -> Objects.equals(document.getUrn(), flow.getAssetUrn())).toList();
+    var flows =
+        service.getFlows(true, KlabIDEController.instance().user()).stream()
+            .filter(flow -> Objects.equals(document.getUrn(), flow.getAssetUrn()))
+            .toList();
     if (flows.isEmpty()) return false;
     if (flows.size() > 1) {
       var menu = new ContextMenu();
       for (var flow : flows) {
         var item = new MenuItem(flow.getWorkflowId() + " — " + shortFlowId(flow));
-        item.setOnAction(event -> {
-          openWorkflow(flow, null);
-          toggleWorkflowPair(document, "workflow:" + flow.getId(), true);
-        });
+        item.setOnAction(
+            event -> {
+              openWorkflow(flow, null);
+              toggleWorkflowPair(document, "workflow:" + flow.getId(), true);
+            });
         menu.getItems().add(item);
       }
       menu.show(pairButtons.get(document.getUrn()), javafx.geometry.Side.BOTTOM, 0, 0);
@@ -385,6 +411,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   @Override
   protected void onVisualize(boolean visibleAfterCall) {
     KlabIDEController.instance().setFocalEditor(this, visibleAfterCall);
+    if (visibleAfterCall) {
+      semanticValidation.start();
+      requestSemanticValidation();
+    } else semanticValidation.close();
   }
 
   private NavigableAsset draggedAsset;
@@ -416,6 +446,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
     treeView = new TreeView<>(this.root = defineTree(workspace));
     treeView.setCellFactory(p -> new AssetTreeCell(this));
+    Platform.runLater(this::requestSemanticValidation);
     treeView.getStyleClass().addAll(Tweaks.EDGE_TO_EDGE, Styles.DENSE);
     treeView.setShowRoot(false);
     treeView.setPrefWidth(340);
@@ -490,19 +521,34 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       selectAuxiliaryEditor(key);
       return;
     }
-    var editor = new ProjectSettingsEditor(service, KlabIDEController.instance().user(),
-        workspace.getUrn(), project.getUrn(), project::isLocked, updated -> {
-          project.refreshSettings(updated);
-          if (treeView != null) treeView.refresh();
-        });
+    var editor =
+        new ProjectSettingsEditor(
+            service,
+            KlabIDEController.instance().user(),
+            workspace.getUrn(),
+            project.getUrn(),
+            project::isLocked,
+            updated -> {
+              project.refreshSettings(updated);
+              if (treeView != null) treeView.refresh();
+            });
     projectSettingsEditors.put(key, editor);
     var tab = showAuxiliaryEditor(key, project.getUrn() + " settings", editor);
-    tab.setOnCloseRequest(event -> { if (editor.isBusy()) event.consume(); });
-    tab.selectedProperty().addListener((value, old, selected) -> { if (selected) editor.refreshAccess(); });
-    tab.addEventHandler(Tab.CLOSED_EVENT, event -> {
-      projectSettingsEditors.remove(key);
-      editor.close();
-    });
+    tab.setOnCloseRequest(
+        event -> {
+          if (editor.isBusy()) event.consume();
+        });
+    tab.selectedProperty()
+        .addListener(
+            (value, old, selected) -> {
+              if (selected) editor.refreshAccess();
+            });
+    tab.addEventHandler(
+        Tab.CLOSED_EVENT,
+        event -> {
+          projectSettingsEditors.remove(key);
+          editor.close();
+        });
   }
 
   private void editBehaviorLocally(KActorsBehavior behavior, NavigableAsset asset) {
@@ -546,16 +592,20 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     lockUnlock.setOnAction(
         e -> {
           if (project.isLocked()) {
-            if (service.unlockProject(project.getUrn(), KlabIDEController.instance().user())) project.setLocked(false);
+            if (service.unlockProject(project.getUrn(), KlabIDEController.instance().user()))
+              project.setLocked(false);
           } else {
-            if (service.lockProject(project.getUrn(), KlabIDEController.instance().user())) project.setLocked(true);
+            if (service.lockProject(project.getUrn(), KlabIDEController.instance().user()))
+              project.setLocked(true);
           }
         });
 
-    lockUnlock.addEventHandler(javafx.event.ActionEvent.ACTION, event -> {
-      var editor = projectSettingsEditors.get("project-settings:" + project.getUrn());
-      if (editor != null) editor.refreshAccess();
-    });
+    lockUnlock.addEventHandler(
+        javafx.event.ActionEvent.ACTION,
+        event -> {
+          var editor = projectSettingsEditors.get("project-settings:" + project.getUrn());
+          if (editor != null) editor.refreshAccess();
+        });
 
     var projectSettings =
         new MenuItem(
@@ -719,17 +769,30 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private void showWorkspaceSettings() {
     String key = "workspace-settings:" + workspace.getUrn();
     if (workspaceSettingsEditor != null) {
-      workspaceSettingsEditor.refreshAccess(); selectAuxiliaryEditor(key); return;
+      workspaceSettingsEditor.refreshAccess();
+      selectAuxiliaryEditor(key);
+      return;
     }
-    workspaceSettingsEditor = new WorkspaceSettingsEditor(service, KlabIDEController.instance().user(),
-        workspace.getUrn(), info -> {
-          workspace.updateSettings(info.getMetadata(), info.getRights());
-          if (treeView != null) treeView.refresh();
-        });
+    workspaceSettingsEditor =
+        new WorkspaceSettingsEditor(
+            service,
+            KlabIDEController.instance().user(),
+            workspace.getUrn(),
+            info -> {
+              workspace.updateSettings(info.getMetadata(), info.getRights());
+              if (treeView != null) treeView.refresh();
+            });
     var editor = workspaceSettingsEditor;
     var tab = showAuxiliaryEditor(key, workspace.getUrn() + " settings", editor);
-    tab.setOnCloseRequest(event -> { if (editor.isBusy()) event.consume(); });
-    tab.selectedProperty().addListener((value, old, selected) -> { if (selected) editor.refreshAccess(); });
+    tab.setOnCloseRequest(
+        event -> {
+          if (editor.isBusy()) event.consume();
+        });
+    tab.selectedProperty()
+        .addListener(
+            (value, old, selected) -> {
+              if (selected) editor.refreshAccess();
+            });
   }
 
   private boolean createNewProject() {
@@ -833,14 +896,16 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       this.editor = workspaceEditor;
       javafx.beans.value.ChangeListener<javafx.scene.Node> decorationListener =
           (observable, oldGraphic, newGraphic) -> updateItem(getItem(), isEmpty());
-      treeItemProperty().addListener((observable, oldItem, newItem) -> {
-        if (oldItem != null) {
-          oldItem.graphicProperty().removeListener(decorationListener);
-        }
-        if (newItem != null) {
-          newItem.graphicProperty().addListener(decorationListener);
-        }
-      });
+      treeItemProperty()
+          .addListener(
+              (observable, oldItem, newItem) -> {
+                if (oldItem != null) {
+                  oldItem.graphicProperty().removeListener(decorationListener);
+                }
+                if (newItem != null) {
+                  newItem.graphicProperty().addListener(decorationListener);
+                }
+              });
     }
 
     @Override
@@ -866,6 +931,44 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           setGraphic(graphic);
         } else {
           setGraphic(icon);
+        }
+        var semantic = editor.semanticSummary(asset);
+        if (!semantic.isEmpty()) {
+          String badgeText =
+              semantic.startsWith("Semantic errors")
+                  ? semantic.replace("Semantic errors", "Errors")
+                  : semantic.startsWith("Semantic warnings")
+                      ? semantic.replace("Semantic warnings", "Warnings")
+                      : semantic.equals("Document errors") ? "Errors"
+                      : semantic.contains("unavailable")
+                              ? "Unavailable"
+                              : semantic.contains("failed") ? "Failed" : "Pending";
+          Control badge;
+          if (badgeText.equals("Pending")) {
+            var spinner = new ProgressIndicator(ProgressIndicator.INDETERMINATE_PROGRESS);
+            spinner.setMinSize(12, 12);
+            spinner.setPrefSize(12, 12);
+            spinner.setMaxSize(12, 12);
+            badge = spinner;
+          } else if (badgeText.equals("Failed")) {
+            var dot = new Label("●");
+            dot.getStyleClass().add(Styles.DANGER);
+            badge = dot;
+          } else {
+            var label = new Label(badgeText);
+            label.setStyle(
+                semantic.startsWith("Semantic errors")
+                    ? "-fx-text-fill: -color-danger-fg;"
+                    : "-fx-text-fill: -color-warning-fg;");
+            badge = label;
+          }
+          badge.setAccessibleText(semantic);
+          var details = editor.semanticDetails(asset);
+          badge.setTooltip(new Tooltip(details));
+          setTooltip(new Tooltip(Theme.getLabel(asset) + "\n" + details));
+          var graphic = new HBox(6, getGraphic(), badge);
+          graphic.setAlignment(Pos.CENTER_LEFT);
+          setGraphic(graphic);
         }
         setOnContextMenuRequested(
             event -> {
@@ -961,6 +1064,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           IconButton.of(Codicons.SAVE, 12, Theme.FOREGROUND_COLOR, Theme.FOREGROUND_COLOR, null);
       saveButton.setTooltip(new Tooltip("Save"));
       var status = new Label("Ready");
+      semanticStatusLabels.put(WorkspaceSemanticValidation.key(document), status);
 
       var ret =
           new MonacoEditorView(
@@ -1001,16 +1105,20 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                       });
 
               reviewButtons.put(document.getUrn(), reviewMode);
-              var paired = IconButton.toggle(BootstrapIcons.LAYOUT_SPLIT, 12, () -> {
-                try {
-                  boolean enabled = pairDocument(document);
-                  pairButtons.get(document.getUrn()).setToggled(enabled);
-                  return enabled;
-                } catch (RuntimeException error) {
-                  pairButtons.get(document.getUrn()).setToggled(false);
-                  throw error;
-                }
-              });
+              var paired =
+                  IconButton.toggle(
+                      BootstrapIcons.LAYOUT_SPLIT,
+                      12,
+                      () -> {
+                        try {
+                          boolean enabled = pairDocument(document);
+                          pairButtons.get(document.getUrn()).setToggled(enabled);
+                          return enabled;
+                        } catch (RuntimeException error) {
+                          pairButtons.get(document.getUrn()).setToggled(false);
+                          throw error;
+                        }
+                      });
               paired.setTooltip(new Tooltip("Side-to-side workflow review"));
               paired.setAccessibleText("Side-to-side workflow review");
               paired.setVisible(hasLinkedWorkflow(document.getUrn()));
@@ -1054,7 +1162,12 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
               .getSettings()
               .get(Setting.START_WITH_LINE_NUMBERS_VISIBLE, Boolean.class));
 
-      ret.runAfterEditorRendered(() -> ret.markNotifications(document.getNotifications(), false));
+      ret.runAfterEditorRendered(
+          () -> {
+            ret.markNotifications(document.getNotifications(), false);
+            showSemanticValidation(document, ret);
+            requestSemanticValidation();
+          });
       ret.loadEditor(document.getSourceCode(), languageId, theme);
 
       ret.setCursorPositionListener(
@@ -1070,7 +1183,16 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
             Platform.runLater(
                 () -> {
                   saveButton.setDisable(!dirty);
-                  status.setText(dirty ? "Modified" : "Ready");
+                  if (!(document instanceof org.integratedmodelling.klab.api.lang.kim.KimNamespace
+                      || document
+                          instanceof org.integratedmodelling.klab.api.lang.kim.KimOntology)) {
+                    status.setText(dirty ? "Modified" : "Ready");
+                    return;
+                  }
+                  if (dirty) {
+                    ret.markSemanticNotifications(List.of());
+                    status.setText("Modified · semantic validation requires save");
+                  } else showSemanticValidation(document, ret);
                 });
           });
       if (lspAvailable) {
@@ -1084,6 +1206,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   @Override
   protected void disposeEditor(NavigableAsset asset, Node editor) {
+    if (asset instanceof KlabDocument<?> document)
+      semanticStatusLabels.remove(WorkspaceSemanticValidation.key(document));
     pairButtons.remove(asset.getUrn());
     reviewButtons.remove(asset.getUrn());
     var session = lspSessions.remove(editor);
@@ -1157,6 +1281,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           }
           // TreeItem changes update only the affected rows and retain expansion, selection and
           // scroll position.  Avoid a full TreeView.refresh(), which redraws the entire viewport.
+          requestSemanticValidation();
           setWaiting(false);
         });
   }
@@ -1202,7 +1327,135 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
               ? Objects.requireNonNullElse(fallbackNotifications, List.of())
               : notifications,
           true);
+      showSemanticValidation(document, editor);
     }
+  }
+
+  private void requestSemanticValidation() {
+    if (root == null) return;
+    var documents = new ArrayList<KlabDocument<?>>();
+    collectSemanticDocuments(root.getValue(), documents);
+    var keys =
+        documents.stream()
+            .map(WorkspaceSemanticValidation::key)
+            .collect(java.util.stream.Collectors.toSet());
+    semanticUpdates.keySet().retainAll(keys);
+    semanticValidation.documents(documents);
+  }
+
+  private void collectSemanticDocuments(NavigableAsset asset, List<KlabDocument<?>> documents) {
+    if (asset instanceof NavigableKlabDocument<?, ?> document) {
+      var delegate = document.getDelegate();
+      if (delegate instanceof org.integratedmodelling.klab.api.lang.kim.KimNamespace
+          || delegate instanceof org.integratedmodelling.klab.api.lang.kim.KimOntology)
+        documents.add(delegate);
+    } else for (var child : asset.children()) collectSemanticDocuments(child, documents);
+  }
+
+  private void semanticValidationCompleted(String key, WorkspaceSemanticValidation.Update update) {
+    semanticUpdates.put(key, update);
+    if (root != null) refreshSemanticDecorations(root, key);
+  }
+
+  private void refreshSemanticDecorations(TreeItem<NavigableAsset> item, String key) {
+    var asset = item.getValue();
+    // Changing the graphic refreshes visible cells without replacing tree items or editor tabs.
+    item.setGraphic(getTreeGraphics(asset));
+    if (asset instanceof NavigableKlabDocument<?, ?> document
+        && WorkspaceSemanticValidation.key(document).equals(key)
+        && getEditor(document) instanceof MonacoEditorView editor)
+      showSemanticValidation(document, editor);
+    for (var child : item.getChildren()) refreshSemanticDecorations(child, key);
+  }
+
+  private static String normalizeEditorSource(String source) {
+    return source == null ? null : source.replace("\r\n", "\n").replace('\r', '\n');
+  }
+
+  private void showSemanticValidation(KlabDocument<?> document, MonacoEditorView editor) {
+    String key = WorkspaceSemanticValidation.key(document);
+    var update = semanticUpdates.get(key);
+    var label = semanticStatusLabels.get(key);
+    if (!(document instanceof org.integratedmodelling.klab.api.lang.kim.KimNamespace
+        || document instanceof org.integratedmodelling.klab.api.lang.kim.KimOntology)) return;
+    if (editor.isDirty()) {
+      editor.markSemanticNotifications(List.of());
+      if (label != null) label.setText("Modified · semantic validation requires save");
+      return;
+    }
+    boolean matches =
+        update != null
+            && Objects.equals(normalizeEditorSource(editor.getText()), normalizeEditorSource(update.request().document().getSourceCode()));
+    var notifications =
+        matches && update.response() != null
+            ? update.response().getNotifications()
+            : List.<Notification>of();
+    editor.markSemanticNotifications(
+        notifications, matches ? update.request().document().getSourceCode() : null);
+    if (label != null) {
+      String status = matches ? update.status() : "Semantic validation pending";
+      if (matches && update.response() != null && update.response().getReason() != null)
+        status += ": " + update.response().getReason();
+      label.setText(status);
+      label.setWrapText(true);
+      label.setTooltip(
+          new Tooltip(
+              matches && update.response() != null
+                  ? Objects.toString(update.response().getReason(), update.status())
+                  : "Validating saved source"));
+    }
+  }
+
+  private List<WorkspaceSemanticValidation.Update> semanticResults(NavigableAsset asset) {
+    if (asset instanceof KlabDocument<?> document) {
+      var update = semanticUpdates.get(WorkspaceSemanticValidation.key(document));
+      return update == null ? List.of() : List.of(update);
+    }
+    var result = new ArrayList<WorkspaceSemanticValidation.Update>();
+    for (var child : asset.children()) result.addAll(semanticResults(child));
+    return result;
+  }
+
+  private String semanticSummary(NavigableAsset asset) {
+    var updates = semanticResults(asset);
+    if (updates.isEmpty()) return "";
+    if (updates.stream().anyMatch(u -> u.response() != null
+        && u.response().getStatus() == org.integratedmodelling.klab.api.services.reasoner.objects.SemanticValidationResponse.Status.FAILED))
+      return "Semantic validation failed";
+    long errors =
+        updates.stream()
+            .filter(u -> u.response() != null)
+            .flatMap(u -> u.response().getNotifications().stream())
+            .filter(
+                n ->
+                    n.getLevel() == Notification.Level.Error
+                        || n.getLevel() == Notification.Level.SystemError)
+            .count();
+    if (errors > 0) return "Semantic errors: " + errors;
+    for (var update : updates)
+      if (update.response() == null || !update.response().valid()) return update.status();
+    long warnings =
+        updates.stream()
+            .flatMap(u -> u.response().getNotifications().stream())
+            .filter(n -> n.getLevel() == Notification.Level.Warning)
+            .count();
+    return warnings > 0 ? "Semantic warnings: " + warnings : "";
+  }
+
+  private String semanticDetails(NavigableAsset asset) {
+    return semanticResults(asset).stream()
+        .map(
+            update -> {
+              String text = update.request().document().getUrn() + ": " + update.status();
+              if (update.response() != null) {
+                if (update.response().getReason() != null)
+                  text += "\n" + update.response().getReason();
+                for (var notification : update.response().getNotifications())
+                  text += "\n" + notification.getMessage();
+              }
+              return text;
+            })
+        .collect(java.util.stream.Collectors.joining("\n"));
   }
 
   static boolean consumePendingSave(
