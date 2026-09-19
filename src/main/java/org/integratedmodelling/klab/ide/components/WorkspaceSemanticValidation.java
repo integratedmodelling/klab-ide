@@ -14,6 +14,23 @@ import org.integratedmodelling.klab.api.services.reasoner.objects.*;
  * epochs.
  */
 final class WorkspaceSemanticValidation implements AutoCloseable {
+  // Compare visible diagnostics, not response timestamps or reasoner revision bookkeeping.
+  static String presentation(Update update) {
+    if (update == null) return null;
+    var text = new StringBuilder(Objects.toString(SemanticValidationRequest.sourceHash(update.request().document().getSourceCode()), ""));
+    var response = update.response();
+    text.append('\n').append(update.status());
+    if (response != null) {
+      text.append('\n').append(response.getReason());
+      for (var notification : response.getNotifications()) {
+        text.append('\n').append(notification.getLevel()).append(':').append(notification.getMessage());
+        var location = notification.getLexicalContext();
+        if (location != null) text.append('@').append(location.getOffsetInDocument())
+            .append(':').append(location.getLength());
+      }
+    }
+    return text.toString();
+  }
   record Update(SemanticValidationRequest request, SemanticValidationResponse response) {
     String status() {
       if (response == null) return "Semantic validation pending";

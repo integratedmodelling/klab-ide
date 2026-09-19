@@ -47,6 +47,20 @@ class WorkspaceSemanticValidationTest {
     fail("Timed out waiting for validation");
   }
 
+  @Test void identicalDiagnosticsIgnoreKnowledgeRevisionButChangesRemainVisible() {
+    var request = SemanticValidationRequest.of(document("source"), "1");
+    var first = success(request);
+    var second = success(request);
+    second.setKnowledgeRevision(99);
+    var a = new WorkspaceSemanticValidation.Update(request, first);
+    var b = new WorkspaceSemanticValidation.Update(request, second);
+    assertEquals(WorkspaceSemanticValidation.presentation(a), WorkspaceSemanticValidation.presentation(b));
+    second.setReason("Changed status");
+    assertNotEquals(WorkspaceSemanticValidation.presentation(a), WorkspaceSemanticValidation.presentation(b));
+    second.setReason(first.getReason());
+    second.getNotifications().add(org.integratedmodelling.klab.api.services.runtime.Notification.warning("New warning"));
+    assertNotEquals(WorkspaceSemanticValidation.presentation(a), WorkspaceSemanticValidation.presentation(b));
+  }
   @Test void aLaterSaveSupersedesAnInFlightResponseAndRequestsRunOffTheCallerThread() throws Exception {
     var entered = new CountDownLatch(1); var release = new CountDownLatch(1);
     var caller = Thread.currentThread(); var background = new AtomicReference<Thread>();

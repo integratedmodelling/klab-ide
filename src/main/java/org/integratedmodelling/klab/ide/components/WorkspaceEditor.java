@@ -78,6 +78,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private final Set<String> assetsWithFlows = new HashSet<>();
   private final Map<String, WorkspaceSemanticValidation.Update> semanticUpdates = new HashMap<>();
   private final Map<String, Label> semanticStatusLabels = new HashMap<>();
+  private final Set<AssetTreeCell> assetTreeCells =
+      Collections.newSetFromMap(new WeakHashMap<>());
   private final WorkspaceSemanticValidation semanticValidation =
       new WorkspaceSemanticValidation(
           () -> KlabIDEController.instance().user(),
@@ -894,6 +896,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
     public AssetTreeCell(WorkspaceEditor workspaceEditor) {
       this.editor = workspaceEditor;
+      workspaceEditor.assetTreeCells.add(this);
       javafx.beans.value.ChangeListener<javafx.scene.Node> decorationListener =
           (observable, oldGraphic, newGraphic) -> updateItem(getItem(), isEmpty());
       treeItemProperty()
@@ -1353,21 +1356,48 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   private void semanticValidationCompleted(String key, WorkspaceSemanticValidation.Update update) {
+    var previous = semanticUpdates.get(key);
+    if (Objects.equals(WorkspaceSemanticValidation.presentation(previous),
+        WorkspaceSemanticValidation.presentation(update))) {
+      semanticUpdates.put(key, update);
+      return;
+    }
+    var affected = new HashSet<TreeItem<NavigableAsset>>();
+    collectSemanticPath(root, key, affected);
+    var decorations = new IdentityHashMap<AssetTreeCell, String>();
+    for (var cell : assetTreeCells) {
+      if (affected.contains(cell.getTreeItem()) && !cell.isEmpty() && cell.getItem() != null)
+        decorations.put(cell, semanticSummary(cell.getItem()) + "\n" + semanticDetails(cell.getItem()));
+    }
     semanticUpdates.put(key, update);
-    if (root != null) refreshSemanticDecorations(root, key);
+    // TreeItem graphics fire tree modification events. Validation only changes decoration:
+    // repaint the affected visible cells without touching selection, focus, or tree structure.
+    for (var cell : assetTreeCells) {
+      if (affected.contains(cell.getTreeItem()) && !Objects.equals(decorations.get(cell),
+          semanticSummary(cell.getItem()) + "\n" + semanticDetails(cell.getItem())))
+        cell.updateItem(cell.getItem(), cell.isEmpty());
+    }
+    for (var item : affected) {
+      if (item.getValue() instanceof NavigableKlabDocument<?, ?> document
+          && WorkspaceSemanticValidation.key(document).equals(key)
+          && getEditor(document) instanceof MonacoEditorView editor)
+        showSemanticValidation(document, editor);
+    }
   }
 
-  private void refreshSemanticDecorations(TreeItem<NavigableAsset> item, String key) {
-    var asset = item.getValue();
-    // Changing the graphic refreshes visible cells without replacing tree items or editor tabs.
-    item.setGraphic(getTreeGraphics(asset));
-    if (asset instanceof NavigableKlabDocument<?, ?> document
-        && WorkspaceSemanticValidation.key(document).equals(key)
-        && getEditor(document) instanceof MonacoEditorView editor)
-      showSemanticValidation(document, editor);
-    for (var child : item.getChildren()) refreshSemanticDecorations(child, key);
+  static boolean collectSemanticPath(TreeItem<NavigableAsset> item, String key,
+      Set<TreeItem<NavigableAsset>> affected) {
+    if (item == null) return false;
+    if (item.getValue() instanceof KlabDocument<?> document) {
+      if (!WorkspaceSemanticValidation.key(document).equals(key)) return false;
+      affected.add(item);
+      return true; // Declaration children do not carry document validation badges.
+    }
+    boolean found = false;
+    for (var child : item.getChildren()) found |= collectSemanticPath(child, key, affected);
+    if (found) affected.add(item);
+    return found;
   }
-
   private static String normalizeEditorSource(String source) {
     return source == null ? null : source.replace("\r\n", "\n").replace('\r', '\n');
   }
@@ -1394,10 +1424,9 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         notifications, matches ? update.request().document().getSourceCode() : null);
     if (label != null) {
       String status = matches ? update.status() : "Semantic validation pending";
-      if (matches && update.response() != null && update.response().getReason() != null)
-        status += ": " + update.response().getReason();
+
       label.setText(status);
-      label.setWrapText(true);
+      label.setWrapText(false); // Details stay in the tooltip; validation must not resize the editor.
       label.setTooltip(
           new Tooltip(
               matches && update.response() != null
@@ -1746,3 +1775,4 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     }
   }
 }
+
