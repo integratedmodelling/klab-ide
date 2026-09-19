@@ -78,6 +78,60 @@ class SemanticComposerTest {
     });
   }
 
+  @Test void selectedObservableSeedsItsCardAndFirstConcept() throws Exception {
+    var owner = fx(() -> {
+      var stage = new javafx.stage.Stage();
+      stage.setScene(new javafx.scene.Scene(new javafx.scene.layout.VBox(), 200, 100));
+      stage.show();
+      return stage;
+    });
+    var concept = new org.integratedmodelling.common.knowledge.ConceptImpl();
+    concept.setUrn("test:Tree");
+    concept.getType().add(org.integratedmodelling.klab.api.knowledge.SemanticType.SUBJECT);
+    var observable = new org.integratedmodelling.common.knowledge.ObservableImpl();
+    observable.setSemantics(concept);
+    observable.setUrn("each test:Tree within test:Forest");
+    var reasoner = (Reasoner) Proxy.newProxyInstance(
+        Reasoner.class.getClassLoader(), new Class<?>[] {Reasoner.class}, (p, method, args) -> {
+          if (method.getName().equals("resolveObservable")) return observable;
+          if (!method.getName().equals("semanticSearch")) return null;
+          var request = (SemanticSearchRequest) args[0];
+          return new SemanticSearchResponse(42, request.getRequestId());
+        });
+    try {
+      var context = new org.integratedmodelling.klabeditor.MonacoEditorView
+          .ObservableCompositionContext(observable.getUrn(), "test:Forest");
+      var result = fx(() -> ObservableComposerDialog.show(
+          owner.getScene().getRoot(), () -> reasoner, context));
+      javafx.stage.Stage stage = null;
+      long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+      while (stage == null) {
+        stage = fx(() -> (javafx.stage.Stage) javafx.stage.Window.getWindows().stream()
+            .filter(w -> w != owner && w instanceof javafx.stage.Stage st
+                && st.getTitle().equals("Compose observable"))
+            .findFirst().orElse(null));
+        if (System.nanoTime() > deadline) fail("Composer dialog did not open");
+        if (stage == null) Thread.sleep(10);
+      }
+      var composerStage = stage;
+      var composer = fx(() -> (SemanticComposer) composerStage.getScene().getRoot());
+      ready(composer);
+      fx(() -> {
+        assertEquals("test:Tree", query(composer).getText());
+        assertTrue(composer.getChildren().stream()
+            .filter(javafx.scene.layout.VBox.class::isInstance)
+            .map(javafx.scene.layout.VBox.class::cast)
+            .flatMap(box -> box.getChildren().stream())
+            .anyMatch(org.integratedmodelling.klab.ide.components.cards.ObservableCard.class::isInstance));
+        composerStage.close();
+        return null;
+      });
+      assertNull(result.get(10, TimeUnit.SECONDS));
+    } finally {
+      fx(() -> { owner.close(); return null; });
+    }
+  }
+
   @Test void typingAParenthesisDoesNotEnterSearchTextOrRepeatAndBackspaceUndoes() throws Exception {
     var fake = new FakeSearch();
     var composer = fx(() -> new SemanticComposer(() -> fake.reasoner(), o -> CompletableFuture.completedFuture(null), () -> {}));

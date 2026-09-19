@@ -19,6 +19,8 @@ import org.integratedmodelling.klab.ide.components.cards.ObservableCard;
 
 /** Reusable Reasoner-driven composer. Its host decides what Continue does with the observable. */
 public final class SemanticComposer extends VBox implements AutoCloseable {
+  public record InitialState(String query, Observable observable) {}
+
   private final TextField query = new TextField();
   private final TableView<SemanticMatch> results = new TableView<>();
   private final VBox expression = new VBox(new Label("Start by choosing a concept or operator"));
@@ -42,10 +44,17 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
   private boolean closed, updating, busy, submitting;
   private boolean parenthesisKeyHeld, backspaceKeyHeld;
   private SemanticSearchResponse response;
+  private Observable initialObservable;
 
   public SemanticComposer(Supplier<Reasoner> reasonerSupplier,
       Function<Observable, CompletableFuture<?>> action, Runnable dismiss) {
+    this(reasonerSupplier, action, dismiss, null);
+  }
+
+  public SemanticComposer(Supplier<Reasoner> reasonerSupplier,
+      Function<Observable, CompletableFuture<?>> action, Runnable dismiss, InitialState initialState) {
     this.reasonerSupplier = reasonerSupplier; this.action = action; this.dismiss = dismiss;
+    this.initialObservable = initialState == null ? null : initialState.observable();
     setSpacing(10); setPadding(new Insets(18)); setPrefSize(780, 560); setMaxSize(900, 680);
     setStyle("-fx-background-color: -color-bg-default; -fx-background-radius: 8;");
     var title = new Label("Compose an observable");
@@ -115,6 +124,10 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
       else if (e.getCode() == KeyCode.ENTER && e.isControlDown() && !proceed.isDisabled()) { finish(); e.consume(); }
     });
     parentProperty().addListener((o, old, parent) -> { if (old != null && parent == null) close(); });
+    if (initialState != null && initialState.query() != null && !initialState.query().isBlank()) {
+      updating = true; query.setText(initialState.query()); updating = false;
+    }
+    if (initialObservable != null) card.getChildren().add(new ObservableCard(initialObservable, true));
     send(SemanticSearchRequest.Mode.TOKEN, null);
   }
 
@@ -148,6 +161,7 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
           if (closed || revision != generation) return;
           response = reply; busy = false;
           if (mode != SemanticSearchRequest.Mode.TOKEN && reply.getErrors().isEmpty()) {
+            initialObservable = null;
             updating = true; query.clear(); updating = false;
           }
           expression.getChildren().setAll(reply.getCode().isEmpty()
@@ -158,6 +172,7 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
           if (reply.getCurrentConcept() != null)
             card.getChildren().add(new ObservableCard(reply.getCurrentConcept(), reply.getClauses()));
           else if (reply.getObservable() != null) card.getChildren().add(new ObservableCard(reply.getObservable(), true));
+          else if (initialObservable != null) card.getChildren().add(new ObservableCard(initialObservable, true));
           status.setText(!reply.getErrors().isEmpty() ? String.join("\n", reply.getErrors())
               : reply.isAcceptsValue() ? "Enter a number, boolean, or quoted text value, then press Enter."
               : reply.getObservable() != null ? "Observable validated. Continue when ready, or add another clause."
@@ -202,7 +217,8 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
     } catch (Exception ex) { submitting = false; status.setText(message(ex)); updateControls(); }
   }
   private void restart() {
-    generation++; debounce.stop(); worker.execute(this::cancelSession); response = null; card.getChildren().clear();
+    generation++; debounce.stop(); worker.execute(this::cancelSession); response = null; initialObservable = null;
+    card.getChildren().clear();
     expression.getChildren().setAll(new Label("Start by choosing a concept or operator"));
     updating = true; query.clear(); updating = false; send(SemanticSearchRequest.Mode.TOKEN, null);
   }
