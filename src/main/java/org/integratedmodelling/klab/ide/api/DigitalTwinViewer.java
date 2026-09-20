@@ -30,6 +30,10 @@ public interface DigitalTwinViewer extends DigitalTwinReactor {
 
   void knowledgeGraphModified();
 
+  /** Called after committed graph changes are applied; never for an uncommitted activity. */
+  default void temporalTransitionCommitted(org.integratedmodelling.klab.api.digitaltwin.TransitionCommit transition) {}
+
+
   void scheduleModified(Schedule schedule);
 
   void cleanup();

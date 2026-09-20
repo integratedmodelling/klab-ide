@@ -81,8 +81,7 @@ public class ValueCard extends BaseCard<Observation> {
     this(asset, scope, extended, Options.runtimeDefaults(scope));
   }
 
-  public ValueCard(
-      Observation asset, IDEContextScope scope, boolean extended, Options options) {
+  public ValueCard(Observation asset, IDEContextScope scope, boolean extended, Options options) {
     super(asset, scope, extended, false);
     this.options = Objects.requireNonNull(options);
     this.selectedTimestamp = initialTimestamp(asset);
@@ -214,11 +213,7 @@ public class ValueCard extends BaseCard<Observation> {
     updateState("Loading " + temporalLabel(selectedTimestamp) + "...");
 
     var request =
-        new MapRequest(
-            asset,
-            selectedTimestamp,
-            options.viewportWidth(),
-            options.viewportHeight());
+        new MapRequest(asset, selectedTimestamp, options.viewportWidth(), options.viewportHeight());
     options
         .mapImageProvider()
         .load(request)
@@ -258,9 +253,7 @@ public class ValueCard extends BaseCard<Observation> {
           mapView
               .getUiLayer()
               .addImage(
-                  mapBounds(asset.getGeometry()),
-                  pngDataUrl(pendingImage),
-                  JLOptions.DEFAULT);
+                  mapBounds(asset.getGeometry()), pngDataUrl(pendingImage), JLOptions.DEFAULT);
       fitBounds(mapView, mapBounds(asset.getGeometry()));
       pendingImage = null;
       pendingError = null;
@@ -296,9 +289,11 @@ public class ValueCard extends BaseCard<Observation> {
                         return;
                       }
                       if (error != null) {
-                        updateState("Value unavailable at " + point.label() + ": " + errorMessage(error));
+                        updateState(
+                            "Value unavailable at " + point.label() + ": " + errorMessage(error));
                       } else {
-                        updateState(point.label() + " \u2022 " + Objects.toString(value, "no data"));
+                        updateState(
+                            point.label() + " \u2022 " + Objects.toString(value, "no data"));
                       }
                     }));
   }
@@ -322,9 +317,7 @@ public class ValueCard extends BaseCard<Observation> {
       addTemporalStates(states, observation.getEventTimestamps());
       addTemporalStates(
           states,
-          observation.getHistograms() == null
-              ? null
-              : observation.getHistograms().keySet());
+          observation.getHistograms() == null ? null : observation.getHistograms().keySet());
     }
     return states.stream().sorted().toList();
   }
@@ -355,9 +348,9 @@ public class ValueCard extends BaseCard<Observation> {
     }
   }
 
-  private static Long initialTimestamp(Observation observation) {
+  static Long initialTimestamp(Observation observation) {
     List<Long> states = temporalStates(observation);
-    return states.isEmpty() ? null : states.getFirst();
+    return states.isEmpty() ? null : states.getLast();
   }
 
   static Optional<NormalizedPoint> normalizedPoint(
@@ -378,8 +371,7 @@ public class ValueCard extends BaseCard<Observation> {
     if (x < left || y < top || x > left + renderedWidth || y > top + renderedHeight) {
       return Optional.empty();
     }
-    return Optional.of(
-        new NormalizedPoint((x - left) / renderedWidth, (y - top) / renderedHeight));
+    return Optional.of(new NormalizedPoint((x - left) / renderedWidth, (y - top) / renderedHeight));
   }
 
   static MapPoint mapPoint(Geometry geometry, NormalizedPoint point) {
@@ -419,8 +411,7 @@ public class ValueCard extends BaseCard<Observation> {
       return new JLLatLng(0, 0);
     }
     return new JLLatLng(
-        (bounds.get(2) + bounds.get(3)) / 2.0,
-        (bounds.get(0) + bounds.get(1)) / 2.0);
+        (bounds.get(2) + bounds.get(3)) / 2.0, (bounds.get(0) + bounds.get(1)) / 2.0);
   }
 
   private static JLBounds mapBounds(Geometry geometry) {
@@ -513,9 +504,7 @@ public class ValueCard extends BaseCard<Observation> {
 
     public String label() {
       if (longitude != null && latitude != null) {
-        return COORDINATE_FORMAT.format(longitude)
-            + ", "
-            + COORDINATE_FORMAT.format(latitude);
+        return COORDINATE_FORMAT.format(longitude) + ", " + COORDINATE_FORMAT.format(latitude);
       }
       return Math.round(normalizedX * 100) + "%, " + Math.round(normalizedY * 100) + "%";
     }
@@ -566,33 +555,38 @@ public class ValueCard extends BaseCard<Observation> {
                               scope))),
           query ->
               !supportsPointExport(runtime.capabilities(scope))
-                  ? CompletableFuture.failedFuture(new UnsupportedOperationException(
-                      "Point-value lookup is not available from this Runtime service"))
+                  ? CompletableFuture.failedFuture(
+                      new UnsupportedOperationException(
+                          "Point-value lookup is not available from this Runtime service"))
                   : CompletableFuture.supplyAsync(
-                  () ->
-                      new String(
-                              readAll(
-                                  runtime.exportAsset(
-                                      query.observation().getUrn(),
-                                      KlabAsset.KnowledgeClass.OBSERVATION,
-                                      "text/plain",
-                                      pointParameters(query),
-                                      scope)),
-                              StandardCharsets.UTF_8)
-                          .trim()),
+                      () ->
+                          new String(
+                                  readAll(
+                                      runtime.exportAsset(
+                                          query.observation().getUrn(),
+                                          KlabAsset.KnowledgeClass.OBSERVATION,
+                                          "text/plain",
+                                          pointParameters(query),
+                                          scope)),
+                                  StandardCharsets.UTF_8)
+                              .trim()),
           DEFAULT_VIEWPORT_SIZE,
           DEFAULT_VIEWPORT_SIZE);
     }
   }
 
-  static boolean supportsPointExport(org.integratedmodelling.klab.api.services.KlabService.ServiceCapabilities capabilities) {
-    return capabilities.getExportSchemata().values().stream().flatMap(List::stream)
-        .anyMatch(schema -> schema.getKnowledgeClass() == KlabAsset.KnowledgeClass.OBSERVATION
-            && schema.getMediaTypes().contains("text/plain"));
+  static boolean supportsPointExport(
+      org.integratedmodelling.klab.api.services.KlabService.ServiceCapabilities capabilities) {
+    return capabilities.getExportSchemata().values().stream()
+        .flatMap(List::stream)
+        .anyMatch(
+            schema ->
+                schema.getKnowledgeClass() == KlabAsset.KnowledgeClass.OBSERVATION
+                    && schema.getMediaTypes().contains("text/plain"));
   }
+
   static Parameters<String> exportParameters(Long timestamp, int width, int height) {
-    Parameters<String> ret =
-        Parameters.create("viewportX", width, "viewportY", height);
+    Parameters<String> ret = Parameters.create("viewportX", width, "viewportY", height);
     if (timestamp != null) {
       ret.put("timestamp", timestamp);
       ret.put("time", timestamp);

@@ -10,6 +10,12 @@ import org.integratedmodelling.klab.api.knowledge.observation.impl.ObservationIm
 import org.junit.jupiter.api.Test;
 
 class ValueCardTest {
+  @Test void refreshedQualityDefaultsToLatestCommittedStateAndRetainsHistory() {
+    var observation=new ObservationImpl();observation.setEventTimestamps(List.of(0L,2000L,1000L));
+    assertEquals(2000L,ValueCard.initialTimestamp(observation));
+    assertEquals(List.of(0L,1000L,2000L),ValueCard.temporalStates(observation));
+  }
+
   @Test
   void pngAvailabilityDoesNotImplyPointValueExport() {
     var capabilities = new org.integratedmodelling.common.services.RuntimeCapabilitiesImpl();

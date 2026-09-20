@@ -290,8 +290,9 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
       properties = new SmartGraphProperties();
     }
 
-    var panel = new SmartGraphPanel<>(
-        graph, properties, new SmartCircularSortedPlacementStrategy(), cssPath.toUri());
+    var panel =
+        new SmartGraphPanel<>(
+            graph, properties, new SmartCircularSortedPlacementStrategy(), cssPath.toUri());
     // SmartGraph's default dark stylesheet is relative to the process working directory.
     panel.setDarkModeStylesheet(GraphResources.applicationFile("smartgraph-dark.css").toUri());
     return panel;
@@ -334,6 +335,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
       timeline = new Timeline(currentTimeMs, oneHourLaterMs, TimeUnit.MINUTES, 1);
       this.setBottom(timeline);
       timeline.setVisible(true);
+      refreshTemporalHistory();
       if (scope.getSchedule() != null) {
         timeline.updateEndTime(scope.getSchedule().getEnd());
       }
@@ -488,6 +490,38 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   @Override
   public void knowledgeGraphModified() {
     requestGraphRedraw();
+    refreshTemporalHistory();
+  }
+
+  private void refreshTemporalHistory() {
+    Platform.runLater(
+        () -> {
+          if (timeline == null) return;
+          var history = scope.getTransitionHistory().timeline();
+          if (history.isEmpty()) return;
+          var events =
+              history.stream()
+                  .map(
+                      j ->
+                          new Timeline.Event(
+                              j.end(),
+                              j.kind()
+                                      == org.integratedmodelling.klab.api.digitaltwin.Scheduler
+                                          .Event.Type.EVENT
+                                  ? Timeline.EventType.EVENT_INTERNAL
+                                  : Timeline.EventType.TIME,
+                              j.eventId()
+                                  + " — "
+                                  + j.changedAssets().size()
+                                  + " changed observations",
+                              clicked -> requestGraphRedraw()))
+                  .toList();
+          timeline.replaceEvents(
+              history.stream().mapToLong(j -> j.start()).min().orElseThrow(),
+              history.stream().mapToLong(j -> j.end()).max().orElseThrow(),
+              events);
+          timeline.setVisible(true);
+        });
   }
 
   @Override

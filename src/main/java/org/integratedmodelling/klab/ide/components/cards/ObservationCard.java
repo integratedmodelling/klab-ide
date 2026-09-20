@@ -62,6 +62,14 @@ public class ObservationCard extends BaseCard<Observation> {
     geom.setPrefWidth(240);
     geom.setMaxWidth(280);
     leftBox.getChildren().add(geom);
+    if(scope!=null) {
+      var states=scope.getTransitionHistory().qualityStates(asset.getId());
+      if(!states.isEmpty()) {
+        var computed=new Label("Computed temporal states: "+states.size());
+        computed.setTooltip(new Tooltip("Planned geometry is shown above. Select committed states on its timeline to inspect computed data."));
+        leftBox.getChildren().add(computed);
+      }
+    }
     var relationshipCard =
         new RelationshipCard(
             asset,

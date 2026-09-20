@@ -73,6 +73,22 @@ public class DigitalTwinEditor extends EditorPage<IDEContextScope, RuntimeAsset>
   }
 
   @Override
+  public void temporalTransitionCommitted(org.integratedmodelling.klab.api.digitaltwin.TransitionCommit transition) {
+    // Fetch on the scope's serial worker, before handing UI work to JavaFX.
+    var refreshed=new java.util.HashMap<Long,Observation>();
+    for(var delta:transition.qualities()) {
+      var observation=knowledgeGraph.getAsset(delta.observationId(),contextScope,Observation.class);
+      if(observation!=null) refreshed.put(observation.getId(),observation);
+    }
+    Platform.runLater(() -> {
+      for(var openAsset:getOpenEditorAssets()) {
+        var observation=refreshed.get(openAsset.getId());
+        if(observation!=null) refreshEditor(openAsset,observation);
+      }
+    });
+  }
+
+  @Override
   public void scheduleModified(Schedule schedule) {
     if (knowledgeGraphView != null) {
       knowledgeGraphView.scheduleModified(schedule);

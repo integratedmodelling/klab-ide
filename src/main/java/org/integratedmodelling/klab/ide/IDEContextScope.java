@@ -73,9 +73,7 @@ public class IDEContextScope implements ContextScope {
 
   public IDEContextScope(ClientContextScope delegate) {
     this.delegate = Objects.requireNonNull(delegate);
-    delegate
-        .getDigitalTwin()
-        .addEventConsumer(this::acceptDigitalTwinEvent);
+    delegate.getDigitalTwin().addEventConsumer(this::acceptDigitalTwinEvent);
   }
 
   public void removeViewer(DigitalTwinViewer viewer) {
@@ -94,8 +92,7 @@ public class IDEContextScope implements ContextScope {
 
   public void setFocalAssets(RuntimeAsset rootAsset, RuntimeAsset focalAssets) {
     focalAsset.set(isKnowledgeGraphAsset(focalAssets) ? focalAssets : null);
-    focalRoot.set(
-        isKnowledgeGraphAsset(rootAsset) ? rootAsset : RuntimeAsset.CONTEXT_ASSET);
+    focalRoot.set(isKnowledgeGraphAsset(rootAsset) ? rootAsset : RuntimeAsset.CONTEXT_ASSET);
   }
 
   public List<Pair<KnowledgeGraph.Commit, Observation>> getCommits() {
@@ -176,11 +173,9 @@ public class IDEContextScope implements ContextScope {
 
     switch (message.getMessageType()) {
       case ObservationSubmissionStarted ->
-          notifyViewers(
-              viewer -> viewer.submissionStarted(message.getPayload(Observation.class)));
+          notifyViewers(viewer -> viewer.submissionStarted(message.getPayload(Observation.class)));
       case ObservationSubmissionAborted ->
-          notifyViewers(
-              viewer -> viewer.submissionAborted(message.getPayload(Observation.class)));
+          notifyViewers(viewer -> viewer.submissionAborted(message.getPayload(Observation.class)));
       case ObservationSubmissionFinished ->
           processSubmissionFinished(message.getPayload(Observation.class), true);
       case ContextObservationResolved ->
@@ -193,7 +188,22 @@ public class IDEContextScope implements ContextScope {
         notifyViewers(DigitalTwinViewer::knowledgeGraphModified);
       }
       case ActivityFinished -> {
-        upsertActivity(message.getPayload(Activity.class), true);
+        var activity = message.getPayload(Activity.class);
+        var encoded =
+            activity
+                .getMetadata()
+                .get(org.integratedmodelling.klab.api.digitaltwin.TransitionCommit.METADATA_KEY);
+        if (encoded != null && activity.getOutcome() == Activity.Outcome.SUCCESS) {
+          var transition =
+              org.integratedmodelling.common.utils.Utils.Json.parseObject(
+                  encoded.toString(),
+                  org.integratedmodelling.klab.api.digitaltwin.TransitionCommit.class);
+          if (transition.consequential()) {
+            notifyViewers(viewer -> viewer.temporalTransitionCommitted(transition));
+            notifyViewers(DigitalTwinViewer::knowledgeGraphModified);
+          }
+        }
+        upsertActivity(activity, true);
         notifyViewers(DigitalTwinViewer::activitiesModified);
       }
       case ActivityStarted -> {
@@ -208,13 +218,19 @@ public class IDEContextScope implements ContextScope {
     }
   }
 
+  public org.integratedmodelling.common.services.client.digitaltwin.TransitionHistory
+      getTransitionHistory() {
+    return delegate.getDigitalTwin().getTransitionHistory();
+  }
+
   private void upsertActivity(Activity activity, boolean finished) {
     activityCatalog.accept(activity, finished);
   }
 
   private synchronized boolean replaceObserverSnapshot(Observation observation) {
     var selected = delegate.getObserver();
-    if (selected == null || observation == null || selected.getId() != observation.getId()) return false;
+    if (selected == null || observation == null || selected.getId() != observation.getId())
+      return false;
     delegate = (ClientContextScope) delegate.withObserver(observation);
     return true;
   }
@@ -222,15 +238,21 @@ public class IDEContextScope implements ContextScope {
   private void processSubmissionFinished(Observation observation, boolean knowledgeGraphCurrent) {
     if (knowledgeGraphCurrent && delegate.getObserver() != null) {
       var current = delegate.getObserver();
-      var refreshed = getDigitalTwin().getKnowledgeGraph().getAsset(current.getId(), this, Observation.class);
+      var refreshed =
+          getDigitalTwin().getKnowledgeGraph().getAsset(current.getId(), this, Observation.class);
       if (replaceObserverSnapshot(refreshed)) {
         notifyViewers(viewer -> viewer.setObserver(refreshed));
       }
     }
-    if (observation != null && observation.getObservable() != null
-        && observation.getObservable().is(org.integratedmodelling.klab.api.knowledge.SemanticType.AGENT)
-        && !Boolean.TRUE.equals(observation.getMetadata().get(
-            org.integratedmodelling.klab.api.knowledge.DefaultObserver.EXPLICIT))) {
+    if (observation != null
+        && observation.getObservable() != null
+        && observation
+            .getObservable()
+            .is(org.integratedmodelling.klab.api.knowledge.SemanticType.AGENT)
+        && !Boolean.TRUE.equals(
+            observation
+                .getMetadata()
+                .get(org.integratedmodelling.klab.api.knowledge.DefaultObserver.EXPLICIT))) {
       notifyViewers(DigitalTwinViewer::knowledgeGraphModified);
       return;
     }
@@ -265,7 +287,8 @@ public class IDEContextScope implements ContextScope {
 
   private void addCommit(Pair<KnowledgeGraph.Commit, Observation> of) {
     synchronized (commits) {
-      if (commits.stream().noneMatch(commit -> commit.getFirst().getId() == of.getFirst().getId())) {
+      if (commits.stream()
+          .noneMatch(commit -> commit.getFirst().getId() == of.getFirst().getId())) {
         commits.add(of);
       }
     }

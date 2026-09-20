@@ -54,6 +54,7 @@ public class Timeline extends BaseAssetViewComponent {
   /** Class representing an event on the timeline. */
   public static class Event {
     private final long timestamp;
+    private final String label;
     private final EventType type;
     private final Consumer<Event> onClick;
     private Node icon;
@@ -66,7 +67,12 @@ public class Timeline extends BaseAssetViewComponent {
      * @param onClick The consumer to call when the event is clicked
      */
     public Event(long timestamp, EventType type, Consumer<Event> onClick) {
+      this(timestamp, type, "", onClick);
+    }
+
+    public Event(long timestamp, EventType type, String label, Consumer<Event> onClick) {
       this.timestamp = timestamp;
+      this.label = label;
       this.type = type;
       this.onClick = onClick;
     }
@@ -254,6 +260,18 @@ public class Timeline extends BaseAssetViewComponent {
    *
    * @param newEndTimeMs The new end time in milliseconds from epoch
    */
+  /** Replace the projection from the deduplicated durable history, including historical bounds. */
+  public void replaceEvents(long start, long end, List<Event> committedEvents) {
+    if (end <= start) end = start + 1;
+    startTimeMs = start;
+    endTimeMs = end;
+    events.clear();
+    events.addAll(committedEvents);
+    if (startTimeLabel != null) startTimeLabel.setText(formatTime(start));
+    if (endTimeLabel != null) endTimeLabel.setText(formatTime(end));
+    drawTimeline();
+  }
+
   public void updateEndTime(long newEndTimeMs) {
     if (newEndTimeMs > startTimeMs) {
       this.endTimeMs = newEndTimeMs;
@@ -313,7 +331,7 @@ public class Timeline extends BaseAssetViewComponent {
         break;
     }
     // Add a tooltip showing the event timestamp
-    Tooltip tooltip = new Tooltip(formatTime(event.getTimestamp()));
+    Tooltip tooltip = new Tooltip(formatTime(event.getTimestamp()) + "\n" + event.label);
     Tooltip.install(circle, tooltip);
 
     // Add click handler
@@ -335,6 +353,15 @@ public class Timeline extends BaseAssetViewComponent {
    * Draws the timeline with alternating vertical sections of contrasting grey colors. Also draws
    * any events that have been added to the timeline.
    */
+  static int intervalCount(long duration, TimeUnit unit, int multiplier, double width) {
+    double requested =
+        Math.ceil(
+            (double) Math.max(1, duration)
+                / Math.max(1.0, unit.toMillis(1) * (double) Math.max(1, multiplier)));
+    return (int)
+        Math.max(1, Math.min(requested, Math.max(1, Math.min(500, Math.floor(width / 12)))));
+  }
+
   public void drawTimeline() {
     timelinePane.getChildren().clear();
 
@@ -359,7 +386,7 @@ public class Timeline extends BaseAssetViewComponent {
     long durationInUnit = timeUnit.convert(durationMs, TimeUnit.MILLISECONDS);
 
     // Calculate the number of intervals
-    int numIntervals = (int) Math.ceil((double) durationInUnit / multiplier);
+    int numIntervals = intervalCount(durationMs, timeUnit, multiplier, width);
 
     // Calculate the width of each interval
     double intervalWidth = width / numIntervals;
@@ -369,9 +396,8 @@ public class Timeline extends BaseAssetViewComponent {
       Rectangle section = new Rectangle(i * intervalWidth, 0, intervalWidth, height);
 
       // Calculate interval start and end times
-      long intervalStart = startTimeMs + (long) ((double) i * multiplier * timeUnit.toMillis(1));
-      long intervalEnd =
-          startTimeMs + (long) ((double) (i + 1) * multiplier * timeUnit.toMillis(1));
+      long intervalStart = startTimeMs + (long) ((double) i * durationMs / numIntervals);
+      long intervalEnd = startTimeMs + (long) ((double) (i + 1) * durationMs / numIntervals);
 
       // Create tooltip with interval information
       String tooltipText =
@@ -379,8 +405,7 @@ public class Timeline extends BaseAssetViewComponent {
       Tooltip.install(section, new Tooltip(tooltipText));
 
       // Alternate between light and dark grey
-      section.setStyle(
-          "-fx-fill: " + (i % 2 == 0 ? STRIPE_LIGHT_COLOR : STRIPE_DARK_COLOR) + ";");
+      section.setStyle("-fx-fill: " + (i % 2 == 0 ? STRIPE_LIGHT_COLOR : STRIPE_DARK_COLOR) + ";");
 
       timelinePane.getChildren().add(section);
 
@@ -416,7 +441,7 @@ public class Timeline extends BaseAssetViewComponent {
 
       // Position the icon with vertical offset if needed
       icon.setLayoutX(position);
-      if (event.getType() != EventType.TIME) {
+      if (eventsAtSameTime > 1 || event.getType() != EventType.TIME) {
         double baseOffset = 20; // Base distance from bottom
         double verticalSpacing = 10; // Space between events
         double proposedY = height - (baseOffset + (verticalSpacing * currentEventIndex));
