@@ -242,7 +242,12 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
   }
 
   public void addEditor(EditorPage<?, ?> node, String title, Node icon) {
+    addEditor(node, title, icon, true);
+  }
+
+  protected void addEditor(EditorPage<?, ?> node, String title, Node icon, boolean closable) {
     var tab = new Tab(title, node);
+    tab.setClosable(closable);
     tab.setGraphic(icon);
     Platform.runLater(
         () -> {

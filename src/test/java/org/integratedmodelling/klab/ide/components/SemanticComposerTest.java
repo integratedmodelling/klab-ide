@@ -68,8 +68,12 @@ class SemanticComposerTest {
       var card = new org.integratedmodelling.klab.ide.components.cards.ObservableCard(concept, List.of(direct, inherited));
       var content = (javafx.scene.layout.VBox) card.getCenter();
       assertInstanceOf(javafx.scene.text.TextFlow.class, content.getChildren().getFirst());
-      var directRow = (HBox) content.getChildren().get(2);
-      var inheritedRow = (HBox) content.getChildren().get(3);
+      var rows = content.getChildren().stream().filter(HBox.class::isInstance).map(HBox.class::cast).toList();
+      assertEquals(2, rows.size());
+      var directRow = rows.get(0);
+      var inheritedRow = rows.get(1);
+      assertTrue(content.getChildren().stream().filter(Label.class::isInstance).map(Label.class::cast)
+          .anyMatch(label -> concept.getUrn().equals(label.getText())));
       assertEquals("Direct restriction", ((Label) directRow.getChildren().getFirst()).getTooltip().getText());
       assertEquals("Inherited restriction", ((Label) inheritedRow.getChildren().getFirst()).getTooltip().getText());
       var flow = (javafx.scene.text.TextFlow) directRow.getChildren().get(1);

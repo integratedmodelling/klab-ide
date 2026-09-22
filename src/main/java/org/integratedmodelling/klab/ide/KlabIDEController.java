@@ -698,6 +698,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   public void selectView(View view) {
     this.currentView = view;
+    if (view == View.WORLDVIEW && ontologyView != null) ontologyView.show();
     for (var v : viewButtons.keySet()) {
       var button = viewButtons.get(v);
       if (v == view) {
@@ -1409,6 +1410,8 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   @Override
   public void notifyServiceStatus(KlabService service, KlabService.ServiceStatus status) {
     this.serviceStatus.put(service, status);
+    if (ontologyView != null && (status.getServiceType() == KlabService.Type.RESOURCES
+        || status.getServiceType() == KlabService.Type.REASONER)) ontologyView.refresh();
     // Status messages may contain a freshly deserialized service descriptor. Do
     // not require object identity with the descriptor held by the selected view.
     serviceStatusListeners.forEach(
@@ -1647,6 +1650,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
         engine.resetWorldview();
       }
     }
+    if (ontologyView != null) ontologyView.refresh();
   }
 
   @Override
@@ -2226,6 +2230,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   @Override
   public boolean shutdown(boolean shutdownLocalServices) {
+    if (ontologyView != null) ontologyView.close();
     if (stackUpdateChecker != null) {
       stackUpdateChecker.shutdownNow();
       stackUpdateChecker = null;

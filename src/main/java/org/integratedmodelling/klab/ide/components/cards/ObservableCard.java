@@ -45,12 +45,41 @@ public class ObservableCard extends BaseCard<Observable> {
     var observable = new org.integratedmodelling.common.knowledge.ObservableImpl();
     observable.setSemantics(concept); observable.setUrn(concept.getUrn()); return observable;
   }
+
+  /** Add already-loaded graph evidence without remote calls while rendering an inspector. */
+  public void addRelationships(Map<String, List<Concept>> relationships) {
+    if (relationships.isEmpty()) return;
+    var content = (VBox) getCenter();
+    content.getChildren().add(new Label("Relationships in the current graph"));
+    relationships.forEach((label, concepts) -> {
+      for (var concept : concepts) {
+        var row = new VBox(2, new Label(label), Theme.semanticExpression(List.of(StyledKimToken.create(concept))));
+        content.getChildren().add(row);
+      }
+    });
+  }
   @Override protected void drawContent() {
     var title = Theme.semanticExpression(List.of(StyledKimToken.create(asset.getSemantics())));
     var type = SemanticType.fundamentalType(asset.getSemantics().getType());
     var detail = new Label((type == null ? "Observable" : type.name().toLowerCase().replace('_', ' '))
         + (asset.getSemantics().isCollective() ? " / collective" : "") + (asset.isAbstract() ? " / abstract" : ""));
-    var content = new VBox(6, title, detail); content.setPadding(new Insets(10)); setCenter(content);
+    detail.setWrapText(true);
+    var urn = new Label(asset.getSemantics().getUrn());
+    urn.setWrapText(true);
+    urn.setTooltip(new Tooltip("Concept URN"));
+    var content = new VBox(6, title, detail, urn);
+    var metadata = asset.getSemantics().getMetadata();
+    for (var key : List.of(org.integratedmodelling.klab.api.data.Metadata.DC_COMMENT,
+        org.integratedmodelling.klab.api.data.Metadata.RDFS_COMMENT)) {
+      if (metadata.get(key) instanceof String description && !description.isBlank()) {
+        var text = new Label(description); text.setWrapText(true); content.getChildren().add(text);
+        break;
+      }
+    }
+    for (var notification : asset.getSemantics().getNotifications()) {
+      var text = new Label(notification.getMessage()); text.setWrapText(true); content.getChildren().add(text);
+    }
+    content.setPadding(new Insets(10)); setCenter(content);
     setStyle("-fx-background-color: -color-bg-subtle; -fx-border-color: -color-border-default; -fx-border-radius: 4;");
   }
 }

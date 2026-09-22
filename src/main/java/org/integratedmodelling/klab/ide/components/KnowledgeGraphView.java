@@ -1,6 +1,5 @@
 package org.integratedmodelling.klab.ide.components;
 
-import atlantafx.base.controls.ToggleSwitch;
 import atlantafx.base.theme.Styles;
 import atlantafx.base.util.IntegerStringConverter;
 import com.brunomnsilva.smartgraph.containers.ContentZoomScrollPane;
@@ -81,22 +80,15 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
     controls.getStyleClass().add(Styles.SMALL);
     controls.setStyle("-fx-padding: 5px;");
 
-    HBox switchesBox = new HBox(2);
-    switchesBox.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
-    switchesBox.getStyleClass().add(Styles.SMALL);
+    MenuButton switchesBox = new MenuButton("Layers", new FontIcon(Material2AL.FILTER_LIST));
+    switchesBox.getStyleClass().addAll(Styles.FLAT, Styles.SMALL);
 
-    // TODO use toggle buttons with icons
-    ToggleSwitch affectedSwitch = new ToggleSwitch("Affected");
-    ToggleSwitch dataSwitch = new ToggleSwitch("Data");
-    ToggleSwitch activitiesSwitch = new ToggleSwitch("Activities");
-    ToggleSwitch actuatorsSwitch = new ToggleSwitch("Actuators");
-    ToggleSwitch cohortsSwitch = new ToggleSwitch("Cohorts");
+    GraphLayerMenuItem affectedSwitch = new GraphLayerMenuItem("Affected");
+    GraphLayerMenuItem dataSwitch = new GraphLayerMenuItem("Data");
+    GraphLayerMenuItem activitiesSwitch = new GraphLayerMenuItem("Activities");
+    GraphLayerMenuItem actuatorsSwitch = new GraphLayerMenuItem("Actuators");
+    GraphLayerMenuItem cohortsSwitch = new GraphLayerMenuItem("Cohorts");
 
-    affectedSwitch.getStyleClass().addAll(Styles.SMALL, Styles.TEXT_SMALL);
-    dataSwitch.getStyleClass().addAll(Styles.SMALL, Styles.TEXT_SMALL);
-    activitiesSwitch.getStyleClass().addAll(Styles.SMALL, Styles.TEXT_SMALL);
-    actuatorsSwitch.getStyleClass().addAll(Styles.SMALL, Styles.TEXT_SMALL);
-    cohortsSwitch.getStyleClass().addAll(Styles.SMALL, Styles.TEXT_SMALL);
     cohortsSwitch.setSelected(true);
 
     this.homeButton = new MenuButton();
@@ -234,7 +226,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
             });
 
     switchesBox
-        .getChildren()
+        .getItems()
         .addAll(affectedSwitch, dataSwitch, activitiesSwitch, actuatorsSwitch, cohortsSwitch);
     HBox spinnerBox = new HBox(backButton, forwardButton, homeButton, spinner, redrawButton);
     HBox.setHgrow(spinnerBox, javafx.scene.layout.Priority.ALWAYS);

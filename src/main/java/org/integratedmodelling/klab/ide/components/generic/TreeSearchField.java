@@ -129,6 +129,11 @@ public class TreeSearchField<T> extends HBox {
     requestTreeFocus();
   }
 
+  /** Restore all items before an external selection or a replacement of the tree model. */
+  public void clearSearch() {
+    searchField.clear();
+  }
+
   private void requestTreeFocus() {
     if (treeTableView != null) {
       treeTableView.requestFocus();
