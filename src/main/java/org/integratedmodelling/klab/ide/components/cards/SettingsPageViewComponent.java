@@ -13,6 +13,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
+import javafx.stage.DirectoryChooser;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.configuration.Setting;
 import org.integratedmodelling.klab.api.configuration.Settings;
@@ -115,9 +116,16 @@ public abstract class SettingsPageViewComponent extends VBox {
 
             chooseButton.setOnAction(
                 e -> {
-                  FileChooser fileChooser = new FileChooser();
-                  fileChooser.setTitle("Select File");
-                  File selectedFile = fileChooser.showOpenDialog(getScene().getWindow());
+                  File selectedFile;
+                  if (data.getValue().directory) {
+                    DirectoryChooser directoryChooser = new DirectoryChooser();
+                    directoryChooser.setTitle("Select Directory");
+                    selectedFile = directoryChooser.showDialog(getScene().getWindow());
+                  } else {
+                    FileChooser fileChooser = new FileChooser();
+                    fileChooser.setTitle("Select File");
+                    selectedFile = fileChooser.showOpenDialog(getScene().getWindow());
+                  }
                   if (selectedFile != null) {
                     fileField.setText(selectedFile.getAbsolutePath());
                     onChangedSetting(data.getValue(), selectedFile);
