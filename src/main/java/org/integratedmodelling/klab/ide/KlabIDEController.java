@@ -945,9 +945,17 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     this.errorLabel.setTooltip(new Tooltip("No unread errors."));
     this.infoLabel.setTooltip(new Tooltip("No unread notifications."));
 
+    var spacer = new Region();
+    if (rootPane != null && rootPane.getLeft() instanceof Region leftRail) {
+      spacer.minWidthProperty().bind(leftRail.widthProperty());
+      spacer.prefWidthProperty().bind(leftRail.widthProperty());
+      spacer.maxWidthProperty().bind(leftRail.widthProperty());
+    }
+
     statusBar
         .getChildren()
         .addAll(
+            spacer,
             messageLabel,
             digitalTwinBox,
             infoLabel,
