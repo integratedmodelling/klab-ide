@@ -23,6 +23,9 @@ import org.integratedmodelling.klab.modeler.model.NavigableProject;
 
 public class KnowledgeGraphTree extends KlabTreeView<RuntimeAsset> implements DigitalTwinViewer {
 
+  private final org.integratedmodelling.klab.ide.utils.AsyncLoad<
+      org.integratedmodelling.klab.api.collections.Pair<TreeModel.AssetTreeItem, TreeModel.AssetTreeItem>> treeLoad =
+          new org.integratedmodelling.klab.ide.utils.AsyncLoad<>();
   private TreeModel.AssetTreeItem previousBoldItem;
   private ClientKnowledgeGraph clientKnowledgeGraph;
   private TreeModel.AssetTreeItem root;
@@ -113,11 +116,8 @@ public class KnowledgeGraphTree extends KlabTreeView<RuntimeAsset> implements Di
     this.clientKnowledgeGraph = this.scope.getDigitalTwin().getKnowledgeGraph();
     setCellFactory(p -> new AssetTreeCell(editor));
 
-    var pair = TreeModel.createTree(rootAsset, null, scope);
-    setRoot(pair.getFirst());
-    if (pair.getSecond() != null) {
-      getSelectionModel().select(pair.getSecond());
-    }
+    setRoot(new TreeItem<>(rootAsset));
+    update(rootAsset, null);
   }
 
   @Override
@@ -133,11 +133,10 @@ public class KnowledgeGraphTree extends KlabTreeView<RuntimeAsset> implements Di
 
   public void update(RuntimeAsset rootAsset, RuntimeAsset focus) {
 
-    var pair = TreeModel.createTree(rootAsset, focus, scope);
-    setRoot(pair.getFirst());
-    if (pair.getSecond() != null) {
-      getSelectionModel().select(pair.getSecond());
-    }
+    treeLoad.load(() -> TreeModel.createTree(rootAsset, focus, scope), pair -> {
+      setRoot(pair.getFirst());
+      if (pair.getSecond() != null) getSelectionModel().select(pair.getSecond());
+    }, error -> org.integratedmodelling.common.logging.Logging.INSTANCE.error("Cannot load observation tree", error));
   }
 
   @Override
@@ -226,6 +225,7 @@ public class KnowledgeGraphTree extends KlabTreeView<RuntimeAsset> implements Di
   @Override
   public void cleanup() {}
 
+
   @Override
   public void activitiesModified() {}
 
@@ -235,7 +235,7 @@ public class KnowledgeGraphTree extends KlabTreeView<RuntimeAsset> implements Di
   }
 
   @Override
-  public void close() {}
+  public void close() { treeLoad.invalidate(); }
 
   @Override
   public void closeDigitalTwin(IDEContextScope ideContextScope) {}

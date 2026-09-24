@@ -41,6 +41,10 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
 
   private record GraphViewState(RuntimeAsset root, RuntimeAsset focus) {}
 
+  private final org.integratedmodelling.klab.ide.utils.AsyncLoad<
+      org.jgrapht.Graph<RuntimeAsset, ClientKnowledgeGraph.Relationship>> graphLoad =
+          new org.integratedmodelling.klab.ide.utils.AsyncLoad<>();
+  private final Label loadStatus = new Label();
   private final ClientKnowledgeGraph knowledgeGraph;
   private final IDEContextScope scope;
   private final DigitalTwinEditor editor;
@@ -230,7 +234,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
         .addAll(affectedSwitch, dataSwitch, activitiesSwitch, actuatorsSwitch, cohortsSwitch);
     HBox spinnerBox = new HBox(backButton, forwardButton, homeButton, spinner, redrawButton);
     HBox.setHgrow(spinnerBox, javafx.scene.layout.Priority.ALWAYS);
-    controls.getChildren().addAll(spinnerBox, switchesBox);
+    controls.getChildren().addAll(spinnerBox, switchesBox, loadStatus);
     controls.getStyleClass().addAll("knowledge-graph-controls");
     this.setTop(controls);
 
@@ -341,12 +345,8 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
                 this.initialized = true;
                 this.graphViewReady = true;
 
-                // Process any pending focal asset update
-                if (pendingFocalAssets != null) {
-                  pendingFocalAssets = null;
-                } else if (scope.getFocalAsset() != null) {
-                  updateGraph();
-                }
+                pendingFocalAssets = null;
+                updateGraph(); // Reconnect has a context root even without a focal observation.
               } else {
                 // Still not ready, try again
                 Platform.runLater(() -> initializeGraphView());
@@ -354,12 +354,6 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
             } catch (IllegalStateException e) {
               Logging.INSTANCE.warn(
                   "Graph view initialization failed, retrying: " + e.getMessage());
-              // If still not ready, try again after another layout pass
-              try {
-                Thread.sleep(300);
-              } catch (InterruptedException ex) {
-                // fock
-              }
               Platform.runLater(
                   () -> {
                     if (graphView.getWidth() > 0
@@ -371,13 +365,8 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
                         this.initialized = true;
                         this.setGraphViewReady(true);
 
-                        // Process any pending focal asset update
-                        if (pendingFocalAssets != null) {
-                          updateGraph();
-                          pendingFocalAssets = null;
-                        } else if (scope.getFocalAsset() != null) {
-                          updateGraph();
-                        }
+                        pendingFocalAssets = null;
+                        updateGraph();
                       } catch (IllegalStateException ex) {
                         Logging.INSTANCE.error("Failed to initialize graph view after retry", ex);
                       }
@@ -406,17 +395,22 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
       return;
     }
 
-    clear();
-    var graph =
-        TreeModel.createGraph(
-            currentGraphRoot(),
-            scope.getGraphDepth(),
-            scope,
-            visibleTypes,
-            visibleRelationships,
-            currentGraphFocus(),
-            true);
+    var root = currentGraphRoot();
+    var focus = currentGraphFocus();
+    int depth = scope.getGraphDepth();
+    var types = Set.copyOf(visibleTypes);
+    var relationships = Set.copyOf(visibleRelationships);
+    loadStatus.setText("Loading graph…");
+    graphLoad.load(() -> TreeModel.createGraph(root, depth, scope, types, relationships, focus, true),
+        this::displayGraph, error -> {
+          loadStatus.setText("Graph unavailable; use refresh to retry");
+          Logging.INSTANCE.error("Cannot load digital twin graph", error);
+        });
+  }
 
+  private void displayGraph(org.jgrapht.Graph<RuntimeAsset, ClientKnowledgeGraph.Relationship> graph) {
+    loadStatus.setText("");
+    clear();
     var cache = new HashMap<Long, Asset>();
     for (var vertex : graph.vertexSet()) {
       var asset = new Asset(vertex);
@@ -689,7 +683,7 @@ public class KnowledgeGraphView extends BorderPane implements DigitalTwinViewer 
   }
 
   @Override
-  public void close() {}
+  public void close() { graphLoad.invalidate(); }
 
   @Override
   public void closeDigitalTwin(IDEContextScope ideContextScope) {}

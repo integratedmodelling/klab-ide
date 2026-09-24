@@ -29,6 +29,10 @@ import org.integratedmodelling.klab.ide.utils.DoubleClickHandler;
 import org.kordamp.ikonli.material2.Material2AL;
 
 public class ObservationTree extends KlabTreeTableView<RuntimeAsset> {
+  private final org.integratedmodelling.klab.ide.utils.AsyncLoad<
+      org.integratedmodelling.klab.api.collections.Pair<TreeModel.AssetTreeItem, TreeModel.AssetTreeItem>> treeLoad =
+          new org.integratedmodelling.klab.ide.utils.AsyncLoad<>();
+
 
   private ClientKnowledgeGraph clientKnowledgeGraph;
   private IDEContextScope scope;
@@ -187,15 +191,15 @@ public class ObservationTree extends KlabTreeTableView<RuntimeAsset> {
 
   public void update(RuntimeAsset rootAsset, RuntimeAsset focalAsset, IDEContextScope scope) {
     this.scope = scope;
-    var root = TreeModel.createTree(rootAsset, focalAsset, scope);
-    descriptions.clear();
-    setRoot(root.getFirst());
-    if (root.getSecond() != null) {
-      getSelectionModel().select(root.getSecond());
-    }
+    treeLoad.load(() -> TreeModel.createTree(rootAsset, focalAsset, scope), root -> {
+      descriptions.clear();
+      setRoot(root.getFirst());
+      if (root.getSecond() != null) getSelectionModel().select(root.getSecond());
+    }, error -> org.integratedmodelling.common.logging.Logging.INSTANCE.error("Cannot load observations", error));
   }
 
   public void reset() {
+    treeLoad.invalidate();
     scope = null;
     descriptions.clear();
     setRoot(new TreeItem<>());

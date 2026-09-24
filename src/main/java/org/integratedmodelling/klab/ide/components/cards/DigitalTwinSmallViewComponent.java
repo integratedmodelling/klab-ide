@@ -30,6 +30,13 @@ public class DigitalTwinSmallViewComponent extends BaseAssetViewComponent {
   ContextInfo digitalTwin;
   Consumer<ContextScope> selectAction;
   boolean local;
+  private Label title;
+
+  public void setLocal(boolean local) {
+    this.local = local;
+    if (title != null) title.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;"
+        + (local ? " -fx-text-fill:-color-success-emphasis;" : ""));
+  }
 
   public DigitalTwinSmallViewComponent(
       ContextInfo digitalTwin,
@@ -51,7 +58,7 @@ public class DigitalTwinSmallViewComponent extends BaseAssetViewComponent {
     VBox.setVgrow(content, Priority.ALWAYS);
     content.setPrefWidth(280);
 
-    Label title = new Label(digitalTwin.getConfiguration().getName());
+    title = new Label(digitalTwin.getConfiguration().getName());
     title.setStyle(
         "-fx-font-weight: bold; -fx-font-size: 14px;"
             + (local ? " -fx-text-fill:-color-success-emphasis;" : ""));
@@ -60,13 +67,28 @@ public class DigitalTwinSmallViewComponent extends BaseAssetViewComponent {
     Button openButton = new Button();
     openButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
     openButton.setGraphic(new FontIcon(Material2MZ.OPEN_IN_NEW));
-    openButton.setOnAction(
-        e -> {
-          if (selectAction != null) {
-            selectAction.accept(
-                KlabIDEController.instance().user().connect(digitalTwin.getConfiguration()));
-          }
-        });
+    var connectionStatus = new Label();
+    connectionStatus.setWrapText(true);
+    var connection = new org.integratedmodelling.klab.ide.utils.AsyncLoad<ContextScope>();
+    openButton.setOnAction(e -> {
+      if (selectAction == null) return;
+      openButton.setDisable(true);
+      connectionStatus.setText("Connecting…");
+      var user = KlabIDEController.instance().user();
+      connection.load(() -> {
+        var scope = user.connect(digitalTwin.getConfiguration());
+        if (scope == null) throw new IllegalStateException("The runtime could not reconnect this digital twin");
+        return scope;
+      }, scope -> {
+        openButton.setDisable(false);
+        connectionStatus.setText("");
+        selectAction.accept(scope);
+      }, error -> {
+        openButton.setDisable(false);
+        connectionStatus.setText("Connection failed: " + error.getMessage());
+      });
+    });
+    content.getChildren().add(connectionStatus);
 
     Button linkButton = new Button();
     linkButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);

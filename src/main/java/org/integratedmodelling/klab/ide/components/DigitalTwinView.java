@@ -32,6 +32,7 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
   //  private final Map<String, ContextScope> digitalTwins = new HashMap<>();
   private final Map<String, DigitalTwinEditor> openEditors = new HashMap<>();
   private String localServiceId;
+  private long browserGeneration;
 
   private List<Node> components = new ArrayList<>();
   private Node workspaceDialog;
@@ -47,7 +48,7 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
   }
 
   @Override
-  public void reset() {}
+  public void reset() { browserGeneration++; }
 
   public DigitalTwinView() {
     super(
@@ -62,11 +63,6 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
             s.capabilities(KlabIDEController.modeler().user())
                 .getPermissions()
                 .contains(CRUDOperation.CREATE))*/
-        .sorted(
-            (s1, s2) ->
-                Utils.URLs.isLocalHost(s1.getUrl()) && !Utils.URLs.isLocalHost(s2.getUrl())
-                    ? -1
-                    : (Utils.URLs.isLocalHost(s2.getUrl()) ? 0 : 1))
         .toList();
   }
 
@@ -96,16 +92,12 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
   @Override
   protected void assetEditorClosed(DigitalTwinEditor asset) {
     Logging.INSTANCE.info("Closing scope " + asset);
-    if (openEditors.containsKey(asset.getId())) {
-      openEditors.get(asset.getId()).close();
-      removeEditor(openEditors.get(asset.getId()));
+    var editor = openEditors.remove(asset.getEditedAsset().getId());
+    if (editor != null) {
+      editor.close();
+      removeEditor(editor);
     }
-    openEditors.remove(asset.getId());
-    if (openEditors.isEmpty()) {
-      hideBrowser();
-    } else {
-      updateBrowser();
-    }
+    updateBrowser();
     // select whatever remains in the editor. When closing X with just X in the editor, X for some
     // reason remains selected, hence the check
     var nextEditor = getSelectedEditor();
@@ -126,19 +118,54 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
     if (workspaceDialog != null) {
       components.add(workspaceDialog);
     }
-    for (var dt : getContextList()) {
-      //  skip the opened ones
-      if (openEditors.containsKey(dt.getConfiguration().getId())) {
-        continue;
-      }
-      var isLocal = Utils.URLs.isLocalHost(dt.getConfiguration().getUrl());
-      var dtComponent =
-          new DigitalTwinSmallViewComponent(
-              dt, this::showDigitalTwin, this::removeDigitalTwin, isLocal);
-      components.add(dtComponent);
-      dtComponent.createContent();
-    }
     browserComponents.getChildren().addAll(components);
+    long generation = ++browserGeneration;
+    var status = new Label("Loading digital twins…");
+    components.add(status);
+    browserComponents.getChildren().add(status);
+    var services = getServices();
+    var pending = new java.util.concurrent.atomic.AtomicInteger(services.size());
+    var shown = new HashSet<String>();
+    var failed = new ArrayList<String>();
+    if (services.isEmpty()) status.setText("No runtime services available");
+    var user = KlabIDEController.instance().user();
+    for (var service : services) {
+      java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+        long started = System.nanoTime();
+        var twins = service.getContextInfo(user);
+        Logging.INSTANCE.info("Digital twin summaries from " + service.serviceName() + ": "
+            + twins.size() + " in " + (System.nanoTime() - started) / 1_000_000 + " ms");
+        return twins;
+      },
+          command -> Thread.startVirtualThread(command)).whenComplete((twins, error) ->
+          javafx.application.Platform.runLater(() -> {
+            if (generation != browserGeneration) return;
+            if (error != null) {
+              failed.add(service.serviceName());
+              Logging.INSTANCE.error("Cannot list digital twins from " + service.serviceName(), error);
+            } else if (twins != null) for (var dt : twins) {
+              if (openEditors.containsKey(dt.getConfiguration().getId())
+                  || !shown.add(dt.getConfiguration().getId())) continue;
+              var card = new DigitalTwinSmallViewComponent(dt, this::showDigitalTwin,
+                  this::removeDigitalTwin, false);
+              card.createContent();
+              components.add(card);
+              browserComponents.getChildren().add(card);
+              java.util.concurrent.CompletableFuture.supplyAsync(
+                  () -> Utils.URLs.isLocalHost(dt.getConfiguration().getUrl()),
+                  command -> Thread.startVirtualThread(command)).thenAccept(local ->
+                  javafx.application.Platform.runLater(() -> {
+                    if (generation == browserGeneration) card.setLocal(local);
+                  }));
+            }
+            if (pending.decrementAndGet() == 0) {
+              status.setText(!failed.isEmpty() ? "Could not load: " + String.join(", ", failed)
+                  : shown.isEmpty() ? "No other digital twins available" : "");
+              status.setManaged(!status.getText().isEmpty());
+              status.setVisible(status.isManaged());
+            }
+          }));
+    }
   }
 
   private void addDigitalTwin() {
@@ -292,7 +319,7 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
 
   public void deselectDigitalTwin(IDEContextScope scope) {
     if (openEditors.containsKey(scope.getId())) {
-      var editor = openEditors.get(scope.getId());
+      var editor = openEditors.remove(scope.getId());
       editor.close();
       removeEditor(editor);
     }
@@ -327,7 +354,7 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
   public void removeDigitalTwin(ContextScope scope) {
     hideBrowser();
     if (openEditors.containsKey(scope.getId())) {
-      var editor = openEditors.get(scope.getId());
+      var editor = openEditors.remove(scope.getId());
       editor.close();
       removeEditor(editor);
     }

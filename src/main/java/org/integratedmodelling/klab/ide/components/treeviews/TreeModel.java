@@ -87,7 +87,7 @@ public class TreeModel {
   public static Graph<RuntimeAsset, ClientKnowledgeGraph.Relationship> createGraph(
       RuntimeAsset asset,
       int depth,
-      IDEContextScope scope,
+      org.integratedmodelling.klab.api.scope.ContextScope scope,
       Set<RuntimeAsset.Type> types,
       Set<GraphModel.Relationship> relationships,
       RuntimeAsset focus) {
@@ -97,7 +97,7 @@ public class TreeModel {
   public static Graph<RuntimeAsset, ClientKnowledgeGraph.Relationship> createGraph(
       RuntimeAsset asset,
       int depth,
-      IDEContextScope scope,
+      org.integratedmodelling.klab.api.scope.ContextScope scope,
       Set<RuntimeAsset.Type> types,
       Set<GraphModel.Relationship> relationships,
       RuntimeAsset focus,
@@ -126,7 +126,7 @@ public class TreeModel {
   private static boolean createGraph(
       RuntimeAsset asset,
       int depth,
-      IDEContextScope scope,
+      org.integratedmodelling.klab.api.scope.ContextScope scope,
       Set<RuntimeAsset.Type> types,
       Set<GraphModel.Relationship> relationships,
       Graph<RuntimeAsset, ClientKnowledgeGraph.Relationship> graph,
@@ -227,7 +227,7 @@ public class TreeModel {
    */
   public static List<Pair<RuntimeAsset, GraphModel.Relationship>> getChildren(
       RuntimeAsset asset,
-      IDEContextScope scope,
+      org.integratedmodelling.klab.api.scope.ContextScope scope,
       Set<RuntimeAsset.Type> types,
       Set<GraphModel.Relationship> relationships,
       RuntimeAsset focus) {
@@ -239,7 +239,7 @@ public class TreeModel {
 
   private static List<AssetTraversal> getTraversals(
       RuntimeAsset asset,
-      IDEContextScope scope,
+      org.integratedmodelling.klab.api.scope.ContextScope scope,
       Set<RuntimeAsset.Type> types,
       Set<GraphModel.Relationship> relationships,
       RuntimeAsset focus,
@@ -374,6 +374,10 @@ public class TreeModel {
     private final AtomicReference<AssetTreeItem> focus;
     private final int prefillDepth;
     private boolean updatingChildren = false;
+    private boolean loadingChildren;
+    private boolean childrenFetched;
+    private final org.integratedmodelling.klab.ide.utils.AsyncLoad<List<KnowledgeGraph.Link>> childLoad =
+        new org.integratedmodelling.klab.ide.utils.AsyncLoad<>();
 
     public AssetTreeItem(
         RuntimeAsset asset,
@@ -408,9 +412,8 @@ public class TreeModel {
 
     @Override
     public boolean isLeaf() {
-      return (dynamic && getValue() instanceof Observation)
-          ? getValue().getChildrenCount() == 0
-          : computeChildren().isEmpty();
+      if (dynamic && !childrenFetched && getValue().getChildrenCount() > 0) return false;
+      return computeChildren().isEmpty();
     }
 
     List<RuntimeAsset> computeChildren() {
@@ -428,31 +431,46 @@ public class TreeModel {
         }
       }
 
-      if (dynamic && getValue().getChildrenCount() > nChildren) {
-        //  fish from the main kg
-        for (var asset :
-            scope
-                .getDigitalTwin()
-                .getKnowledgeGraph()
-                .getLinks(
-                    getValue(),
-                    GraphModel.Relationship.Direction.OUTGOING,
-                    scope,
-                    relationships.toArray(GraphModel.Relationship[]::new))) {
-          if (types.contains(asset.target().classify()) && !ret.contains(asset.target())) {
-            graph.addVertex(asset.target());
-            graph.addEdge(
-                getValue(),
-                asset.target(),
-                new ClientKnowledgeGraph.Relationship(
-                    asset.type(), getValue().getId(), asset.target().getId(), Map.of()));
-            ret.add(asset.target());
+      if (dynamic && !childrenFetched && getValue().getChildrenCount() > nChildren) {
+        if (javafx.application.Platform.isFxApplicationThread()) {
+          if (!loadingChildren) {
+            loadingChildren = true;
+            childLoad.load(this::fetchChildren, links -> {
+              addChildren(links);
+              childrenFetched = true;
+              loadingChildren = false;
+              super.getChildren().clear();
+              getChildren();
+            }, error -> {
+              loadingChildren = false;
+              org.integratedmodelling.common.logging.Logging.INSTANCE.error("Cannot expand observation tree", error);
+            });
           }
+        } else {
+          addChildren(fetchChildren());
+          childrenFetched = true;
+          return computeChildren();
         }
       }
 
       ret.removeIf(asset -> !visibleInObservationTree(asset));
       return ret;
+    }
+
+    private List<KnowledgeGraph.Link> fetchChildren() {
+      return new ArrayList<>(scope.getDigitalTwin().getKnowledgeGraph().getLinks(getValue(),
+          GraphModel.Relationship.Direction.OUTGOING, scope,
+          relationships.toArray(GraphModel.Relationship[]::new)));
+    }
+
+    private void addChildren(List<KnowledgeGraph.Link> links) {
+      for (var link : links) {
+        if (types.contains(link.target().classify())) {
+          graph.addVertex(link.target());
+          if (!graph.containsEdge(getValue(), link.target())) graph.addEdge(getValue(), link.target(),
+              new ClientKnowledgeGraph.Relationship(link.type(), getValue().getId(), link.target().getId(), Map.of()));
+        }
+      }
     }
 
     @Override

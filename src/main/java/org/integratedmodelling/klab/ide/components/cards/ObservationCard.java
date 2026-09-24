@@ -232,38 +232,32 @@ public class ObservationCard extends BaseCard<Observation> {
         && asset.getHistograms().values().stream().anyMatch(java.util.Objects::nonNull);
   }
 
-  private Histogram latestHistogram() {
-    if (asset.getHistograms() == null || asset.getHistograms().isEmpty()) {
+  /** Select the persisted state at a time, with timestamp zero denoting initialization. */
+  static Histogram histogramAt(Observation observation, Long timestamp) {
+    if (observation.getHistograms() == null || observation.getHistograms().isEmpty()) {
       return null;
     }
-    Long latestTimestamp = null;
-    Histogram latest = null;
-    for (var entry : asset.getHistograms().entrySet()) {
-      Long timestamp = normalizeTimestamp(entry.getKey());
-      if (entry.getValue() != null
-          && timestamp != null
-          && (latestTimestamp == null || timestamp > latestTimestamp)) {
-        latestTimestamp = timestamp;
-        latest = entry.getValue();
+    Histogram initial = null;
+    Histogram selected = null;
+    Long selectedTime = null;
+    for (var entry : observation.getHistograms().entrySet()) {
+      Long time = normalizeTimestamp(entry.getKey());
+      if (time == null) {
+        continue;
+      }
+      if (time == 0L) {
+        initial = entry.getValue();
+      } else if ((timestamp == null || timestamp != 0L && time <= timestamp)
+          && (selectedTime == null || time > selectedTime)) {
+        selectedTime = time;
+        selected = entry.getValue();
       }
     }
-    return latest;
+    // Initialization is a sentinel, not the Unix epoch: it also precedes pre-1970 states.
+    return selectedTime == null ? initial : selected;
   }
 
-  private Histogram histogramAt(Long timestamp) {
-    if (timestamp == null || asset.getHistograms() == null) {
-      return latestHistogram();
-    }
-    for (var entry : asset.getHistograms().entrySet()) {
-      Long entryTimestamp = normalizeTimestamp(entry.getKey());
-      if (timestamp.equals(entryTimestamp)) {
-        return entry.getValue();
-      }
-    }
-    return null;
-  }
-
-  private Long normalizeTimestamp(Object value) {
+  private static Long normalizeTimestamp(Object value) {
     return switch (value) {
       case Number number -> number.longValue();
       case String string -> {
@@ -281,7 +275,7 @@ public class ObservationCard extends BaseCard<Observation> {
     if (histogramSlot == null) {
       return;
     }
-    Histogram histogram = histogramAt(timestamp);
+    Histogram histogram = histogramAt(asset, timestamp);
     var histogramCard =
         new HistogramCard(
             histogram == null ? Histogram.empty() : histogram,

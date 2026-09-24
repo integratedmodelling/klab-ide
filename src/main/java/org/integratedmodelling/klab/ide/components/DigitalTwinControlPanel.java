@@ -88,7 +88,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   private ScenarioTree scenarioTree;
   private ObserverTree observerTree;
 
-  private View currentView = View.ACTIVITIES;
+  private View currentView = View.OBSERVATIONS;
   private final AtomicReference<CompletableFuture<Observation>> activeSubmission =
       new AtomicReference<>();
   private volatile CompletableFuture<Observation> cancelledSubmission;
@@ -362,6 +362,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
 
   private void loadScope(IDEContextScope scope) {
     this.scope = scope;
+    if (scope != null && scope.getActivityGraph().vertexSet().isEmpty()) currentView = View.OBSERVATIONS;
     if (scope != null) {
       scope.addViewer(this);
       runOnFxThread(
