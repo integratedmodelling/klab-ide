@@ -311,6 +311,14 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
                     }));
   }
 
+  public void showDropProgress() {
+    ++previewGeneration;
+    ProgressIndicator spinner = new ProgressIndicator();
+    spinner.setMaxSize(36, 36);
+    dropZone.getChildren().setAll(spinner);
+    setStatus(Status.RECEIVING);
+  }
+
   public void endReceiving() {
     ++previewGeneration;
     if (status == Status.RECEIVING) {
@@ -388,9 +396,13 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     }
   }
 
+  public Status getStatus() {
+    return status;
+  }
+
   public void setStatus(Status status) {
     this.status = status;
-    Platform.runLater(
+    runOnFxThread(
         () -> {
           switch (status) {
             case IDLE -> {
@@ -431,14 +443,16 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
       setCenter(null); // TODO use some idle view
       //      this.contextPath.setSelectedCrumb(null);
     } else {
-      this.setCenter(
-          switch (currentView) {
-            case ACTIVITIES -> activityTree;
-            case OBSERVATIONS -> observationTree;
-            case OBSERVERS -> observerTree;
-            case SCENARIOS -> scenarioTree;
-            case IDLE -> null;
-          });
+      if (status != Status.RECEIVING) {
+        this.setCenter(
+            switch (currentView) {
+              case ACTIVITIES -> activityTree;
+              case OBSERVATIONS -> observationTree;
+              case OBSERVERS -> observerTree;
+              case SCENARIOS -> scenarioTree;
+              case IDLE -> null;
+            });
+      }
       this.searchArea.show(
           switch (currentView) {
             case ACTIVITIES -> "activities";

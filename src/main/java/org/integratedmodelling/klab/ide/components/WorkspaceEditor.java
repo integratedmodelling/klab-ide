@@ -4,6 +4,7 @@ import atlantafx.base.theme.Styles;
 import atlantafx.base.theme.Tweaks;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import javafx.application.Platform;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -47,6 +48,7 @@ import org.integratedmodelling.klab.ide.components.generic.IconButton;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.ide.components.generic.TreeSearchField;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
+import org.integratedmodelling.klab.ide.utils.AsyncLoad;
 import org.integratedmodelling.klab.modeler.model.*;
 import org.integratedmodelling.klabeditor.Document;
 import org.integratedmodelling.klabeditor.MonacoEditorView;
@@ -422,6 +424,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private NavigableAsset draggedAsset;
   private boolean dropCompleted;
   private boolean panelShownBeforeDrag;
+  private final AsyncLoad<DroppedObservation> dropLoad = new AsyncLoad<>();
+
+  private record DroppedObservation(
+      IDEContextScope scope, CompletableFuture<Observation> submission) {}
 
   @Override
   protected void configureDigitalTwinWidget(DigitalTwinControlPanel digitalTwinMinified) {
@@ -477,11 +483,13 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         event -> {
           var asset = draggedAsset;
           draggedAsset = null;
-          digitalTwinControlPanel.endReceiving();
           if (asset != null && dropCompleted && event.getTransferMode() != null) {
             handleAssetDrop(asset);
-          } else if (!panelShownBeforeDrag || digitalTwinControlPanel.getScope() == null) {
-            hideDigitalTwinControlPanel();
+          } else {
+            digitalTwinControlPanel.endReceiving();
+            if (!panelShownBeforeDrag || digitalTwinControlPanel.getScope() == null) {
+              hideDigitalTwinControlPanel();
+            }
           }
           dropCompleted = false;
           event.consume();
@@ -847,37 +855,54 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   private void handleAssetDrop(NavigableAsset value) {
-
-    var scope = KlabIDEController.instance().requireDefaultContext();
-    if (scope == null) {
-      hideDigitalTwinControlPanel();
-      // No runtime is available to create the requested twin.
-      digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.IDLE);
-      KlabIDEController.instance()
-          .handleNotification(
-              Notification.error("No scope selected and no local runtime service available."));
-      return;
-    }
-    digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.COMPUTING);
-    digitalTwinControlPanel.setDigitalTwin(scope, true);
-    KlabIDEController.instance()
-        .observe(scope, value, /* TODO check drop params */ false)
-        .exceptionally(
-            throwable -> {
-              if (isCancellation(throwable)) {
-                digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.IDLE);
-              } else {
-                digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.ERROR);
-                KlabIDEController.instance()
-                    .handleNotifications(List.of(Notification.error(throwable)));
-              }
-              return Observation.EMPTY_OBSERVATION;
-            })
-        .thenApply(
-            observation -> {
-              digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.IDLE);
-              return observation;
-            });
+    digitalTwinControlPanel.showDropProgress();
+    dropLoad.load(
+        () -> {
+          var scope = KlabIDEController.instance().requireDefaultContext();
+          if (scope == null) {
+            throw new IllegalStateException(
+                "No scope selected and no local runtime service available.");
+          }
+          var submission = KlabIDEController.instance().observe(scope, value, false);
+          return new DroppedObservation(scope, submission);
+        },
+        result -> {
+          var scope = result.scope();
+          var submission = result.submission();
+          digitalTwinControlPanel.setDigitalTwin(scope, true);
+          digitalTwinControlPanel.submissionTask(submission);
+          submission
+              .exceptionally(
+                  throwable -> {
+                    if (isCancellation(throwable)) {
+                      digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.IDLE);
+                    } else {
+                      digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.ERROR);
+                      KlabIDEController.instance()
+                          .handleNotifications(List.of(Notification.error(throwable)));
+                    }
+                    return Observation.EMPTY_OBSERVATION;
+                  })
+              .thenApply(
+                  observation -> {
+                    digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.IDLE);
+                    return observation;
+                  });
+        },
+        failure -> {
+          digitalTwinControlPanel.endReceiving();
+          if (!panelShownBeforeDrag || digitalTwinControlPanel.getScope() == null) {
+            hideDigitalTwinControlPanel();
+          }
+          digitalTwinControlPanel.setStatus(DigitalTwinControlPanel.Status.IDLE);
+          KlabIDEController.instance()
+              .handleNotification(
+                  Notification.error(
+                      failure.getMessage() != null
+                          ? failure.getMessage()
+                          : "Failed to observe asset",
+                      failure));
+        });
   }
 
   private static boolean isCancellation(Throwable failure) {
