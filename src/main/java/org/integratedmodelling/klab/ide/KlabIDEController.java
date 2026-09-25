@@ -1262,11 +1262,18 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   public InspectorView showInspector() {
     Platform.runLater(
         () -> {
+          if (inspectorDocked
+              && engine() != null
+              && Boolean.TRUE.equals(
+                  engine().getSettings().get(Setting.UNDOCK_INSPECTOR, Boolean.class))) {
+            inspectorDocked = false;
+          }
           if (inspectorDocked) {
             inspectorView.setDocked(true);
             inspectorArea.getChildren().setAll(inspectorView);
             NodeUtils.toggleVisibility(inspectorArea, true);
           } else {
+            inspectorView.setDocked(false);
             ensureDetachedInspectorStage();
             detachedInspectorStage.show();
             detachedInspectorStage.toFront();
