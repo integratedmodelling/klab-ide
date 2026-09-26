@@ -7,11 +7,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
 import org.integratedmodelling.klab.api.authentication.CRUDOperation;
 import org.integratedmodelling.klab.api.data.Version;
 import org.integratedmodelling.klab.api.services.KlabService;
 import org.integratedmodelling.klab.api.services.impl.AbstractServiceCapabilities;
 import org.integratedmodelling.klab.api.services.impl.ServiceStatusImpl;
+import org.integratedmodelling.klab.api.services.runtime.extension.ComponentHistory;
 import org.integratedmodelling.klab.api.services.runtime.extension.Extensions;
 import org.junit.jupiter.api.Test;
 
@@ -162,6 +165,52 @@ class ServiceDashboardTest {
     assertFalse(state.removalEnabled());
   }
 
+  @Test
+  void componentHistoryRowsAreChronologicalAndIdentifyTheirSource() {
+    var version = Version.create("1.0.0");
+    var newer =
+        historyEvent(
+            version,
+            2000L,
+            Extensions.ComponentImportType.DEPENDENCY,
+            "resources-1",
+            Map.of());
+    var older =
+        historyEvent(
+            version,
+            1000L,
+            Extensions.ComponentImportType.MAVEN,
+            "runtime-1",
+            Map.of("source", "local"));
+    var history = new ComponentHistory("test.component", version, List.of(newer, older));
+
+    var rows = ServiceDashboard.historyEventsChronologically(history);
+
+    assertEquals(List.of(older, newer), rows);
+    assertEquals("MAVEN · local", ServiceDashboard.eventSource(older));
+    assertEquals("DEPENDENCY · resources-1", ServiceDashboard.eventSource(newer));
+  }
+
+  private ComponentHistory.Event historyEvent(
+      Version version,
+      long timestamp,
+      Extensions.ComponentImportType importType,
+      String sourceServiceId,
+      Map<String, String> details) {
+    return new ComponentHistory.Event(
+        "test.component",
+        version,
+        timestamp,
+        ComponentHistory.EventType.REGISTERED,
+        ComponentHistory.Outcome.SUCCESS,
+        importType,
+        sourceServiceId,
+        "runtime-1",
+        KlabService.Type.RUNTIME,
+        "Registered",
+        details);
+  }
+
   private Extensions.ComponentDescriptor component(
       Extensions.ComponentImportType importType,
       Extensions.ComponentUpdateStatus updateStatus,
@@ -175,6 +224,7 @@ class ServiceDashboardTest {
         null,
         null,
         mavenCoordinates,
+        null,
         null,
         null,
         null,

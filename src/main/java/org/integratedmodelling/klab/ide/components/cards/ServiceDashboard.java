@@ -4,6 +4,9 @@ import atlantafx.base.controls.Card;
 import atlantafx.base.theme.Styles;
 import java.io.File;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -17,6 +20,8 @@ import java.util.function.Consumer;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
+import javafx.beans.property.ReadOnlyStringWrapper;
+import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
@@ -25,28 +30,37 @@ import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.StackedAreaChart;
 import javafx.scene.chart.XYChart;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.Dialog;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
+import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
+import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.stage.Modality;
 import javafx.util.Duration;
 import javafx.util.StringConverter;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.authentication.CRUDOperation;
 import org.integratedmodelling.klab.api.configuration.Configuration;
 import org.integratedmodelling.klab.api.configuration.Setting;
+import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.Urn;
 import org.integratedmodelling.klab.api.services.KlabService;
 import org.integratedmodelling.klab.api.services.resources.ResourceTransport;
 import org.integratedmodelling.klab.api.services.runtime.Notification;
+import org.integratedmodelling.klab.api.services.runtime.extension.ComponentHistory;
 import org.integratedmodelling.klab.api.services.runtime.extension.Extensions;
 import org.integratedmodelling.klab.ide.KlabIDEApplication;
 import org.integratedmodelling.klab.ide.KlabIDEController;
@@ -67,6 +81,8 @@ public class ServiceDashboard extends BaseAssetViewComponent {
 
   private static final int SAMPLE_LIMIT = 80;
   private static final Duration SAMPLE_INTERVAL = Duration.seconds(1);
+  private static final DateTimeFormatter HISTORY_TIME =
+      DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
   /** The horizontal carousel and its cards share this cross-axis size. */
   private static final double COMPONENT_CARD_HEIGHT = 250;
@@ -630,7 +646,14 @@ public class ServiceDashboard extends BaseAssetViewComponent {
             "Remove component (action pending API support)",
             state.removalEnabled(),
             () -> removeComponent(descriptor));
-    var actions = new HBox(6, update, remove);
+    var history =
+        actionButton(
+            MaterialDesign.MDI_HISTORY,
+            "-color-accent-fg",
+            "Component history",
+            true,
+            () -> showComponentHistory(descriptor));
+    var actions = new HBox(6, history, update, remove);
     actions.setAlignment(Pos.CENTER_LEFT);
     actions.setPadding(new Insets(6, 12, 9, 12));
 
@@ -654,6 +677,119 @@ public class ServiceDashboard extends BaseAssetViewComponent {
         action.run();
       }
     }.enabled(enabled).styleClass(Styles.ROUNDED).tooltip(tooltip);
+  }
+
+  private void showComponentHistory(Extensions.ComponentDescriptor descriptor) {
+    var dialog = new Dialog<Void>();
+    dialog.setTitle("Component history: " + descriptor.id() + "@" + descriptor.version());
+    dialog.setResizable(true);
+    dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+    if (getScene() != null && getScene().getWindow() != null) {
+      dialog.initOwner(getScene().getWindow());
+      dialog.initModality(Modality.WINDOW_MODAL);
+    } else {
+      dialog.initModality(Modality.APPLICATION_MODAL);
+    }
+
+    var loading = new VBox(10, new ProgressIndicator(), new Label("Loading component history..."));
+    loading.setAlignment(Pos.CENTER);
+    var content = new BorderPane(loading);
+    content.setPrefSize(900, 440);
+    dialog.getDialogPane().setContent(content);
+    dialog.show();
+
+    CompletableFuture
+        .supplyAsync(
+            () ->
+                service.info(
+                    descriptor.id() + "@" + descriptor.version(),
+                    KlabAsset.KnowledgeClass.COMPONENT,
+                    ComponentHistory.class,
+                    KlabIDEController.instance().user()))
+        .whenComplete(
+            (componentHistory, failure) ->
+                Platform.runLater(
+                    () -> {
+                      if (!dialog.isShowing()) return;
+                      if (failure != null) {
+                        content.setCenter(historyError(failure));
+                      } else if (componentHistory == null) {
+                        content.setCenter(
+                            historyError(
+                                new IllegalStateException(
+                                    "No history is available for this component.")));
+                      } else {
+                        content.setCenter(historyTable(componentHistory));
+                      }
+                    }));
+  }
+
+  private TableView<ComponentHistory.Event> historyTable(ComponentHistory history) {
+    var table =
+        new TableView<ComponentHistory.Event>(
+            FXCollections.observableArrayList(historyEventsChronologically(history)));
+    table.getStyleClass().add(Styles.DENSE);
+    table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+    table.setPlaceholder(new Label("No component events have been recorded."));
+    table
+        .getColumns()
+        .setAll(
+            historyColumn("Time", event -> eventTime(event.timestamp()), 155),
+            historyColumn("Event", event -> eventLabel(event.type()), 125),
+            historyColumn("Outcome", event -> eventLabel(event.outcome()), 90),
+            historyColumn("Source", ServiceDashboard::eventSource, 175),
+            historyColumn("Message", ComponentHistory.Event::message, 330));
+    return table;
+  }
+
+  private TableColumn<ComponentHistory.Event, String> historyColumn(
+      String title,
+      java.util.function.Function<ComponentHistory.Event, String> value,
+      double width) {
+    var column = new TableColumn<ComponentHistory.Event, String>(title);
+    column.setCellValueFactory(
+        cell -> new ReadOnlyStringWrapper(nullToEmpty(value.apply(cell.getValue()))));
+    column.setPrefWidth(width);
+    return column;
+  }
+
+  private Label historyError(Throwable failure) {
+    var cause = failure.getCause() == null ? failure : failure.getCause();
+    var message = new Label("Could not load component history. " + nullToEmpty(cause.getMessage()));
+    message.setWrapText(true);
+    message.setStyle("-fx-text-fill: -color-danger-fg;");
+    BorderPane.setMargin(message, new Insets(20));
+    return message;
+  }
+
+  static List<ComponentHistory.Event> historyEventsChronologically(ComponentHistory history) {
+    if (history == null || history.events() == null) return List.of();
+    return history.events().stream()
+        .sorted(Comparator.comparingLong(ComponentHistory.Event::timestamp))
+        .toList();
+  }
+
+  static String eventSource(ComponentHistory.Event event) {
+    if (event == null) return "";
+    var source = event.importType() == null ? "" : event.importType().name();
+    var detail = event.details() == null ? null : event.details().get("source");
+    var origin =
+        detail != null && !detail.isBlank()
+            ? detail
+            : event.sourceServiceId() == null ? "" : event.sourceServiceId();
+    return origin.isBlank() ? source : source + " · " + origin;
+  }
+
+  private static String eventTime(long timestamp) {
+    return timestamp <= 0
+        ? "Unknown"
+        : HISTORY_TIME.format(Instant.ofEpochMilli(timestamp).atZone(ZoneId.systemDefault()));
+  }
+
+  private static String eventLabel(Enum<?> value) {
+    if (value == null) return "";
+    var words = value.name().toLowerCase().replace('_', ' ');
+    return Character.toUpperCase(words.charAt(0)) + words.substring(1);
   }
 
   static ComponentCardState componentCardState(
