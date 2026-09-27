@@ -129,9 +129,9 @@ class ServiceDashboardTest {
             null,
             1000L);
 
-    var hostedState = ServiceDashboard.componentCardState(hosted, "resources-1");
-    var dependencyState = ServiceDashboard.componentCardState(dependency, "runtime-1");
-    var fileState = ServiceDashboard.componentCardState(file, "resources-1");
+    var hostedState = ServiceDashboard.componentCardState(hosted, "resources-1", true);
+    var dependencyState = ServiceDashboard.componentCardState(dependency, "runtime-1", true);
+    var fileState = ServiceDashboard.componentCardState(file, "resources-1", true);
 
     assertEquals("Hosted Maven import", hostedState.provenanceText());
     assertEquals("org.example:test:1.0-SNAPSHOT", hostedState.sourceText());
@@ -142,7 +142,7 @@ class ServiceDashboardTest {
     assertEquals(
         "Dependency imported from a Resources service", dependencyState.provenanceText());
     assertEquals("Source: resources-1", dependencyState.sourceText());
-    assertFalse(dependencyState.updateEnabled());
+    assertTrue(dependencyState.updateEnabled());
     assertEquals("Hosted .kar import", fileState.provenanceText());
     assertEquals("Up to date", fileState.updateStatusText());
   }
@@ -157,10 +157,28 @@ class ServiceDashboardTest {
                 "service-1",
                 null,
                 0L),
-            "service-1");
+            "service-1",
+            true);
 
     assertEquals("Built into this service", state.provenanceText());
     assertEquals("Not updateable", state.updateStatusText());
+    assertFalse(state.updateEnabled());
+    assertFalse(state.removalEnabled());
+  }
+
+  @Test
+  void componentMutationsRequireAdministratorPermission() {
+    var state =
+        ServiceDashboard.componentCardState(
+            component(
+                Extensions.ComponentImportType.MAVEN,
+                Extensions.ComponentUpdateStatus.UPDATE_AVAILABLE,
+                "resources-1",
+                "org.example:test:1.0-SNAPSHOT",
+                2000L),
+            "resources-1",
+            false);
+
     assertFalse(state.updateEnabled());
     assertFalse(state.removalEnabled());
   }
@@ -174,6 +192,7 @@ class ServiceDashboardTest {
             2000L,
             Extensions.ComponentImportType.DEPENDENCY,
             "resources-1",
+            "Shared Resources",
             Map.of());
     var older =
         historyEvent(
@@ -181,6 +200,7 @@ class ServiceDashboardTest {
             1000L,
             Extensions.ComponentImportType.MAVEN,
             "runtime-1",
+            "Local Runtime",
             Map.of("source", "local"));
     var history = new ComponentHistory("test.component", version, List.of(newer, older));
 
@@ -188,7 +208,7 @@ class ServiceDashboardTest {
 
     assertEquals(List.of(older, newer), rows);
     assertEquals("MAVEN · local", ServiceDashboard.eventSource(older));
-    assertEquals("DEPENDENCY · resources-1", ServiceDashboard.eventSource(newer));
+    assertEquals("DEPENDENCY · Shared Resources", ServiceDashboard.eventSource(newer));
   }
 
   private ComponentHistory.Event historyEvent(
@@ -196,6 +216,7 @@ class ServiceDashboardTest {
       long timestamp,
       Extensions.ComponentImportType importType,
       String sourceServiceId,
+      String sourceServiceName,
       Map<String, String> details) {
     return new ComponentHistory.Event(
         "test.component",
@@ -205,7 +226,9 @@ class ServiceDashboardTest {
         ComponentHistory.Outcome.SUCCESS,
         importType,
         sourceServiceId,
+        sourceServiceName,
         "runtime-1",
+        "Local Runtime",
         KlabService.Type.RUNTIME,
         "Registered",
         details);

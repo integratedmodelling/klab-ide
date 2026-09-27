@@ -30,6 +30,7 @@ import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.StackedAreaChart;
 import javafx.scene.chart.XYChart;
+import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
@@ -51,6 +52,7 @@ import javafx.scene.paint.Color;
 import javafx.stage.Modality;
 import javafx.util.Duration;
 import javafx.util.StringConverter;
+import org.integratedmodelling.common.services.client.BaseServiceClient;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.authentication.CRUDOperation;
 import org.integratedmodelling.klab.api.configuration.Configuration;
@@ -551,8 +553,10 @@ public class ServiceDashboard extends BaseAssetViewComponent {
   }
 
   private void populateComponents() {
+    components.clear();
     try {
       var capabilities = service.capabilities(KlabIDEController.instance().user());
+      var administrator = hasAdministerPermission(capabilities);
       var descriptors =
           capabilities == null
               ? List.<Extensions.ComponentDescriptor>of()
@@ -562,7 +566,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
       } else {
         descriptors.stream()
             .filter(descriptor -> !Extensions.LOCAL_SERVICE_COMPONENT.equals(descriptor.id()))
-            .forEach(descriptor -> components.addItem(componentCard(descriptor)));
+            .forEach(descriptor -> components.addItem(componentCard(descriptor, administrator)));
       }
     } catch (RuntimeException e) {
       components.addItem(new Label("Component metadata is currently unavailable."));
@@ -570,8 +574,9 @@ public class ServiceDashboard extends BaseAssetViewComponent {
   }
 
   // TODO link click to component card in inspector for more information
-  private Card componentCard(Extensions.ComponentDescriptor descriptor) {
-    var state = componentCardState(descriptor, service.serviceId());
+  private Card componentCard(
+      Extensions.ComponentDescriptor descriptor, boolean administrator) {
+    var state = componentCardState(descriptor, service.serviceId(), administrator);
     var title = new Label(descriptor.id());
     title.getStyleClass().add(Styles.TEXT_BOLD);
     var version = new Label("Version " + descriptor.version());
@@ -636,14 +641,22 @@ public class ServiceDashboard extends BaseAssetViewComponent {
         actionButton(
             Evaicons.DOWNLOAD,
             "-color-success-fg",
-            "Update component (action pending API support)",
+            state.updateEnabled()
+                ? "Check for and install the newest component build"
+                : administrator
+                    ? "This component has no update source"
+                    : "Administrator permission is required to update components",
             state.updateEnabled(),
             () -> updateComponent(descriptor));
     var remove =
         actionButton(
             Evaicons.TRASH,
             "-color-danger-fg",
-            "Remove component (action pending API support)",
+            state.removalEnabled()
+                ? "Remove component from this service"
+                : administrator
+                    ? "Built-in components cannot be removed"
+                    : "Administrator permission is required to remove components",
             state.removalEnabled(),
             () -> removeComponent(descriptor));
     var history =
@@ -776,7 +789,9 @@ public class ServiceDashboard extends BaseAssetViewComponent {
     var origin =
         detail != null && !detail.isBlank()
             ? detail
-            : event.sourceServiceId() == null ? "" : event.sourceServiceId();
+            : event.sourceServiceName() != null && !event.sourceServiceName().isBlank()
+                ? event.sourceServiceName()
+                : event.sourceServiceId() == null ? "" : event.sourceServiceId();
     return origin.isBlank() ? source : source + " · " + origin;
   }
 
@@ -793,7 +808,9 @@ public class ServiceDashboard extends BaseAssetViewComponent {
   }
 
   static ComponentCardState componentCardState(
-      Extensions.ComponentDescriptor descriptor, String currentServiceId) {
+      Extensions.ComponentDescriptor descriptor,
+      String currentServiceId,
+      boolean administrator) {
     var importType =
         descriptor.importType() == null
             ? Extensions.ComponentImportType.FILE
@@ -839,8 +856,11 @@ public class ServiceDashboard extends BaseAssetViewComponent {
         source,
         statusText,
         latestVersionText,
-        updateStatus == Extensions.ComponentUpdateStatus.UPDATE_AVAILABLE,
-        importType != Extensions.ComponentImportType.BUILT_IN);
+        administrator
+            && updateStatus != Extensions.ComponentUpdateStatus.NOT_UPDATEABLE
+            && (importType == Extensions.ComponentImportType.MAVEN
+                || importType == Extensions.ComponentImportType.DEPENDENCY),
+        administrator && importType != Extensions.ComponentImportType.BUILT_IN);
   }
 
   private static String nullToEmpty(String value) {
@@ -857,13 +877,71 @@ public class ServiceDashboard extends BaseAssetViewComponent {
       boolean updateEnabled,
       boolean removalEnabled) {}
 
-  /** API hook pending the finalized component synchronization contract. */
   protected void updateComponent(Extensions.ComponentDescriptor descriptor) {
-    // TODO invoke the service component update API when it is finalized.
+    executeComponentAction(Setting.UPDATE_COMPONENT, descriptor);
   }
 
-  /** API hook pending the finalized component removal contract. */
   protected void removeComponent(Extensions.ComponentDescriptor descriptor) {
-    // TODO invoke the service component removal API when it is finalized.
+    var confirmation =
+        new Alert(
+            Alert.AlertType.CONFIRMATION,
+            "Remove " + descriptor.id() + "@" + descriptor.version() + " from this service?",
+            ButtonType.CANCEL,
+            ButtonType.OK);
+    confirmation.setTitle("Remove component");
+    confirmation.setHeaderText("This component will no longer be available to the service.");
+    if (getScene() != null && getScene().getWindow() != null) {
+      confirmation.initOwner(getScene().getWindow());
+    }
+    if (confirmation.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK) {
+      executeComponentAction(Setting.REMOVE_COMPONENT, descriptor);
+    }
+  }
+
+  private void executeComponentAction(
+      Setting setting, Extensions.ComponentDescriptor descriptor) {
+    Map<String, Object> request =
+        Map.of("component", descriptor.id(), "version", descriptor.version().toString());
+    CompletableFuture
+        .supplyAsync(
+            () -> {
+              try {
+                return service.settings().set(setting, request).get();
+              } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new java.util.concurrent.CompletionException(e);
+              } catch (java.util.concurrent.ExecutionException e) {
+                throw new java.util.concurrent.CompletionException(e.getCause());
+              }
+            })
+        .whenComplete(
+            (response, failure) ->
+                Platform.runLater(
+                    () -> {
+                      if (failure != null) {
+                        var cause = failure.getCause() == null ? failure : failure.getCause();
+                        KlabIDEController.instance()
+                            .handleNotification(Notification.error(cause));
+                        return;
+                      }
+                      var result =
+                          response instanceof Map<?, ?> map
+                              && Boolean.TRUE.equals(map.get("result"));
+                      var message =
+                          response instanceof Map<?, ?> map
+                              ? Objects.toString(map.get("message"), "Component action completed")
+                              : "Component action completed";
+                      KlabIDEController.instance()
+                          .handleNotification(
+                              Notification.create(
+                                  message,
+                                  result
+                                      ? Notification.Level.Info
+                                      : Notification.Level.Error));
+                      if (service instanceof BaseServiceClient client) {
+                        client.invalidateCapabilities();
+                      }
+                      populateComponents();
+                    }));
   }
 }
