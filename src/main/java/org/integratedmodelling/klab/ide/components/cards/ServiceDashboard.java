@@ -574,8 +574,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
   }
 
   // TODO link click to component card in inspector for more information
-  private Card componentCard(
-      Extensions.ComponentDescriptor descriptor, boolean administrator) {
+  private Card componentCard(Extensions.ComponentDescriptor descriptor, boolean administrator) {
     var state = componentCardState(descriptor, service.serviceId(), administrator);
     var title = new Label(descriptor.id());
     title.getStyleClass().add(Styles.TEXT_BOLD);
@@ -711,8 +710,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
     dialog.getDialogPane().setContent(content);
     dialog.show();
 
-    CompletableFuture
-        .supplyAsync(
+    CompletableFuture.supplyAsync(
             () ->
                 service.info(
                     descriptor.id() + "@" + descriptor.version(),
@@ -808,9 +806,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
   }
 
   static ComponentCardState componentCardState(
-      Extensions.ComponentDescriptor descriptor,
-      String currentServiceId,
-      boolean administrator) {
+      Extensions.ComponentDescriptor descriptor, String currentServiceId, boolean administrator) {
     var importType =
         descriptor.importType() == null
             ? Extensions.ComponentImportType.FILE
@@ -898,12 +894,10 @@ public class ServiceDashboard extends BaseAssetViewComponent {
     }
   }
 
-  private void executeComponentAction(
-      Setting setting, Extensions.ComponentDescriptor descriptor) {
+  private void executeComponentAction(Setting setting, Extensions.ComponentDescriptor descriptor) {
     Map<String, Object> request =
         Map.of("component", descriptor.id(), "version", descriptor.version().toString());
-    CompletableFuture
-        .supplyAsync(
+    CompletableFuture.supplyAsync(
             () -> {
               try {
                 return service.settings().set(setting, request).get();
@@ -920,8 +914,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
                     () -> {
                       if (failure != null) {
                         var cause = failure.getCause() == null ? failure : failure.getCause();
-                        KlabIDEController.instance()
-                            .handleNotification(Notification.error(cause));
+                        KlabIDEController.instance().handleNotification(Notification.error(cause));
                         return;
                       }
                       var result =
@@ -935,9 +928,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
                           .handleNotification(
                               Notification.create(
                                   message,
-                                  result
-                                      ? Notification.Level.Info
-                                      : Notification.Level.Error));
+                                  result ? Notification.Level.Info : Notification.Level.Error));
                       if (service instanceof BaseServiceClient client) {
                         client.invalidateCapabilities();
                       }

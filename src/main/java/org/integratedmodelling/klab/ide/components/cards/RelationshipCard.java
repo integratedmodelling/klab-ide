@@ -212,7 +212,7 @@ public class RelationshipCard extends BaseCard<RuntimeAsset> {
       try {
         links = graph.getLinks(asset, direction, scope, relationshipTypes);
       } catch (RuntimeException e) {
-        scope.warn("Unable to retrieve knowledge graph relationships", e);
+        scope.warn("Unable to retrieve relationships from the knowledge graph", e);
         continue;
       }
       for (KnowledgeGraph.Link link : links) {
