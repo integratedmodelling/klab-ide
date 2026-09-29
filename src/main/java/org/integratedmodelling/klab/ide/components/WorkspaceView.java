@@ -34,6 +34,7 @@ import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.cards.ResourceSmallViewComponent;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
+import org.integratedmodelling.klab.ide.utils.ApplicationLog;
 import org.integratedmodelling.klab.modeler.model.NavigableWorkspace;
 import org.kordamp.ikonli.javafx.FontIcon;
 
@@ -342,36 +343,48 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
   }
 
   private void raiseWorkspace(ResourceInfo resourceInfo) {
-
-    hideBrowser();
     if (openEditors.containsKey(resourceInfo.getUrn())) {
+      hideBrowser();
       openEditors
           .get(resourceInfo.getUrn())
           .requestFocus(); // FIXME must remember the tabs and select(tab) - in both cases
     } else {
-      var service =
-          KlabIDEController.instance()
-              .user()
-              .findService(
-                  ResourcesService.class, s -> resourceInfo.getServiceId().equals(s.serviceId()))
-              .get();
+      try {
+        var service =
+            KlabIDEController.instance()
+                .user()
+                .findService(
+                    ResourcesService.class, s -> resourceInfo.getServiceId().equals(s.serviceId()))
+                .orElseThrow(
+                    () ->
+                        new IllegalStateException(
+                            "Resources service is unavailable: " + resourceInfo.getServiceId()));
 
-      // TODO handle the unlikely case that the service is unavailable. That will throw an exception
-      //  from getService
-
-      var newEditor =
-          new WorkspaceEditor(
-              service,
-              resourceInfo,
-              this,
-              KlabIDEController.instance().getDefaultWorkflowProvider());
-      openEditors.put(resourceInfo.getUrn(), newEditor);
-      addEditor(
-          newEditor,
-          resourceInfo.getUrn()
-              + "@"
-              + serviceLabels.getOrDefault(safeServiceId(service), safeServiceId(service)),
-          new IconLabel(Theme.WORKSPACE_ICON, 18, "-color-fg-default"));
+        var newEditor =
+            new WorkspaceEditor(
+                service,
+                resourceInfo,
+                this,
+                KlabIDEController.instance().getDefaultWorkflowProvider());
+        addEditor(
+            newEditor,
+            resourceInfo.getUrn()
+                + "@"
+                + serviceLabels.getOrDefault(safeServiceId(service), safeServiceId(service)),
+            new IconLabel(Theme.WORKSPACE_ICON, 18, "-color-fg-default"));
+        openEditors.put(resourceInfo.getUrn(), newEditor);
+        hideBrowser();
+      } catch (Throwable failure) {
+        ApplicationLog.report("Unable to open workspace " + resourceInfo.getUrn(), failure);
+        KlabIDEController.instance()
+            .alert(
+                Notification.error(
+                    "Unable to open workspace "
+                        + resourceInfo.getUrn()
+                        + ". Details were written to "
+                        + ApplicationLog.file(),
+                    failure));
+      }
     }
   }
 

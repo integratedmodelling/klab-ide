@@ -17,6 +17,7 @@ import javafx.stage.Stage;
 import org.integratedmodelling.common.logging.Logging;
 import org.integratedmodelling.klab.ide.components.DownloadMonitor;
 import org.integratedmodelling.klab.ide.utils.AppContext;
+import org.integratedmodelling.klab.ide.utils.ApplicationLog;
 
 public class KlabIDEApplication extends Application {
 
@@ -198,6 +199,7 @@ public class KlabIDEApplication extends Application {
   }
 
   public static void main(String[] args) {
+    ApplicationLog.initialize();
     launch();
   }
 
