@@ -4,11 +4,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import javafx.application.Platform;
-import javafx.beans.value.ChangeListener;
 import javafx.scene.Node;
-import javafx.scene.Scene;
-import javafx.stage.Modality;
-import javafx.stage.Stage;
 import org.integratedmodelling.klab.api.knowledge.Observable;
 import org.integratedmodelling.klab.api.knowledge.SemanticType;
 import org.integratedmodelling.klab.api.services.Reasoner;
@@ -89,37 +85,16 @@ public final class ObservableComposerDialog {
     }
     try {
       var selected = new AtomicReference<Observable>();
-      var stage = new Stage();
-      stage.initOwner(owner.getScene().getWindow());
-      stage.initModality(Modality.WINDOW_MODAL);
-      stage.setTitle("Compose observable");
-      var composer =
+      SemanticComposerOverlay.show(owner, dismiss ->
           new SemanticComposer(
               reasoner,
               observable -> {
                 selected.set(observable);
                 return CompletableFuture.completedFuture(null);
               },
-              stage::close,
-              initialState);
-      var scene = new Scene(composer);
-      scene.getStylesheets().setAll(owner.getScene().getStylesheets());
-      stage.setScene(scene);
-      ChangeListener<Scene> detached =
-          (property, before, after) -> {
-            if (after != before) {
-              selected.set(null);
-              stage.close();
-            }
-          };
-      owner.sceneProperty().addListener(detached);
-      stage.setOnHidden(
-          event -> {
-            owner.sceneProperty().removeListener(detached);
-            composer.close();
-            result.complete(selected.get());
-          });
-      stage.show();
+              dismiss,
+              initialState, javafx.util.Duration.seconds(30),
+              () -> AuthorityBrowser.Source.load(KlabIDEController.scope())), () -> result.complete(selected.get()));
     } catch (RuntimeException failure) {
       result.completeExceptionally(failure);
     }

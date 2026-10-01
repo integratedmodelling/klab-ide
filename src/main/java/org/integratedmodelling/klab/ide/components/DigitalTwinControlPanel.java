@@ -194,7 +194,7 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
         e -> {
           var targetScope = scope;
           var controller = KlabIDEController.instance();
-          var composer = new SemanticComposer(
+          SemanticComposerOverlay.show(conceptButton, dismiss -> new SemanticComposer(
               () -> KlabIDEController.scope().getService(org.integratedmodelling.klab.api.services.Reasoner.class),
               observable -> {
                 if (scope != targetScope) {
@@ -219,8 +219,8 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
                   return submission;
                 });
               },
-              controller::removeModalOverlay);
-          controller.showInModalOverlay(composer, false);
+              dismiss, null, Duration.seconds(30),
+              () -> AuthorityBrowser.Source.load(KlabIDEController.scope())), () -> {});
         });
     conceptButton.getStyleClass().addAll(Styles.FLAT, Styles.BUTTON_CIRCLE);
     HBox.setHgrow(searchArea, Priority.ALWAYS);

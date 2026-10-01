@@ -1,0 +1,73 @@
+{
+  "code": [
+    {
+      "value": "TAXA:[3DSK5]",
+      "color": "TRAIT",
+      "font": "NORMAL",
+      "description": null,
+      "needsWhitespaceBefore": true,
+      "needsWhitespaceAfter": true
+    }
+  ],
+  "errors": [],
+  "searchId": 42,
+  "requestId": 2,
+  "currentType": null,
+  "description": null,
+  "elapsedTimeMs": 181,
+  "matches": [
+    {
+      "id": "of",
+      "name": "of",
+      "description": "",
+      "score": 0.0,
+      "matchType": "MODIFIER",
+      "indexableFields": {},
+      "conceptType": [],
+      "semantics": [],
+      "unaryOperator": null,
+      "binaryOperator": null,
+      "valueOperator": null,
+      "modifier": "OF",
+      "abstract": false,
+      "tokenClass": "TOKEN"
+    }
+  ],
+  "parenthesisDepth": 0,
+  "declaration": "TAXA:[3DSK5]",
+  "observable": null,
+  "currentConcept": {
+    "@CLASS": "org.integratedmodelling.common.knowledge.ConceptImpl",
+    "urn": "TAXA:[3DSK5]",
+    "metadata": {
+      "@CLASS": "org.integratedmodelling.klab.api.collections.impl.MetadataImpl",
+      "delegate": {
+        "rdfs:label": "Fagus sylvatica L.",
+        "klab:displayLabel": "Fagus sylvatica L.",
+        "rdfs:comment": "Fagus sylvatica L. (species, accepted). Catalogue of Life 2025-10-10 XR; dataset 312578, taxon 3DSK5. https://www.checklistbank.org/dataset/312578/taxon/3DSK5",
+        "klab:authorityId": "TAXA",
+        "klab:conceptDefinition": "TAXA:[3DSK5]"
+      },
+      "unnamedKeys": []
+    },
+    "type": [
+      "PREDICATE",
+      "IDENTITY",
+      "AUTHORITY_IDENTITY"
+    ],
+    "namespace": "auth_0776ba66dbd03fb3b563ab12dd9dd038",
+    "name": "taxon_312578_3344534b35",
+    "isAbstract": false,
+    "collective": false,
+    "annotations": [],
+    "notifications": [],
+    "contextualization": "VOID",
+    "nonSemanticId": 0
+  },
+  "clauses": [],
+  "canUndo": true,
+  "canOpenScope": false,
+  "canCloseScope": false,
+  "acceptsValue": false
+}
+

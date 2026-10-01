@@ -56,6 +56,7 @@ module org.integratedmodelling.klab.ide {
   requires java.net.http;
   requires io.github.makbn.jlmap.api;
   requires io.github.makbn.jlmap.fx;
+    requires java.logging;
 
     opens org.integratedmodelling.klab.ide to
       javafx.fxml;
