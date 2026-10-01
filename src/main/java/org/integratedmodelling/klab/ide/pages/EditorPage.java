@@ -379,6 +379,16 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
     return Set.copyOf(assetEditors.keySet());
   }
 
+  /** Close an editor whose asset has been deleted, releasing its sessions and paired view. */
+  protected void closeEditor(T asset) {
+    restorePairedEditors();
+    var tab = assetEditors.remove(asset);
+    if (tab != null) {
+      disposeEditor(asset, tab.getContent());
+      editorTabs.removeTab(tab);
+    }
+  }
+
   /**
    * Rebind an open editor to a refreshed representation of the same asset without recreating its
    * content. This keeps editor-local state such as cursor and scroll position while updating the

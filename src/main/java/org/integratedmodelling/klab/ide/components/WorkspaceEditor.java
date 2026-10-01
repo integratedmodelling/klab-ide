@@ -74,6 +74,9 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private ProgressBar progressBar;
   private TreeView<NavigableAsset> treeView;
   private final Map<Node, LspDocumentSession> lspSessions = new IdentityHashMap<>();
+  // Navigable delegates are mutated before workspaceModified is delivered. Keep the source
+  // independently so validation/metadata updates cannot look like external content changes.
+  private final Map<Node, String> editorSources = new IdentityHashMap<>();
   private final Map<String, WorkflowEditor> workflowEditors = new HashMap<>();
   private final Map<String, IconButton> pairButtons = new HashMap<>();
   private final Map<String, IconButton> reviewButtons = new HashMap<>();
@@ -516,9 +519,35 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         contextMenu.getItems().addAll(editLocally, new SeparatorMenuItem());
       }
       var delete = new MenuItem("Delete", new IconLabel(Material2AL.DELETE, 16, THEME_ICON_COLOR));
-      delete.setOnAction(e -> KlabIDEController.instance().deleteAsset(service, asset));
+      delete.setOnAction(e -> deleteDocument(document, asset));
       contextMenu.getItems().add(delete);
     }
+  }
+
+  private void deleteDocument(KlabDocument<?> document, NavigableAsset asset) {
+    confirmDocumentDeletion(
+        document,
+        getScene() == null ? null : getScene().getWindow(),
+        () -> KlabIDEController.instance().deleteAsset(service, asset));
+  }
+
+  static void confirmDocumentDeletion(
+      KlabDocument<?> document, javafx.stage.Window owner, Runnable deleteAction) {
+    var confirmation = new Alert(Alert.AlertType.CONFIRMATION);
+    confirmation.setTitle("Delete document");
+    confirmation.setHeaderText("Delete " + document.getUrn() + "?");
+    confirmation.setContentText(
+        "This will remove the document from project "
+            + document.getProjectName()
+            + " and its filesystem. Any unsaved edits will be lost.");
+    var delete = new ButtonType("Delete", ButtonBar.ButtonData.YES);
+    var cancel = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+    confirmation.getButtonTypes().setAll(delete, cancel);
+    if (owner != null) confirmation.initOwner(owner);
+    ((Button) confirmation.getDialogPane().lookupButton(delete)).setDefaultButton(false);
+    ((Button) confirmation.getDialogPane().lookupButton(cancel)).setDefaultButton(true);
+    if (confirmation.showAndWait().orElse(cancel) == delete)
+      deleteAction.run();
   }
 
   private final Map<String, ProjectSettingsEditor> projectSettingsEditors = new HashMap<>();
@@ -1197,6 +1226,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
             requestSemanticValidation();
           });
       ret.loadEditor(document.getSourceCode(), languageId, theme);
+      editorSources.put(ret, document.getSourceCode());
 
       ret.setCursorPositionListener(
           offset -> {
@@ -1234,6 +1264,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   @Override
   protected void disposeEditor(NavigableAsset asset, Node editor) {
+    editorSources.remove(editor);
     if (asset instanceof KlabDocument<?> document)
       semanticStatusLabels.remove(WorkspaceSemanticValidation.key(document));
     pairButtons.remove(asset.getUrn());
@@ -1278,11 +1309,13 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     var resourceChanges = Utils.Resources.collectChanges(changes);
     var hasChangedAssets = changedAssets != null && !changedAssets.isEmpty();
 
-    this.workspace = workspace;
     Platform.runLater(
         () -> {
+          this.workspace = workspace;
           var selectedItem = treeView.getSelectionModel().getSelectedItem();
           var selectedAsset = selectedItem == null ? null : selectedItem.getValue();
+          var focusedItem = treeView.getFocusModel().getFocusedItem();
+          var focusedAsset = focusedItem == null ? null : focusedItem.getValue();
           setWaiting(true);
           for (var change : resourceChanges) {
             var parsedDocument = findChangedDocument(change);
@@ -1293,18 +1326,26 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                         pendingSavedSources,
                         change.getResourceUrn(),
                         parsedDocument.getSourceCode());
-            if (hasChangedAssets) {
+            if (hasChangedAssets || change.getOperation() == CRUDOperation.DELETE) {
               mergeChangeIntoTree(change, causedByOpenEditorSave);
             }
-            updateEditorNotifications(parsedDocument, change.getNotifications());
+            if (change.getOperation() != CRUDOperation.DELETE)
+              updateEditorNotifications(parsedDocument, change.getNotifications());
           }
           // Reconciliation can temporarily invalidate the selection when children are reordered.
           // Select the equivalent surviving node again, without scrolling the tree or selecting
           // the node that happens to occupy the old row.
           if (selectedAsset != null) {
             var restoredSelection = findTreeNodeByPath(root, selectedAsset);
-            if (restoredSelection != null) {
+            if (restoredSelection != null
+                && treeView.getSelectionModel().getSelectedItem() != restoredSelection) {
               treeView.getSelectionModel().select(restoredSelection);
+            }
+          }
+          if (focusedAsset != null) {
+            var restoredFocus = findTreeNodeByPath(root, focusedAsset);
+            if (restoredFocus != null && treeView.getFocusModel().getFocusedItem() != restoredFocus) {
+              treeView.getFocusModel().focus(treeView.getRow(restoredFocus));
             }
           }
           // TreeItem changes update only the affected rows and retain expansion, selection and
@@ -1349,6 +1390,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       NavigableKlabDocument<?, ?> document, Collection<Notification> fallbackNotifications) {
     if (document != null && getEditor(document) instanceof MonacoEditorView editor) {
       editor.markSaved(document.getSourceCode());
+      editorSources.put(editor, document.getSourceCode());
       var notifications = document.getNotifications();
       editor.markNotifications(
           notifications == null
@@ -1521,11 +1563,27 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     if (sources == null) {
       return false;
     }
-    var matched = sources.removeFirstOccurrence(parsedSource);
+    var normalized = normalizeEditorSource(parsedSource);
+    var matched = false;
+    for (var iterator = sources.iterator(); iterator.hasNext(); ) {
+      if (Objects.equals(normalized, normalizeEditorSource(iterator.next()))) {
+        iterator.remove();
+        matched = true;
+        break;
+      }
+    }
     if (sources.isEmpty()) {
       pendingSources.remove(urn);
     }
     return matched;
+  }
+
+  static boolean preservesEditorSource(
+      boolean savedHere, String knownSource, String editorSource, String parsedSource) {
+    return savedHere
+        || (parsedSource != null
+            && (Objects.equals(normalizeEditorSource(knownSource), normalizeEditorSource(parsedSource))
+                || Objects.equals(normalizeEditorSource(editorSource), normalizeEditorSource(parsedSource))));
   }
 
   private void mergeChangeIntoTree(ResourceSet.Resource change, boolean causedByOpenEditorSave) {
@@ -1535,7 +1593,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
       var root = findNodeContaining(change.getResourceUrn());
       if (root != null) {
-        root.getParent().getChildren().remove(root);
+        closeEditor(root.getValue());
+        pendingSavedSources.remove(change.getResourceUrn());
+        focus = root.getParent();
+        if (focus != null) focus.getChildren().remove(root);
       }
 
     } else if (change.getOperation() == CRUDOperation.CREATE
@@ -1562,14 +1623,20 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
       if (node != null && newAsset instanceof NavigableAsset navigableAsset) {
         var oldAsset = node.getValue();
-        node.setValue(navigableAsset);
+        var openEditor = getEditor(oldAsset);
+        boolean preserveEditor =
+            navigableAsset instanceof KlabDocument<?> document
+                && openEditor instanceof MonacoEditorView editor
+                && preservesEditorSource(
+                    causedByOpenEditorSave,
+                    editorSources.get(editor),
+                    editor.getText(),
+                    document.getSourceCode());
         focus = node;
         updateTree(node, navigableAsset);
-        // The save callback has already put the new source into the currently visible editor.
-        // Recreating it here loses Monaco's cursor/scroll position and makes the save feel like a
-        // navigation event.  Other updates still recreate the editor so that external source
-        // changes are loaded into it.
-        if (causedByOpenEditorSave) {
+        // Save acknowledgements and subsequent diagnostics for the same source must retain
+        // Monaco, its LSP session, undo history, cursor, scroll position and any newer edits.
+        if (preserveEditor) {
           rebindEditor(oldAsset, navigableAsset);
         } else {
           refreshEditor(oldAsset, navigableAsset);
@@ -1586,15 +1653,18 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           wroot.findAsset(
               change.getResourceUrn(), NavigableProject.class, KlabAsset.KnowledgeClass.PROJECT);
       if (node != null && updatedProject != null) {
-        node.setValue(updatedProject);
+        if (node.getValue() != updatedProject) node.setValue(updatedProject);
         focus = node;
       }
+    } else if (change.getOperation() == CRUDOperation.UPDATE_METADATA) {
+      // Validation notifications may also arrive as metadata-only changes.
+      focus = findNodeContaining(change.getResourceUrn());
     }
 
     if (focus != null) {
       refreshDecorations(focus);
       for (var parent = focus.getParent(); parent != null; parent = parent.getParent()) {
-        parent.setGraphic(getTreeGraphics(parent.getValue()));
+        refreshVisibleDecoration(parent);
         rebindEditor(parent.getValue(), parent.getValue());
       }
     }
@@ -1602,10 +1672,20 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   private void refreshDecorations(TreeItem<NavigableAsset> node) {
     var asset = node.getValue();
-    node.setGraphic(getTreeGraphics(asset));
+    refreshVisibleDecoration(node);
     rebindEditor(asset, asset);
     for (var child : node.getChildren()) {
       refreshDecorations(child);
+    }
+  }
+
+  private void refreshVisibleDecoration(TreeItem<NavigableAsset> item) {
+    // A graphic change on TreeItem bubbles to the whole tree. Decorations belong to cells;
+    // offscreen cells will compute them from the current asset when they become visible.
+    for (var cell : assetTreeCells) {
+      if (cell.getTreeItem() == item && !cell.isEmpty()) {
+        cell.updateItem(item.getValue(), false);
+      }
     }
   }
 
@@ -1650,8 +1730,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
     if (root.getValue() != null) {
 
-      root.setValue(changed);
-      root.setGraphic(getTreeGraphics(changed));
+      if (root.getValue() != changed) root.setValue(changed);
 
       var existingChildren = new ArrayList<>(root.getChildren());
       var newChildren = new ArrayList<>(changed.children());
@@ -1676,9 +1755,21 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         }
       }
 
-      // Replace all children with ordered list
-      root.getChildren().clear();
-      root.getChildren().addAll(updatedChildren);
+      reconcileChildren(root, updatedChildren);
+    }
+  }
+
+  static <T> void reconcileChildren(TreeItem<T> parent, List<TreeItem<T>> desired) {
+    var children = parent.getChildren();
+    if (children.equals(desired)) return;
+    // Remove only obsolete nodes. Inserting a new declaration must not detach all its siblings.
+    var retained = new HashSet<>(desired);
+    children.removeIf(child -> !retained.contains(child));
+    for (int index = 0; index < desired.size(); index++) {
+      var child = desired.get(index);
+      if (index < children.size() && children.get(index) == child) continue;
+      children.remove(child);
+      children.add(index, child);
     }
   }
 

@@ -2269,7 +2269,15 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   @Override
   public void deleteAsset(ResourcesService service, NavigableAsset asset) {
-    modeler.deleteAsset(service, asset);
+    Thread.startVirtualThread(
+        () -> {
+          try {
+            handleResultSets(DocumentDeletion.delete(service, asset, user()));
+          } catch (Throwable error) {
+            handleResultSets(
+                List.of(ResourceSet.empty(Notification.error("Cannot delete " + asset.getUrn(), error))));
+          }
+        });
   }
 
   @Override

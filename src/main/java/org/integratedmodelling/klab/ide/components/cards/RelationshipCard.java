@@ -161,10 +161,7 @@ public class RelationshipCard extends BaseCard<RuntimeAsset> {
   }
 
   private List<RelationshipRow> relationships() {
-    if (asset == null
-        || asset.getId() <= 0
-        || scope == null
-        || scope.getDigitalTwin() == null) {
+    if (asset == null || asset.getId() <= 0 || scope == null || scope.getDigitalTwin() == null) {
       return List.of();
     }
 
@@ -316,9 +313,7 @@ public class RelationshipCard extends BaseCard<RuntimeAsset> {
     graphic.setAlignment(Pos.CENTER_LEFT);
     graphic
         .spacingProperty()
-        .bind(
-            Bindings.createDoubleBinding(
-                () -> rowGapFor(cellHeight.get()), cellHeight));
+        .bind(Bindings.createDoubleBinding(() -> rowGapFor(cellHeight.get()), cellHeight));
 
     Node arrow = arrowView(row, cellHeight);
     Button icon = targetButton(row.connectedAsset(), cellHeight);
@@ -336,8 +331,7 @@ public class RelationshipCard extends BaseCard<RuntimeAsset> {
         .fontProperty()
         .bind(
             Bindings.createObjectBinding(
-                () -> Font.font(iconFontFamily, targetIconSizeFor(cellHeight.get())),
-                cellHeight));
+                () -> Font.font(iconFontFamily, targetIconSizeFor(cellHeight.get())), cellHeight));
 
     Button button = new Button(null, graphic);
     button.getStyleClass().add("relationship-card-target-button");
@@ -346,8 +340,7 @@ public class RelationshipCard extends BaseCard<RuntimeAsset> {
     button.setTooltip(new Tooltip("Inspect " + labelFor(target)));
     button.setAccessibleText("Inspect " + labelFor(target));
     var buttonSize =
-        Bindings.createDoubleBinding(
-            () -> targetButtonSizeFor(cellHeight.get()), cellHeight);
+        Bindings.createDoubleBinding(() -> targetButtonSizeFor(cellHeight.get()), cellHeight);
     button.minWidthProperty().bind(buttonSize);
     button.prefWidthProperty().bind(buttonSize);
     button.maxWidthProperty().bind(buttonSize);
@@ -478,18 +471,38 @@ public class RelationshipCard extends BaseCard<RuntimeAsset> {
     if (relationship == null) {
       return RELATIONSHIP_COLORS[0];
     }
-    Color color = switch (relationship.name()) {
-      case "HAS_CHILD", "HAS_MEMBER", "HAS_CONTEXT", "INSTANTIATED", "ACKNOWLEDGED", "DETECTED", "SIMULATED", "MEASURED",
-          "QUANTIFIED", "VALUED", "CATEGORIZED", "VERIFIED", "CLASSIFIED",
-          "CHARACTERIZED", "TRANSFORMED", "CONNECTED", "CONTEXTUALIZED_BY" ->
-          Color.web("#2f7f6f40");
-      case "AFFECTS", "TRIGGERED", "CONTRIBUTED_TO" -> Color.web("#9a341240");
-      case "HAS_DATA", "HAS_GEOMETRY", "HAS_DATAFLOW" -> Color.web("#0550ae40");
-      case "HAS_PROVENANCE", "HAS_ACTIVITY", "BY_AGENT", "CREATED", "EMERGED_FROM", "RESOLVED" ->
-          Color.web("#8250df40");
-      case "HAS_RELATIONSHIP_SOURCE", "HAS_RELATIONSHIP_TARGET" -> Color.web("#bf398940");
-      default -> RELATIONSHIP_COLORS[relationship.ordinal() % RELATIONSHIP_COLORS.length];
-    };
+    Color color =
+        switch (relationship.name()) {
+          case "HAS_CHILD",
+              "HAS_MEMBER",
+              "HAS_CONTEXT",
+              "INSTANTIATED",
+              "ACKNOWLEDGED",
+              "DETECTED",
+              "SIMULATED",
+              "MEASURED",
+              "QUANTIFIED",
+              "VALUED",
+              "CATEGORIZED",
+              "VERIFIED",
+              "CLASSIFIED",
+              "CHARACTERIZED",
+              "TRANSFORMED",
+              "CONNECTED",
+              "CONTEXTUALIZED_BY" ->
+              Color.web("#2f7f6f40");
+          case "AFFECTS", "TRIGGERED", "CONTRIBUTED_TO" -> Color.web("#9a341240");
+          case "HAS_DATA", "HAS_GEOMETRY", "HAS_DATAFLOW" -> Color.web("#0550ae40");
+          case "HAS_PROVENANCE",
+              "HAS_ACTIVITY",
+              "BY_AGENT",
+              "CREATED",
+              "EMERGED_FROM",
+              "RESOLVED" ->
+              Color.web("#8250df40");
+          case "HAS_RELATIONSHIP_SOURCE", "HAS_RELATIONSHIP_TARGET" -> Color.web("#bf398940");
+          default -> RELATIONSHIP_COLORS[relationship.ordinal() % RELATIONSHIP_COLORS.length];
+        };
     return Theme.CURRENT_THEME.isDark()
         ? Color.color(color.getRed(), color.getGreen(), color.getBlue(), 0.78)
         : color;
