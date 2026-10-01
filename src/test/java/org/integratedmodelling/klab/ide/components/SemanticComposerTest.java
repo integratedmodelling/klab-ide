@@ -878,6 +878,7 @@ class SemanticComposerTest {
 
   @Test void authoritySelectionUsesCanonicalCodeAndExistingSessionThenUndoes() throws Exception {
     var fake = new FakeSearch();
+    fake.selectAddsToken = true;
     fake.authoritySearch = request -> new AuthoritySearchResponse(AuthoritySearchResponse.Status.OK,
         List.of(identity("A 1", "First"), identity("A2", "Second")), 2, -1, List.of());
     var host = fake.reasoner();
@@ -894,6 +895,15 @@ class SemanticComposerTest {
       var insertion = fake.requests.stream().filter(r -> r.getSearchMode() == SemanticSearchRequest.Mode.IDENTITY).findFirst().orElseThrow();
       assertEquals("TAXA", insertion.getAuthority()); assertEquals("A2", insertion.getIdentityCode());
       assertEquals(42, insertion.getSearchId()); assertEquals(1, insertion.getMatchesRequestId());
+      assertEquals("Concepts / operators", fx(() -> ((ComboBox<?>) composer.lookup("#semantic-source")).getValue()));
+      assertEquals(1, fake.count(SemanticSearchRequest.Mode.TOKEN));
+      fx(() -> { press(composer.lookup("#semantic-matches"), KeyCode.ENTER); release(query(composer), KeyCode.ENTER); return null; });
+      ready(composer);
+      assertEquals(List.of("TAXA:A2", "test:Tree"), fx(() -> displayedTokens(composer)));
+      var head = fake.requests.stream().filter(r -> r.getSearchMode() == SemanticSearchRequest.Mode.SELECT).findFirst().orElseThrow();
+      assertEquals(insertion.getRequestId(), head.getMatchesRequestId());
+      fx(() -> { press(query(composer), KeyCode.BACK_SPACE); release(query(composer), KeyCode.BACK_SPACE); return null; });
+      ready(composer);
       assertEquals(List.of("TAXA:A2"), fx(() -> displayedTokens(composer)));
       assertEquals("", fx(() -> query(composer).getText()));
       fx(() -> { press(query(composer), KeyCode.BACK_SPACE); release(query(composer), KeyCode.BACK_SPACE); return null; });

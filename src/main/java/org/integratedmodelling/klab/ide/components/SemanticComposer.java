@@ -132,6 +132,7 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
     authorities.chooser.managedProperty().bind(authorities.chooser.visibleProperty());
     authorities.view.visibleProperty().bind(authorities.chooser.visibleProperty());
     authorities.view.managedProperty().bind(authorities.view.visibleProperty());
+    results.setId("semantic-matches");
     results.visibleProperty().bind(authorities.chooser.visibleProperty().not());
     results.managedProperty().bind(results.visibleProperty());
     query.setId("semantic-query");
@@ -557,6 +558,9 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
       if (revision == queryRevision && request.getSearchMode() != SemanticSearchRequest.Mode.UNDO) {
         updating = true;
         query.clear();
+        // A confirmed identity prefixes the next concept; show the proposals already returned.
+        if (request.getSearchMode() == SemanticSearchRequest.Mode.IDENTITY)
+          source.getSelectionModel().selectFirst();
         updating = false;
       }
     }
@@ -725,7 +729,7 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
   private boolean authorityMode() { return "Authorities".equals(source.getValue()); }
 
   private void sourceChanged() {
-    if (closed) return;
+    if (closed || updating) return;
     queryRevision++;
     authorities.invalidate();
     results.getItems().clear(); matchesCurrent = false;
