@@ -44,3 +44,6 @@ jte-classes/
 
 ### Conveyor
 /output/
+
+### Local proposal-review verification
+/.proposal-verification-pom.xml
