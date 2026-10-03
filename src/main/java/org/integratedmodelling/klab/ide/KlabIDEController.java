@@ -216,6 +216,14 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
       this.workflowProvider =
           new WorkflowUIProvider() {
             @Override
+            public WorkflowEditor.StageEditor stageEditor(Workflow workflow,
+                org.integratedmodelling.klab.api.services.resources.workflow.Flow flow,
+                org.integratedmodelling.klab.api.services.resources.workflow.Flow.State state,
+                Workflow.StateSchema schema, boolean readOnly, Runnable validationChanged) {
+              return ProposalStageEditor.create(workflow, flow, state, schema, readOnly, validationChanged);
+            }
+
+            @Override
             public List<Workflow> availableWorkflows(KlabAsset asset, UserScope scope) {
               var ret = scope.getService(ResourcesService.class).list(Workflow.class, scope);
               return ret;

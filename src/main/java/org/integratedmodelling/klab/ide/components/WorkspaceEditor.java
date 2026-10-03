@@ -78,6 +78,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   // independently so validation/metadata updates cannot look like external content changes.
   private final Map<Node, String> editorSources = new IdentityHashMap<>();
   private final Map<String, WorkflowEditor> workflowEditors = new HashMap<>();
+  private final Map<MonacoEditorView, Runnable> pairedReviewRefresh = new IdentityHashMap<>();
+  private final Map<MonacoEditorView, Flow.State> pairedReviewStages = new IdentityHashMap<>();
   private final Map<String, IconButton> pairButtons = new HashMap<>();
   private final Map<String, IconButton> reviewButtons = new HashMap<>();
   private final Set<String> assetsWithFlows = new HashSet<>();
@@ -325,6 +327,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
               workflowEditors.values().forEach(value -> value.setSideBySide(false));
               editor.setOnReviewMarkerClicked(null);
               editor.setOnReviewMarginDoubleClicked(null);
+              editor.clearReviewMarkers();
+              pairedReviewRefresh.remove(editor);
+              pairedReviewStages.remove(editor);
+              workflowEditor.setOnStageLoaded(null);
             });
     if (paired) {
       editor.setReviewMode(true);
@@ -332,6 +338,21 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       if (review != null) review.setToggled(true);
       editor.setOnReviewMarkerClicked(workflowEditor::reviewMarkerClicked);
       editor.setOnReviewMarginDoubleClicked(workflowEditor::reviewCommentRequested);
+      workflowEditor.setOnStageLoaded(state -> {
+        pairedReviewStages.put(editor, state);
+        Runnable refresh = () -> {
+          if (pairedReviewStages.get(editor) != state) return;
+          var markers = ProposalLexicalMarkers.markers(state.getId(), state.getProposalReview(),
+              document.getSourceCode(), editor.getText(), ProposalLexicalMarkers.declarationOffsets(document));
+          var stages = new LinkedHashMap<String, String>();
+          markers.forEach(marker -> stages.put(marker.id(), state.getId()));
+          workflowEditor.setReviewMarkerStages(stages);
+          editor.setReviewMarkers(markers);
+        };
+        pairedReviewRefresh.put(editor, refresh);
+        refresh.run();
+        editor.runAfterEditorRendered(refresh);
+      });
     }
     workflowEditor.setSideBySide(paired);
     var button = pairButtons.get(document.getUrn());
@@ -1241,6 +1262,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
             Platform.runLater(
                 () -> {
                   saveButton.setDisable(!dirty);
+                  if (dirty) ret.clearReviewMarkers();
+                  else if (pairedReviewRefresh.containsKey(ret)) pairedReviewRefresh.get(ret).run();
                   if (!(document instanceof org.integratedmodelling.klab.api.lang.kim.KimNamespace
                       || document
                           instanceof org.integratedmodelling.klab.api.lang.kim.KimOntology)) {
@@ -1265,6 +1288,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   @Override
   protected void disposeEditor(NavigableAsset asset, Node editor) {
     editorSources.remove(editor);
+    if (editor instanceof MonacoEditorView monaco) { pairedReviewRefresh.remove(monaco); pairedReviewStages.remove(monaco); monaco.clearReviewMarkers(); }
     if (asset instanceof KlabDocument<?> document)
       semanticStatusLabels.remove(WorkspaceSemanticValidation.key(document));
     pairButtons.remove(asset.getUrn());
@@ -1294,7 +1318,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   public boolean toggleReviewMode(NavigableKlabDocument<?, ?> document, MonacoEditorView editor) {
     var ret = !editor.isReviewMode();
     editor.setReviewMode(ret);
-    // TODO the rest
+    if (pairedReviewRefresh.containsKey(editor)) pairedReviewRefresh.get(editor).run();
     return ret;
   }
 
@@ -1470,6 +1494,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   private void showSemanticValidation(KlabDocument<?> document, MonacoEditorView editor) {
+    if (pairedReviewRefresh.containsKey(editor)) pairedReviewRefresh.get(editor).run();
     String key = WorkspaceSemanticValidation.key(document);
     var update = semanticUpdates.get(key);
     var label = semanticStatusLabels.get(key);
