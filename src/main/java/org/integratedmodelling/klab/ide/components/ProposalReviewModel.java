@@ -63,7 +63,7 @@ public final class ProposalReviewModel {
     if (operation == Operation.ACCEPT && !bound(candidate.ontology()))
       return "Acceptance requires an exact ontology artifact. Request changes to submit a new candidate.";
     if (operation == Operation.ACCEPT) {
-      for (var kind : List.of(CheckKind.IMPORT_CONTEXT, CheckKind.DOCUMENT_SCHEMA, CheckKind.PARSER, CheckKind.REASONER)) {
+      for (var kind : List.of(CheckKind.IMPORT_CONTEXT, CheckKind.DOCUMENT_SCHEMA, CheckKind.PARSER, CheckKind.ADAPTATION, CheckKind.REASONER)) {
         var matching = checks().stream().filter(check -> check.kind() == kind).toList();
         if (matching.size() != 1 || matching.getFirst().status() != CheckStatus.PASS)
           return "Acceptance blocked: " + kind + " has not passed for this candidate. The service must validate current imports and exact bytes.";

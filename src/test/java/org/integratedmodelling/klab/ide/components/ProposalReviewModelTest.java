@@ -22,13 +22,26 @@ class ProposalReviewModelTest {
     model.rationale("Scientific evidence reviewed");
     assertNotNull(model.problem(Operation.ACCEPT)); // Parser success alone cannot enable acceptance.
     var passing = new StageData(1, stage(1).candidate(), Status.IN_REVIEW, "author", "submitted",
-        List.of(CheckKind.IMPORT_CONTEXT, CheckKind.DOCUMENT_SCHEMA, CheckKind.PARSER, CheckKind.REASONER).stream()
+        List.of(CheckKind.IMPORT_CONTEXT, CheckKind.DOCUMENT_SCHEMA, CheckKind.PARSER, CheckKind.ADAPTATION, CheckKind.REASONER).stream()
             .map(kind -> new Check(kind, CheckStatus.PASS, List.of("Synthetic test gate only"))).toList(), null);
     var accepted = new ProposalReviewModel(passing, false, false);
     assertNotNull(accepted.problem(Operation.ACCEPT)); // Even all automatic checks require a human rationale.
     accepted.rationale("Scientific evidence reviewed");
     assertEquals(stage(1).candidate(), accepted.command(Operation.ACCEPT).candidate());
     assertEquals(List.of("action-2", "action-1"), accepted.command(Operation.ACCEPT).candidate().actionIds());
+    for (var status : CheckStatus.values()) {
+      if (status == CheckStatus.PASS) continue;
+      var checks = passing.validation().stream().map(check -> check.kind() == CheckKind.ADAPTATION
+          ? new Check(CheckKind.ADAPTATION, status, List.of("Adaptation not proven")) : check).toList();
+      var blocked = new ProposalReviewModel(new StageData(1, passing.candidate(), passing.status(),
+          "author", "submitted", checks, null), false, false);
+      blocked.rationale("Scientific evidence reviewed");
+      assertNotNull(blocked.problem(Operation.ACCEPT), "Adaptation " + status + " must block acceptance");
+    }
+    var missingAdaptation = new ProposalReviewModel(new StageData(1, passing.candidate(), passing.status(),
+        "author", "submitted", passing.validation().stream().filter(check -> check.kind() != CheckKind.ADAPTATION).toList(), null), false, false);
+    missingAdaptation.rationale("Scientific evidence reviewed");
+    assertNotNull(missingAdaptation.problem(Operation.ACCEPT));
   }
   @Test void missingUnknownAndReadOnlyFailClosed() {
     var missing = new ProposalReviewModel(null, false, false);
