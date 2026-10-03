@@ -706,6 +706,10 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
 
   private void upload(File file, Workflow.AttachmentRule rule) {
     if (file == null || rule == null) return;
+    if (submitting) {
+      fail(new IllegalStateException("Upload was not added while a decision was being confirmed. Add it again after closing the confirmation."));
+      return;
+    }
     try {
       var upload = Flow.AttachmentUpload.create();
       upload.setType(rule.getType());
@@ -891,11 +895,33 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
         && !canReviewTransition(flow, workflow, selectedState, transition, WorkflowParticipant.from(scope)))) return;
     try {
       clearError();
+      // showAndWait runs a nested FX event loop: guard before it can dispatch uploads or another action.
+      submitting = true;
+      updateActions();
       validateRequiredAttachments();
       var proposal = selectedEditor.content() instanceof ProposalStageEditor editor ? editor : null;
       var command = proposal == null ? null : proposal.command(transition);
-      if (command != null && provisional) {
-        var uploads = pendingAttachments.getOrDefault(selectedState.getId(), List.of());
+      var initialSubmission = provisional;
+      var flowId = flow.getId();
+      var workflowId = workflow.getId();
+      var expectedRevision = flow.getRevision();
+      var publicRead = flow.isPublicRead();
+      var update = copyState(selectedState);
+      update.setMetadata(Metadata.create(selectedEditor.metadata().get()));
+      var uploads = pendingAttachments.getOrDefault(selectedState.getId(), List.of()).stream()
+          .map(WorkflowEditor::copyUpload).toList();
+      var request = Flow.TransitionRequest.create();
+      request.setSourceStateId(update.getId());
+      request.setTransitionId(transition.getId());
+      request.setProposalReview(command);
+      request.setExpectedRevision(expectedRevision + (command == null ? 1 : 0));
+      // The backend assigns a returned editing stage to the author. A reviewer must not override it.
+      if (ProposalStageEditor.operation(transition) != org.integratedmodelling.klab.api.services.resources.workflow.ProposalReview.Operation.REQUEST_CHANGES) {
+        var target = Flow.State.create();
+        target.setOwner(WorkflowParticipant.from(scope).getIdentity());
+        request.setTargetState(target);
+      }
+      if (command != null && initialSubmission) {
         var proposals = uploads.stream().filter(a -> "application/vnd.klab.proposal+yaml".equals(a.getMediaType())).toList();
         var ontologies = uploads.stream().filter(a -> "application/vnd.klab.ontology".equals(a.getMediaType())).toList();
         if (proposals.size() != 1 || ontologies.size() > 1)
@@ -917,19 +943,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
         if (getScene() != null) confirmation.initOwner(getScene().getWindow());
         if (confirmation.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) return;
       }
-      submitting = true;
-      updateActions();
-      var update = copyState(selectedState);
-      update.setMetadata(selectedEditor.metadata().get());
-      var request = Flow.TransitionRequest.create();
-      request.setSourceStateId(selectedState.getId());
-      request.setTransitionId(transition.getId());
-      request.setProposalReview(command);
-      request.setExpectedRevision(flow.getRevision() + 1);
-      var target = Flow.State.create();
-      target.setOwner(WorkflowParticipant.from(scope).getIdentity());
-      request.setTargetState(target);
-      if (provisional) {
+      if (initialSubmission) {
         if (command != null) {
           // The server derives the same candidate from the exact initial uploaded bytes.
           // Temporary client IDs never cross the persistence boundary.
@@ -939,11 +953,10 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
         request.setExpectedRevision(-1);
         var initialization = Flow.InitializationRequest.create();
         initialization.setInitialState(update);
-        initialization.setAttachments(
-            new ArrayList<>(pendingAttachments.getOrDefault(selectedState.getId(), List.of())));
+        initialization.setAttachments(uploads);
         initialization.setTransition(request);
-        initialization.setPublicRead(flow.isPublicRead());
-        var initializedFlow = service.initializeFlow(workflow.getId(), initialization, scope);
+        initialization.setPublicRead(publicRead);
+        var initializedFlow = service.initializeFlow(workflowId, initialization, scope);
         if (initializedFlow == null)
           throw new IllegalStateException(
               "The Resources service returned no Flow after initialization");
@@ -954,9 +967,8 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
       } else {
         // Proposal commands are atomic and bound to the revision the reviewer actually saw.
         // Never advance the revision with a metadata write before an exact-candidate decision.
-        if (command == null) service.updateFlowState(flow.getId(), selectedState.getId(), update, scope);
-        request.setExpectedRevision(flow.getRevision() + (command == null ? 1 : 0));
-        var transitioned = service.transitionFlow(flow.getId(), request, scope);
+        if (command == null) service.updateFlowState(flowId, update.getId(), update, scope);
+        var transitioned = service.transitionFlow(flowId, request, scope);
         if (transitioned == null) throw new IllegalStateException("The Resources service returned no flow; reopen to reconcile before retrying");
         flow = transitioned;
       }
@@ -1035,6 +1047,14 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     }
   }
 
+  private static Flow.AttachmentUpload copyUpload(Flow.AttachmentUpload upload) {
+    var copy = Flow.AttachmentUpload.create();
+    copy.setType(upload.getType()); copy.setFileName(upload.getFileName());
+    copy.setMediaType(upload.getMediaType()); copy.setAssetType(upload.getAssetType());
+    copy.setContent(upload.getContent() == null ? null : upload.getContent().clone());
+    return copy;
+  }
+
   private Flow.State copyState(Flow.State state) {
     var copy = Flow.State.create();
     copy.setId(state.getId());
@@ -1047,8 +1067,8 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     copy.setPermissionsOwnerUrn(state.getPermissionsOwnerUrn());
     copy.setStatus(state.getStatus());
     copy.setOwner(state.getOwner());
-    copy.setAssignees(state.getAssignees());
-    copy.setMetadata(state.getMetadata());
+    copy.setAssignees(new java.util.LinkedHashSet<>(state.getAssignees()));
+    copy.setMetadata(Metadata.create(state.getMetadata()));
     return copy;
   }
 

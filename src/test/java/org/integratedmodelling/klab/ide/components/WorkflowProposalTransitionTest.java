@@ -92,6 +92,8 @@ class WorkflowProposalTransitionTest {
       answer(ButtonType.OK); call(editor, "confirm", Workflow.TransitionSchema.class, transition);
       assertEquals(1, calls.get()); assertEquals(0, writes.get());
       assertEquals(7, captured.get().getExpectedRevision());
+      assertTrue(captured.get().getTargetState() == null || captured.get().getTargetState().getOwner() == null,
+          "Request changes must preserve the backend's author assignment, not claim the stage for the reviewer");
       assertEquals(model.candidate(), captured.get().getProposalReview().candidate());
       assertEquals(7, editor.getFlow().getRevision()); assertTrue(model.dirty());
       answer(ButtonType.CANCEL); assertFalse(editor.requestClose());
