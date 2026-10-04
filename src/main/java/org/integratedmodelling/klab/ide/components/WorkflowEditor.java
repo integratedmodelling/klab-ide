@@ -172,6 +172,14 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   private Button submitButton;
   private Dialog<Void> workflowDiagram;
   private Task<BufferedImage> diagramTask;
+  private boolean submitting;
+  private final Map<String, StageEditor> proposalDrafts = new LinkedHashMap<>();
+  private Consumer<Flow.State> stageLoaded;
+
+  public void setOnStageLoaded(Consumer<Flow.State> listener) {
+    stageLoaded = listener;
+    if (listener != null && selectedState != null) listener.accept(selectedState);
+  }
 
   public WorkflowEditor(
       ResourcesService service,
@@ -278,7 +286,11 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
       delete.setOnAction(event -> deleteFlow());
       box.getChildren().add(delete);
     }
-    header.getChildren().addAll(box, new Separator());
+    if (isProposalWorkflow()) {
+      box.getChildren().remove(metadata);
+      header.setSpacing(5);
+      header.getChildren().addAll(box, metadata, new Separator());
+    } else header.getChildren().addAll(box, new Separator());
     return header;
   }
 
@@ -353,6 +365,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   }
 
   private boolean canDeleteFlow() {
+    if (isProposalWorkflow()) return false;
     if (provisional) return false;
     var participant = WorkflowParticipant.from(scope);
     return participant.getRoles().contains(WorkflowRole.ADMIN)
@@ -519,21 +532,30 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     instructions.setWrapText(true);
     stageArea.getChildren().addAll(heading, instructions, errorMessage);
 
-    boolean readOnly = !canEdit(state);
-    selectedEditor =
+    boolean readOnly = !canEdit(state) && workflow.getTransitions().values().stream().noneMatch(
+        transition -> canReviewTransition(flow, workflow, state, transition, WorkflowParticipant.from(scope)));
+    selectedEditor = proposalDrafts.get(state.getId());
+    if (selectedEditor == null) selectedEditor =
         stageEditors == null
             ? null
             : stageEditors.create(workflow, flow, state, schema, readOnly, this::updateActions);
     if (selectedEditor == null) selectedEditor = defaultEditor(state);
+    if (provisional && selectedEditor.content() instanceof ProposalStageEditor proposal
+        && proposal.model().candidate() == null && proposal.model().editable()) {
+      for (var upload : pendingAttachments.getOrDefault(state.getId(), List.of()))
+        proposal.bindUpload(upload.getContent(), "pending:" + ProposalCandidateReader.digest(upload.getContent()), upload.getMediaType());
+    }
+    if (selectedEditor.content() instanceof ProposalStageEditor) proposalDrafts.put(state.getId(), selectedEditor);
     selectedEditor.readOnly().accept(readOnly);
     stageArea.getChildren().add(selectedEditor.content());
 
     if (!schema.getAttachments().isEmpty()) {
-      stageArea.getChildren().add(attachments(schema, readOnly));
+      stageArea.getChildren().add(attachments(schema, !canEdit(state)));
     }
     actionBar = actions(schema, readOnly);
     stageArea.getChildren().add(actionBar);
     updateActions();
+    if (stageLoaded != null) stageLoaded.accept(state);
   }
 
   private StageEditor defaultEditor(Flow.State state) {
@@ -560,8 +582,13 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     var list = new VBox(4, new Label("Attachments"), attachmentEntries);
     refreshAttachmentEntries();
     if (!readOnly) {
+      var admittedRules = schema.getAttachments().stream().filter(rule ->
+          !(selectedEditor.content() instanceof ProposalStageEditor proposal) || proposal.model().authoring()
+              || (!"application/vnd.klab.proposal+yaml".equals(rule.getMediaType())
+                  && !"application/vnd.klab.ontology".equals(rule.getMediaType()))).toList();
+      if (admittedRules.isEmpty()) return list;
       var rules = new ComboBox<Workflow.AttachmentRule>();
-      rules.getItems().setAll(schema.getAttachments());
+      rules.getItems().setAll(admittedRules);
       rules.setCellFactory(ignored -> attachmentRuleCell());
       rules.setButtonCell(attachmentRuleCell());
       rules.getSelectionModel().selectFirst();
@@ -631,9 +658,15 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     if (attachmentEntries == null) return;
     attachmentEntries.getChildren().clear();
     for (var attachment : selectedState.getAttachments()) {
-      attachmentEntries
-          .getChildren()
-          .add(new Label(attachment.getFileName() + " (" + attachment.getType() + ")"));
+      var label = new Label(attachment.getFileName() + " (" + attachment.getType() + ")");
+      if (selectedEditor.content() instanceof ProposalStageEditor
+          && attachment.getMediaType() != null
+          && (attachment.getMediaType().startsWith("text/") || attachment.getMediaType().contains("yaml")
+              || attachment.getMediaType().contains("json") || attachment.getMediaType().equals("application/vnd.klab.ontology"))) {
+        var inspect = new Button("Inspect source");
+        inspect.setOnAction(event -> inspectProposalAttachment(attachment));
+        attachmentEntries.getChildren().add(new HBox(8, label, inspect));
+      } else attachmentEntries.getChildren().add(label);
     }
     for (var upload : pendingAttachments.getOrDefault(selectedState.getId(), List.of())) {
       var pending = new Label(upload.getFileName() + " (" + upload.getType() + ", pending)");
@@ -673,28 +706,41 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
 
   private void upload(File file, Workflow.AttachmentRule rule) {
     if (file == null || rule == null) return;
+    if (submitting) {
+      fail(new IllegalStateException("Upload was not added while a decision was being confirmed. Add it again after closing the confirmation."));
+      return;
+    }
     try {
       var upload = Flow.AttachmentUpload.create();
       upload.setType(rule.getType());
       upload.setFileName(file.getName());
       var detectedMediaType = Files.probeContentType(file.toPath());
       upload.setMediaType(
-          detectedMediaType != null
-              ? detectedMediaType
-              : rule.getMediaType() != null && !rule.getMediaType().contains("*")
+          rule.getMediaType() != null && !rule.getMediaType().contains("*")
                   ? rule.getMediaType()
-                  : "application/octet-stream");
+                  : detectedMediaType != null ? detectedMediaType : "application/octet-stream");
       upload.setAssetType(
           rule.getAssetType() == null ? selectedState.getAssetType() : rule.getAssetType());
       upload.setContent(Files.readAllBytes(file.toPath()));
       clearError();
       if (provisional) {
+        if (selectedEditor.content() instanceof ProposalStageEditor proposal) {
+          if (pendingAttachments.getOrDefault(selectedState.getId(), List.of()).stream()
+              .anyMatch(a -> a.getMediaType().equals(upload.getMediaType()))
+              && (upload.getMediaType().equals("application/vnd.klab.proposal+yaml")
+                  || upload.getMediaType().equals("application/vnd.klab.ontology")))
+            throw new IllegalStateException("Initial submission needs one unambiguous proposal and at most one ontology. Cancel and restart to replace pending bytes.");
+          proposal.bindUpload(upload.getContent(), "pending:" + ProposalCandidateReader.digest(upload.getContent()), upload.getMediaType());
+        }
         pendingAttachments
             .computeIfAbsent(selectedState.getId(), ignored -> new ArrayList<>())
             .add(upload);
         refreshAttachmentEntries();
       } else {
-        service.addFlowAttachment(flow.getId(), selectedState.getId(), upload, scope);
+        var stored = service.addFlowAttachment(flow.getId(), selectedState.getId(), upload, scope);
+        if (stored == null) throw new IllegalStateException("No attachment was returned; reload to reconcile the upload");
+        if (selectedEditor.content() instanceof ProposalStageEditor proposal)
+          proposal.bindUpload(upload.getContent(), stored.getId(), stored.getMediaType());
         reload(selectedState.getId());
       }
     } catch (Throwable e) {
@@ -706,7 +752,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     var bar = new VBox(8);
     transitionSelector = null;
     submitButton = null;
-    if (flow.getStatus() == Flow.Status.CLOSED && isAdmin()) {
+    if (flow.getStatus() == Flow.Status.CLOSED && isAdmin() && !isProposalWorkflow()) {
       var reopen = new Button("Reopen flow");
       reopen.getStyleClass().add(Styles.ACCENT);
       reopen.setOnAction(event -> mutate(() -> service.reopenFlow(flow.getId(), scope), null));
@@ -725,14 +771,20 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
       cancelWorkflow.getStyleClass().add(Styles.DANGER);
       cancelWorkflow.setOnAction(
           event -> {
+            if (!requestClose()) return;
             pendingAttachments.clear();
+            proposalDrafts.clear();
             if (cancelJob != null) cancelJob.run();
           });
       buttons.getChildren().add(cancelWorkflow);
     }
 
     var cancel = new Button("Reset");
-    cancel.setOnAction(event -> show(selectedState));
+    cancel.setOnAction(event -> {
+      if (!discardProposalDraft("Discard the selected stage's unsaved proposal edits?")) return;
+      proposalDrafts.remove(selectedState.getId());
+      show(selectedState);
+    });
     var delete = new Button("Delete");
     delete.setOnAction(event -> deleteStage());
     delete.setDisable(
@@ -743,14 +795,17 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
                         Objects.equals(selectedState.getId(), transaction.getSourceStateId())
                             || Objects.equals(
                                 selectedState.getId(), transaction.getTargetStateId())));
-    buttons.getChildren().addAll(cancel, delete);
-    if (!provisional) {
+    buttons.getChildren().add(cancel);
+    if (!isProposalWorkflow()) buttons.getChildren().add(delete);
+    if (!provisional && !(selectedEditor.content() instanceof ProposalStageEditor)) {
       var update = new Button("Update");
       update.setOnAction(event -> updateStage());
       update.getProperties().put("workflow-update", Boolean.TRUE);
       buttons.getChildren().add(update);
     }
-    var transitions = workflow.admittedTransitions(flow, selectedState.getId(), scope);
+    var transitions = workflow.admittedTransitions(flow, selectedState.getId(), scope).stream()
+        .filter(transition -> canEdit(selectedState) || canReviewTransition(flow, workflow, selectedState, transition, WorkflowParticipant.from(scope)))
+        .toList();
     if (!transitions.isEmpty()) {
       var placeholder = new TransitionChoice(null, "-- Choose the next stage --");
       transitionSelector = new ComboBox<>();
@@ -836,27 +891,72 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   }
 
   private void confirm(Workflow.TransitionSchema transition) {
+    if (submitting || selectedEditor == null || (!canEdit(selectedState)
+        && !canReviewTransition(flow, workflow, selectedState, transition, WorkflowParticipant.from(scope)))) return;
     try {
       clearError();
+      // showAndWait runs a nested FX event loop: guard before it can dispatch uploads or another action.
+      submitting = true;
+      updateActions();
       validateRequiredAttachments();
+      var proposal = selectedEditor.content() instanceof ProposalStageEditor editor ? editor : null;
+      var command = proposal == null ? null : proposal.command(transition);
+      var initialSubmission = provisional;
+      var flowId = flow.getId();
+      var workflowId = workflow.getId();
+      var expectedRevision = flow.getRevision();
+      var publicRead = flow.isPublicRead();
       var update = copyState(selectedState);
-      update.setMetadata(selectedEditor.metadata().get());
+      update.setMetadata(Metadata.create(selectedEditor.metadata().get()));
+      var uploads = pendingAttachments.getOrDefault(selectedState.getId(), List.of()).stream()
+          .map(WorkflowEditor::copyUpload).toList();
       var request = Flow.TransitionRequest.create();
-      request.setSourceStateId(selectedState.getId());
+      request.setSourceStateId(update.getId());
       request.setTransitionId(transition.getId());
-      request.setExpectedRevision(flow.getRevision() + 1);
-      var target = Flow.State.create();
-      target.setOwner(WorkflowParticipant.from(scope).getIdentity());
-      request.setTargetState(target);
-      if (provisional) {
+      request.setProposalReview(command);
+      request.setExpectedRevision(expectedRevision + (command == null ? 1 : 0));
+      // The backend assigns a returned editing stage to the author. A reviewer must not override it.
+      if (ProposalStageEditor.operation(transition) != org.integratedmodelling.klab.api.services.resources.workflow.ProposalReview.Operation.REQUEST_CHANGES) {
+        var target = Flow.State.create();
+        target.setOwner(WorkflowParticipant.from(scope).getIdentity());
+        request.setTargetState(target);
+      }
+      if (command != null && initialSubmission) {
+        var proposals = uploads.stream().filter(a -> "application/vnd.klab.proposal+yaml".equals(a.getMediaType())).toList();
+        var ontologies = uploads.stream().filter(a -> "application/vnd.klab.ontology".equals(a.getMediaType())).toList();
+        if (proposals.size() != 1 || ontologies.size() > 1)
+          throw new IllegalStateException("Initial submission requires one proposal and at most one ontology upload");
+        var bytes = proposals.getFirst().getContent();
+        var ontology = ontologies.isEmpty() ? null : new org.integratedmodelling.klab.api.services.resources.workflow.ProposalReview.Artifact(
+            "pending:" + ProposalCandidateReader.digest(ontologies.getFirst().getContent()), ProposalCandidateReader.digest(ontologies.getFirst().getContent()));
+        var bound = ProposalCandidateReader.read(bytes, "pending:" + ProposalCandidateReader.digest(bytes), ontology);
+        if (!bound.equals(command.candidate()))
+          throw new IllegalStateException("Candidate fields do not match the pending immutable bytes. Restore the uploaded binding before submitting.");
+      }
+      if (proposal != null) {
+        var confirmation = new Alert(Alert.AlertType.CONFIRMATION);
+        confirmation.setTitle("Confirm exact proposal review");
+        confirmation.setHeaderText("Record this action against this immutable candidate?");
+        var detail = new TextArea(proposal.model().confirmation(ProposalStageEditor.operation(transition)));
+        detail.setEditable(false); detail.setWrapText(true); detail.setPrefSize(680, 380);
+        confirmation.getDialogPane().setContent(detail);
+        if (getScene() != null) confirmation.initOwner(getScene().getWindow());
+        if (confirmation.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) return;
+      }
+      if (initialSubmission) {
+        if (command != null) {
+          // The server derives the same candidate from the exact initial uploaded bytes.
+          // Temporary client IDs never cross the persistence boundary.
+          request.setProposalReview(new org.integratedmodelling.klab.api.services.resources.workflow.ProposalReview.Command(
+              command.version(), null, command.rationale(), command.dossier()));
+        }
         request.setExpectedRevision(-1);
         var initialization = Flow.InitializationRequest.create();
         initialization.setInitialState(update);
-        initialization.setAttachments(
-            new ArrayList<>(pendingAttachments.getOrDefault(selectedState.getId(), List.of())));
+        initialization.setAttachments(uploads);
         initialization.setTransition(request);
-        initialization.setPublicRead(flow.isPublicRead());
-        var initializedFlow = service.initializeFlow(workflow.getId(), initialization, scope);
+        initialization.setPublicRead(publicRead);
+        var initializedFlow = service.initializeFlow(workflowId, initialization, scope);
         if (initializedFlow == null)
           throw new IllegalStateException(
               "The Resources service returned no Flow after initialization");
@@ -865,14 +965,70 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
         pendingAttachments.clear();
         if (initialized != null) initialized.accept(flow);
       } else {
-        service.updateFlowState(flow.getId(), selectedState.getId(), update, scope);
-        request.setExpectedRevision(flow.getRevision() + 1);
-        flow = service.transitionFlow(flow.getId(), request, scope);
+        // Proposal commands are atomic and bound to the revision the reviewer actually saw.
+        // Never advance the revision with a metadata write before an exact-candidate decision.
+        if (command == null) service.updateFlowState(flowId, update.getId(), update, scope);
+        var transitioned = service.transitionFlow(flowId, request, scope);
+        if (transitioned == null) throw new IllegalStateException("The Resources service returned no flow; reopen to reconcile before retrying");
+        flow = transitioned;
       }
+      if (flow == null) throw new IllegalStateException("The Resources service returned no flow; reload to reconcile before retrying");
+      proposalDrafts.clear();
       refresh(selectInitialState());
     } catch (Throwable e) {
       fail(e);
+    } finally {
+      submitting = false;
+      updateActions();
     }
+  }
+
+  private void inspectProposalAttachment(Flow.Attachment attachment) {
+    var dialog = new Dialog<Void>();
+    dialog.setTitle("Immutable source: " + attachment.getFileName());
+    dialog.setHeaderText("Attachment " + attachment.getId() + "\nSHA-256 " + attachment.getChecksum());
+    dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+    dialog.setResizable(true);
+    if (getScene() != null) dialog.initOwner(getScene().getWindow());
+    var content = new BorderPane(new ProgressIndicator()); content.setPrefSize(900, 600);
+    dialog.getDialogPane().setContent(content);
+    var flowId = flow.getId();
+    var task = new Task<String>() {
+      @Override protected String call() throws Exception {
+        var bytes = service.getFlowAttachment(flowId, attachment.getId(), scope);
+        if (bytes == null || !Objects.equals(attachment.getChecksum(), ProposalCandidateReader.digest(bytes)))
+          throw new IllegalStateException("Source bytes are missing or do not match the immutable checksum");
+        return java.nio.charset.StandardCharsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(bytes)).toString();
+      }
+    };
+    task.setOnSucceeded(event -> {
+      if (!dialog.isShowing()) return;
+      var text = new TextArea(task.getValue()); text.setEditable(false); text.setWrapText(false);
+      content.setCenter(text);
+    });
+    task.setOnFailed(event -> { var error = new Label(errorMessage(task.getException())); error.setWrapText(true); content.setCenter(error); });
+    dialog.setOnHidden(event -> task.cancel(true));
+    var worker = new Thread(task, "proposal-source-inspection"); worker.setDaemon(true); worker.start();
+    dialog.showAndWait();
+  }
+
+  private boolean discardProposalDraft(String message) {
+    if (!(selectedEditor.content() instanceof ProposalStageEditor editor) || !editor.model().dirty()) return true;
+    var dialog = new Alert(Alert.AlertType.CONFIRMATION, message, ButtonType.OK, ButtonType.CANCEL);
+    if (getScene() != null) dialog.initOwner(getScene().getWindow());
+    return dialog.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK;
+  }
+
+  /** Called by tab hosts before discarding local stage drafts. */
+  public boolean requestClose() {
+    if (submitting) return false;
+    boolean dirty = proposalDrafts.values().stream()
+        .anyMatch(stage -> stage.content() instanceof ProposalStageEditor view && view.model().dirty());
+    if (!dirty) return true;
+    var dialog = new Alert(Alert.AlertType.CONFIRMATION,
+        "Discard unsaved proposal review edits and notes in this workflow?", ButtonType.OK, ButtonType.CANCEL);
+    if (getScene() != null) dialog.initOwner(getScene().getWindow());
+    return dialog.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK;
   }
 
   private void validateRequiredAttachments() {
@@ -891,6 +1047,14 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     }
   }
 
+  private static Flow.AttachmentUpload copyUpload(Flow.AttachmentUpload upload) {
+    var copy = Flow.AttachmentUpload.create();
+    copy.setType(upload.getType()); copy.setFileName(upload.getFileName());
+    copy.setMediaType(upload.getMediaType()); copy.setAssetType(upload.getAssetType());
+    copy.setContent(upload.getContent() == null ? null : upload.getContent().clone());
+    return copy;
+  }
+
   private Flow.State copyState(Flow.State state) {
     var copy = Flow.State.create();
     copy.setId(state.getId());
@@ -903,8 +1067,8 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     copy.setPermissionsOwnerUrn(state.getPermissionsOwnerUrn());
     copy.setStatus(state.getStatus());
     copy.setOwner(state.getOwner());
-    copy.setAssignees(state.getAssignees());
-    copy.setMetadata(state.getMetadata());
+    copy.setAssignees(new java.util.LinkedHashSet<>(state.getAssignees()));
+    copy.setMetadata(Metadata.create(state.getMetadata()));
     return copy;
   }
 
@@ -924,6 +1088,27 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     return WorkflowParticipant.from(scope).getRoles().contains(WorkflowRole.ADMIN);
   }
 
+  private boolean isProposalWorkflow() {
+    return workflow.getTransitions().values().stream()
+        .anyMatch(transition -> transition.getMetadata().containsKey("proposalReviewOperation"));
+  }
+
+  /** Mirrors the service's narrow assigned-reviewer transition allowance, not editor privileges. */
+  static boolean canReviewTransition(Flow flow, Workflow workflow, Flow.State state,
+      Workflow.TransitionSchema transition, WorkflowParticipant participant) {
+    var schema = workflow.getStates().get(state.getSchemaId());
+    var operation = ProposalStageEditor.operation(transition);
+    return !flow.isPublicRead() && flow.getStatus() != Flow.Status.CLOSED
+        && state.getStatus() == Flow.StateStatus.OPEN && flow.getCurrentStateIds().contains(state.getId())
+        && operation != null && operation != org.integratedmodelling.klab.api.services.resources.workflow.ProposalReview.Operation.SUBMIT
+        && schema != null && schema.getContributorRoles().contains(WorkflowRole.REVIEWER)
+        && participant.getRoles().contains(WorkflowRole.REVIEWER)
+        && state.getAssignees().contains(participant.getIdentity())
+        && transition.getRoles().contains(WorkflowRole.REVIEWER)
+        && workflow.canAccess(schema, participant)
+        && workflow.admittedTransitions(state, participant).contains(transition);
+  }
+
   private void updateActions() {
     if (actionBar == null || selectedEditor == null) return;
     boolean valid = selectedEditor.valid().getAsBoolean();
@@ -932,7 +1117,12 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     }
     if (submitButton != null) {
       var choice = transitionSelector == null ? null : transitionSelector.getValue();
-      submitButton.setDisable(!valid || choice == null || choice.transition() == null);
+      var proposalProblem = selectedEditor.content() instanceof ProposalStageEditor proposal
+          && choice != null && choice.transition() != null
+          ? proposal.model().problem(ProposalStageEditor.operation(choice.transition())) : null;
+      submitButton.setDisable(submitting || !valid || choice == null || choice.transition() == null || proposalProblem != null);
+      submitButton.setTooltip(new Tooltip(proposalProblem == null ? "Submit the selected workflow transition" : proposalProblem));
+      if (selectedEditor.content() instanceof ProposalStageEditor proposal) proposal.showProblem(proposalProblem);
     }
   }
 
@@ -951,11 +1141,12 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   }
 
   private void fail(Throwable error) {
-    var message = errorMessage(error);
+    var message = errorMessage(error) + (selectedEditor != null && selectedEditor.content() instanceof ProposalStageEditor
+        ? " Your proposal draft is retained. For a stale revision or conflicting edit, copy your notes, reopen the workflow and review the latest candidate before submitting again." : "");
     Platform.runLater(
         () -> {
           errorMessage.setText(message);
-          KlabIDEController.instance().handleNotification(Notification.error(message));
+          if (KlabIDEController.instance() != null) KlabIDEController.instance().handleNotification(Notification.error(message));
         });
   }
 
