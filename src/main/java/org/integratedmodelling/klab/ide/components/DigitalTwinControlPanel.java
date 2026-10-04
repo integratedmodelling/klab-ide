@@ -277,6 +277,12 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
     prompt.setStyle("-fx-text-fill: -color-fg-muted; -fx-font-size: 14px;");
     dropZone.getChildren().setAll(prompt);
     setStatus(Status.RECEIVING);
+    var grid=ObservationDropTarget.gridDefinition(asset);
+    if (grid!=null) {
+      prompt.setText("Install grid: "+grid.getName()+"\nApplies to the whole digital twin before observations");
+      prompt.setWrapText(true); prompt.setMaxWidth(200);
+      return;
+    }
     var targetScope = scope;
     if (targetScope == null) return;
     var context = targetScope.getContextObservation();
@@ -534,6 +540,10 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
       Platform.runLater(() -> setDigitalTwin(scope, focus));
       return;
     }
+    var alignment=scope==null ? null : scope.getConfiguration().getGridAlignment();
+    homeButton.setTooltip(new Tooltip(alignment==null ? "Click to bring the whole graph into view. Right-click to recontextualize." :
+        "Grid: "+alignment.definitionUrn()+"\n"+alignment.projection()+"; cells "+alignment.stepX()+" x "+alignment.stepY()
+        +"; "+(alignment.strict() ? "strict" : "nested resolutions")+"; "+(alignment.snap() ? "snapped anchor" : "exact anchor")));
     if (this.scope == scope) {
       if (scope != null) {
         observationTree.update(scope.getFocalRoot(), scope.getFocalAsset(), scope);

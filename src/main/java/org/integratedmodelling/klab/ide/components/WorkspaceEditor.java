@@ -908,7 +908,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     digitalTwinControlPanel.showDropProgress();
     dropLoad.load(
         () -> {
-          var scope = KlabIDEController.instance().requireDefaultContext();
+          var grid=ObservationDropTarget.gridDefinition(value);
+          var scope = KlabIDEController.instance().requireDefaultContext(grid==null ? null : grid.getUrn());
           if (scope == null) {
             throw new IllegalStateException(
                 "No scope selected and no local runtime service available.");

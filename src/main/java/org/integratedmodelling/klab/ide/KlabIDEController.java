@@ -2235,7 +2235,12 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   @Override
   public synchronized ContextScope createDefaultContext() {
-    var context = modeler.createDefaultContext();
+    return createDefaultContext(null);
+  }
+
+  @Override
+  public synchronized ContextScope createDefaultContext(String gridUrn) {
+    var context = modeler.createDefaultContext(gridUrn);
     if (context == null) {
       alert(Notification.error("Failed to create default context: is the local runtime running?"));
       return null;
@@ -2443,8 +2448,12 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   }
 
   public IDEContextScope requireDefaultContext() {
+    return requireDefaultContext(null);
+  }
+
+  public IDEContextScope requireDefaultContext(String gridUrn) {
     if (focalScope == null) {
-      var context = createDefaultContext();
+      var context = createDefaultContext(gridUrn);
       if (context == null) {
         return null;
       }

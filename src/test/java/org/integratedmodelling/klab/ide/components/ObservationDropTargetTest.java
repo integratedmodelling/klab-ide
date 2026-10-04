@@ -14,6 +14,13 @@ import org.integratedmodelling.klab.api.lang.kim.impl.KimSymbolDefinitionImpl;
 import org.junit.jupiter.api.Test;
 
 class ObservationDropTargetTest {
+  @Test void gridDefinitionsHaveAConfigurationDropTargetWithoutObservationSemantics() {
+    var definition=new KimSymbolDefinitionImpl();definition.setDefineClass("grid");definition.setUrn("test.grid");
+    assertSame(definition,ObservationDropTarget.gridDefinition(definition));
+    assertNull(ObservationDropTarget.semantics(definition,null));
+    definition.setDefineClass("observation");assertNull(ObservationDropTarget.gridDefinition(definition));
+  }
+
   private KimConceptImpl concept(SemanticType type, boolean collective) {
     var concept = new KimConceptImpl();
     concept.setType(Set.of(type));
