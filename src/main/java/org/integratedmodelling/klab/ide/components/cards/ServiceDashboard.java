@@ -40,6 +40,8 @@ import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
@@ -222,6 +224,15 @@ public class ServiceDashboard extends BaseAssetViewComponent {
           case RUNTIME -> Setting.Page.RUNTIME;
           default -> null;
         };
+    var tabs = new TabPane();
+    tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+    if (page != null) tabs.getTabs().add(new Tab("Service", settingsPage(page)));
+    tabs.getTabs().add(new Tab("Email", settingsPage(Setting.Page.EMAIL)));
+    tabs.setMaxHeight(Double.MAX_VALUE);
+    return tabs;
+  }
+
+  private Node settingsPage(Setting.Page page) {
     var settings =
         new SettingsPageViewComponent(page, service.settings()) {
           @Override

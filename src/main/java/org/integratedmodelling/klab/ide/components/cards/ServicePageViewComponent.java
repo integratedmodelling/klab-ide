@@ -171,7 +171,17 @@ public class ServicePageViewComponent extends VBox {
                 service.settings().set(setting, newValue);
               }
             });
-      settingsScroll.setContent(settingsPane);
+      var configurationTabs = new TabPane();
+      configurationTabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+      configurationTabs.getTabs().add(new Tab("Service", settingsPane));
+      configurationTabs.getTabs().add(new Tab("Email",
+          new SettingsPageViewComponent(Setting.Page.EMAIL, service.settings()) {
+            @Override
+            protected void onChangedSetting(Setting setting, Object newValue) {
+              service.settings().set(setting, newValue);
+            }
+          }));
+      settingsScroll.setContent(configurationTabs);
       settingsTab.setContent(settingsScroll);
     }
 

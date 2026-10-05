@@ -141,8 +141,15 @@ public abstract class SettingsPageViewComponent extends VBox {
             input = fileBox;
 
           } else {
-            // TODO
-            TextField field = new TextField();
+            if (data.getValue() == Setting.EMAIL_SECURITY) {
+              ComboBox<String> mode = new ComboBox<>();
+              mode.getItems().addAll("STARTTLS", "SSL", "NONE");
+              mode.setValue(settings.get(data.getValue(), String.class));
+              mode.setOnAction(e -> onChangedSetting(data.getValue(), mode.getValue()));
+              return new SimpleObjectProperty<Node>(mode);
+            }
+            TextField field = data.getValue() == Setting.EMAIL_PASSWORD
+                ? new PasswordField() : new TextField();
             if (data.getValue().defaultValue != null) {
               field.setText(
                   settings.get(data.getValue(), (Class<Object>) data.getValue().valueClass)

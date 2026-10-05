@@ -18,6 +18,7 @@ on smaller windows its contents scroll rather than clipping. It follows owner mo
 | Up or Down in the input | Move the highlighted result up/down and scroll it into view, keeping input focus and the cursor position. Selection stops at the first/last result. |
 | Return on a table row, or double-click | Add that concept/operator; clear the pending query and return focus to the input at position zero. |
 | Return in the input | Accept a requested literal value, or add the highlighted match when the cursor is at the end of a nonblank search with no selected text. An empty query or a cursor inside the search does not add a component. |
+| Space in the input | Add the highlighted current match only when the entire pending text equals its name or identifier (case-insensitive), with the cursor at the end and no text selected. Authority labels, codes and canonical references also qualify. Partial/multiword searches and literal values retain ordinary spaces. A held confirmation Space neither repeats insertion nor leaves a stray space in the next input. |
 | Backspace at the input boundary | Undo one server-confirmed composition step. Ordinary Backspace elsewhere edits the pending query. Holding the key does not repeat semantic undo. |
 | `(` or `)` | In concept mode, open/close a scope when the Reasoner permits it; preserve characters as text when entering literal values or searching authorities. Holding the key does not repeat scope edits. |
 | Ctrl+Enter in the input | Submit the confirmed expression to the host, including identities and other predicates. Disabled while any nonblank query text remains. Ctrl+Enter on the table is ignored. |
@@ -99,6 +100,19 @@ warming, but does not establish the cause of every intermittent timeout. Client 
 record request/response IDs, mode, selection, query length, client/server elapsed time,
 match counts and error counts. Failures and timeouts log at WARNING, including whether
 the worker had already finished. Query text is not logged.
+
+Insertion timing now separates worker queue, service lookup, service call, JavaFX callback queue,
+and response application, alongside the Reasoner's reported elapsed time. Response application
+measures token/card/control updates, not the subsequent JavaFX layout/render pulse. FINE logging
+captures all completed requests; SELECT and IDENTITY requests taking at least one second also emit
+these timings at WARNING, so slow confirmed insertions are visible without enabling verbose logs.
+
+The reported insertion delays remain an open production issue. Profile cold and warm concept
+selection and authority insertion with these phase timings. If service time dominates, inspect
+Reasoner validation, authority materialization, clause documentation and next-proposal generation
+separately. If the JavaFX queue or response application dominates, profile the UI thread and card
+construction. Compare repeated selections/undo in the same context and capture an actually slow
+request before choosing caching or asynchronous proposal generation as a remedy.
 
 The session registers incoming request IDs before taking its state lock. A newer request
 cooperatively cancels an obsolete TOKEN scan between index hits and candidate validations;
@@ -287,7 +301,7 @@ A live isolated replay of the reported Fagus selection found `Fagus sylvatica L.
 a client rendering regression fixture. The original disappearance was not reproduced live;
 the missing-token and truncated-response clearing cases are reproduced by focused tests.
 
-Verification: all 40 focused composer tests pass, and `mvn -o -DskipTests compile` succeeds on the
+Verification: all 44 focused composer tests pass, and `mvn -o -DskipTests compile` succeeds on the
 production module path. Focused IDE regressions cover canonical identity insertion in the existing session, undo, input arrows
 and Enter, obsolete search replies, stale documentation, searchable-ID filtering, provider failures
 and rejected insertion, plus bounded Markdown transport without credentials on public URLs.

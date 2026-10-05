@@ -966,6 +966,79 @@ class SemanticComposerTest {
     while (!fx(condition)) { if (System.nanoTime() > deadline) fail("Condition did not become true"); Thread.sleep(10); }
   }
 
+  @Test void spaceConfirmsOnlyACompleteSelectedConceptNameOrIdentifier() throws Exception {
+    for (String text : List.of("Tree", "test:Tree", "tree")) {
+      var fake = new FakeSearch(); fake.selectAddsToken = true;
+      var match = match("test:Tree"); match.setName("Tree"); fake.matches = List.of(match);
+      var composer = fx(() -> new SemanticComposer(() -> fake.reasoner(), o -> CompletableFuture.completedFuture(null), () -> {}));
+      try {
+        ready(composer);
+        fx(() -> { query(composer).setText(text); query(composer).positionCaret(text.length()); return null; }); ready(composer);
+        fx(() -> { press(query(composer), KeyCode.SPACE); typed(query(composer), " "); return null; }); ready(composer);
+        assertEquals(1, fake.count(SemanticSearchRequest.Mode.SELECT));
+        assertEquals(List.of("test:Tree"), fx(() -> displayedTokens(composer)));
+        assertEquals("", fx(() -> query(composer).getText()));
+        assertEquals(0, fx(() -> query(composer).getCaretPosition()));
+      } finally { fx(() -> { composer.close(); return null; }); }
+    }
+  }
+
+  @Test void spaceRemainsTextForPartialQueriesLiteralValuesAndAnInteriorCursor() throws Exception {
+    for (String scenario : List.of("partial", "literal", "interior", "selection")) {
+      var fake = new FakeSearch(); fake.value = scenario.equals("literal");
+      var composer = fx(() -> new SemanticComposer(() -> fake.reasoner(), o -> CompletableFuture.completedFuture(null), () -> {}));
+      try {
+        ready(composer);
+        String text = scenario.equals("partial") ? "test:Tr" : "test:Tree";
+        fx(() -> { query(composer).setText(text); query(composer).positionCaret(text.length()); return null; }); ready(composer);
+        fx(() -> {
+          if (scenario.equals("interior")) query(composer).positionCaret(4);
+          if (scenario.equals("selection")) query(composer).selectRange(0, text.length());
+          press(query(composer), KeyCode.SPACE); typed(query(composer), " "); release(query(composer), KeyCode.SPACE);
+          return null;
+        }); ready(composer);
+        assertEquals(0, fake.count(SemanticSearchRequest.Mode.SELECT));
+        assertEquals(0, fake.count(SemanticSearchRequest.Mode.VALUE));
+        assertTrue(fx(() -> query(composer).getText().contains(" ")));
+      } finally { fx(() -> { composer.close(); return null; }); }
+    }
+  }
+
+  @Test void heldConfirmationSpaceDoesNotInsertAgainOrLeaveAStraySpace() throws Exception {
+    var fake = new FakeSearch(); fake.selectAddsToken = true;
+    var composer = fx(() -> new SemanticComposer(() -> fake.reasoner(), o -> CompletableFuture.completedFuture(null), () -> {}));
+    try {
+      ready(composer);
+      fx(() -> { query(composer).setText("test:Tree"); query(composer).positionCaret(9); return null; }); ready(composer);
+      fx(() -> { press(query(composer), KeyCode.SPACE); typed(query(composer), " "); return null; }); ready(composer);
+      fx(() -> { press(query(composer), KeyCode.SPACE); typed(query(composer), " "); return null; });
+      assertEquals(1, fake.count(SemanticSearchRequest.Mode.SELECT));
+      assertEquals("", fx(() -> query(composer).getText()));
+      fx(() -> { release(query(composer), KeyCode.SPACE); query(composer).setText("test:Tree"); query(composer).positionCaret(9); return null; }); ready(composer);
+      fx(() -> { press(query(composer), KeyCode.SPACE); typed(query(composer), " "); return null; }); ready(composer);
+      assertEquals(2, fake.count(SemanticSearchRequest.Mode.SELECT));
+    } finally { fx(() -> { composer.close(); return null; }); }
+  }
+
+  @Test void spaceConfirmsACompleteAuthorityLabelWithItsCanonicalCode() throws Exception {
+    var fake = new FakeSearch();
+    fake.authoritySearch = request -> new AuthoritySearchResponse(AuthoritySearchResponse.Status.OK,
+        List.of(identity("3DSK5", "Fagus sylvatica L.")), 1, -1, List.of());
+    var host = fake.reasoner();
+    var composer = fx(() -> new SemanticComposer(() -> host, o -> CompletableFuture.completedFuture(null), () -> {},
+        null, javafx.util.Duration.seconds(30), () -> authoritySource(host)));
+    try {
+      ready(composer); waitUntil(() -> ((ComboBox<?>) composer.lookup("#semantic-authority")).getItems().size() == 1);
+      fx(() -> { ((ComboBox<String>) composer.lookup("#semantic-source")).setValue("Authorities");
+        query(composer).setText("Fagus sylvatica L."); query(composer).positionCaret(query(composer).getLength()); return null; });
+      waitUntil(() -> ((TableView<?>) composer.lookup("#authority-results")).getItems().size() == 1);
+      fx(() -> { press(query(composer), KeyCode.SPACE); typed(query(composer), " "); return null; }); ready(composer);
+      assertEquals(List.of("TAXA:[3DSK5]"), fx(() -> displayedTokens(composer)));
+      assertEquals("", fx(() -> query(composer).getText()));
+      assertEquals(1, fake.count(SemanticSearchRequest.Mode.IDENTITY));
+    } finally { fx(() -> { composer.close(); return null; }); }
+  }
+
   @Test void lateAuthorityDocumentationCannotOverwriteNewSelection() throws Exception {
     var started = new CountDownLatch(1); var released = new CountDownLatch(1); var latest = new CountDownLatch(1);
     var host = (Reasoner) Proxy.newProxyInstance(Reasoner.class.getClassLoader(), new Class<?>[]{Reasoner.class}, (p, method, args) -> {

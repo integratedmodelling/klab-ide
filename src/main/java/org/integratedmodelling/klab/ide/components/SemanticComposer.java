@@ -28,6 +28,8 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
 
   public record InitialState(String query, Observable observable) {}
 
+  private record RequestTiming(long queued, long workerStarted, long serviceStarted, long returned) {}
+
   private final TextField query = new TextField();
   private final TableView<SemanticMatch> results = new TableView<>();
   private final HBox inputLine = new HBox();
@@ -56,13 +58,14 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
   private boolean closed, updating, busy, submitting;
   private boolean queryQueued, matchesCurrent, stateUncertain, sessionLost;
   private int pendingUndo;
-  private boolean parenthesisKeyHeld, backspaceKeyHeld, enterKeyHeld;
+  private boolean parenthesisKeyHeld, backspaceKeyHeld, enterKeyHeld, spaceConfirmationHeld;
   private SemanticSearchResponse response;
   private Observable initialObservable;
   private final AuthorityBrowser authorities;
   private final EventHandler<KeyEvent> releaseKeys =
       e -> {
         if (e.getCode() == KeyCode.ENTER) enterKeyHeld = false;
+        if (e.getCode() == KeyCode.SPACE) spaceConfirmationHeld = false;
         if (e.getCode() == KeyCode.BACK_SPACE) backspaceKeyHeld = false;
         if (!e.getCode().isModifierKey()) parenthesisKeyHeld = false;
       };
@@ -70,6 +73,7 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
       (o, old, focused) -> {
         if (!focused) {
           enterKeyHeld = false;
+          spaceConfirmationHeld = false;
           backspaceKeyHeld = false;
           parenthesisKeyHeld = false;
         }
@@ -256,6 +260,10 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
         KeyEvent.KEY_TYPED,
         e -> {
           String character = e.getCharacter();
+          if (" ".equals(character) && spaceConfirmationHeld) {
+            e.consume();
+            return;
+          }
           if ((!"(".equals(character) && !")".equals(character))
               || authorityMode() || (response != null && response.isAcceptsValue())) return;
           e.consume();
@@ -268,7 +276,14 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
     query.addEventFilter(
         KeyEvent.KEY_PRESSED,
         e -> {
-          if (e.getCode() == KeyCode.BACK_SPACE) {
+          if (e.getCode() == KeyCode.SPACE && !e.isControlDown() && !e.isAltDown() && !e.isMetaDown()
+              && (spaceConfirmationHeld || canConfirmWithSpace())) {
+            e.consume();
+            if (!spaceConfirmationHeld) {
+              spaceConfirmationHeld = true;
+              accept();
+            }
+          } else if (e.getCode() == KeyCode.BACK_SPACE) {
             boolean repeated = backspaceKeyHeld;
             backspaceKeyHeld = true;
             if (query.getCaretPosition() == 0 && query.getSelection().getLength() == 0) {
@@ -304,6 +319,7 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
         KeyEvent.KEY_RELEASED,
         e -> {
           if (e.getCode() == KeyCode.BACK_SPACE) backspaceKeyHeld = false;
+          if (e.getCode() == KeyCode.SPACE) spaceConfirmationHeld = false;
           if (!e.getCode().isModifierKey()) parenthesisKeyHeld = false;
         });
     query
@@ -407,6 +423,24 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
       send(SemanticSearchRequest.Mode.SELECT, results.getSelectionModel().getSelectedItem());
   }
 
+  private boolean canConfirmWithSpace() {
+    if (!idle() || query.getText().isBlank() || query.getCaretPosition() != query.getLength()
+        || query.getSelection().getLength() != 0) return false;
+    String text = query.getText();
+    if (authorityMode()) {
+      var identity = authorities.selected();
+      return identity != null && (sameToken(text, identity.getLabel()) || sameToken(text, identity.getId())
+          || sameToken(text, AuthorityIdentitySyntax.encode(authorities.authority(), identity.getId())));
+    }
+    if (response.isAcceptsValue() || !matchesCurrent) return false;
+    var match = results.getSelectionModel().getSelectedItem();
+    return match != null && (sameToken(text, match.getName()) || sameToken(text, match.getId()));
+  }
+
+  private static boolean sameToken(String text, String token) {
+    return token != null && text.equalsIgnoreCase(token);
+  }
+
   private void send(SemanticSearchRequest.Mode mode, SemanticMatch match) {
     if (closed || submitting) return;
     if (sessionLost) return;
@@ -447,6 +481,7 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
     activeRequest = request;
     matchesCurrent = false;
     requestStarted = System.nanoTime();
+    long queued = requestStarted;
     LOG.fine(() -> "Semantic search start: " + requestSummary(request));
     busy = true;
     status.setText(
@@ -465,11 +500,14 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
     activeTask =
         worker.submit(
             () -> {
+              long workerStarted = System.nanoTime();
               try {
                 var selectedService = service == null ? reasonerSupplier.get() : service;
                 if (selectedService == null)
                   throw new IllegalStateException("No Reasoner is available.");
+                long serviceStarted = System.nanoTime();
                 var reply = selectedService.semanticSearch(request);
+                var timing = new RequestTiming(queued, workerStarted, serviceStarted, System.nanoTime());
                 if (reply == null)
                   throw new IllegalStateException("The Reasoner returned no search response.");
                 Platform.runLater(
@@ -481,7 +519,7 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
                       }
                       reasoner = selectedService;
                       try {
-                        received(request, revision, reply);
+                        received(request, revision, reply, timing);
                       } catch (Exception ex) {
                         failed(request, ex);
                       }
@@ -492,7 +530,8 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
             });
   }
 
-  private void received(SemanticSearchRequest request, int revision, SemanticSearchResponse reply) {
+  private void received(SemanticSearchRequest request, int revision, SemanticSearchResponse reply, RequestTiming timing) {
+    long applyStarted = System.nanoTime();
     LOG.fine(
         () ->
             "Semantic search complete: "
@@ -589,6 +628,19 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
     // Do not erase a rejected edit's diagnostic by immediately issuing an unrelated query.
     drain(!current && (accepted || reply.getErrors().isEmpty() || revision != queryRevision)
         || authorityMode() && !edited && reply.getErrors().isEmpty() && !query.getText().isBlank());
+    long finished = System.nanoTime();
+    long totalMs = TimeUnit.NANOSECONDS.toMillis(finished - timing.queued());
+    boolean insertion = request.getSearchMode() == SemanticSearchRequest.Mode.SELECT
+        || request.getSearchMode() == SemanticSearchRequest.Mode.IDENTITY;
+    LOG.log(insertion && totalMs >= 1000 ? java.util.logging.Level.WARNING : java.util.logging.Level.FINE,
+        () -> "Semantic search timing: " + requestSummary(request)
+            + ", totalMs=" + totalMs + ", serverMs=" + reply.getElapsedTimeMs()
+            + ", workerQueueMs=" + TimeUnit.NANOSECONDS.toMillis(timing.workerStarted() - timing.queued())
+            + ", serviceLookupMs=" + TimeUnit.NANOSECONDS.toMillis(timing.serviceStarted() - timing.workerStarted())
+            + ", callMs=" + TimeUnit.NANOSECONDS.toMillis(timing.returned() - timing.serviceStarted())
+            + ", fxQueueMs=" + TimeUnit.NANOSECONDS.toMillis(applyStarted - timing.returned())
+            + ", applyMs=" + TimeUnit.NANOSECONDS.toMillis(finished - applyStarted)
+            + ", accepted=" + accepted);
   }
 
   private static java.util.List<String> tokenValues(SemanticSearchResponse reply) {
@@ -888,6 +940,7 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
       if (scene.getWindow() != null) scene.getWindow().focusedProperty().addListener(windowFocus);
     }
     enterKeyHeld = false;
+    spaceConfirmationHeld = false;
     backspaceKeyHeld = false;
     parenthesisKeyHeld = false;
   }
