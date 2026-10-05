@@ -560,7 +560,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     confirmation.setContentText(
         "This will remove the document from project "
             + document.getProjectName()
-            + " and its filesystem. Any unsaved edits will be lost.");
+            + " and stage its removal if tracked by Git. Commit and publish to share the deletion. Any unsaved edits will be lost.");
     var delete = new ButtonType("Delete", ButtonBar.ButtonData.YES);
     var cancel = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
     confirmation.getButtonTypes().setAll(delete, cancel);
@@ -753,12 +753,11 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                     THEME_ICON_COLOR));
         teamOperation.setOnAction(
             e -> {
-              KlabIDEController.instance()
-                  .manageProject(
-                      service, project.getUrn(), op, getOperationParameters(project, op));
-
-              // TODO the new branch/switch menus should be submenus with the existing branches +
-              //  New branch...
+              var parameters = getOperationParameters(project, op);
+              if (parameters != null) {
+                KlabIDEController.instance()
+                    .manageProject(service, project.getUrn(), op, parameters);
+              }
 
             });
         teamMenu.getItems().add(teamOperation);
@@ -900,8 +899,43 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   private String[] getOperationParameters(NavigableProject project, RepositoryState.Operation op) {
-    // TODO use alerts and config, including confirmation
-    return new String[] {};
+    if (op != RepositoryState.Operation.COMMIT_AND_SWITCH
+        && op != RepositoryState.Operation.MERGE_CHANGES_FROM) {
+      return new String[] {};
+    }
+    return chooseBranch(project.getRepositoryState(),
+        op == RepositoryState.Operation.COMMIT_AND_SWITCH,
+        getScene() == null ? null : getScene().getWindow());
+  }
+
+  static String[] chooseBranch(RepositoryState state, boolean switching, javafx.stage.Window owner) {
+    var branches = state.getBranchNames().stream()
+        .filter(branch -> !branch.equals(state.getCurrentBranch()))
+        .distinct().sorted().toList();
+    var dialog = new Dialog<String>();
+    dialog.setTitle(switching ? "Commit and switch branch" : "Merge branch");
+    dialog.setHeaderText(switching
+        ? "Choose an existing branch or enter a new branch name"
+        : "Choose the branch to merge into " + state.getCurrentBranch());
+    var branch = new ComboBox<String>();
+    branch.getItems().setAll(branches);
+    branch.setEditable(switching);
+    branch.setMaxWidth(Double.MAX_VALUE);
+    if (!branches.isEmpty()) branch.getSelectionModel().selectFirst();
+    dialog.getDialogPane().setContent(branch);
+    var accept = new ButtonType(switching ? "Commit and switch" : "Merge", ButtonBar.ButtonData.OK_DONE);
+    dialog.getDialogPane().getButtonTypes().setAll(accept, ButtonType.CANCEL);
+    var acceptButton = dialog.getDialogPane().lookupButton(accept);
+    if (switching) {
+      acceptButton.disableProperty().bind(branch.getEditor().textProperty().isEmpty());
+    } else {
+      acceptButton.disableProperty().bind(branch.valueProperty().isNull());
+    }
+    dialog.setResultConverter(button -> button == accept
+        ? (switching ? branch.getEditor().getText() : branch.getValue()) : null);
+    if (owner != null) dialog.initOwner(owner);
+    return dialog.showAndWait().map(String::strip).filter(value -> !value.isBlank())
+        .map(value -> new String[] {value}).orElse(null);
   }
 
   private void handleAssetDrop(NavigableAsset value) {

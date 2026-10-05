@@ -52,6 +52,7 @@ import org.integratedmodelling.klab.api.data.Metadata;
 import org.integratedmodelling.klab.api.scope.UserScope;
 import org.integratedmodelling.klab.api.services.ResourcesService;
 import org.integratedmodelling.klab.api.services.resources.workflow.Flow;
+import org.integratedmodelling.klab.api.services.resources.workflow.WorkflowBehavior;
 import org.integratedmodelling.klab.api.services.resources.workflow.Workflow;
 import org.integratedmodelling.klab.api.services.resources.workflow.WorkflowParticipant;
 import org.integratedmodelling.klab.api.services.resources.workflow.WorkflowRole;
@@ -765,6 +766,15 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
 
     var buttons = new HBox(8);
     buttons.setAlignment(Pos.CENTER_RIGHT);
+    if (!provisional && flow.getCurrentStateIds().contains(selectedState.getId())) {
+      for (var binding : schema.getActions()) {
+        var button = new Button(binding.label() == null || binding.label().isBlank()
+            ? binding.id() : binding.label());
+        button.setTooltip(new Tooltip("Run " + binding.action() + " using the saved stage"));
+        button.setOnAction(event -> discoverBehaviorAction(binding.id()));
+        buttons.getChildren().add(button);
+      }
+    }
 
     if (provisional) {
       var cancelWorkflow = new Button("Cancel workflow");
@@ -839,6 +849,96 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     }
     bar.getChildren().add(buttons);
     return bar;
+  }
+
+  private void discoverBehaviorAction(String actionId) {
+    if (submitting || !requestClose()) return;
+    String flowId = flow.getId();
+    String stateId = selectedState.getId();
+    submitting = true;
+    setDisable(true);
+    var task = new Task<List<WorkflowBehavior.AvailableAction>>() {
+      @Override protected List<WorkflowBehavior.AvailableAction> call() {
+        return service.getFlowActions(flowId, stateId, scope);
+      }
+    };
+    task.setOnFailed(event -> { submitting = false; setDisable(false); fail(task.getException()); });
+    task.setOnSucceeded(event -> {
+      submitting = false; setDisable(false);
+      var action = task.getValue().stream().filter(candidate -> candidate.id().equals(actionId))
+          .findFirst().orElse(null);
+      if (action == null) { fail(new IllegalStateException("This action is no longer available")); return; }
+      promptBehaviorAction(flowId, stateId, action);
+    });
+    var worker = new Thread(task, "workflow-action-discovery"); worker.setDaemon(true); worker.start();
+  }
+
+  private void promptBehaviorAction(String flowId, String stateId, WorkflowBehavior.AvailableAction action) {
+    var dialog = new Dialog<Map<String, Object>>();
+    dialog.setTitle(action.label() == null ? action.id() : action.label());
+    dialog.setHeaderText("Runs against the saved stage. The editor refreshes after completion; save any changes first.");
+    if (getScene() != null) dialog.initOwner(getScene().getWindow());
+    var content = new VBox(8);
+    var fields = new LinkedHashMap<WorkflowBehavior.Parameter, TextField>();
+    for (var parameter : action.missing()) {
+      var field = new TextField();
+      field.setPromptText(parameter.javaType() == null ? "Text" : parameter.javaType());
+      content.getChildren().addAll(new Label(parameter.name()), field);
+      fields.put(parameter, field);
+    }
+    var validation = new Label(); validation.setWrapText(true);
+    content.getChildren().add(validation);
+    dialog.getDialogPane().setContent(content);
+    var run = new ButtonType("Run", ButtonBar.ButtonData.OK_DONE);
+    dialog.getDialogPane().getButtonTypes().addAll(run, ButtonType.CANCEL);
+    var values = new LinkedHashMap<String, Object>();
+    dialog.getDialogPane().lookupButton(run).addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+      values.clear();
+      try {
+        for (var entry : fields.entrySet())
+          values.put(entry.getKey().name(), behaviorInput(entry.getKey(), entry.getValue().getText()));
+      } catch (IllegalArgumentException invalid) { validation.setText(invalid.getMessage()); event.consume(); }
+    });
+    dialog.setResultConverter(button -> button == run ? values : null);
+    dialog.showAndWait().ifPresent(parameters -> {
+      submitting = true; setDisable(true);
+      var request = new WorkflowBehavior.ActionRequest(action.revision(), parameters);
+      var task = new Task<Flow>() {
+        @Override protected Flow call() { return service.executeFlowAction(flowId, stateId, action.id(), request, scope); }
+      };
+      task.setOnFailed(event -> { submitting = false; setDisable(false); fail(task.getException()); });
+      task.setOnSucceeded(event -> {
+        submitting = false; setDisable(false);
+        if (task.getValue() == null) { fail(new IllegalStateException("No action result; reload before retrying")); return; }
+        flow = task.getValue(); proposalDrafts.clear();
+        refresh(flow.getStates().get(stateId));
+      });
+      var worker = new Thread(task, "workflow-action"); worker.setDaemon(true); worker.start();
+    });
+  }
+
+  static Object behaviorInput(WorkflowBehavior.Parameter parameter, String value) {
+    if (parameter.behaviorType() != null)
+      throw new IllegalArgumentException(parameter.name() + " requires an agent; configure it on the server");
+    String type = parameter.javaType() == null ? "string" : parameter.javaType().toLowerCase(java.util.Locale.ROOT);
+    if (type.startsWith("java.lang.")) type = type.substring(10);
+    try {
+      return switch (type) {
+        case "string" -> value;
+        case "boolean" -> {
+          if (!"true".equalsIgnoreCase(value) && !"false".equalsIgnoreCase(value))
+            throw new IllegalArgumentException("Enter true or false");
+          yield Boolean.valueOf(value);
+        }
+        case "int", "integer" -> Integer.valueOf(value);
+        case "long" -> Long.valueOf(value);
+        case "double" -> Double.valueOf(value);
+        case "float" -> Float.valueOf(value);
+        default -> throw new IllegalArgumentException("No form editor for " + parameter.javaType());
+      };
+    } catch (IllegalArgumentException invalid) {
+      throw new IllegalArgumentException(parameter.name() + ": " + invalid.getMessage());
+    }
   }
 
   private ListCell<TransitionChoice> transitionChoiceCell() {
