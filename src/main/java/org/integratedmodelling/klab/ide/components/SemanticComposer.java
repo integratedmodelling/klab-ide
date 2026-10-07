@@ -217,7 +217,7 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
     progress.setMaxSize(18, 18);
     var spacer = new Region();
     HBox.setHgrow(spacer, Priority.ALWAYS);
-    var header = new HBox(8, source, authorities.chooser, spacer);
+    var header = new HBox(8, source, authorities.chooser, authorities.codelistFilter, spacer);
     header.setAlignment(Pos.CENTER_LEFT);
     progress.managedProperty().bind(progress.visibleProperty());
     getChildren().addAll(header, results, authorities.view, input, card, status);
@@ -767,6 +767,7 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
     results.setDisable(!idle);
     source.setDisable(submitting || closed);
     authorities.chooser.setDisable(submitting || closed);
+    authorities.codelistFilter.setDisable(submitting || closed);
     authorities.results.setDisable(!idle || authorities.busy());
     progress.setVisible(busy || submitting || authorities.busy());
     if (authorities.busy()) proceed.setVisible(false);

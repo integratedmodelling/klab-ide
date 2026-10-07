@@ -1280,6 +1280,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
             ret.markNotifications(document.getNotifications(), false);
             showSemanticValidation(document, ret);
             requestSemanticValidation();
+            refreshAuthorityProposals(document, ret, false);
           });
       ret.loadEditor(document.getSourceCode(), languageId, theme);
       editorSources.put(ret, document.getSourceCode());
@@ -1323,7 +1324,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   @Override
   protected void disposeEditor(NavigableAsset asset, Node editor) {
     editorSources.remove(editor);
-    if (editor instanceof MonacoEditorView monaco) { pairedReviewRefresh.remove(monaco); pairedReviewStages.remove(monaco); monaco.clearReviewMarkers(); }
+    if (editor instanceof MonacoEditorView monaco) {
+      var feedback = authorityFeedback.remove(monaco); if (feedback != null) feedback.close();
+      authorityNotifications.remove(monaco); authoritySources.remove(monaco); authorityDocuments.remove(monaco);
+      pairedReviewRefresh.remove(monaco); pairedReviewStages.remove(monaco); monaco.clearReviewMarkers(); }
     if (asset instanceof KlabDocument<?> document)
       semanticStatusLabels.remove(WorkspaceSemanticValidation.key(document));
     pairButtons.remove(asset.getUrn());
@@ -1332,6 +1336,22 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     if (session != null) {
       session.close();
     }
+  }
+
+  private final Map<MonacoEditorView, AuthorityProposalFeedback> authorityFeedback = new IdentityHashMap<>();
+  private final Map<MonacoEditorView, List<Notification>> authorityNotifications = new IdentityHashMap<>();
+  private final Map<MonacoEditorView, String> authoritySources = new IdentityHashMap<>();
+  private final Map<MonacoEditorView, KlabDocument<?>> authorityDocuments = new IdentityHashMap<>();
+
+  private void refreshAuthorityProposals(KlabDocument<?> document, MonacoEditorView editor, boolean submit) {
+    authorityDocuments.put(editor, document);
+    var feedback = authorityFeedback.computeIfAbsent(editor, key -> new AuthorityProposalFeedback(notifications -> {
+      if (editor.isDirty() || !Objects.equals(editor.getText(), authoritySources.get(editor))) return;
+      authorityNotifications.put(editor, notifications);
+      showSemanticValidation(authorityDocuments.get(editor), editor);
+    }));
+    authoritySources.put(editor, document.getSourceCode());
+    feedback.update(document, submit);
   }
 
   private void saveDocument(String text, NavigableAsset asset) {
@@ -1388,8 +1408,11 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
             if (hasChangedAssets || change.getOperation() == CRUDOperation.DELETE) {
               mergeChangeIntoTree(change, causedByOpenEditorSave);
             }
-            if (change.getOperation() != CRUDOperation.DELETE)
+            if (change.getOperation() != CRUDOperation.DELETE) {
               updateEditorNotifications(parsedDocument, change.getNotifications());
+              if (parsedDocument != null && getEditor(parsedDocument) instanceof MonacoEditorView editor)
+                refreshAuthorityProposals(parsedDocument, editor, causedByOpenEditorSave);
+            }
           }
           // Reconciliation can temporarily invalidate the selection when children are reordered.
           // Select the equivalent surviving node again, without scrolling the tree or selecting
@@ -1547,8 +1570,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         matches && update.response() != null
             ? update.response().getNotifications()
             : List.<Notification>of();
-    editor.markSemanticNotifications(
-        notifications, matches ? update.request().document().getSourceCode() : null);
+    var combined = new ArrayList<Notification>(notifications);
+    if (Objects.equals(editor.getText(), authoritySources.get(editor)))
+      combined.addAll(authorityNotifications.getOrDefault(editor, List.of()));
+    editor.markSemanticNotifications(combined, editor.getText());
     if (label != null) {
       String status = matches ? update.status() : "Semantic validation pending";
 

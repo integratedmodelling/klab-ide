@@ -44,6 +44,10 @@ final class AuthorityBrowser implements AutoCloseable {
   }
 
   final ComboBox<String> chooser = new ComboBox<>();
+  final ComboBox<String> codelistFilter = new ComboBox<>();
+  private Future<?> listDiscovery;
+  private long listRevision;
+  private static final String ALL_CODELISTS = "All identities";
   final TableView<AuthorityIdentity> results = new TableView<>();
   final SplitPane view = new SplitPane();
   private final VBox documentation = new VBox(8);
@@ -63,10 +67,19 @@ final class AuthorityBrowser implements AutoCloseable {
     chooser.setId("semantic-authority");
     chooser.setPromptText("Authority");
     chooser.setPrefWidth(160);
-    chooser.valueProperty().addListener((o, a, b) -> providerChanged.run());
+    codelistFilter.setId("authority-codelist-filter");
+    codelistFilter.getItems().setAll(ALL_CODELISTS);
+    codelistFilter.getSelectionModel().selectFirst();
+
+    codelistFilter.visibleProperty().bind(javafx.beans.binding.Bindings.size(codelistFilter.getItems())
+        .greaterThan(1).and(chooser.visibleProperty()));
+    codelistFilter.managedProperty().bind(codelistFilter.visibleProperty());
+    codelistFilter.valueProperty().addListener((o, a, b) -> providerChanged.run());
+    chooser.valueProperty().addListener((o, a, b) -> { loadCodelists(); providerChanged.run(); });
     results.setId("authority-results");
     results.getColumns().add(column("Identity", AuthorityIdentity::getLabel));
     results.getColumns().add(column("Code", AuthorityIdentity::getId));
+    results.getColumns().add(column("Aliases", identity -> String.join(", ", identity.getAliases())));
     results.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
     results.setPlaceholder(new Label("Type at least two characters to search"));
     results.getSelectionModel().selectedItemProperty().addListener((o, a, b) -> loadDocumentation(b));
@@ -103,7 +116,7 @@ final class AuthorityBrowser implements AutoCloseable {
           if (closed) return;
           source = loaded == null ? Source.empty() : loaded;
           chooser.getItems().setAll(source.bindings().stream()
-              .filter(b -> b.provider() != null && b.provider().searchable())
+              .filter(b -> b.provider() != null)
               .map(Worldview.AuthorityBinding::localId).distinct().sorted().toList());
           chooser.getSelectionModel().selectFirst();
           if (chooser.getItems().isEmpty()) results.setPlaceholder(new Label("No searchable authorities configured"));
@@ -113,6 +126,33 @@ final class AuthorityBrowser implements AutoCloseable {
         Platform.runLater(() -> { if (!closed) {
           results.setPlaceholder(new Label("Authority discovery failed: " + message(failure))); changed.run();
         }});
+      }
+    });
+  }
+
+  private void loadCodelists() {
+    long revision = ++listRevision;
+    if (listDiscovery != null) listDiscovery.cancel(true);
+    codelistFilter.getItems().setAll(ALL_CODELISTS);
+    codelistFilter.getSelectionModel().selectFirst();
+
+    var binding = source.bindings().stream().filter(b -> b.localId().equals(authority())).findFirst().orElse(null);
+    if (binding == null) return;
+    listDiscovery = task(() -> {
+      try {
+        var reply = source.host(binding).authorityCodelists(new AuthorityCodelistRequest(
+            AuthorityCodelistRequest.Operation.LIST, binding.localId(), null, null, null,
+            null, 0, null, null, null, null), source.scope());
+        var names = reply.codelists().entrySet().stream().filter(e -> e.getValue().size() > 0)
+            .map(java.util.Map.Entry::getKey).sorted().toList();
+        Platform.runLater(() -> {
+          if (closed || revision != listRevision) return;
+          codelistFilter.getItems().addAll(names);
+
+        });
+      } catch (Exception failure) {
+        Platform.runLater(() -> { if (!closed && revision == listRevision)
+          status.accept("Codelist filters unavailable: " + message(failure)); });
       }
     });
   }
@@ -140,12 +180,14 @@ final class AuthorityBrowser implements AutoCloseable {
     if (text.strip().codePointCount(0, text.strip().length()) < 2) {
       results.setPlaceholder(new Label("Type at least two characters to search")); status.accept(""); changed.run(); return;
     }
+    String filter = codelistFilter.getValue();
+    final String selectedFilter = ALL_CODELISTS.equals(filter) ? null : filter;
     long revision = searchRevision;
     var binding = source.bindings().stream().filter(b -> b.localId().equals(authority())).findFirst().orElseThrow();
     busy = true; status.accept("Searching " + authority() + "…"); changed.run(); deadline.playFromStart();
     search = task(() -> {
       try {
-        var reply = source.host(binding).searchAuthority(new AuthoritySearchRequest(binding.localId(), text.strip(), null, 0, 100), source.scope());
+        var reply = source.host(binding).searchAuthority(new AuthoritySearchRequest(binding.localId(), text.strip(), selectedFilter, 0, 100), source.scope());
         if (reply == null) throw new IllegalStateException("The Reasoner returned no authority response");
         Platform.runLater(() -> {
           if (closed || revision != searchRevision) return;
@@ -243,5 +285,5 @@ final class AuthorityBrowser implements AutoCloseable {
 
   private static Future<?> task(Runnable action) { var task = new FutureTask<Void>(action, null); Thread.ofVirtual().start(task); return task; }
   private static String message(Throwable failure) { return Objects.toString(failure.getMessage(), failure.getClass().getSimpleName()); }
-  @Override public void close() { closed = true; invalidate(); if (discovery != null) discovery.cancel(true); }
+  @Override public void close() { closed = true; listRevision++; if (listDiscovery != null) listDiscovery.cancel(true); invalidate(); if (discovery != null) discovery.cancel(true); }
 }
