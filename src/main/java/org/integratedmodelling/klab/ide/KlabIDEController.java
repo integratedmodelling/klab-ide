@@ -468,6 +468,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     if (scope == null) {
       return null;
     }
+    if (scope.isEmpty() || scope.getId() == null || scope.getId().isBlank()) {
+      throw new IllegalArgumentException("Cannot create an IDE peer for an uninitialized digital twin");
+    }
     IDEContextScope ret = null;
     if (scope instanceof IDEContextScope ideContextScope) {
       // Keep one UI event boundary per digital-twin id. An IDE scope can arrive here from a
@@ -483,6 +486,14 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
       ret.addViewer(viewer);
     }
     return ret;
+  }
+
+  /** Explicit and on-demand creation share modeler bookkeeping and focal-scope activation. */
+  public ContextScope createDigitalTwin(DigitalTwin.Configuration configuration, RuntimeService runtime) {
+    var context = ((ModelerImpl) modeler).openNewContext(configuration, runtime, false);
+    var peer = requireDigitalTwinPeer(context, null);
+    setFocalScope(peer, Utils.URLs.isLocalHost(context.getUrl()));
+    return peer;
   }
 
   public IDEContextScope getDigitalTwinPeer(String id) {

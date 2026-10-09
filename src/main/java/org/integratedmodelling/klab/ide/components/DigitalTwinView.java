@@ -17,6 +17,7 @@ import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.integratedmodelling.klab.api.scope.Persistence;
 import org.integratedmodelling.klab.api.services.ResourcesService;
 import org.integratedmodelling.klab.api.services.RuntimeService;
+import org.integratedmodelling.klab.api.services.runtime.Notification;
 import org.integratedmodelling.klab.api.services.runtime.objects.ContextInfo;
 import org.integratedmodelling.klab.api.utils.Utils;
 import org.integratedmodelling.klab.ide.IDEContextScope;
@@ -288,11 +289,12 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
                   .description(description.getText())
                   .persistence(persistenceCombo.getSelectionModel().getSelectedItem())
                   .build();
-          createDigitalTwin(
+          if (createDigitalTwin(
               configuration,
-              availableServices.get(serviceSelector.getSelectionModel().getSelectedIndex()));
-          workspaceDialog = null;
-          updateBrowser();
+              availableServices.get(serviceSelector.getSelectionModel().getSelectedIndex()))) {
+            workspaceDialog = null;
+            updateBrowser();
+          }
         });
 
     if (availableServices.isEmpty()) {
@@ -303,17 +305,14 @@ public class DigitalTwinView extends BrowsablePage<DigitalTwinEditor, IDEContext
     return grid;
   }
 
-  private void createDigitalTwin(
+  private boolean createDigitalTwin(
       DigitalTwin.Configuration configuration, RuntimeService runtimeService) {
-    var session = KlabIDEController.instance().user().getUserSession(runtimeService);
-    Logging.INSTANCE.info(
-        "Creating session " + session + " in service " + runtimeService.serviceName());
-    if (session != null) {
-      var context = session.createContext(configuration);
-      if (context instanceof ClientContextScope clientContextScope) {
-        showDigitalTwin(
-            KlabIDEController.instance().requireDigitalTwinPeer(clientContextScope, null));
-      }
+    try {
+      showDigitalTwin(KlabIDEController.instance().createDigitalTwin(configuration, runtimeService));
+      return true;
+    } catch (RuntimeException failure) {
+      KlabIDEController.instance().alert(Notification.error(failure.getMessage()));
+      return false;
     }
   }
 
