@@ -59,6 +59,13 @@ final class AuthorityBrowser implements AutoCloseable {
   private Future<?> discovery, search, document;
   private long searchRevision, documentRevision;
   private boolean closed, busy, current;
+  private record SearchKey(Worldview.AuthorityBinding binding, String text, String filter) {}
+  private record CachedResults(List<AuthorityIdentity> matches, long expires) {}
+  private final Map<SearchKey, CachedResults> recent = new LinkedHashMap<>(16, .75f, true) {
+    @Override protected boolean removeEldestEntry(Map.Entry<SearchKey, CachedResults> entry) {
+      return size() > 50;
+    }
+  };
 
   AuthorityBrowser(Supplier<Source> discoverySource, Consumer<String> status, Runnable changed,
       Runnable choose, Runnable providerChanged) {
@@ -68,6 +75,7 @@ final class AuthorityBrowser implements AutoCloseable {
     chooser.setPromptText("Authority");
     chooser.setPrefWidth(160);
     codelistFilter.setId("authority-codelist-filter");
+    codelistFilter.setTooltip(new Tooltip("Restrict this search to a catalog, taxonomic rank, or codelist"));
     codelistFilter.getItems().setAll(ALL_CODELISTS);
     codelistFilter.getSelectionModel().selectFirst();
 
@@ -138,6 +146,11 @@ final class AuthorityBrowser implements AutoCloseable {
 
     var binding = source.bindings().stream().filter(b -> b.localId().equals(authority())).findFirst().orElse(null);
     if (binding == null) return;
+    if (binding.provider() != null) {
+      codelistFilter.getItems().addAll(binding.provider().subAuthorities().stream()
+          .filter(name -> name != null && !name.isBlank() && !ALL_CODELISTS.equals(name))
+          .distinct().sorted().toList());
+    }
     listDiscovery = task(() -> {
       try {
         var reply = source.host(binding).authorityCodelists(new AuthorityCodelistRequest(
@@ -147,7 +160,8 @@ final class AuthorityBrowser implements AutoCloseable {
             .map(java.util.Map.Entry::getKey).sorted().toList();
         Platform.runLater(() -> {
           if (closed || revision != listRevision) return;
-          codelistFilter.getItems().addAll(names);
+          codelistFilter.getItems().addAll(names.stream()
+              .filter(name -> !codelistFilter.getItems().contains(name)).toList());
 
         });
       } catch (Exception failure) {
@@ -184,7 +198,16 @@ final class AuthorityBrowser implements AutoCloseable {
     final String selectedFilter = ALL_CODELISTS.equals(filter) ? null : filter;
     long revision = searchRevision;
     var binding = source.bindings().stream().filter(b -> b.localId().equals(authority())).findFirst().orElseThrow();
-    busy = true; status.accept("Searching " + authority() + "…"); changed.run(); deadline.playFromStart();
+    var key = new SearchKey(binding, text.strip(), selectedFilter);
+    var cached = recent.get(key);
+    boolean preview = cached != null && cached.expires() > System.nanoTime();
+    if (preview) results.getItems().setAll(cached.matches());
+    // Cached rows are a preview until the current authorized search confirms them.
+    // The same revision guard used for network results protects filter/query changes.
+    busy = true;
+    status.accept(preview ? "Showing cached results; checking " + authority() + " for updates…"
+        : "Searching " + authority() + "…");
+    changed.run(); deadline.playFromStart();
     search = task(() -> {
       try {
         var reply = source.host(binding).searchAuthority(new AuthoritySearchRequest(binding.localId(), text.strip(), selectedFilter, 0, 100), source.scope());
@@ -193,6 +216,8 @@ final class AuthorityBrowser implements AutoCloseable {
           if (closed || revision != searchRevision) return;
           busy = false; deadline.stop();
           current = reply.status() == AuthoritySearchResponse.Status.OK;
+          if (current && reply.notifications().isEmpty()) recent.put(key,
+              new CachedResults(List.copyOf(reply.matches()), System.nanoTime() + TimeUnit.MINUTES.toNanos(5)));
           results.getItems().setAll(current ? reply.matches() : List.of());
           results.setPlaceholder(new Label(current ? "No matching identities" : "Authority search " + reply.status().name().toLowerCase()));
           status.accept(reply.notifications().isEmpty() ? (reply.nextOffset() >= 0 ? "Showing the first 100 identities. Refine the search for more." : "")
@@ -201,19 +226,33 @@ final class AuthorityBrowser implements AutoCloseable {
         });
       } catch (Exception failure) {
         Platform.runLater(() -> { if (!closed && revision == searchRevision) {
-          busy = false; deadline.stop(); status.accept("Authority search failed: " + message(failure)); changed.run();
+          busy = false; current = false; results.getItems().clear(); deadline.stop();
+          status.accept("Authority search failed: " + message(failure)); changed.run();
         }});
       }
     });
   }
 
   private void loadDocumentation(AuthorityIdentity identity) {
-    long revision = ++documentRevision;
+    documentRevision++;
     documentDeadline.stop();
     if (document != null) document.cancel(true);
     documentation.getChildren().clear();
     if (identity == null) return;
     render(identity.getDescription());
+    // Full documentation can resolve an entire authority hierarchy and download depictions.
+    // Do not start that work automatically while the user is choosing or inserting a result.
+    var load = new Button("Load full documentation");
+    load.setId("authority-load-documentation");
+    load.setOnAction(event -> fetchDocumentation(identity));
+    documentation.getChildren().add(load);
+  }
+
+  private void fetchDocumentation(AuthorityIdentity identity) {
+    long revision = ++documentRevision;
+    documentDeadline.stop();
+    if (document != null) document.cancel(true);
+    documentation.getChildren().removeIf(node -> "authority-load-documentation".equals(node.getId()));
     var loading = new Label("Loading documentation…"); loading.setId("authority-doc-loading"); documentation.getChildren().add(loading);
     var binding = source.bindings().stream().filter(b -> b.localId().equals(authority())).findFirst().orElseThrow();
     documentDeadline.playFromStart();

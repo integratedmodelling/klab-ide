@@ -60,6 +60,8 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
   private int pendingUndo;
   private boolean parenthesisKeyHeld, backspaceKeyHeld, enterKeyHeld, spaceConfirmationHeld;
   private SemanticSearchResponse response;
+  private record TokenChoice(String canonical, String value) {}
+  private final java.util.Map<Integer, TokenChoice> tokenChoices = new java.util.HashMap<>();
   private Observable initialObservable;
   private final AuthorityBrowser authorities;
   private final EventHandler<KeyEvent> releaseKeys =
@@ -736,6 +738,7 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
     cancelSession(reasoner, searchId);
     searchId = 0;
     response = null;
+    tokenChoices.clear();
     initialObservable = null;
     sessionLost = false;
     stateUncertain = false;
@@ -750,6 +753,8 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
 
   private void updateControls() {
     boolean idle = idle();
+    confirmedTokens.getChildren().stream().filter(Button.class::isInstance)
+        .forEach(node -> node.setDisable(!idle));
     boolean recovery = !closed && !busy && !submitting && needsRecovery() && !canExport();
     proceed.setDisable(!recovery && !canExport());
     copy.setDisable(!canExport());
@@ -837,7 +842,47 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
   }
 
   private void renderExpression(SemanticSearchResponse reply) {
-    confirmedTokens.getChildren().setAll(Theme.semanticExpression(reply.getCode()).getChildren());
+    tokenChoices.keySet().removeIf(index -> index >= reply.getCode().size());
+    confirmedTokens.getChildren().clear();
+    StyledKimToken previous = null;
+    for (int index = 0; index < reply.getCode().size(); index++) {
+      var token = reply.getCode().get(index);
+      if (previous != null && previous.isNeedsWhitespaceAfter() && token.isNeedsWhitespaceBefore())
+        confirmedTokens.getChildren().add(new javafx.scene.text.Text(" "));
+      var choice = tokenChoices.get(index);
+      if (choice == null || !choice.canonical().equals(token.getValue())
+          || !choice.value().equals(token.getValue()) && !token.getAliases().contains(choice.value())) {
+        choice = new TokenChoice(token.getValue(), token.getAliases().isEmpty()
+            ? token.getValue() : token.getAliases().getFirst());
+        tokenChoices.put(index, choice);
+      }
+      if (!token.getAliases().isEmpty()) {
+        int position = index;
+        boolean usingAlias = !choice.value().equals(token.getValue());
+        String alias = usingAlias ? choice.value() : token.getAliases().getFirst();
+        var toggle = new Button("", new FontIcon("mdi-swap-horizontal"));
+        toggle.setId("semantic-alias-toggle-" + index);
+        toggle.setStyle("-fx-padding: 0 3 0 0; -fx-background-color: transparent;");
+        String help = "Approved codelist name: " + alias + "\nAuthority code: " + token.getValue()
+            + "\nBoth refer to the same identity. Click to use "
+            + (usingAlias ? "the raw authority code." : "the approved name.")
+            + "\nCopy and Continue use the displayed form.";
+        toggle.setTooltip(new Tooltip(help));
+        toggle.setAccessibleText(help);
+        toggle.setDisable(!idle());
+        toggle.setOnAction(event -> {
+          if (!idle()) return;
+          tokenChoices.put(position, new TokenChoice(token.getValue(), usingAlias ? token.getValue() : alias));
+          renderExpression(response);
+          query.requestFocus();
+        });
+        confirmedTokens.getChildren().add(toggle);
+      }
+      var rendered = Theme.semanticExpression(java.util.List.of(token));
+      ((javafx.scene.text.Text) rendered.getChildren().getFirst()).setText(choice.value());
+      confirmedTokens.getChildren().addAll(rendered.getChildren());
+      previous = token;
+    }
     tokenGap.setText(
         !reply.getCode().isEmpty() && reply.getCode().getLast().isNeedsWhitespaceAfter()
             ? " "
@@ -875,6 +920,15 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
       }
       declaration.setSemantics(concept);
       accepted = declaration;
+    } else if (hasTokenAlternatives()) {
+      // Keep canonical session state and semantic identity intact. Only the host's source
+      // declaration uses the chosen spelling; never mutate the server response's observable.
+      var declaration = accepted instanceof org.integratedmodelling.common.knowledge.ObservableImpl impl
+          ? new org.integratedmodelling.common.knowledge.ObservableImpl(impl)
+          : org.integratedmodelling.common.utils.Utils.Json.newObjectMapper().convertValue(
+              accepted, org.integratedmodelling.common.knowledge.ObservableImpl.class);
+      declaration.setUrn(confirmedDeclaration());
+      accepted = declaration;
     }
     submitting = true;
     debounce.stop();
@@ -909,15 +963,21 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
   }
 
   private String confirmedDeclaration() {
-    if (response.getDeclaration() != null && !response.getDeclaration().isBlank()) return response.getDeclaration();
+    if (!hasTokenAlternatives() && response.getDeclaration() != null && !response.getDeclaration().isBlank()) return response.getDeclaration();
     if (response.getCode().isEmpty() && response.getObservable() != null) return response.getObservable().getUrn();
     var text = new StringBuilder();
     StyledKimToken previous = null;
+    int index = 0;
     for (var token : response.getCode()) {
       if (previous != null && previous.isNeedsWhitespaceAfter() && token.isNeedsWhitespaceBefore()) text.append(' ');
-      text.append(token.getValue()); previous = token;
+      var choice = tokenChoices.get(index++);
+      text.append(choice == null ? token.getValue() : choice.value()); previous = token;
     }
     return text.toString();
+  }
+
+  private boolean hasTokenAlternatives() {
+    return response.getCode().stream().anyMatch(token -> !token.getAliases().isEmpty());
   }
 
   private static ExecutorService newWorker() {

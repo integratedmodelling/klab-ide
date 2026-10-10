@@ -849,11 +849,96 @@ class SemanticComposerTest {
   private static List<String> displayedTokens(SemanticComposer composer) {
     var line = (HBox) ((ScrollPane) ((javafx.scene.layout.StackPane) composer.lookup("#semantic-input")).getChildren().getFirst()).getContent();
     return ((javafx.scene.text.TextFlow) line.getChildren().getFirst()).getChildren().stream()
-        .map(Text.class::cast).map(Text::getText).filter(text -> !text.isBlank()).toList();
+        .filter(Text.class::isInstance).map(Text.class::cast).map(Text::getText).filter(text -> !text.isBlank()).toList();
   }
   private static void await(CountDownLatch latch) {
     try { if (!latch.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Test request was not released"); }
     catch (InterruptedException ex) { Thread.currentThread().interrupt(); throw new IllegalStateException(ex); }
+  }
+
+  @Test void approvedAliasDefaultsOnInsertionAndRawChoiceSurvivesSearchAndUndo() throws Exception {
+    var fake = new FakeSearch(); fake.selectAddsToken = true;
+    fake.authoritySearch = request -> new AuthoritySearchResponse(AuthoritySearchResponse.Status.OK,
+        List.of(identity("123", "Oak")), 1, -1, List.of());
+    fake.after = (request, reply) -> {
+      if (request.getSearchMode() == SemanticSearchRequest.Mode.IDENTITY)
+        reply.getCode().getLast().setAliases(List.of("taxonomy.species:Oak"));
+    };
+    var host = fake.reasoner();
+    var composer = fx(() -> new SemanticComposer(() -> host, o -> CompletableFuture.completedFuture(null), () -> {},
+        null, javafx.util.Duration.seconds(30), () -> authoritySource(host)));
+    try {
+      ready(composer);
+      waitUntil(() -> ((ComboBox<?>) composer.lookup("#semantic-authority")).getItems().size() == 1);
+      fx(() -> { ((ComboBox<String>) composer.lookup("#semantic-source")).setValue("Authorities");
+        query(composer).setText("Oak"); query(composer).positionCaret(3); return null; });
+      waitUntil(() -> ((TableView<?>) composer.lookup("#authority-results")).getItems().size() == 1);
+      fx(() -> { press(query(composer), KeyCode.ENTER); release(query(composer), KeyCode.ENTER); return null; });
+      ready(composer);
+      assertEquals(List.of("taxonomy.species:Oak"), fx(() -> displayedTokens(composer)));
+      int calls = fake.calls.size();
+      fx(() -> {
+        var toggle = (Button) composer.lookup("#semantic-alias-toggle-0");
+        assertTrue(toggle.getTooltip().getText().contains("Approved codelist name: taxonomy.species:Oak"));
+        assertTrue(toggle.getTooltip().getText().contains("Authority code: TAXA:123"));
+        toggle.fire(); return null;
+      });
+      assertEquals(calls, fake.calls.size());
+      assertEquals(List.of("TAXA:123"), fx(() -> displayedTokens(composer)));
+      fx(() -> { query(composer).setText("Tree"); return null; }); ready(composer);
+      assertEquals(List.of("TAXA:123"), fx(() -> displayedTokens(composer)));
+      fx(() -> { press(composer.lookup("#semantic-matches"), KeyCode.ENTER); release(query(composer), KeyCode.ENTER); return null; }); ready(composer);
+      assertEquals(List.of("TAXA:123", "test:Tree"), fx(() -> displayedTokens(composer)));
+      fx(() -> { press(query(composer), KeyCode.BACK_SPACE); release(query(composer), KeyCode.BACK_SPACE); return null; }); ready(composer);
+      assertEquals(List.of("TAXA:123"), fx(() -> displayedTokens(composer)));
+      fx(() -> { ((Button) composer.lookup("#semantic-alias-toggle-0")).fire(); return null; });
+      assertEquals(List.of("taxonomy.species:Oak"), fx(() -> displayedTokens(composer)));
+      fx(() -> { press(query(composer), KeyCode.BACK_SPACE); release(query(composer), KeyCode.BACK_SPACE); return null; }); ready(composer);
+      assertTrue(fx(() -> displayedTokens(composer).isEmpty()));
+      assertNull(fx(() -> composer.lookup("#semantic-alias-toggle-0")));
+    } finally { fx(() -> { composer.close(); return null; }); }
+  }
+
+  @Test void aliasAndRawSpellingAreCopiedAndExportedForCompleteAndIncompleteExpressions() throws Exception {
+    var originalClipboard = fx(() -> {
+      var clipboard = javafx.scene.input.Clipboard.getSystemClipboard();
+      var saved = new HashMap<javafx.scene.input.DataFormat, Object>();
+      clipboard.getContentTypes().forEach(type -> saved.put(type, clipboard.getContent(type))); return saved;
+    });
+    try {
+      for (boolean complete : List.of(false, true)) for (boolean raw : List.of(false, true)) {
+        var fake = new FakeSearch();
+        var identity = token("TAXA:123"); identity.setAliases(List.of("taxonomy.species:Oak"));
+        fake.code.add(identity);
+        var concept = new org.integratedmodelling.common.knowledge.ConceptImpl();
+        concept.setUrn("test:Tree");
+        concept.getType().add(org.integratedmodelling.klab.api.knowledge.SemanticType.SUBJECT);
+        if (complete) {
+          fake.code.add(token("test:Tree"));
+          fake.observable = new org.integratedmodelling.common.knowledge.ObservableImpl();
+          fake.observable.setSemantics(concept); fake.observable.setUrn("TAXA:123 test:Tree");
+        }
+        fake.after = (request, reply) -> { reply.setCurrentConcept(concept);
+          reply.setDeclaration(complete ? "TAXA:123 test:Tree" : "TAXA:123"); };
+        var accepted = new CompletableFuture<org.integratedmodelling.klab.api.knowledge.Observable>();
+        var composer = fx(() -> new SemanticComposer(() -> fake.reasoner(),
+            o -> { accepted.complete(o); return CompletableFuture.completedFuture(null); }, () -> {}));
+        String expected = (raw ? "TAXA:123" : "taxonomy.species:Oak") + (complete ? " test:Tree" : "");
+        try {
+          ready(composer);
+          fx(() -> {
+            if (raw) ((Button) composer.lookup("#semantic-alias-toggle-0")).fire();
+            ((Button) composer.lookup("#semantic-copy")).fire();
+            assertEquals(expected, javafx.scene.input.Clipboard.getSystemClipboard().getString());
+            ((Button) composer.lookup("#semantic-continue")).fire(); return null;
+          });
+          var result = accepted.get(10, TimeUnit.SECONDS);
+          assertEquals(expected, result.getUrn()); assertSame(concept, result.getSemantics());
+          assertEquals("TAXA:123", identity.getValue());
+          if (complete) { assertNotSame(fake.observable, result); assertEquals("TAXA:123 test:Tree", fake.observable.getUrn()); }
+        } finally { fx(() -> { composer.close(); return null; }); }
+      }
+    } finally { fx(() -> { javafx.scene.input.Clipboard.getSystemClipboard().setContent(originalClipboard); return null; }); }
   }
 
   @Test void controlReturnWithIncompleteExpressionDoesNotSelect() throws Exception {
@@ -934,7 +1019,7 @@ class SemanticComposerTest {
       assertEquals("new", fx(() -> ((org.integratedmodelling.klab.api.services.resources.objects.AuthorityIdentity)
           ((TableView<?>) composer.lookup("#authority-results")).getItems().getFirst()).getId()));
       assertEquals(0, fake.count(SemanticSearchRequest.Mode.IDENTITY));
-      assertTrue(fake.documentationCalls.size() > 0);
+      assertTrue(fake.documentationCalls.isEmpty(), "Browsing must not resolve full authority documentation");
     } finally { releaseOld.countDown(); fx(() -> { composer.close(); return null; }); }
   }
 
@@ -1058,8 +1143,10 @@ class SemanticComposerTest {
     try {
       waitUntil(() -> browser.chooser.getItems().size() == 1);
       fx(() -> { browser.search("ab"); return null; });
+      waitUntil(() -> browser.results.getItems().size() == 2);
+      fx(() -> { loadFullDocumentation(browser); return null; });
       assertTrue(started.await(5, TimeUnit.SECONDS));
-      fx(() -> { browser.results.getSelectionModel().select(1); return null; });
+      fx(() -> { browser.results.getSelectionModel().select(1); loadFullDocumentation(browser); return null; });
       assertTrue(latest.await(5, TimeUnit.SECONDS)); released.countDown(); Thread.sleep(100);
       fx(() -> {
         var content = (javafx.scene.layout.VBox) ((ScrollPane) browser.view.getItems().get(1)).getContent();
@@ -1069,14 +1156,15 @@ class SemanticComposerTest {
     } finally { released.countDown(); fx(() -> { browser.close(); return null; }); }
   }
 
-  @Test void authorityChooserIncludesOnlySearchableLocalBindings() throws Exception {
+  @Test void authorityChooserRetainsConfiguredBindingsForCodelistBrowsing() throws Exception {
     var host = new FakeSearch().reasoner(); var snapshot = authoritySource(host); var searchable = snapshot.bindings().getFirst();
     var descriptor = new org.integratedmodelling.klab.api.services.runtime.extension.Extensions.AuthorityDescriptor("hidden-provider", null, true, false, List.of("RANK"), List.of());
     var hidden = new org.integratedmodelling.klab.api.knowledge.Worldview.AuthorityBinding("HIDDEN", "test:Identity", "test", 1, 1, "hash", descriptor, "component", null, host.getUrl());
     var browser = fx(() -> new AuthorityBrowser(() -> new AuthorityBrowser.Source(null, List.of(searchable, hidden), List.of(host)),
         s -> {}, () -> {}, () -> {}, () -> {}));
     try { waitUntil(() -> !browser.chooser.getItems().isEmpty());
-      assertEquals(List.of("TAXA"), fx(() -> List.copyOf(browser.chooser.getItems())));
+      // Non-searchable providers can still expose managed codelists.
+      assertEquals(List.of("HIDDEN", "TAXA"), fx(() -> List.copyOf(browser.chooser.getItems())));
     } finally { fx(() -> { browser.close(); return null; }); }
   }
 
@@ -1229,6 +1317,67 @@ class SemanticComposerTest {
     var descriptor = new org.integratedmodelling.klab.api.services.runtime.extension.Extensions.AuthorityDescriptor("provider", null, true, true, List.of(), List.of());
     return new AuthorityBrowser.Source(null, List.of(new org.integratedmodelling.klab.api.knowledge.Worldview.AuthorityBinding(
         "TAXA", "test:Identity", "test", 0, 1, "hash", descriptor, "component", null, host.getUrl())), List.of(host));
+  }
+
+  private static void loadFullDocumentation(AuthorityBrowser browser) {
+    var content = (javafx.scene.layout.VBox) ((ScrollPane) browser.view.getItems().get(1)).getContent();
+    content.getChildren().stream().filter(Button.class::isInstance).map(Button.class::cast)
+        .filter(button -> "authority-load-documentation".equals(button.getId())).findFirst().orElseThrow().fire();
+  }
+
+  @Test void repeatedAuthoritySearchShowsCachedPreviewWhileRefreshing() throws Exception {
+    var fake = new FakeSearch();
+    var hold = new java.util.concurrent.atomic.AtomicBoolean(false);
+    var release = new CountDownLatch(1);
+    fake.authoritySearch = request -> {
+      if (hold.get()) try { release.await(5, TimeUnit.SECONDS); }
+      catch (InterruptedException ex) { Thread.currentThread().interrupt(); }
+      return new AuthoritySearchResponse(AuthoritySearchResponse.Status.OK,
+          List.of(identity("A1", "First")), 1, -1, List.of());
+    };
+    var status = new java.util.concurrent.atomic.AtomicReference<String>();
+    var host = fake.reasoner();
+    var browser = fx(() -> new AuthorityBrowser(() -> authoritySource(host), status::set, () -> {}, () -> {}, () -> {}));
+    try {
+      waitUntil(() -> browser.chooser.getItems().size() == 1);
+      fx(() -> { browser.search("water"); return null; });
+      waitUntil(() -> browser.selected() != null);
+      hold.set(true);
+      fx(() -> {
+        browser.search("water");
+        assertEquals(1, browser.results.getItems().size());
+        assertTrue(browser.busy()); assertNull(browser.selected());
+        assertTrue(status.get().contains("Showing cached results"));
+        browser.search("different");
+        assertTrue(browser.results.getItems().isEmpty());
+        return null;
+      });
+    } finally { release.countDown(); fx(() -> { browser.close(); return null; }); }
+  }
+
+  @Test void advertisedSubAuthoritiesAreSelectableAndSentAsFilters() throws Exception {
+    var fake = new FakeSearch();
+    var requests = new CopyOnWriteArrayList<AuthoritySearchRequest>();
+    fake.authoritySearch = request -> {
+      requests.add(request);
+      return new AuthoritySearchResponse(AuthoritySearchResponse.Status.OK, List.of(identity("A1", "First")), 1, -1, List.of());
+    };
+    var host = fake.reasoner();
+    var descriptor = new org.integratedmodelling.klab.api.services.runtime.extension.Extensions.AuthorityDescriptor(
+        "provider", null, true, true, List.of("", "COMPOUND", "CHEBI"), List.of());
+    var source = new AuthorityBrowser.Source(null, List.of(new org.integratedmodelling.klab.api.knowledge.Worldview.AuthorityBinding(
+        "CHEM", "test:Identity", "test", 0, 1, "hash", descriptor, "component", null, host.getUrl())), List.of(host));
+    var browser = fx(() -> new AuthorityBrowser(() -> source, s -> {}, () -> {}, () -> {}, () -> {}));
+    try {
+      waitUntil(() -> browser.codelistFilter.getItems().contains("COMPOUND"));
+      fx(() -> { browser.codelistFilter.setValue("COMPOUND"); browser.search("water"); return null; });
+      waitUntil(() -> browser.results.getItems().size() == 1);
+      assertEquals("CHEM", requests.getFirst().authority());
+      assertEquals("COMPOUND", requests.getFirst().filter());
+      assertTrue(fake.documentationCalls.isEmpty());
+      fx(() -> { loadFullDocumentation(browser); return null; });
+      waitUntil(() -> fake.documentationCalls.size() == 1);
+    } finally { fx(() -> { browser.close(); return null; }); }
   }
   private static org.integratedmodelling.klab.api.services.resources.objects.AuthorityIdentity identity(String code, String label) {
     var identity = new org.integratedmodelling.klab.api.services.resources.objects.AuthorityIdentity();
