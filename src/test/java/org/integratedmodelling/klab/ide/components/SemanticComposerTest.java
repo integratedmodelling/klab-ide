@@ -605,6 +605,61 @@ class SemanticComposerTest {
 
   private static Label status(SemanticComposer composer) { return (Label) composer.lookup("#semantic-status"); }
 
+  @Test void identityTimeoutKeepsSelectionAndReconcilesWithoutRepeatingTheEditOrSearch() throws Exception {
+    for (boolean committed : List.of(false, true)) {
+      var fake = new FakeSearch();
+      var started = new CountDownLatch(1); var release = new CountDownLatch(1); var returned = new CountDownLatch(1);
+      var searches = new java.util.concurrent.atomic.AtomicInteger();
+      fake.authoritySearch = request -> {
+        searches.incrementAndGet();
+        return new AuthoritySearchResponse(AuthoritySearchResponse.Status.OK,
+            List.of(identity("CID:2244", "Aspirin")), 1, -1, List.of());
+      };
+      fake.after = (request, reply) -> {
+        if (request.getSearchMode() == SemanticSearchRequest.Mode.IDENTITY) {
+          if (!committed) { fake.code.removeLast(); reply.setCode(List.copyOf(fake.code)); }
+          started.countDown();
+          boolean done = false;
+          while (!done) { try { release.await(); done = true; } catch (InterruptedException ignored) { } }
+          returned.countDown();
+        }
+      };
+      var host = fake.reasoner();
+      var composer = fx(() -> new SemanticComposer(() -> host, o -> CompletableFuture.completedFuture(null), () -> {},
+          null, javafx.util.Duration.millis(500), () -> authoritySource(host)));
+      try {
+        ready(composer);
+        waitUntil(() -> ((ComboBox<?>) composer.lookup("#semantic-authority")).getItems().size() == 1);
+        fx(() -> { ((ComboBox<String>) composer.lookup("#semantic-source")).setValue("Authorities");
+          query(composer).setText("Aspirin"); query(composer).positionCaret(7); return null; });
+        waitUntil(() -> ((TableView<?>) composer.lookup("#authority-results")).getItems().size() == 1);
+        fx(() -> { press(query(composer), KeyCode.ENTER); release(query(composer), KeyCode.ENTER); return null; });
+        assertTrue(started.await(5, TimeUnit.SECONDS)); ready(composer);
+        fx(() -> {
+          assertTrue(status(composer).getText().contains("search and selection are preserved"));
+          var table = (TableView<?>) composer.lookup("#authority-results");
+          assertEquals(1, table.getItems().size()); assertNotNull(table.getSelectionModel().getSelectedItem());
+          assertTrue(table.isDisabled()); assertEquals("Aspirin", query(composer).getText()); return null;
+        });
+        release.countDown(); assertTrue(returned.await(5, TimeUnit.SECONDS));
+        fx(() -> { ((Button) composer.lookup("#semantic-continue")).fire(); return null; }); ready(composer);
+        assertEquals(SemanticSearchRequest.Mode.TOKEN, fake.requests.getLast().getSearchMode());
+        assertEquals(42, fake.requests.getLast().getSearchId());
+        assertEquals(1, fake.count(SemanticSearchRequest.Mode.IDENTITY)); assertEquals(1, searches.get());
+        fx(() -> {
+          if (committed) {
+            assertEquals(List.of("TAXA:[CID:2244]"), displayedTokens(composer));
+            assertEquals("", query(composer).getText());
+          } else {
+            assertTrue(displayedTokens(composer).isEmpty()); assertEquals("Aspirin", query(composer).getText());
+            assertFalse(composer.lookup("#authority-results").isDisabled());
+          }
+          return null;
+        });
+      } finally { release.countDown(); fx(() -> { composer.close(); return null; }); }
+    }
+  }
+
   @Test void conceptSearchWaitsForTwoCharactersAndClearsShortQueryMatches() throws Exception {
     var fake = new FakeSearch(); fake.code.add(token("data:Normalized"));
     var composer = fx(() -> new SemanticComposer(() -> fake.reasoner(),

@@ -47,6 +47,8 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
   private ExecutorService worker = newWorker();
   private Future<?> activeTask;
   private SemanticSearchRequest activeRequest;
+  private record UnconfirmedIdentity(SemanticSearchRequest request, int queryRevision) {}
+  private UnconfirmedIdentity unconfirmedIdentity;
   private long requestStarted;
   private final Supplier<Reasoner> reasonerSupplier;
   private final Function<Observable, CompletableFuture<?>> action;
@@ -473,7 +475,9 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
       request.setAuthority(authorities.authority());
       request.setIdentityCode(authorities.selected().getId());
       request.setMatchesRequestId(response.getRequestId());
-      authorities.invalidate();
+      // Retain the selected row and documentation while this edit is being confirmed.
+      // A transport timeout does not mean that the server rejected the identity.
+      unconfirmedIdentity = new UnconfirmedIdentity(request, revision);
     }
     if (authorityMode() && mode == SemanticSearchRequest.Mode.TOKEN) request.setQueryString("");
     if (match != null) {
@@ -565,6 +569,9 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
       return;
     }
     searchId = reply.getSearchId();
+    boolean recoveredIdentity = request.getSearchMode() == SemanticSearchRequest.Mode.TOKEN
+        && unconfirmedIdentity != null && acknowledgesIdentity(unconfirmedIdentity.request(), reply);
+    int acceptedRevision = recoveredIdentity ? unconfirmedIdentity.queryRevision() : revision;
     if (request.getSearchMode() == SemanticSearchRequest.Mode.IDENTITY
         && !acknowledgesIdentity(request, reply)) {
       boolean unchanged = response != null && tokenValues(response).equals(tokenValues(reply));
@@ -574,7 +581,6 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
         activeRequest = null;
         stateUncertain = true;
         matchesCurrent = false;
-        authorities.invalidate();
         status.setText((reply.getErrors().isEmpty() ? "The Reasoner did not confirm the selected authority reference."
             : String.join("\n", reply.getErrors())) + " Your input is preserved. Retry with the input icon to recover the expression.");
         LOG.warning("Unconfirmed authority insertion: " + requestSummary(request)
@@ -587,20 +593,21 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
     }
     // Edits must always be applied, even if the user typed the next query while waiting.
     // Obsolete TOKEN replies still carry session state, but their proposals cannot be selected.
-    boolean edited = request.getSearchMode() != SemanticSearchRequest.Mode.TOKEN;
+    boolean edited = request.getSearchMode() != SemanticSearchRequest.Mode.TOKEN || recoveredIdentity;
     boolean changed = response == null || !tokenValues(response).equals(tokenValues(reply));
     boolean accepted = edited && (reply.getErrors().isEmpty() || changed);
-    if (edited) authorities.invalidate();
+    if (edited && accepted) authorities.invalidate();
+    unconfirmedIdentity = null;
     response = reply;
     stateUncertain = false;
     sessionLost = false;
     if (accepted) {
       initialObservable = null;
-      if (revision == queryRevision && request.getSearchMode() != SemanticSearchRequest.Mode.UNDO) {
+      if (acceptedRevision == queryRevision && request.getSearchMode() != SemanticSearchRequest.Mode.UNDO) {
         updating = true;
         query.clear();
         // A confirmed identity prefixes the next concept; show the proposals already returned.
-        if (request.getSearchMode() == SemanticSearchRequest.Mode.IDENTITY)
+        if (request.getSearchMode() == SemanticSearchRequest.Mode.IDENTITY || recoveredIdentity)
           source.getSelectionModel().selectFirst();
         updating = false;
       }
@@ -629,7 +636,8 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
     activeRequest = null;
     // Do not erase a rejected edit's diagnostic by immediately issuing an unrelated query.
     drain(!current && (accepted || reply.getErrors().isEmpty() || revision != queryRevision)
-        || authorityMode() && !edited && reply.getErrors().isEmpty() && !query.getText().isBlank());
+        || authorityMode() && !edited && reply.getErrors().isEmpty() && !query.getText().isBlank()
+            && authorities.selected() == null);
     long finished = System.nanoTime();
     long totalMs = TimeUnit.NANOSECONDS.toMillis(finished - timing.queued());
     boolean insertion = request.getSearchMode() == SemanticSearchRequest.Mode.SELECT
@@ -668,7 +676,6 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
     busy = false;
     stateUncertain = true;
     matchesCurrent = false;
-    results.getItems().clear();
     // Retain the confirmed expression and session: even a failed HTTP call may have committed an
     // edit.
     status.setText(
@@ -699,22 +706,26 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
             + ", workerDone="
             + (activeTask != null && activeTask.isDone()));
     boolean queryOnly = activeRequest.getSearchMode() == SemanticSearchRequest.Mode.TOKEN && searchId != 0;
+    boolean identityEdit = activeRequest.getSearchMode() == SemanticSearchRequest.Mode.IDENTITY && searchId != 0;
     activeRequest = null;
     if (activeTask != null) activeTask.cancel(true);
     activeTask = null;
     worker.shutdownNow();
     worker = newWorker();
-    if (!queryOnly) {
+    if (!queryOnly && !identityEdit) {
       cancelSession(reasoner, searchId);
       searchId = 0;
     }
-    sessionLost = !queryOnly;
+    sessionLost = !queryOnly && !identityEdit;
     stateUncertain = true;
     busy = false;
     matchesCurrent = false;
     pendingUndo = 0;
-    results.getItems().clear();
-    status.setText(queryOnly
+    if (!identityEdit && unconfirmedIdentity == null) results.getItems().clear();
+    status.setText(identityEdit || unconfirmedIdentity != null
+        ? "The Reasoner has not confirmed the identity yet. Your search and selection are preserved."
+            + " Use the retry icon to check the existing insertion; it will not be added twice."
+        : queryOnly
         ? "The search did not respond. Your expression is preserved. Retry with the input icon or edit the search."
         : "The Reasoner did not respond. The displayed expression is preserved, but its session cannot be trusted."
             + " Backspace at the input boundary or the restart icon starts a new expression.");
@@ -738,6 +749,7 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
     cancelSession(reasoner, searchId);
     searchId = 0;
     response = null;
+    unconfirmedIdentity = null;
     tokenChoices.clear();
     initialObservable = null;
     sessionLost = false;
