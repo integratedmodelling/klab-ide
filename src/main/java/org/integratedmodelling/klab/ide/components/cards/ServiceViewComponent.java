@@ -47,7 +47,8 @@ public class ServiceViewComponent extends BaseAssetViewComponent {
     ComboBox<KlabService> serviceSelector = new ComboBox<>();
     serviceSelector.getStyleClass().add("combo-box-no-border");
     var services =
-        KlabIDEController.instance().user().getServices(serviceClass(serviceType));
+        KlabIDEController.instance()
+            .getServiceDashboardServices(serviceClass(serviceType), serviceType);
 
     serviceSelector.getItems().addAll(services);
     serviceSelector.setMaxWidth(Double.MAX_VALUE);
@@ -56,7 +57,7 @@ public class ServiceViewComponent extends BaseAssetViewComponent {
     services.forEach(
         service -> {
           if (service != null) {
-            serviceMap.put(service.serviceName() + " [" + service.getUrl() + "]", service);
+            serviceMap.put(serviceLabel(service, serviceType), service);
           }
         });
 
@@ -65,7 +66,7 @@ public class ServiceViewComponent extends BaseAssetViewComponent {
           @Override
           public String toString(KlabService service) {
             return service != null
-                ? service.serviceName() + " [" + service.getUrl() + "]"
+                ? serviceLabel(service, serviceType)
                 : "[no service available]";
           }
 
@@ -84,7 +85,10 @@ public class ServiceViewComponent extends BaseAssetViewComponent {
 
               if (newVal != null) {
                 ServiceDashboard serviceComponent =
-                    new ServiceDashboard(newVal, newVal.serviceName(), true);
+                    new ServiceDashboard(
+                        newVal,
+                        title(serviceType) + (newVal.isLocal() ? " (local)" : ""),
+                        true);
                 content.getChildren().add(serviceComponent);
                 VBox.setVgrow(serviceComponent, Priority.ALWAYS);
               }
@@ -131,5 +135,11 @@ public class ServiceViewComponent extends BaseAssetViewComponent {
       case RUNTIME -> RuntimeService.class;
       default -> throw new IllegalArgumentException("Unsupported service type: " + type);
     };
+  }
+
+  private static String serviceLabel(KlabService service, KlabService.Type type) {
+    var name = title(type);
+    if (service.isLocal()) name += " (local)";
+    return name + " [" + (service.getUrl() == null ? "embedded" : service.getUrl()) + "]";
   }
 }

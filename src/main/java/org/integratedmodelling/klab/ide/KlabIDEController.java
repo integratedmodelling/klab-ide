@@ -1484,6 +1484,32 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     }
   }
 
+  /**
+   * Return operational services plus a locally available service that is not operational yet.
+   * UserScope#getServices filters out that local service, although its status descriptor is still
+   * needed to open the local dashboard.
+   */
+  public <T extends KlabService> List<T> getServiceDashboardServices(
+      Class<T> serviceClass, KlabService.Type serviceType) {
+    var services = new ArrayList<>(user().getServices(serviceClass));
+    var status = engineStatus.get();
+    var provision = status == null ? null : status.getServicesProvision().get(serviceType);
+    if (provision == null || !provision.isLocal()) return List.copyOf(services);
+
+    serviceStatus.forEach(
+        (service, serviceStatus) -> {
+          if (!serviceClass.isInstance(service)
+              || !service.isLocal()
+              || serviceStatus == null
+              || serviceStatus.getServiceType() != serviceType) return;
+          if (services.stream()
+              .noneMatch(existing -> sameService(existing, service, serviceStatus))) {
+            services.add(0, serviceClass.cast(service));
+          }
+        });
+    return List.copyOf(services);
+  }
+
   @Override
   public void engineStatusChanged(Engine.Status status) {
 
@@ -1576,6 +1602,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
             case REMOTE_MULTI, LOCAL_INOP_REMOTE_MULTI -> Theme.REMOTE_SERVICE_ICON_MANY;
             case LOCAL_REMOTE_SINGLE, LOCAL_REMOTE_MULTI -> Theme.LOCAL_AND_REMOTE_SERVICE_ICON;
           };
+
+      boolean disableDashboard = !provision.isOperational() && !provision.isLocal();
+      Platform.runLater(() -> button.setDisable(disableDashboard));
 
       if (serviceType == KlabService.Type.RUNTIME) {
         if (provision.isOperational()) {
