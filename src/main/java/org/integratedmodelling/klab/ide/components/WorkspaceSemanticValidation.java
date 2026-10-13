@@ -47,6 +47,10 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
   private static final class Entry {
     final SemanticValidationRequest request;
     volatile String checkedAgainst;
+    String attemptedAgainst;
+    long retryAfter;
+    int retries;
+    String unavailableAgainst = "<never>";
 
     Entry(SemanticValidationRequest request) {
       this.request = request;
@@ -57,17 +61,35 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
   private final Supplier<Scope> scopeSupplier;
   private final Executor ui;
   private final BiConsumer<String, Update> listener;
+  private final LongSupplier clock;
   private ScheduledThreadPoolExecutor worker;
   private ScheduledFuture<?> requested;
   private volatile long lifecycle;
   private volatile boolean active;
   private volatile String fingerprint;
+  private Reasoner observedReasoner;
+  private long lastUptime = -1;
+  private long connection;
+  private String publishedSignal;
+  private String publishedAuthority = "";
+
+  // One atomic metadata value: boot UUID, settled cache revision, validation state. This is
+  // readable knowledge, not an assertion that the entire worldview is transactionally accepted.
+  private record Signal(String stamp, long revision, String state, String session) {
+    boolean ready() { return state.equals("ready"); }
+  }
 
   WorkspaceSemanticValidation(
       Supplier<Scope> scope, Executor ui, BiConsumer<String, Update> listener) {
+    this(scope, ui, listener, System::nanoTime);
+  }
+
+  WorkspaceSemanticValidation(
+      Supplier<Scope> scope, Executor ui, BiConsumer<String, Update> listener, LongSupplier clock) {
     this.scopeSupplier = scope;
     this.ui = ui;
     this.listener = listener;
+    this.clock = clock;
   }
 
   static String key(KlabDocument<?> document) {
@@ -142,14 +164,93 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
 
   private void deliver(
       String key, Entry entry, SemanticValidationResponse response, long epoch, String stamp) {
+    var selected = observedReasoner;
+    var published = publishedSignal;
+    var authority = publishedAuthority;
     ui.execute(
         () -> {
           if (active
               && lifecycle == epoch
               && entries.get(key) == entry
-              && Objects.equals(fingerprint, stamp))
+              && Objects.equals(fingerprint, stamp)
+              && (stamp == null || currentSelection(selected, published, authority)))
             listener.accept(key, new Update(entry.request, response));
         });
+  }
+
+  private boolean currentSelection(Reasoner selected, String published, String authority) {
+    try {
+      var scope = scopeSupplier.get();
+      if (scope == null || scope.getService(Reasoner.class) != selected) return false;
+      var status = selected.status();
+      if (status == null) return published == null; // Legacy service without status support.
+      return status != null && status.isConnected() && status.isAvailable() && !status.isShutdown()
+          && status.getMetadata() != null
+          && Objects.equals(published, status.getMetadata().get("semantic.validation"))
+          && authority.equals(authorityRevisions(status.getMetadata().get("authority.codelist.revisions")));
+    } catch (RuntimeException e) {
+      return false;
+    }
+  }
+
+  private static String authorityRevisions(Object revisions) {
+    return revisions instanceof Map<?, ?> values
+        ? values.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).sorted()
+            .collect(java.util.stream.Collectors.joining(",")) : Objects.toString(revisions, "");
+  }
+
+  private Signal signal(Reasoner reasoner, Scope scope) {
+    var status = reasoner.status(); // Remote clients already cache the lightweight status poll.
+    if (status != null && (!status.isConnected() || !status.isAvailable() || status.isShutdown()))
+      throw new IllegalStateException("The selected reasoner is offline");
+    if (reasoner != observedReasoner
+        || (status != null && lastUptime >= 0 && status.getUptimeMs() < lastUptime)) connection++;
+    observedReasoner = reasoner;
+    lastUptime = status == null ? -1 : status.getUptimeMs();
+    var metadata = status == null ? null : status.getMetadata();
+    var published = metadata == null ? null : metadata.get("semantic.validation");
+    if (published != null && !(published instanceof String))
+      throw new IllegalStateException("Invalid semantic validation status");
+    publishedSignal = published instanceof String value ? value : null;
+    var revisions = metadata == null ? null : metadata.get("authority.codelist.revisions");
+    String authorityRevision = authorityRevisions(revisions);
+    publishedAuthority = authorityRevision;
+    if (published instanceof String value) {
+      var parts = value.split(":", -1);
+      if (parts.length != 3 || parts[0].isBlank()
+          || !Set.of("ready", "loading", "failed", "unavailable").contains(parts[2]))
+        throw new IllegalStateException("Invalid semantic validation status");
+      long revision = Long.parseLong(parts[1]);
+      if (parts[2].equals("ready") && revision < 0)
+        throw new IllegalStateException("Invalid semantic validation revision");
+      return new Signal(status.getServiceId() + ":" + connection + ":" + value
+          + ":" + authorityRevision, revision, parts[2],
+          status.getServiceId() + ":" + connection + ":" + parts[0] + ":" + authorityRevision);
+    }
+    // Older servers have no settled signal. Keep compatibility, with bounded retries below.
+    var capabilities = reasoner.capabilities(scope);
+    return new Signal(capabilities.getServiceId() + ":" + connection + ":legacy:"
+        + capabilities.getKnowledgeRevision() + ":" + authorityRevision,
+        capabilities.getKnowledgeRevision(), "ready",
+        capabilities.getServiceId() + ":" + connection + ":legacy:" + authorityRevision);
+  }
+
+  private void defer(Entry entry, String stamp) {
+    if (!Objects.equals(entry.attemptedAgainst, stamp)) entry.retries = 0;
+    entry.attemptedAgainst = stamp;
+    long seconds = Math.min(300, 30L << Math.min(entry.retries++, 4));
+    entry.retryAfter = clock.getAsLong() + TimeUnit.SECONDS.toNanos(seconds);
+  }
+
+  private void unavailableEntry(String key, Entry entry, long epoch, String stamp, String reason) {
+    if (Objects.equals(entry.unavailableAgainst, stamp)) return;
+    entry.unavailableAgainst = stamp;
+    var response = documentErrors(entry.request);
+    if (response == null) {
+      response = SemanticValidationResponse.forRequest(entry.request);
+      response.setReason(reason);
+    }
+    deliver(key, entry, response, epoch, stamp);
   }
 
   private void refresh() {
@@ -162,53 +263,70 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
         unavailable(epoch, "No reasoner is available in the current scope");
         return;
       }
-      var capabilities = reasoner.capabilities(scope);
-      String stamp =
-          capabilities.getServiceId()
-              + ":"
-              + System.identityHashCode(reasoner)
-              + ":"
-              + capabilities.getKnowledgeRevision();
+      var signal = signal(reasoner, scope);
+      String stamp = signal.stamp();
       if (!active || lifecycle != epoch) return;
       fingerprint = stamp;
       for (var item : List.copyOf(entries.entrySet())) {
         if (!active || epoch != lifecycle) return;
         var entry = item.getValue();
+        if (entries.get(item.getKey()) != entry) continue;
         if (documentErrors(entry.request) != null) continue;
+        // A changed saved ontology can repair a failed update through authoritative source sync.
+        boolean repair = signal.state().equals("failed")
+            && entry.request.document() instanceof KimOntology
+            && entry.attemptedAgainst == null;
+        if (!signal.ready() && !repair) {
+          entry.checkedAgainst = null;
+          unavailableEntry(item.getKey(), entry, epoch, stamp,
+              "Semantic validation waiting for a completed knowledge update (" + signal.state() + ")");
+          continue;
+        }
         if (stamp.equals(entry.checkedAgainst)) continue;
+        if (stamp.equals(entry.attemptedAgainst) && clock.getAsLong() < entry.retryAfter) continue;
+        entry.unavailableAgainst = "<never>";
         deliver(item.getKey(), entry, null, epoch, stamp);
-        entry.request.setKnowledgeRevision(capabilities.getKnowledgeRevision());
-        var response = reasoner.validateDocument(entry.request, scope);
+        entry.request.setKnowledgeRevision(signal.revision());
+        SemanticValidationResponse response;
+        try {
+          response = reasoner.validateDocument(entry.request, scope);
+        } catch (RuntimeException e) {
+          response = SemanticValidationResponse.forRequest(entry.request);
+          response.setReason("Semantic validation unavailable: " + e.getMessage());
+        }
         if (response == null) {
           response = SemanticValidationResponse.forRequest(entry.request);
           response.setReason("The reasoner returned no semantic validation result");
         }
-        var latest = reasoner.capabilities(scope);
+        var latest = signal(reasoner, scope);
         if (!active || lifecycle != epoch) return;
         var currentScope = scopeSupplier.get();
         if (currentScope == null
-            || currentScope.getService(Reasoner.class) != reasoner
-            || !Objects.equals(latest.getServiceId(), capabilities.getServiceId())) {
+            || currentScope.getService(Reasoner.class) != reasoner) {
           fingerprint = null;
           refreshSoon();
           return;
         }
-        if (latest.getKnowledgeRevision() != capabilities.getKnowledgeRevision()) {
-          if (!response.matches(entry.request, latest.getKnowledgeRevision())) {
+        if (entries.get(item.getKey()) != entry) continue;
+        if (!latest.stamp().equals(stamp)) {
+          // Accept synchronization only within the same boot/selection. A new boot can repeat
+          // revision numbers, so a matching counter alone cannot make an old reply current.
+          boolean sameSession = latest.session().equals(signal.session());
+          if (!sameSession || !latest.ready()
+              || !response.matches(entry.request, latest.revision())) {
             fingerprint = null;
             refreshSoon();
             return;
           }
           // Validation can synchronize saved knowledge itself. Accept its current response,
           // then revisit documents checked against the preceding revision.
-          capabilities = latest;
-          stamp = latest.getServiceId() + ":" + System.identityHashCode(reasoner)
-              + ":" + latest.getKnowledgeRevision();
+          signal = latest;
+          stamp = latest.stamp();
           fingerprint = stamp;
           refreshSoon();
         }
         if (response.getStatus() == SemanticValidationResponse.Status.COMPLETE
-            && !response.matches(entry.request, latest.getKnowledgeRevision())) {
+            && (!latest.ready() || !response.matches(entry.request, latest.revision()))) {
           response = SemanticValidationResponse.forRequest(entry.request);
           response.setStatus(SemanticValidationResponse.Status.STALE_KNOWLEDGE);
           response.setReason(
@@ -218,6 +336,7 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
             || response.getStatus() == SemanticValidationResponse.Status.SYNTAX_ERRORS
             || response.getStatus() == SemanticValidationResponse.Status.FAILED)
           entry.checkedAgainst = stamp;
+        else defer(entry, stamp);
         if (response.getStatus() == SemanticValidationResponse.Status.FAILED
             && response.getNotifications().stream().noneMatch(n -> n.getLexicalContext() != null))
           response.addDocumentDiagnostic(entry.request,
@@ -231,15 +350,11 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
 
   private void unavailable(long epoch, String reason) {
     if (!active || lifecycle != epoch) return;
+    if (fingerprint != null) connection++;
     fingerprint = null;
     for (var item : entries.entrySet()) {
       item.getValue().checkedAgainst = null;
-      var response = documentErrors(item.getValue().request);
-      if (response == null) {
-        response = SemanticValidationResponse.forRequest(item.getValue().request);
-        response.setReason(reason);
-      }
-      deliver(item.getKey(), item.getValue(), response, epoch, null);
+      unavailableEntry(item.getKey(), item.getValue(), epoch, null, reason);
     }
   }
 
@@ -248,7 +363,13 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
     active = false;
     lifecycle++;
     fingerprint = null;
-    entries.values().forEach(entry -> entry.checkedAgainst = null);
+    entries.values().forEach(entry -> {
+      entry.checkedAgainst = null;
+      entry.attemptedAgainst = null;
+      entry.unavailableAgainst = "<never>";
+    });
+    observedReasoner = null;
+    lastUptime = -1;
     if (worker != null) worker.shutdownNow();
   }
 }
