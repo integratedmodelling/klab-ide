@@ -213,6 +213,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
         context -> ObservableComposerDialog.show(monacoEditor, context));
     monacoEditor.runAfterEditorRendered(
         () -> monacoEditor.markNotifications(currentNotifications, false));
+    monacoEditor.setUseSharedLspMetadata(lspAvailable);
     monacoEditor.loadEditor(source, languageId, theme);
     if (lspAvailable) {
       var session = new LspDocumentSession(monacoEditor, languageId, source);

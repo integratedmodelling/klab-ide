@@ -35,6 +35,7 @@ import org.integratedmodelling.klab.ide.components.cards.ResourceSmallViewCompon
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.ide.pages.BrowsablePage;
 import org.integratedmodelling.klab.ide.utils.ApplicationLog;
+import org.integratedmodelling.klab.ide.utils.AsyncOpen;
 import org.integratedmodelling.klab.modeler.model.NavigableWorkspace;
 import org.kordamp.ikonli.javafx.FontIcon;
 
@@ -52,6 +53,8 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
   private final Map<String, String> serviceLabels = new HashMap<>();
   private final Map<String, String> serviceIssues = new LinkedHashMap<>();
   private final Map<String, WorkspaceEditor> openEditors = new HashMap<>();
+  private final AsyncOpen<String, WorkspaceOpening.Prepared> opening = new AsyncOpen<>();
+  private volatile long openingEpoch;
   //  private WorkflowUIProvider workflowUIProvider = WorkflowUIProvider.NONE;
   private List<Node> components = new ArrayList<>();
   private Node workspaceDialog;
@@ -65,6 +68,9 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
     this.controller =
         KlabIDEController.instance().viewController(ResourcesNavigatorController.class);
     this.controller.registerView(this);
+    sceneProperty().addListener((property, before, after) -> {
+      if (before != null && after == null) cancelOpening();
+    });
   }
 
   @Override
@@ -87,7 +93,9 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
   }
 
   @Override
-  public void reset() {}
+  public void reset() { cancelOpening(); }
+
+  private void cancelOpening() { openingEpoch++; opening.cancelAll(); }
 
   public List<ResourcesService> getServices() {
     return KlabIDEController.instance().user().getServices(ResourcesService.class).stream()
@@ -144,6 +152,16 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
       var loading = new HBox(8, progress, new Label("Loading available workspaces…"));
       loading.setAlignment(Pos.CENTER_LEFT);
       loading.setPadding(new Insets(8));
+      components.add(loading);
+    }
+    if (!opening.pendingKeys().isEmpty()) {
+      var progress = new ProgressIndicator();
+      progress.setMaxSize(18, 18);
+      var loading = new HBox(8, progress, new Label("Opening workspace."));
+      loading.setAlignment(Pos.CENTER_LEFT);
+      var cancel = new Button("Cancel");
+      cancel.setOnAction(event -> { cancelOpening(); updateBrowser(); });
+      loading.getChildren().add(cancel);
       components.add(loading);
     }
     if (!serviceIssues.isEmpty()) {
@@ -360,32 +378,48 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
                         new IllegalStateException(
                             "Resources service is unavailable: " + resourceInfo.getServiceId()));
 
-        var newEditor =
-            new WorkspaceEditor(
-                service,
-                resourceInfo,
-                this,
-                KlabIDEController.instance().getDefaultWorkflowProvider());
-        addEditor(
-            newEditor,
-            resourceInfo.getUrn()
-                + "@"
-                + serviceLabels.getOrDefault(safeServiceId(service), safeServiceId(service)),
-            new IconLabel(Theme.WORKSPACE_ICON, 18, "-color-fg-default"));
-        openEditors.put(resourceInfo.getUrn(), newEditor);
-        hideBrowser();
+        var user = KlabIDEController.instance().user();
+        var urn = resourceInfo.getUrn();
+        var key = safeServiceId(service) + ":" + urn;
+        long epoch = openingEpoch;
+        java.util.function.BooleanSupplier current = () -> workspaceOpenCurrent(user, service, epoch);
+        if (opening.open(key, () -> WorkspaceOpening.prepare(service, urn, user,
+              () -> epoch != openingEpoch || user != KlabIDEController.instance().user()),
+            current,
+            prepared -> {
+              try {
+                if (openEditors.containsKey(urn)) return;
+                var newEditor = new WorkspaceEditor(service, prepared, this,
+                    KlabIDEController.instance().getDefaultWorkflowProvider());
+                openEditors.put(urn, newEditor);
+                addEditor(newEditor,
+                    urn + "@" + serviceLabels.getOrDefault(safeServiceId(service), safeServiceId(service)),
+                    new IconLabel(Theme.WORKSPACE_ICON, 18, "-color-fg-default"), true,
+                    current, this::hideBrowser, () -> {
+                      openEditors.remove(urn, newEditor);
+                      newEditor.close();
+                      updateBrowser();
+                    });
+              } catch (Throwable failure) { reportOpenFailure(urn, failure); }
+            }, failure -> reportOpenFailure(urn, failure), this::updateBrowser)) updateBrowser();
       } catch (Throwable failure) {
-        ApplicationLog.report("Unable to open workspace " + resourceInfo.getUrn(), failure);
-        KlabIDEController.instance()
-            .alert(
-                Notification.error(
-                    "Unable to open workspace "
-                        + resourceInfo.getUrn()
-                        + ". Details were written to "
-                        + ApplicationLog.file(),
-                    failure));
+        reportOpenFailure(resourceInfo.getUrn(), failure);
       }
     }
+  }
+
+  private boolean workspaceOpenCurrent(org.integratedmodelling.klab.api.scope.UserScope user,
+      ResourcesService service, long epoch) {
+    try {
+      return epoch == openingEpoch && user == KlabIDEController.instance().user()
+          && user.getServices(ResourcesService.class).stream().anyMatch(selected -> selected == service);
+    } catch (RuntimeException unavailable) { return false; }
+  }
+
+  private void reportOpenFailure(String urn, Throwable failure) {
+    ApplicationLog.report("Unable to open workspace " + urn, failure);
+    KlabIDEController.instance().alert(Notification.error(
+        "Unable to open workspace " + urn + ". Details were written to " + ApplicationLog.file(), failure));
   }
 
   @Override
