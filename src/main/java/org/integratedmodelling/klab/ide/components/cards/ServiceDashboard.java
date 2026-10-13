@@ -110,6 +110,8 @@ public class ServiceDashboard extends BaseAssetViewComponent {
   private HBox navigation;
   private ToggleGroup viewGroup;
   private ToggleButton settingsButton;
+  private ToggleButton importButton;
+  private final ReadinessTransition capabilitiesReadiness = new ReadinessTransition();
   private CompletableFuture<KlabService.ServiceCapabilities> capabilitiesFuture;
 
   public ServiceDashboard(KlabService service, String title, boolean initialize) {
@@ -138,7 +140,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
     navigation.setAlignment(Pos.CENTER_RIGHT);
     viewGroup = new ToggleGroup();
     var dashboardButton = viewButton(MaterialDesign.MDI_VIEW_DASHBOARD, "Dashboard");
-    var importButton = viewButton(MaterialDesign.MDI_IMPORT, "Import components");
+    importButton = viewButton(MaterialDesign.MDI_IMPORT, "Import components");
     dashboardButton.setToggleGroup(viewGroup);
     importButton.setToggleGroup(viewGroup);
     dashboardButton.setSelected(true);
@@ -196,6 +198,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
     importButton.setOnAction(e -> showImportView(importButton));
     if (logsButton != null) logsButton.setOnAction(e -> display.getChildren().setAll(logView()));
     if (isLocalService()) addSettingsButton();
+    capabilitiesReadiness.becameReady(service.status().isOperational());
     loadCapabilities();
     return this;
   }
@@ -210,6 +213,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
             Platform.runLater(
                 () -> {
                   if (capabilitiesFuture != future) return;
+                  if (importButton.isSelected()) renderImport(capabilities, error);
                   if (error != null) {
                     populateComponents(null, true);
                     return;
@@ -236,14 +240,25 @@ public class ServiceDashboard extends BaseAssetViewComponent {
             Platform.runLater(
                 () -> {
                   if (!importButton.isSelected()) return;
-                  if (error != null) {
-                    display
-                        .getChildren()
-                        .setAll(new Label("Import information is currently unavailable."));
-                  } else {
-                    display.getChildren().setAll(importView(capabilities));
-                  }
+                  if (capabilitiesFuture != future) return;
+                  renderImport(capabilities, error);
                 }));
+  }
+
+  private void renderImport(KlabService.ServiceCapabilities capabilities, Throwable error) {
+    display.getChildren().setAll(error == null ? importView(capabilities)
+        : new Label("Import information is currently unavailable."));
+  }
+
+  /** Trigger once per unavailable-to-operational transition, using cached status only. */
+  static final class ReadinessTransition {
+    private boolean operational;
+
+    boolean becameReady(boolean current) {
+      boolean ready = current && !operational;
+      operational = current;
+      return ready;
+    }
   }
 
   private ToggleButton viewButton(org.kordamp.ikonli.Ikon icon, String label) {
@@ -507,6 +522,10 @@ public class ServiceDashboard extends BaseAssetViewComponent {
   }
 
   private void updateCharts(StatusSample status) {
+    if (capabilitiesReadiness.becameReady(status.operational())) {
+      if (service instanceof BaseServiceClient client) client.invalidateCapabilities();
+      loadCapabilities();
+    }
     var currentSample = sample++;
     addSample(loadSeries, currentSample, status.loadPercentage());
     addSample(memoryUsedSeries, currentSample, status.memoryUsedMb());
