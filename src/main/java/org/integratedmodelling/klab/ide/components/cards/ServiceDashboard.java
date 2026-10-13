@@ -59,6 +59,7 @@ import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.authentication.CRUDOperation;
 import org.integratedmodelling.klab.api.configuration.Configuration;
 import org.integratedmodelling.klab.api.configuration.Setting;
+import org.integratedmodelling.klab.api.engine.distribution.Distribution;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.Urn;
 import org.integratedmodelling.klab.api.services.KlabService;
@@ -106,6 +107,10 @@ public class ServiceDashboard extends BaseAssetViewComponent {
   private int sample;
   private boolean monitoring;
   private StackPane display;
+  private HBox navigation;
+  private ToggleGroup viewGroup;
+  private ToggleButton settingsButton;
+  private CompletableFuture<KlabService.ServiceCapabilities> capabilitiesFuture;
 
   public ServiceDashboard(KlabService service, String title, boolean initialize) {
     super(Type.Object, title, false);
@@ -129,22 +134,15 @@ public class ServiceDashboard extends BaseAssetViewComponent {
             link("API documentation", MaterialDesign.MDI_BOOK_OPEN_PAGE_VARIANT, "/api.html"));
     links.setAlignment(Pos.CENTER_LEFT);
 
-    var navigation = new HBox(0);
+    navigation = new HBox(0);
     navigation.setAlignment(Pos.CENTER_RIGHT);
-    var viewGroup = new ToggleGroup();
+    viewGroup = new ToggleGroup();
     var dashboardButton = viewButton(MaterialDesign.MDI_VIEW_DASHBOARD, "Dashboard");
     var importButton = viewButton(MaterialDesign.MDI_IMPORT, "Import components");
-    var capabilities = service.capabilities(KlabIDEController.instance().user());
-    var settingsButton =
-        hasAdministerPermission(capabilities)
-            ? viewButton(MaterialDesign.MDI_SETTINGS, "Service settings")
-            : null;
     dashboardButton.setToggleGroup(viewGroup);
     importButton.setToggleGroup(viewGroup);
-    if (settingsButton != null) settingsButton.setToggleGroup(viewGroup);
     dashboardButton.setSelected(true);
     navigation.getChildren().addAll(dashboardButton, importButton);
-    if (settingsButton != null) navigation.getChildren().add(settingsButton);
     ToggleButton logsButton = null;
     if (isLocalService()) {
       logsButton = viewButton(MaterialDesign.MDI_FILE_DOCUMENT, "Service logs");
@@ -172,6 +170,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
     components.setPrefHeight(COMPONENT_CARD_HEIGHT + 40);
     components.setMaxHeight(COMPONENT_CARD_HEIGHT + 40);
     components.setMaxWidth(Double.MAX_VALUE);
+    components.addItem(new Label("Loading service components…"));
     var dashboard = new VBox(10, status, charts, componentHeading, components);
     dashboard.setPadding(new Insets(4, 0, 0, 0));
     VBox.setVgrow(dashboard, Priority.ALWAYS);
@@ -192,15 +191,59 @@ public class ServiceDashboard extends BaseAssetViewComponent {
               else startMonitoring();
             });
     if (getScene() != null) startMonitoring();
-    populateComponents();
 
     dashboardButton.setOnAction(e -> display.getChildren().setAll(dashboard));
-    importButton.setOnAction(e -> display.getChildren().setAll(importView()));
-    if (settingsButton != null) {
-      settingsButton.setOnAction(e -> display.getChildren().setAll(settingsView()));
-    }
+    importButton.setOnAction(e -> showImportView(importButton));
     if (logsButton != null) logsButton.setOnAction(e -> display.getChildren().setAll(logView()));
+    if (isLocalService()) addSettingsButton();
+    loadCapabilities();
     return this;
+  }
+
+  private void loadCapabilities() {
+    var future =
+        CompletableFuture.supplyAsync(
+            () -> service.capabilities(KlabIDEController.instance().user()));
+    capabilitiesFuture = future;
+    future.whenComplete(
+        (capabilities, error) ->
+            Platform.runLater(
+                () -> {
+                  if (capabilitiesFuture != future) return;
+                  if (error != null) {
+                    populateComponents(null, true);
+                    return;
+                  }
+                  populateComponents(capabilities, false);
+                  if (hasAdministerPermission(capabilities)) addSettingsButton();
+                }));
+  }
+
+  private void addSettingsButton() {
+    if (settingsButton != null) return;
+    settingsButton = viewButton(MaterialDesign.MDI_SETTINGS, "Service settings");
+    settingsButton.setToggleGroup(viewGroup);
+    settingsButton.setOnAction(e -> display.getChildren().setAll(settingsView()));
+    navigation.getChildren().add(2, settingsButton);
+  }
+
+  private void showImportView(ToggleButton importButton) {
+    display.getChildren().setAll(new Label("Loading import components…"));
+    var future = capabilitiesFuture;
+    if (future == null) return;
+    future.whenComplete(
+        (capabilities, error) ->
+            Platform.runLater(
+                () -> {
+                  if (!importButton.isSelected()) return;
+                  if (error != null) {
+                    display
+                        .getChildren()
+                        .setAll(new Label("Import information is currently unavailable."));
+                  } else {
+                    display.getChildren().setAll(importView(capabilities));
+                  }
+                }));
   }
 
   private ToggleButton viewButton(org.kordamp.ikonli.Ikon icon, String label) {
@@ -263,19 +306,18 @@ public class ServiceDashboard extends BaseAssetViewComponent {
   }
 
   private Node logView() {
-    // getInstance() only returns running services. The logs view must remain
-    // available for a selected local service even while its process is stopped.
-    var instance =
-        KlabIDEController.instance().engine().getServiceInstance(service.status().getServiceType());
-    if (instance == null) return new Label("No local service instance is available.");
+    var productType =
+        Distribution.Product.Type.forService(service.status().getServiceType());
+    var configurationPath =
+        Configuration.INSTANCE
+            .getDataPath()
+            .toPath()
+            .resolve("services")
+            .resolve(productType.relativeConfigurationPath());
     var logFile =
-        instance
-            .getConfigurationPath()
-            .resolve(
-                "logs"
-                    + File.separator
-                    + instance.getProduct().getType().relativeConfigurationPath()
-                    + ".log")
+        configurationPath
+            .resolve("logs")
+            .resolve(productType.relativeConfigurationPath() + ".log")
             .toFile();
     var viewer =
         new LogViewer(
@@ -284,14 +326,17 @@ public class ServiceDashboard extends BaseAssetViewComponent {
     return viewer;
   }
 
-  private Node importView() {
+  private Node importView(KlabService.ServiceCapabilities capabilities) {
+    if (capabilities == null || capabilities.getImportSchemata() == null) {
+      return new Label("Import information is currently unavailable.");
+    }
     var parameterForm = new VBox(2);
     var importPane = new VBox(10);
     importPane.setPadding(new Insets(10));
     var schemaSelector = new ComboBox<String>();
     schemaSelector.setPromptText("Select Import Schema");
     var schemaKey = new HashMap<String, ResourceTransport.Schema>();
-    var schemata = service.capabilities(KlabIDEController.instance().user()).getImportSchemata();
+    var schemata = capabilities.getImportSchemata();
     for (var schemaName : schemata.keySet()) {
       for (var schema : schemata.get(schemaName)) {
         var description =
@@ -563,24 +608,24 @@ public class ServiceDashboard extends BaseAssetViewComponent {
     }
   }
 
-  private void populateComponents() {
+  private void populateComponents(
+      KlabService.ServiceCapabilities capabilities, boolean unavailable) {
     components.clear();
-    try {
-      var capabilities = service.capabilities(KlabIDEController.instance().user());
-      var administrator = hasAdministerPermission(capabilities);
-      var descriptors =
-          capabilities == null
-              ? List.<Extensions.ComponentDescriptor>of()
-              : capabilities.getComponents(); // TODO remove the internal component
-      if (descriptors == null || descriptors.isEmpty()) {
-        components.addItem(new Label("No components advertised by this service."));
-      } else {
-        descriptors.stream()
-            .filter(descriptor -> !Extensions.LOCAL_SERVICE_COMPONENT.equals(descriptor.id()))
-            .forEach(descriptor -> components.addItem(componentCard(descriptor, administrator)));
-      }
-    } catch (RuntimeException e) {
+    if (unavailable) {
       components.addItem(new Label("Component metadata is currently unavailable."));
+      return;
+    }
+    var administrator = hasAdministerPermission(capabilities);
+    var descriptors =
+        capabilities == null
+            ? List.<Extensions.ComponentDescriptor>of()
+            : capabilities.getComponents(); // TODO remove the internal component
+    if (descriptors == null || descriptors.isEmpty()) {
+      components.addItem(new Label("No components advertised by this service."));
+    } else {
+      descriptors.stream()
+          .filter(descriptor -> !Extensions.LOCAL_SERVICE_COMPONENT.equals(descriptor.id()))
+          .forEach(descriptor -> components.addItem(componentCard(descriptor, administrator)));
     }
   }
 
@@ -943,7 +988,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
                       if (service instanceof BaseServiceClient client) {
                         client.invalidateCapabilities();
                       }
-                      populateComponents();
+                      loadCapabilities();
                     }));
   }
 }
