@@ -1,5 +1,6 @@
 package org.integratedmodelling.klab.ide.components;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.*;
@@ -57,6 +58,8 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
     }
   }
 
+  // Reuse serializer/type caches across snapshots; convertValue still detaches each document.
+  private final ObjectMapper snapshotMapper = JacksonConfiguration.newObjectMapper();
   private final Map<String, Entry> entries = new ConcurrentHashMap<>();
   private final Supplier<Scope> scopeSupplier;
   private final Executor ui;
@@ -113,9 +116,8 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
       var previous = entries.get(key);
       if (previous != null && Objects.equals(version, previous.request.getDocumentVersion()))
         continue;
-      var mapper = JacksonConfiguration.newObjectMapper();
       var snapshot =
-          mapper.convertValue(
+          snapshotMapper.convertValue(
               SemanticValidationRequest.of(document, version), SemanticValidationRequest.class);
       var entry = new Entry(snapshot);
       entries.put(key, entry);

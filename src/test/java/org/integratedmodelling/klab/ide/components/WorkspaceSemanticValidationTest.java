@@ -53,6 +53,30 @@ class WorkspaceSemanticValidationTest {
     Runnable task; while ((task = ui.poll()) != null) task.run();
   }
 
+  @Test void mixedDocumentSnapshotsStayDetachedAcrossRepeatedEdits() {
+    var namespace = document("namespace before");
+    var ontology = new org.integratedmodelling.klab.api.lang.kim.impl.KimOntologyImpl();
+    ontology.setUrn("ontology"); ontology.setProjectName("project"); ontology.setSourceCode("ontology before");
+    var concept = new org.integratedmodelling.klab.api.lang.kim.impl.KimConceptStatementImpl();
+    concept.setUrn("before"); ontology.getStatements().add(concept);
+    var updates = new ArrayList<WorkspaceSemanticValidation.Update>();
+    try (var coordinator = new WorkspaceSemanticValidation(() -> null, Runnable::run, (key, update) -> updates.add(update))) {
+      coordinator.documents(List.of(namespace, ontology));
+      var oldNamespace = updates.get(0).request().document();
+      var oldOntology = updates.get(1).request().getOntology();
+      assertNotSame(namespace, oldNamespace); assertNotSame(ontology, oldOntology);
+      assertNotSame(concept, oldOntology.getStatements().getFirst());
+      namespace.setSourceCode("namespace after"); ontology.setSourceCode("ontology after"); concept.setUrn("after");
+      coordinator.documents(List.of(namespace, ontology));
+      assertEquals("namespace before", oldNamespace.getSourceCode());
+      assertEquals("ontology before", oldOntology.getSourceCode());
+      assertEquals("before", oldOntology.getStatements().getFirst().getUrn());
+      assertEquals("namespace after", updates.get(2).request().getNamespace().getSourceCode());
+      assertEquals("after", updates.get(3).request().getOntology().getStatements().getFirst().getUrn());
+      coordinator.documents(List.of(namespace, ontology)); assertEquals(4, updates.size());
+    }
+  }
+
   @Test void lightweightLoadingPollsMakeNoSemanticCallsAndReadyValidatesOnce() throws Exception {
     var status = new AtomicReference<>(status("reasoner", "boot", 0, "loading"));
     var calls = new AtomicInteger(); var polls = new AtomicInteger();
