@@ -5,6 +5,7 @@ import atlantafx.base.theme.Tweaks;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javafx.application.Platform;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -49,6 +50,7 @@ import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.integratedmodelling.klab.ide.components.generic.TreeSearchField;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.integratedmodelling.klab.ide.utils.AsyncLoad;
+import org.integratedmodelling.klab.ide.utils.AsyncOpen;
 import org.integratedmodelling.klab.modeler.model.*;
 import org.integratedmodelling.klabeditor.Document;
 import org.integratedmodelling.klabeditor.MonacoEditorView;
@@ -67,6 +69,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private static final String THEME_ICON_COLOR = "-color-fg-default";
 
   private final ResourcesService service;
+  private final AtomicBoolean closed = new AtomicBoolean();
+  private final AsyncOpen<MonacoEditorView, Boolean> lspOpening = new AsyncOpen<>();
   private NavigableWorkspace workspace;
   private final WorkspaceView view;
   private WorkflowUIProvider workflowUIProvider;
@@ -105,10 +109,13 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       ResourceInfo resourceInfo,
       WorkspaceView view,
       WorkflowUIProvider workflowUIProvider) {
-    super(
-        new NavigableWorkspace(
-            service.retrieve(
-                resourceInfo.getUrn(), Workspace.class, KlabIDEController.instance().user())));
+    this(service, WorkspaceOpening.prepare(service, resourceInfo.getUrn(),
+        KlabIDEController.instance().user(), () -> false), view, workflowUIProvider);
+  }
+
+  WorkspaceEditor(ResourcesService service, WorkspaceOpening.Prepared prepared,
+      WorkspaceView view, WorkflowUIProvider workflowUIProvider) {
+    super(prepared.workspace());
 
     // this must strictly be the service that provides the asset
     assert !(service instanceof ResourcesMerger);
@@ -121,27 +128,21 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     sceneProperty()
         .addListener(
             (property, oldScene, newScene) -> {
+              if (closed.get()) return;
               if (newScene == null) semanticValidation.close();
               else {
                 semanticValidation.start();
                 requestSemanticValidation();
               }
             });
-    try {
-      service.getFlows(true, KlabIDEController.instance().user()).stream()
-          .map(Flow::getAssetUrn)
-          .filter(Objects::nonNull)
-          .forEach(assetsWithFlows::add);
-    } catch (RuntimeException ignored) {
-      // A disconnected service must not prevent the workspace from opening.
-    }
-    // lock all projects that let us
-    for (var project : workspace.getProjects()) {
-      if (service.lockProject(project.getUrn(), KlabIDEController.instance().user())
-          && project instanceof NavigableProject navigableProject) {
-        navigableProject.setLocked(true);
-      }
-    }
+    var access = prepared.access();
+    assetsWithFlows.addAll(access.flows());
+    workspace.getProjects().forEach(project -> {
+      if (project instanceof NavigableProject navigable && access.lockedProjects().contains(project.getUrn()))
+        navigable.setLocked(true);
+    });
+    access.failures().forEach(message ->
+        KlabIDEController.instance().handleNotification(Notification.warning(message)));
   }
 
   public void setWorkflowUIProvider(WorkflowUIProvider workflowUIProvider) {
@@ -438,6 +439,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   @Override
   protected void onVisualize(boolean visibleAfterCall) {
+    if (closed.get()) return;
     KlabIDEController.instance().setFocalEditor(this, visibleAfterCall);
     if (visibleAfterCall) {
       semanticValidation.start();
@@ -1153,16 +1155,6 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   @Override
   protected Node createEditor(NavigableAsset asset) {
     if (asset instanceof NavigableKlabDocument<?, ?> document) {
-      boolean lspAvailable =
-          KlabLspService.getInstance()
-              .ensureInitialized(
-                  KlabIDEController.instance().getLanguageServer(),
-                  KlabIDEController.instance().user());
-      if (!lspAvailable) {
-        KlabIDEController.instance()
-            .handleNotification(
-                Notification.error("LSP Server is not running: no edit support available"));
-      }
 
       String languageId =
           document.getLanguage().languageId(); // even if Monaco treats it as plain-text for now
@@ -1282,6 +1274,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
             requestSemanticValidation();
             refreshAuthorityProposals(document, ret, false);
           });
+      // Only the successful ownership-checked initialization callback may install shared metadata.
+      ret.setUseSharedLspMetadata(false);
       ret.loadEditor(document.getSourceCode(), languageId, theme);
       editorSources.put(ret, document.getSourceCode());
 
@@ -1312,10 +1306,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                   } else showSemanticValidation(document, ret);
                 });
           });
-      if (lspAvailable) {
-        var session = new LspDocumentSession(ret, languageId, document.getSourceCode());
-        lspSessions.put(ret, session);
-      }
+      initializeLanguageSupport(ret, languageId, status);
       return ret;
     }
     return null;
@@ -1325,6 +1316,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   protected void disposeEditor(NavigableAsset asset, Node editor) {
     editorSources.remove(editor);
     if (editor instanceof MonacoEditorView monaco) {
+      lspOpening.cancel(monaco);
       var feedback = authorityFeedback.remove(monaco); if (feedback != null) feedback.close();
       authorityNotifications.remove(monaco); authoritySources.remove(monaco); authorityDocuments.remove(monaco);
       pairedReviewRefresh.remove(monaco); pairedReviewStages.remove(monaco); monaco.clearReviewMarkers(); }
@@ -1336,6 +1328,45 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     if (session != null) {
       session.close();
     }
+  }
+
+  private void initializeLanguageSupport(MonacoEditorView editor, String languageId, Label status) {
+    var controller = KlabIDEController.instance();
+    var server = controller.getLanguageServer();
+    var user = controller.user();
+    java.util.function.BooleanSupplier current = () -> !closed.get()
+        && editorSources.containsKey(editor) && user == controller.user()
+        && server == controller.getLanguageServer();
+    status.setTooltip(new Tooltip("Language support is loading; source is editable"));
+    lspOpening.open(editor,
+        () -> server != null && KlabLspService.getInstance().ensureInitialized(server, user),
+        current, available -> {
+          if (!available) {
+            status.setTooltip(new Tooltip("Language support unavailable; source is editable"));
+            controller.handleNotification(Notification.warning("Language server unavailable; source remains editable"));
+            return;
+          }
+          // Wait for Monaco rather than opening an empty LSP document before JS is ready. Bind
+          // the current text, including edits made while initialization was in flight; never reload.
+          editor.runAfterEditorRendered(() -> {
+            if (!current.getAsBoolean() || lspSessions.containsKey(editor)) return;
+            var lsp = KlabLspService.getInstance();
+            editor.preloadKeywordHighlighterCache(languageId, lsp.getLanguageKeywords(languageId));
+            editor.preloadConceptHighlighterCache(lsp.getConceptCache());
+            lspSessions.put(editor, new LspDocumentSession(editor, languageId, editor.getText()));
+            status.setTooltip(null);
+          });
+        }, error -> {
+          status.setTooltip(new Tooltip("Language support unavailable; source is editable"));
+          controller.handleNotification(Notification.warning(error));
+        }, () -> {});
+  }
+
+  @Override public void close() {
+    if (!closed.compareAndSet(false, true)) return;
+    lspOpening.cancelAll();
+    semanticValidation.close();
+    super.close();
   }
 
   private final Map<MonacoEditorView, AuthorityProposalFeedback> authorityFeedback = new IdentityHashMap<>();
@@ -1490,6 +1521,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   private void requestSemanticValidation() {
+    if (closed.get()) return;
     if (root == null) return;
     var documents = new ArrayList<KlabDocument<?>>();
     collectSemanticDocuments(root.getValue(), documents);
