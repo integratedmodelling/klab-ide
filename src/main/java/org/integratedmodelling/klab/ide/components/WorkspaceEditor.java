@@ -300,7 +300,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                 if (treeView != null) treeView.refresh();
               });
       workflowEditors.put(editorKey, editor);
-      var node = findNodeContaining(flow.getAssetUrn());
+      var node = findNodeContaining(flow.getAssetUrn(), flow.getAssetType());
       if (node != null && node.getValue() instanceof NavigableKlabDocument<?, ?> document) {
         editor.configureSideBySide(() -> toggleWorkflowPair(document, editorKey, false));
         refreshPairButton(document.getUrn());
@@ -1135,7 +1135,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     //    Platform.runLater(() -> this.progressBar.progressProperty().setValue(b ? -1d : 0d));
   }
 
-  private TreeItem<NavigableAsset> defineTree(NavigableAsset asset) {
+  private static TreeItem<NavigableAsset> defineTree(NavigableAsset asset) {
     var root = new TreeItem<>(asset);
     root.setGraphic(getTreeGraphics(asset));
     for (var child : asset.children()) {
@@ -1437,12 +1437,17 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         });
   }
 
-  private TreeItem<NavigableAsset> findTreeNode(TreeItem<NavigableAsset> root, String urn) {
-    if (root.getValue().getUrn().equals(urn)) {
+  static TreeItem<NavigableAsset> findTreeNode(
+      TreeItem<NavigableAsset> root, String urn, KlabAsset.KnowledgeClass knowledgeClass) {
+    if (root == null || urn == null || knowledgeClass == null) return null;
+    // Projects and documents can share a URN (e.g. imod); identity includes the asset type.
+    if (root.getValue() != null
+        && Objects.equals(root.getValue().getUrn(), urn)
+        && assetType(root.getValue()) == knowledgeClass) {
       return root;
     }
     for (TreeItem<NavigableAsset> child : root.getChildren()) {
-      var found = findTreeNode(child, urn);
+      var found = findTreeNode(child, urn, knowledgeClass);
       if (found != null) {
         return found;
       }
@@ -1450,8 +1455,9 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     return null;
   }
 
-  private TreeItem<NavigableAsset> findNodeContaining(String assetUrn) {
-    return findTreeNode(this.root, assetUrn);
+  private TreeItem<NavigableAsset> findNodeContaining(
+      String assetUrn, KlabAsset.KnowledgeClass knowledgeClass) {
+    return findTreeNode(this.root, assetUrn, knowledgeClass);
   }
 
   private NavigableKlabDocument<?, ?> findChangedDocument(ResourceSet.Resource change) {
@@ -1462,7 +1468,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         return document;
       }
     }
-    var node = findNodeContaining(change.getResourceUrn());
+    var node = findNodeContaining(change.getResourceUrn(), change.getKnowledgeClass());
     return node != null && node.getValue() instanceof NavigableKlabDocument<?, ?> document
         ? document
         : null;
@@ -1676,7 +1682,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     TreeItem<NavigableAsset> focus = null;
     if (change.getOperation() == CRUDOperation.DELETE) {
 
-      var root = findNodeContaining(change.getResourceUrn());
+      var root = findNodeContaining(change.getResourceUrn(), change.getKnowledgeClass());
       if (root != null) {
         closeEditor(root.getValue());
         pendingSavedSources.remove(change.getResourceUrn());
@@ -1694,7 +1700,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       var root =
           parentAsset instanceof NavigableFolder folder
               ? findOrAddFolder(folder)
-              : findTreeNode(this.root, parentAsset.getUrn());
+              : findTreeNodeByPath(this.root, parentAsset);
       if (root != null) {
         root.getChildren().add(focus = new TreeItem<>((NavigableAsset) newAsset));
       }
@@ -1702,7 +1708,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
     } else if (change.getOperation() == CRUDOperation.UPDATE
         && workspace instanceof NavigableKlabAsset<?> wroot) {
-      var node = findNodeContaining(change.getResourceUrn());
+      var node = findNodeContaining(change.getResourceUrn(), change.getKnowledgeClass());
       var newAsset =
           wroot.findAsset(change.getResourceUrn(), KlabAsset.class, change.getKnowledgeClass());
 
@@ -1733,7 +1739,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     } else if (change.getOperation() == CRUDOperation.UPDATE_METADATA
         && change.getKnowledgeClass() == KlabAsset.KnowledgeClass.PROJECT
         && workspace instanceof NavigableKlabAsset<?> wroot) {
-      var node = findNodeContaining(change.getResourceUrn());
+      var node = findNodeContaining(change.getResourceUrn(), change.getKnowledgeClass());
       var updatedProject =
           wroot.findAsset(
               change.getResourceUrn(), NavigableProject.class, KlabAsset.KnowledgeClass.PROJECT);
@@ -1743,7 +1749,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       }
     } else if (change.getOperation() == CRUDOperation.UPDATE_METADATA) {
       // Validation notifications may also arrive as metadata-only changes.
-      focus = findNodeContaining(change.getResourceUrn());
+      focus = findNodeContaining(change.getResourceUrn(), change.getKnowledgeClass());
     }
 
     if (focus != null) {
@@ -1811,7 +1817,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     return null;
   }
 
-  private void updateTree(TreeItem<NavigableAsset> root, NavigableAsset changed) {
+  static void updateTree(TreeItem<NavigableAsset> root, NavigableAsset changed) {
 
     if (root.getValue() != null) {
 

@@ -1,15 +1,101 @@
 package org.integratedmodelling.klab.ide.components;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
+import javafx.scene.control.TreeItem;
+import org.integratedmodelling.klab.api.knowledge.KlabAsset.KnowledgeClass;
+import org.integratedmodelling.klab.api.knowledge.organization.impl.ProjectImpl;
+import org.integratedmodelling.klab.api.lang.kim.impl.KimNamespaceImpl;
+import org.integratedmodelling.klab.api.lang.kim.impl.KimOntologyImpl;
+import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableAsset;
+import org.integratedmodelling.klab.modeler.model.NavigableKimNamespace;
+import org.integratedmodelling.klab.modeler.model.NavigableKimOntology;
+import org.integratedmodelling.klab.modeler.model.NavigableProject;
 import org.junit.jupiter.api.Test;
 
 class WorkspaceEditorTest {
+
+  @Test
+  void savingDocumentsNamedAfterTheirProjectPreservesTheProjectAndOtherDocuments() {
+    var root = collidingProjectTree();
+    var project = (NavigableProject) root.getValue();
+    var originalChildren = List.copyOf(root.getChildren());
+    root.setExpanded(true);
+
+    // Both document types share the project's URN. Repeated saves must stay on their own nodes.
+    for (int save = 0; save < 2; save++) {
+      for (var type : List.of(KnowledgeClass.NAMESPACE, KnowledgeClass.ONTOLOGY)) {
+        var node = WorkspaceEditor.findTreeNode(root, "imod", type);
+        var updated = type == KnowledgeClass.NAMESPACE
+            ? new NavigableKimNamespace(namespace("imod"), project)
+            : new NavigableKimOntology(ontology("imod"), project);
+        WorkspaceEditor.updateTree(node, updated);
+
+        assertSame(updated, node.getValue());
+        assertSame(project, root.getValue());
+        assertEquals(originalChildren, root.getChildren());
+        assertSame(root, node.getParent());
+        assertSame(root, WorkspaceEditor.findTreeNode(root, "imod", KnowledgeClass.PROJECT));
+        assertTrue(root.isExpanded());
+      }
+    }
+  }
+
+  @Test
+  void deletingNamespaceNamedAfterProjectLeavesOntologyAndOtherNamespaces() {
+    var root = collidingProjectTree();
+    var ontology = WorkspaceEditor.findTreeNode(root, "imod", KnowledgeClass.ONTOLOGY);
+    var sibling = WorkspaceEditor.findTreeNode(root, "imod.other", KnowledgeClass.NAMESPACE);
+    var deleted = WorkspaceEditor.findTreeNode(root, "imod", KnowledgeClass.NAMESPACE);
+
+    deleted.getParent().getChildren().remove(deleted);
+
+    assertEquals(List.of(ontology, sibling), root.getChildren());
+    assertSame(root, WorkspaceEditor.findTreeNode(root, "imod", KnowledgeClass.PROJECT));
+    assertNull(WorkspaceEditor.findTreeNode(root, "imod", KnowledgeClass.NAMESPACE));
+  }
+
+  @Test
+  void treeLookupRequiresMatchingAssetType() {
+    var root = collidingProjectTree();
+    assertNull(WorkspaceEditor.findTreeNode(root, "imod", KnowledgeClass.WORKSPACE));
+    assertNull(WorkspaceEditor.findTreeNode(root, "imod", null));
+    assertNull(WorkspaceEditor.findTreeNode(root, "missing", KnowledgeClass.NAMESPACE));
+  }
+
+  private static TreeItem<NavigableAsset> collidingProjectTree() {
+    var project = new ProjectImpl();
+    project.setUrn("imod");
+    project.setNamespaces(List.of(namespace("imod"), namespace("imod.other")));
+    project.setOntologies(List.of(ontology("imod")));
+    var navigable = new NavigableProject(project, null);
+    var root = new TreeItem<NavigableAsset>(navigable);
+    for (var child : navigable.children()) root.getChildren().add(new TreeItem<>(child));
+    return root;
+  }
+
+  private static KimNamespaceImpl namespace(String urn) {
+    var namespace = new KimNamespaceImpl();
+    namespace.setUrn(urn);
+    namespace.setProjectName("imod");
+    return namespace;
+  }
+
+  private static KimOntologyImpl ontology(String urn) {
+    var ontology = new KimOntologyImpl();
+    ontology.setUrn(urn);
+    ontology.setProjectName("imod");
+    return ontology;
+  }
 
   @Test
   void validationOnlyTargetsDocumentAndAncestorsWithoutMutatingTree() {
