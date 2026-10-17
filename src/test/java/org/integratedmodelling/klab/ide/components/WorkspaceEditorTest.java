@@ -25,6 +25,30 @@ import org.junit.jupiter.api.Test;
 class WorkspaceEditorTest {
 
   @Test
+  void validationUpdateDoesNotCollapseDeclarationsWithEqualNavigablePaths() {
+    var ontology = ontology("demo");
+    var first = new org.integratedmodelling.klab.api.lang.kim.impl.KimConceptStatementImpl();
+    var second = new org.integratedmodelling.klab.api.lang.kim.impl.KimConceptStatementImpl();
+    first.setUrn("demo:Duplicate");
+    second.setUrn("demo:Duplicate");
+    ontology.setStatements(List.of(first, second));
+    var document = new NavigableKimOntology(ontology, null);
+    var root = new TreeItem<NavigableAsset>(document);
+    for (var child : document.children()) root.getChildren().add(new TreeItem<>(child));
+    var original = List.copyOf(root.getChildren());
+    original.get(0).setExpanded(true);
+
+    for (int notification = 0; notification < 3; notification++) {
+      WorkspaceEditor.updateTree(root, new NavigableKimOntology(ontology, null));
+      assertEquals(original, root.getChildren());
+      assertSame(first, root.getChildren().get(0).getValue().getDelegate());
+      assertSame(second, root.getChildren().get(1).getValue().getDelegate());
+      assertTrue(original.get(0).isExpanded());
+      for (var child : original) assertSame(root, child.getParent());
+    }
+  }
+
+  @Test
   void savingDocumentsNamedAfterTheirProjectPreservesTheProjectAndOtherDocuments() {
     var root = collidingProjectTree();
     var project = (NavigableProject) root.getValue();

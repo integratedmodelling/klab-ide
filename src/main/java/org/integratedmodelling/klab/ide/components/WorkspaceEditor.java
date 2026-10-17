@@ -81,6 +81,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   // Navigable delegates are mutated before workspaceModified is delivered. Keep the source
   // independently so validation/metadata updates cannot look like external content changes.
   private final Map<Node, String> editorSources = new IdentityHashMap<>();
+  private final Map<Node, Integer> editorCursorOffsets = new IdentityHashMap<>();
   private final Map<String, WorkflowEditor> workflowEditors = new HashMap<>();
   private final Map<MonacoEditorView, Runnable> pairedReviewRefresh = new IdentityHashMap<>();
   private final Map<MonacoEditorView, Flow.State> pairedReviewStages = new IdentityHashMap<>();
@@ -89,8 +90,22 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private final Set<String> assetsWithFlows = new HashSet<>();
   private final Map<String, WorkspaceSemanticValidation.Update> semanticUpdates = new HashMap<>();
   private final Map<String, Label> semanticStatusLabels = new HashMap<>();
-  private final Set<AssetTreeCell> assetTreeCells =
-      Collections.newSetFromMap(new WeakHashMap<>());
+  private final Set<AssetTreeCell> assetTreeCells = Collections.newSetFromMap(new WeakHashMap<>());
+  private boolean treeTracePending;
+  private boolean treeLayoutPending;
+  private boolean automaticValidation = true;
+  private boolean validationCommandPending;
+  private boolean resumeAutomaticRequested;
+  private final AtomicBoolean resumeAccepted = new AtomicBoolean();
+  private IconButton automaticValidationControl;
+  private IconButton validateNowControl;
+  private final java.util.concurrent.ExecutorService validationCommands =
+      java.util.concurrent.Executors.newSingleThreadExecutor(
+          r -> {
+            var thread = new Thread(r, "workspace-save-validation");
+            thread.setDaemon(true);
+            return thread;
+          });
   private final WorkspaceSemanticValidation semanticValidation =
       new WorkspaceSemanticValidation(
           () -> KlabIDEController.instance().user(),
@@ -109,12 +124,19 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       ResourceInfo resourceInfo,
       WorkspaceView view,
       WorkflowUIProvider workflowUIProvider) {
-    this(service, WorkspaceOpening.prepare(service, resourceInfo.getUrn(),
-        KlabIDEController.instance().user(), () -> false), view, workflowUIProvider);
+    this(
+        service,
+        WorkspaceOpening.prepare(
+            service, resourceInfo.getUrn(), KlabIDEController.instance().user(), () -> false),
+        view,
+        workflowUIProvider);
   }
 
-  WorkspaceEditor(ResourcesService service, WorkspaceOpening.Prepared prepared,
-      WorkspaceView view, WorkflowUIProvider workflowUIProvider) {
+  WorkspaceEditor(
+      ResourcesService service,
+      WorkspaceOpening.Prepared prepared,
+      WorkspaceView view,
+      WorkflowUIProvider workflowUIProvider) {
     super(prepared.workspace());
 
     // this must strictly be the service that provides the asset
@@ -125,6 +147,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     this.workflowUIProvider =
         workflowUIProvider == null ? WorkflowUIProvider.NONE : workflowUIProvider;
     this.workspace = getEditedAsset();
+    if (hasDeferredValidation(workspace)) {
+      automaticValidation = false;
+      semanticValidation.setAutomatic(false);
+    }
     sceneProperty()
         .addListener(
             (property, oldScene, newScene) -> {
@@ -137,12 +163,18 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
             });
     var access = prepared.access();
     assetsWithFlows.addAll(access.flows());
-    workspace.getProjects().forEach(project -> {
-      if (project instanceof NavigableProject navigable && access.lockedProjects().contains(project.getUrn()))
-        navigable.setLocked(true);
-    });
-    access.failures().forEach(message ->
-        KlabIDEController.instance().handleNotification(Notification.warning(message)));
+    workspace
+        .getProjects()
+        .forEach(
+            project -> {
+              if (project instanceof NavigableProject navigable
+                  && access.lockedProjects().contains(project.getUrn())) navigable.setLocked(true);
+            });
+    access
+        .failures()
+        .forEach(
+            message ->
+                KlabIDEController.instance().handleNotification(Notification.warning(message)));
   }
 
   public void setWorkflowUIProvider(WorkflowUIProvider workflowUIProvider) {
@@ -339,21 +371,28 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       if (review != null) review.setToggled(true);
       editor.setOnReviewMarkerClicked(workflowEditor::reviewMarkerClicked);
       editor.setOnReviewMarginDoubleClicked(workflowEditor::reviewCommentRequested);
-      workflowEditor.setOnStageLoaded(state -> {
-        pairedReviewStages.put(editor, state);
-        Runnable refresh = () -> {
-          if (pairedReviewStages.get(editor) != state) return;
-          var markers = ProposalLexicalMarkers.markers(state.getId(), state.getProposalReview(),
-              document.getSourceCode(), editor.getText(), ProposalLexicalMarkers.declarationOffsets(document));
-          var stages = new LinkedHashMap<String, String>();
-          markers.forEach(marker -> stages.put(marker.id(), state.getId()));
-          workflowEditor.setReviewMarkerStages(stages);
-          editor.setReviewMarkers(markers);
-        };
-        pairedReviewRefresh.put(editor, refresh);
-        refresh.run();
-        editor.runAfterEditorRendered(refresh);
-      });
+      workflowEditor.setOnStageLoaded(
+          state -> {
+            pairedReviewStages.put(editor, state);
+            Runnable refresh =
+                () -> {
+                  if (pairedReviewStages.get(editor) != state) return;
+                  var markers =
+                      ProposalLexicalMarkers.markers(
+                          state.getId(),
+                          state.getProposalReview(),
+                          document.getSourceCode(),
+                          editor.getText(),
+                          ProposalLexicalMarkers.declarationOffsets(document));
+                  var stages = new LinkedHashMap<String, String>();
+                  markers.forEach(marker -> stages.put(marker.id(), state.getId()));
+                  workflowEditor.setReviewMarkerStages(stages);
+                  editor.setReviewMarkers(markers);
+                };
+            pairedReviewRefresh.put(editor, refresh);
+            refresh.run();
+            editor.runAfterEditorRendered(refresh);
+          });
     }
     workflowEditor.setSideBySide(paired);
     var button = pairButtons.get(document.getUrn());
@@ -480,6 +519,18 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
     treeView = new TreeView<>(this.root = defineTree(workspace));
     treeView.setCellFactory(p -> new AssetTreeCell(this));
+    root.addEventHandler(
+        TreeItem.branchExpandedEvent(),
+        event -> {
+          scheduleTreeLayout();
+          traceTree("branch expanded");
+        });
+    root.addEventHandler(
+        TreeItem.branchCollapsedEvent(),
+        event -> {
+          scheduleTreeLayout();
+          traceTree("branch collapsed");
+        });
     Platform.runLater(this::requestSemanticValidation);
     treeView.getStyleClass().addAll(Tweaks.EDGE_TO_EDGE, Styles.DENSE);
     treeView.setShowRoot(false);
@@ -569,8 +620,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     if (owner != null) confirmation.initOwner(owner);
     ((Button) confirmation.getDialogPane().lookupButton(delete)).setDefaultButton(false);
     ((Button) confirmation.getDialogPane().lookupButton(cancel)).setDefaultButton(true);
-    if (confirmation.showAndWait().orElse(cancel) == delete)
-      deleteAction.run();
+    if (confirmation.showAndWait().orElse(cancel) == delete) deleteAction.run();
   }
 
   private final Map<String, ProjectSettingsEditor> projectSettingsEditors = new HashMap<>();
@@ -760,7 +810,6 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                 KlabIDEController.instance()
                     .manageProject(service, project.getUrn(), op, parameters);
               }
-
             });
         teamMenu.getItems().add(teamOperation);
       }
@@ -821,8 +870,126 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           createNewProject();
         });
     addProject.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT);
-    hBox.getChildren().addAll(addProject, workspaceSettings, searchField, expand, collapse);
-    return new VBox(hBox /*, new Separator()*/);
+    automaticValidationControl =
+        IconButton.toggle(
+                Material2AL.CHECK_CIRCLE,
+                16,
+                "-color-fg-default",
+                "-color-fg-muted",
+                () -> {
+                  if (automaticValidationControl.isToggled()) runDeferredValidation(true);
+                  else {
+                    automaticValidation = false;
+                    semanticValidation.setAutomatic(false);
+                    semanticUpdates
+                        .entrySet()
+                        .removeIf(entry -> entry.getValue().response() == null);
+                    for (var cell : assetTreeCells) cell.refreshDecoration(false);
+                    updateValidationControls();
+                  }
+                  return automaticValidationControl.isToggled();
+                })
+            .styleClass(Styles.FLAT)
+            .tooltip("Automatically validate saved ontologies and namespaces and their dependents");
+    automaticValidationControl.setAccessibleText("Validate on save");
+    automaticValidationControl.setToggled(automaticValidation);
+
+    validateNowControl =
+        IconButton.of(
+                Material2AL.AUTORENEW,
+                16,
+                "-color-fg-default",
+                "-color-fg-muted",
+                () -> {
+                  runDeferredValidation(false);
+                  return true;
+                })
+            .styleClass(Styles.FLAT)
+            .tooltip("Validate saved changes now");
+    validateNowControl.setAccessibleText("Validate now");
+    validateNowControl.visibleProperty().bind(automaticValidationControl.selectedProperty().not());
+    validateNowControl.managedProperty().bind(validateNowControl.visibleProperty());
+    validateNowControl.setDisable(automaticValidation || validationCommandPending);
+    hBox.getChildren()
+        .addAll(
+            addProject,
+            workspaceSettings,
+            automaticValidationControl,
+            validateNowControl,
+            searchField,
+            expand,
+            collapse);
+    return hBox;
+  }
+
+  private void updateValidationControls() {
+    if (automaticValidationControl == null) return;
+    automaticValidationControl.setSelected(automaticValidation);
+    automaticValidationControl.setDisable(validationCommandPending);
+    validateNowControl.setDisable(automaticValidation || validationCommandPending);
+  }
+
+  private void runDeferredValidation(boolean resumeAutomatic) {
+    if (validationCommandPending || closed.get()) return;
+    validationCommandPending = true;
+    resumeAutomaticRequested = resumeAutomatic;
+    resumeAccepted.set(false);
+    updateValidationControls();
+    validationCommands.execute(
+        () -> {
+          try {
+            var controller = KlabIDEController.instance();
+            var request =
+                new org.integratedmodelling.klab.api.knowledge.organization.impl.WorkspaceImpl();
+            request.setUrn(workspace.getUrn());
+            var changes =
+                service.submit(
+                    request, ResourcesService.SubmissionMode.VALIDATE, controller.user());
+            if (changes.stream()
+                .anyMatch(change -> Utils.Notifications.hasErrors(change.getNotifications())))
+              throw new IllegalStateException("The service could not validate the saved changes");
+            controller.handleResultSets(changes);
+            resumeAccepted.set(resumeAutomatic);
+            // Fetch the validated saved snapshots, independently of asynchronous tree
+            // reconciliation.
+            var documents = new ArrayList<KlabDocument<?>>();
+            for (var change : changes)
+              for (var resource : Utils.Resources.collectChanges(change)) {
+                if (resource.getKnowledgeClass() == KlabAsset.KnowledgeClass.ONTOLOGY
+                    || resource.getKnowledgeClass() == KlabAsset.KnowledgeClass.NAMESPACE) {
+                  var asset =
+                      service.retrieve(
+                          resource.getResourceUrn(),
+                          resource.getKnowledgeClass().getAssetClass(),
+                          controller.user());
+                  if (asset instanceof KlabDocument<?> document) documents.add(document);
+                }
+              }
+            Platform.runLater(
+                () -> {
+                  if (closed.get()) return;
+                  semanticValidation.setAutomatic(false);
+                  if (documents.isEmpty()) collectSemanticDocuments(root.getValue(), documents);
+                  semanticValidation.documents(documents);
+                  semanticValidation.validateOnce(
+                      () -> {
+                        if (closed.get()) return;
+                        validationCommandPending = false;
+                        automaticValidation = resumeAutomatic;
+                        semanticValidation.setAutomatic(resumeAutomatic);
+                        if (resumeAutomatic) requestSemanticValidation();
+                        updateValidationControls();
+                      });
+                });
+          } catch (Exception failure) {
+            Platform.runLater(
+                () -> {
+                  if (closed.get()) return;
+                  validationCommandPending = false;
+          updateValidationControls();
+                });
+          }
+        });
   }
 
   private WorkspaceSettingsEditor workspaceSettingsEditor;
@@ -905,27 +1072,34 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         && op != RepositoryState.Operation.MERGE_CHANGES_FROM) {
       return new String[] {};
     }
-    return chooseBranch(project.getRepositoryState(),
+    return chooseBranch(
+        project.getRepositoryState(),
         op == RepositoryState.Operation.COMMIT_AND_SWITCH,
         getScene() == null ? null : getScene().getWindow());
   }
 
-  static String[] chooseBranch(RepositoryState state, boolean switching, javafx.stage.Window owner) {
-    var branches = state.getBranchNames().stream()
-        .filter(branch -> !branch.equals(state.getCurrentBranch()))
-        .distinct().sorted().toList();
+  static String[] chooseBranch(
+      RepositoryState state, boolean switching, javafx.stage.Window owner) {
+    var branches =
+        state.getBranchNames().stream()
+            .filter(branch -> !branch.equals(state.getCurrentBranch()))
+            .distinct()
+            .sorted()
+            .toList();
     var dialog = new Dialog<String>();
     dialog.setTitle(switching ? "Commit and switch branch" : "Merge branch");
-    dialog.setHeaderText(switching
-        ? "Choose an existing branch or enter a new branch name"
-        : "Choose the branch to merge into " + state.getCurrentBranch());
+    dialog.setHeaderText(
+        switching
+            ? "Choose an existing branch or enter a new branch name"
+            : "Choose the branch to merge into " + state.getCurrentBranch());
     var branch = new ComboBox<String>();
     branch.getItems().setAll(branches);
     branch.setEditable(switching);
     branch.setMaxWidth(Double.MAX_VALUE);
     if (!branches.isEmpty()) branch.getSelectionModel().selectFirst();
     dialog.getDialogPane().setContent(branch);
-    var accept = new ButtonType(switching ? "Commit and switch" : "Merge", ButtonBar.ButtonData.OK_DONE);
+    var accept =
+        new ButtonType(switching ? "Commit and switch" : "Merge", ButtonBar.ButtonData.OK_DONE);
     dialog.getDialogPane().getButtonTypes().setAll(accept, ButtonType.CANCEL);
     var acceptButton = dialog.getDialogPane().lookupButton(accept);
     if (switching) {
@@ -933,19 +1107,28 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     } else {
       acceptButton.disableProperty().bind(branch.valueProperty().isNull());
     }
-    dialog.setResultConverter(button -> button == accept
-        ? (switching ? branch.getEditor().getText() : branch.getValue()) : null);
+    dialog.setResultConverter(
+        button ->
+            button == accept
+                ? (switching ? branch.getEditor().getText() : branch.getValue())
+                : null);
     if (owner != null) dialog.initOwner(owner);
-    return dialog.showAndWait().map(String::strip).filter(value -> !value.isBlank())
-        .map(value -> new String[] {value}).orElse(null);
+    return dialog
+        .showAndWait()
+        .map(String::strip)
+        .filter(value -> !value.isBlank())
+        .map(value -> new String[] {value})
+        .orElse(null);
   }
 
   private void handleAssetDrop(NavigableAsset value) {
     digitalTwinControlPanel.showDropProgress();
     dropLoad.load(
         () -> {
-          var grid=ObservationDropTarget.gridDefinition(value);
-          var scope = KlabIDEController.instance().requireDefaultContext(grid==null ? null : grid.getUrn());
+          var grid = ObservationDropTarget.gridDefinition(value);
+          var scope =
+              KlabIDEController.instance()
+                  .requireDefaultContext(grid == null ? null : grid.getUrn());
           if (scope == null) {
             throw new IllegalStateException(
                 "No scope selected and no local runtime service available.");
@@ -1005,86 +1188,112 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private static final class AssetTreeCell extends TreeCell<NavigableAsset> {
 
     WorkspaceEditor editor;
+    private final IconLabel icon = new IconLabel(Theme.UNKNOWN_ICON, 18, THEME_ICON_COLOR);
+    private final Label flowDot = new Label("●");
+    private final ProgressIndicator spinner = new ProgressIndicator(-1);
+    private final Label badge = new Label();
+    private final HBox decoration = new HBox(6, icon, flowDot, spinner, badge);
 
     public AssetTreeCell(WorkspaceEditor workspaceEditor) {
       this.editor = workspaceEditor;
       workspaceEditor.assetTreeCells.add(this);
-      javafx.beans.value.ChangeListener<javafx.scene.Node> decorationListener =
-          (observable, oldGraphic, newGraphic) -> updateItem(getItem(), isEmpty());
-      treeItemProperty()
-          .addListener(
-              (observable, oldItem, newItem) -> {
-                if (oldItem != null) {
-                  oldItem.graphicProperty().removeListener(decorationListener);
-                }
-                if (newItem != null) {
-                  newItem.graphicProperty().addListener(decorationListener);
-                }
-              });
+      icon.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+      icon.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+      icon.setTextOverrun(OverrunStyle.CLIP);
+      flowDot.setStyle("-fx-text-fill: -color-accent-fg; -fx-font-size: 12px;");
+      flowDot.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+      spinner.setMinSize(12, 12);
+      spinner.setPrefSize(12, 12);
+      spinner.setMaxSize(12, 12);
+      badge.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+      decoration.setAlignment(Pos.CENTER_LEFT);
+      decoration.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+      decoration.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+      for (var node : List.of(flowDot, spinner, badge)) {
+        node.managedProperty().bind(node.visibleProperty());
+        node.setVisible(false);
+      }
     }
 
     @Override
     protected void updateItem(NavigableAsset asset, boolean empty) {
       super.updateItem(asset, empty);
+      render(asset, empty);
+    }
+
+    @Override
+    protected boolean isItemChanged(NavigableAsset oldItem, NavigableAsset newItem) {
+      // NavigableAsset.equals compares paths, not parsed contents. A reparse at the same
+      // path must still replace the cell's item and its listeners.
+      return oldItem != newItem;
+    }
+
+    private void refreshDecoration(boolean assetChanged) {
+      // Structural changes can leave a recycled cell awaiting its next JavaFX update.
+      // Never change its item/empty state or paint a different asset in that interval.
+      if (!isEmpty() && getTreeItem() != null && getTreeItem().getValue() == getItem()) {
+        if (assetChanged) render(getItem(), false);
+        else updateValidationDecoration(getItem());
+        requestLayout();
+        if (getTreeView() != null) getTreeView().requestLayout();
+        editor.scheduleTreeLayout();
+      }
+    }
+
+    private void updateValidationDecoration(NavigableAsset asset) {
+      setTooltip(new Tooltip(Theme.getLabel(asset)));
+      var semantic = editor.semanticSummary(asset);
+      if (!semantic.isEmpty()) {
+        String badgeText =
+            semantic.startsWith("Semantic errors")
+                ? semantic.replace("Semantic errors", "Errors")
+                : semantic.startsWith("Semantic warnings")
+                    ? semantic.replace("Semantic warnings", "Warnings")
+                    : semantic.equals("Document errors")
+                        ? "Errors"
+                        : semantic.equals("Validation out of date")
+                            ? "Out of date"
+                            : semantic.contains("waiting")
+                                ? "Waiting"
+                                : semantic.contains("unavailable")
+                                    ? "Unavailable"
+                                    : semantic.contains("failed") ? "Failed" : "Pending";
+        boolean pending = badgeText.equals("Pending");
+        spinner.setVisible(pending);
+        badge.setVisible(!pending);
+        badge.setText(badgeText.equals("Failed") ? "●" : badgeText);
+        badge.setStyle(
+            semantic.startsWith("Semantic errors") || badgeText.equals("Failed")
+                ? "-fx-text-fill: -color-danger-fg;"
+                : "-fx-text-fill: -color-warning-fg;");
+        var indicator = pending ? spinner : badge;
+        indicator.setAccessibleText(semantic);
+        var details = editor.semanticDetails(asset);
+        indicator.setTooltip(new Tooltip(details));
+        setTooltip(new Tooltip(Theme.getLabel(asset) + "\n" + details));
+      } else {
+        spinner.setVisible(false);
+        badge.setVisible(false);
+      }
+    }
+
+    private void render(NavigableAsset asset, boolean empty) {
       if (asset != null && !empty) {
         // Let the cell skin truncate the name without shrinking the icon glyphs.
         setText(Theme.getLabel(asset));
         setTextOverrun(OverrunStyle.ELLIPSIS);
         setTooltip(new Tooltip(getText()));
-        var icon = getTreeGraphics(asset);
-        icon.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
-        icon.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
-        icon.setTextOverrun(OverrunStyle.CLIP);
-        if (editor.assetsWithFlows.contains(asset.getUrn())) {
-          var dot = new Label("●");
-          dot.setStyle("-fx-text-fill: -color-accent-fg; -fx-font-size: 12px;");
-          dot.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
-          var graphic = new HBox(6, icon, dot);
-          graphic.setAlignment(Pos.CENTER_LEFT);
-          graphic.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
-          graphic.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
-          setGraphic(graphic);
-        } else {
-          setGraphic(icon);
-        }
-        var semantic = editor.semanticSummary(asset);
-        if (!semantic.isEmpty()) {
-          String badgeText =
-              semantic.startsWith("Semantic errors")
-                  ? semantic.replace("Semantic errors", "Errors")
-                  : semantic.startsWith("Semantic warnings")
-                      ? semantic.replace("Semantic warnings", "Warnings")
-                      : semantic.equals("Document errors") ? "Errors"
-                      : semantic.contains("unavailable")
-                              ? "Unavailable"
-                              : semantic.contains("failed") ? "Failed" : "Pending";
-          Control badge;
-          if (badgeText.equals("Pending")) {
-            var spinner = new ProgressIndicator(ProgressIndicator.INDETERMINATE_PROGRESS);
-            spinner.setMinSize(12, 12);
-            spinner.setPrefSize(12, 12);
-            spinner.setMaxSize(12, 12);
-            badge = spinner;
-          } else if (badgeText.equals("Failed")) {
-            var dot = new Label("●");
-            dot.getStyleClass().add(Styles.DANGER);
-            badge = dot;
-          } else {
-            var label = new Label(badgeText);
-            label.setStyle(
-                semantic.startsWith("Semantic errors")
-                    ? "-fx-text-fill: -color-danger-fg;"
-                    : "-fx-text-fill: -color-warning-fg;");
-            badge = label;
-          }
-          badge.setAccessibleText(semantic);
-          var details = editor.semanticDetails(asset);
-          badge.setTooltip(new Tooltip(details));
-          setTooltip(new Tooltip(Theme.getLabel(asset) + "\n" + details));
-          var graphic = new HBox(6, getGraphic(), badge);
-          graphic.setAlignment(Pos.CENTER_LEFT);
-          setGraphic(graphic);
-        }
+        var appearance = getTreeGraphics(asset);
+        icon.setText(appearance.getText());
+        if (!Objects.equals(icon.getFont(), appearance.getFont()))
+          icon.setFont(appearance.getFont());
+        icon.setStyle(appearance.getStyle());
+        if (appearance.getStyle().isEmpty()) icon.setTextFill(appearance.getTextFill());
+        flowDot.setVisible(editor.assetsWithFlows.contains(asset.getUrn()));
+        updateValidationDecoration(asset);
+        // VirtualFlow may call updateItem during CSS/measurement. Keep the same controls
+        // and skins: replacing them here repeatedly creates unstyled, unmeasured graphics.
+        setGraphic(decoration);
         setOnContextMenuRequested(
             event -> {
               var contextMenu = new ContextMenu();
@@ -1124,6 +1333,9 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         }
 
       } else {
+        spinner.setVisible(false);
+        badge.setVisible(false);
+        flowDot.setVisible(false);
         setText(null);
         setGraphic(null);
         setTooltip(null);
@@ -1139,7 +1351,6 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   private static TreeItem<NavigableAsset> defineTree(NavigableAsset asset) {
     var root = new TreeItem<>(asset);
-    root.setGraphic(getTreeGraphics(asset));
     for (var child : asset.children()) {
       root.getChildren().add(defineTree(child));
     }
@@ -1279,14 +1490,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       ret.loadEditor(document.getSourceCode(), languageId, theme);
       editorSources.put(ret, document.getSourceCode());
 
-      ret.setCursorPositionListener(
-          offset -> {
-            if (isEditorSelected(document)) {
-              // TODO put description in status bar; check if inspector is open
-              //  and queue descriptor
-              focusTreeOn(document.getAssetsAt(offset));
-            }
-          });
+      ret.setCursorPositionListener(offset -> cursorPositionChanged(ret, document, offset));
       ret.setOnDirtyChanged(
           dirty -> {
             Platform.runLater(
@@ -1315,11 +1519,18 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   @Override
   protected void disposeEditor(NavigableAsset asset, Node editor) {
     editorSources.remove(editor);
+    editorCursorOffsets.remove(editor);
     if (editor instanceof MonacoEditorView monaco) {
       lspOpening.cancel(monaco);
-      var feedback = authorityFeedback.remove(monaco); if (feedback != null) feedback.close();
-      authorityNotifications.remove(monaco); authoritySources.remove(monaco); authorityDocuments.remove(monaco);
-      pairedReviewRefresh.remove(monaco); pairedReviewStages.remove(monaco); monaco.clearReviewMarkers(); }
+      var feedback = authorityFeedback.remove(monaco);
+      if (feedback != null) feedback.close();
+      authorityNotifications.remove(monaco);
+      authoritySources.remove(monaco);
+      authorityDocuments.remove(monaco);
+      pairedReviewRefresh.remove(monaco);
+      pairedReviewStages.remove(monaco);
+      monaco.clearReviewMarkers();
+    }
     if (asset instanceof KlabDocument<?> document)
       semanticStatusLabels.remove(WorkspaceSemanticValidation.key(document));
     pairButtons.remove(asset.getUrn());
@@ -1334,53 +1545,77 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     var controller = KlabIDEController.instance();
     var server = controller.getLanguageServer();
     var user = controller.user();
-    java.util.function.BooleanSupplier current = () -> !closed.get()
-        && editorSources.containsKey(editor) && user == controller.user()
-        && server == controller.getLanguageServer();
+    java.util.function.BooleanSupplier current =
+        () ->
+            !closed.get()
+                && editorSources.containsKey(editor)
+                && user == controller.user()
+                && server == controller.getLanguageServer();
     status.setTooltip(new Tooltip("Language support is loading; source is editable"));
-    lspOpening.open(editor,
+    lspOpening.open(
+        editor,
         () -> server != null && KlabLspService.getInstance().ensureInitialized(server, user),
-        current, available -> {
+        current,
+        available -> {
           if (!available) {
             status.setTooltip(new Tooltip("Language support unavailable; source is editable"));
-            controller.handleNotification(Notification.warning("Language server unavailable; source remains editable"));
+            controller.handleNotification(
+                Notification.warning("Language server unavailable; source remains editable"));
             return;
           }
           // Wait for Monaco rather than opening an empty LSP document before JS is ready. Bind
-          // the current text, including edits made while initialization was in flight; never reload.
-          editor.runAfterEditorRendered(() -> {
-            if (!current.getAsBoolean() || lspSessions.containsKey(editor)) return;
-            var lsp = KlabLspService.getInstance();
-            editor.preloadKeywordHighlighterCache(languageId, lsp.getLanguageKeywords(languageId));
-            editor.preloadConceptHighlighterCache(lsp.getConceptCache());
-            lspSessions.put(editor, new LspDocumentSession(editor, languageId, editor.getText()));
-            status.setTooltip(null);
-          });
-        }, error -> {
+          // the current text, including edits made while initialization was in flight; never
+          // reload.
+          editor.runAfterEditorRendered(
+              () -> {
+                if (!current.getAsBoolean() || lspSessions.containsKey(editor)) return;
+                var lsp = KlabLspService.getInstance();
+                editor.preloadKeywordHighlighterCache(
+                    languageId, lsp.getLanguageKeywords(languageId));
+                editor.preloadConceptHighlighterCache(lsp.getConceptCache());
+                lspSessions.put(
+                    editor, new LspDocumentSession(editor, languageId, editor.getText()));
+                status.setTooltip(null);
+              });
+        },
+        error -> {
           status.setTooltip(new Tooltip("Language support unavailable; source is editable"));
           controller.handleNotification(Notification.warning(error));
-        }, () -> {});
+        },
+        () -> {});
   }
 
-  @Override public void close() {
+  @Override
+  public void close() {
     if (!closed.compareAndSet(false, true)) return;
     lspOpening.cancelAll();
+    validationCommands.shutdown(); // Finish already accepted saves; do not discard source writes.
     semanticValidation.close();
     super.close();
   }
 
-  private final Map<MonacoEditorView, AuthorityProposalFeedback> authorityFeedback = new IdentityHashMap<>();
-  private final Map<MonacoEditorView, List<Notification>> authorityNotifications = new IdentityHashMap<>();
+  private final Map<MonacoEditorView, AuthorityProposalFeedback> authorityFeedback =
+      new IdentityHashMap<>();
+  private final Map<MonacoEditorView, List<Notification>> authorityNotifications =
+      new IdentityHashMap<>();
   private final Map<MonacoEditorView, String> authoritySources = new IdentityHashMap<>();
   private final Map<MonacoEditorView, KlabDocument<?>> authorityDocuments = new IdentityHashMap<>();
 
-  private void refreshAuthorityProposals(KlabDocument<?> document, MonacoEditorView editor, boolean submit) {
+  private void refreshAuthorityProposals(
+      KlabDocument<?> document, MonacoEditorView editor, boolean submit) {
     authorityDocuments.put(editor, document);
-    var feedback = authorityFeedback.computeIfAbsent(editor, key -> new AuthorityProposalFeedback(notifications -> {
-      if (editor.isDirty() || !Objects.equals(editor.getText(), authoritySources.get(editor))) return;
-      authorityNotifications.put(editor, notifications);
-      showSemanticValidation(authorityDocuments.get(editor), editor);
-    }));
+    var feedback =
+        authorityFeedback.computeIfAbsent(
+            editor,
+            key ->
+                new AuthorityProposalFeedback(
+                    notifications -> {
+                      if (editor.isDirty()
+                          || !Objects.equals(editor.getText(), authoritySources.get(editor)))
+                        return;
+                      authorityNotifications.put(editor, notifications);
+                      showSemanticValidation(authorityDocuments.get(editor), editor);
+                    }));
     authoritySources.put(editor, document.getSourceCode());
     feedback.update(document, submit);
   }
@@ -1391,6 +1626,51 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       pendingSavedSources
           .computeIfAbsent(document.getUrn(), ignored -> new ArrayDeque<>())
           .add(text);
+      if (document instanceof org.integratedmodelling.klab.api.lang.kim.KimOntology
+          || document instanceof org.integratedmodelling.klab.api.lang.kim.KimNamespace) {
+        semanticValidation.invalidatePending();
+        semanticUpdates
+            .entrySet()
+            .removeIf(
+                entry ->
+                    entry.getKey().equals(WorkspaceSemanticValidation.key(document))
+                        || entry.getValue().response() == null);
+        org.integratedmodelling.klab.api.lang.kim.impl.KlabDocumentImpl<?> payload =
+            document instanceof org.integratedmodelling.klab.api.lang.kim.KimOntology
+                ? new org.integratedmodelling.klab.api.lang.kim.impl.KimOntologyImpl()
+                : new org.integratedmodelling.klab.api.lang.kim.impl.KimNamespaceImpl();
+        payload.setUrn(document.getUrn());
+        payload.setProjectName(asset.parent(NavigableProject.class).getUrn());
+        payload.setSourceCode(text);
+        var mode =
+            automaticValidation
+                ? ResourcesService.SubmissionMode.UPDATE
+                : ResourcesService.SubmissionMode.UPDATE_DEFERRED;
+        boolean followsResume = validationCommandPending && resumeAutomaticRequested;
+        validationCommands.execute(
+            () -> {
+              try {
+                var controller = KlabIDEController.instance();
+                var result =
+                    service.submit(
+                        payload,
+                        followsResume && resumeAccepted.get()
+                            ? ResourcesService.SubmissionMode.UPDATE
+                            : mode,
+                        controller.user());
+                controller.handleResultSets(result);
+                if (result.stream()
+                    .anyMatch(change -> Utils.Notifications.hasErrors(change.getNotifications())))
+                  throw new IllegalStateException("The service rejected the save");
+              } catch (Exception failure) {
+                Platform.runLater(
+                    () -> {
+                      consumePendingSave(pendingSavedSources, document.getUrn(), text);
+            });
+              }
+            });
+        return;
+      }
       KlabIDEController.instance()
           .updateDocument(
               service,
@@ -1441,8 +1721,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
             }
             if (change.getOperation() != CRUDOperation.DELETE) {
               updateEditorNotifications(parsedDocument, change.getNotifications());
-              if (parsedDocument != null && getEditor(parsedDocument) instanceof MonacoEditorView editor)
-                refreshAuthorityProposals(parsedDocument, editor, causedByOpenEditorSave);
+              if (parsedDocument != null
+                  && getEditor(parsedDocument) instanceof MonacoEditorView editor)
+                refreshAuthorityProposals(
+                    parsedDocument, editor, causedByOpenEditorSave && automaticValidation);
             }
           }
           // Reconciliation can temporarily invalidate the selection when children are reordered.
@@ -1457,7 +1739,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           }
           if (focusedAsset != null) {
             var restoredFocus = findTreeNodeByPath(root, focusedAsset);
-            if (restoredFocus != null && treeView.getFocusModel().getFocusedItem() != restoredFocus) {
+            if (restoredFocus != null
+                && treeView.getFocusModel().getFocusedItem() != restoredFocus) {
               treeView.getFocusModel().focus(treeView.getRow(restoredFocus));
             }
           }
@@ -1465,6 +1748,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           // scroll position.  Avoid a full TreeView.refresh(), which redraws the entire viewport.
           requestSemanticValidation();
           setWaiting(false);
+          scheduleTreeLayout();
+          traceTree("workspace update");
         });
   }
 
@@ -1521,6 +1806,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   private void requestSemanticValidation() {
+    if (!automaticValidation) return;
     if (closed.get()) return;
     if (root == null) return;
     var documents = new ArrayList<KlabDocument<?>>();
@@ -1544,7 +1830,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   private void semanticValidationCompleted(String key, WorkspaceSemanticValidation.Update update) {
     var previous = semanticUpdates.get(key);
-    if (Objects.equals(WorkspaceSemanticValidation.presentation(previous),
+    if (Objects.equals(
+        WorkspaceSemanticValidation.presentation(previous),
         WorkspaceSemanticValidation.presentation(update))) {
       semanticUpdates.put(key, update);
       return;
@@ -1554,15 +1841,20 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     var decorations = new IdentityHashMap<AssetTreeCell, String>();
     for (var cell : assetTreeCells) {
       if (affected.contains(cell.getTreeItem()) && !cell.isEmpty() && cell.getItem() != null)
-        decorations.put(cell, semanticSummary(cell.getItem()) + "\n" + semanticDetails(cell.getItem()));
+        decorations.put(
+            cell, semanticSummary(cell.getItem()) + "\n" + semanticDetails(cell.getItem()));
     }
     semanticUpdates.put(key, update);
     // TreeItem graphics fire tree modification events. Validation only changes decoration:
     // repaint the affected visible cells without touching selection, focus, or tree structure.
     for (var cell : assetTreeCells) {
-      if (affected.contains(cell.getTreeItem()) && !Objects.equals(decorations.get(cell),
-          semanticSummary(cell.getItem()) + "\n" + semanticDetails(cell.getItem())))
-        cell.updateItem(cell.getItem(), cell.isEmpty());
+      if (affected.contains(cell.getTreeItem())
+          && !cell.isEmpty()
+          && cell.getItem() != null
+          && !Objects.equals(
+              decorations.get(cell),
+              semanticSummary(cell.getItem()) + "\n" + semanticDetails(cell.getItem())))
+        cell.refreshDecoration(false);
     }
     for (var item : affected) {
       if (item.getValue() instanceof NavigableKlabDocument<?, ?> document
@@ -1570,10 +1862,153 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           && getEditor(document) instanceof MonacoEditorView editor)
         showSemanticValidation(document, editor);
     }
+    traceTree("validation " + key + " " + update.status());
   }
 
-  static boolean collectSemanticPath(TreeItem<NavigableAsset> item, String key,
-      Set<TreeItem<NavigableAsset>> affected) {
+  private void scheduleTreeLayout() {
+    if (treeLayoutPending || closed.get() || treeView == null) return;
+    treeLayoutPending = true;
+    Platform.runLater(
+        () -> {
+          treeLayoutPending = false;
+          if (closed.get() || treeView == null || treeView.getScene() == null) return;
+          // Live traces show dirty tree/tab content surviving successive scene pulses. Finish
+          // this local layout outside the active pulse, without rebuilding cells or selection.
+          treeView.applyCss();
+          treeView.layout();
+        });
+  }
+
+  /** Opt-in diagnostics for intermittent layout failures; never logs document source. */
+  private void traceTree(String reason) {
+    if (!Boolean.getBoolean("klab.ide.traceTree")
+        || treeTracePending
+        || treeView == null
+        || treeView.getScene() == null) return;
+    var scene = treeView.getScene();
+    long queued = System.nanoTime();
+    treeTracePending = true;
+    Runnable reporter =
+        new Runnable() {
+          @Override
+          public void run() {
+            scene.removePostLayoutPulseListener(this);
+            treeTracePending = false;
+            if (closed.get() || treeView == null) return;
+            System.err.println(
+                "[WorkspaceTree] post-layout "
+                    + java.time.Instant.now()
+                    + " "
+                    + reason
+                    + " pulseDelayMs="
+                    + (System.nanoTime() - queued) / 1_000_000
+                    + " expandedRows="
+                    + treeView.getExpandedItemCount()
+                    + " selectedRow="
+                    + treeView.getSelectionModel().getSelectedIndex()
+                    + " focusedRow="
+                    + treeView.getFocusModel().getFocusedIndex()
+                    + " layoutChain="
+                    + traceLayoutChain(treeView));
+            for (var cell : assetTreeCells) {
+              if (cell.isEmpty() || !cell.isVisible() || cell.getScene() == null) continue;
+              boolean showing = true;
+              for (Node ancestor = cell; ancestor != null; ancestor = ancestor.getParent())
+                showing &= ancestor.isVisible();
+              if (!showing
+                  || !cell.localToScene(cell.getBoundsInLocal())
+                      .intersects(treeView.localToScene(treeView.getBoundsInLocal()))) continue;
+              var item = cell.getTreeItem();
+              System.err.println(
+                  "[WorkspaceTree] row="
+                      + cell.getIndex()
+                      + " asset="
+                      + (cell.getItem() == null ? "null" : cell.getItem().getUrn())
+                      + " rowMatches="
+                      + (treeView.getTreeItem(cell.getIndex()) == item)
+                      + " itemMatches="
+                      + (item != null && item.getValue() == cell.getItem())
+                      + " expanded="
+                      + (item != null && item.isExpanded())
+                      + " children="
+                      + (item == null ? 0 : item.getChildren().size())
+                      + " graphicOwned="
+                      + (cell.getGraphic() != null && cell.getGraphic().getParent() == cell)
+                      + " icon="
+                      + cell.icon.getWidth()
+                      + "x"
+                      + cell.icon.getHeight()
+                      + " iconPaint="
+                      + traceLabelPaint(cell.icon)
+                      + " spinner="
+                      + cell.spinner.isVisible()
+                      + ":"
+                      + cell.spinner.getWidth()
+                      + "x"
+                      + cell.spinner.getHeight()
+                      + " badge="
+                      + cell.badge.isVisible()
+                      + ":"
+                      + cell.badge.getWidth()
+                      + "x"
+                      + cell.badge.getHeight());
+            }
+          }
+        };
+    scene.addPostLayoutPulseListener(reporter);
+    Platform.requestNextPulse();
+  }
+
+  private static String traceLabelPaint(Label label) {
+    var glyph = label.lookup(".text");
+    var text = glyph instanceof javafx.scene.text.Text t ? t : null;
+    return "{font="
+        + label.getFont().getName()
+        + ",size="
+        + label.getFont().getSize()
+        + ",fill="
+        + label.getTextFill()
+        + ",visible="
+        + label.isVisible()
+        + ",opacity="
+        + label.getOpacity()
+        + ",content="
+        + label.getContentDisplay()
+        + ",glyphMatches="
+        + (text != null && Objects.equals(label.getText(), text.getText()))
+        + ",glyphFont="
+        + (text == null ? null : text.getFont().getName())
+        + ",glyphFill="
+        + (text == null ? null : text.getFill())
+        + ",glyphVisible="
+        + (text != null && text.isVisible())
+        + ",glyphBounds="
+        + (text == null ? null : text.getBoundsInParent())
+        + ",clip="
+        + (glyph == null || glyph.getClip() == null ? null : glyph.getClip().getBoundsInParent())
+        + "}";
+  }
+
+  private static String traceLayoutChain(Node node) {
+    var chain = new StringBuilder();
+    for (Node current = node; current != null; current = current.getParent()) {
+      if (!chain.isEmpty()) chain.append(" -> ");
+      chain.append(current.getClass().getSimpleName());
+      if (current instanceof javafx.scene.Parent parent) {
+        chain.append("[needsLayout=").append(parent.isNeedsLayout()).append(']');
+      }
+      chain
+          .append("[managed=")
+          .append(current.isManaged())
+          .append(",visible=")
+          .append(current.isVisible())
+          .append(']');
+    }
+    return chain.toString();
+  }
+
+  static boolean collectSemanticPath(
+      TreeItem<NavigableAsset> item, String key, Set<TreeItem<NavigableAsset>> affected) {
     if (item == null) return false;
     if (item.getValue() instanceof KlabDocument<?> document) {
       if (!WorkspaceSemanticValidation.key(document).equals(key)) return false;
@@ -1585,11 +2020,19 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     if (found) affected.add(item);
     return found;
   }
+
   private static String normalizeEditorSource(String source) {
     return source == null ? null : source.replace("\r\n", "\n").replace('\r', '\n');
   }
 
   private void showSemanticValidation(KlabDocument<?> document, MonacoEditorView editor) {
+    if (Boolean.TRUE.equals(
+        document.getMetadata().get(ResourcesService.VALIDATION_DEFERRED_METADATA))) {
+      editor.markSemanticNotifications(List.of());
+      var status = semanticStatusLabels.get(WorkspaceSemanticValidation.key(document));
+      if (status != null) status.setText("Saved · validation out of date");
+      return;
+    }
     if (pairedReviewRefresh.containsKey(editor)) pairedReviewRefresh.get(editor).run();
     String key = WorkspaceSemanticValidation.key(document);
     var update = semanticUpdates.get(key);
@@ -1603,7 +2046,9 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     }
     boolean matches =
         update != null
-            && Objects.equals(normalizeEditorSource(editor.getText()), normalizeEditorSource(update.request().document().getSourceCode()));
+            && Objects.equals(
+                normalizeEditorSource(editor.getText()),
+                normalizeEditorSource(update.request().document().getSourceCode()));
     var notifications =
         matches && update.response() != null
             ? update.response().getNotifications()
@@ -1616,7 +2061,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       String status = matches ? update.status() : "Semantic validation pending";
 
       label.setText(status);
-      label.setWrapText(false); // Details stay in the tooltip; validation must not resize the editor.
+      label.setWrapText(
+          false); // Details stay in the tooltip; validation must not resize the editor.
       label.setTooltip(
           new Tooltip(
               matches && update.response() != null
@@ -1636,10 +2082,16 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   private String semanticSummary(NavigableAsset asset) {
+    if (hasDeferredValidation(asset)) return "Validation out of date";
     var updates = semanticResults(asset);
     if (updates.isEmpty()) return "";
-    if (updates.stream().anyMatch(u -> u.response() != null
-        && u.response().getStatus() == org.integratedmodelling.klab.api.services.reasoner.objects.SemanticValidationResponse.Status.FAILED))
+    if (updates.stream()
+        .anyMatch(
+            u ->
+                u.response() != null
+                    && u.response().getStatus()
+                        == org.integratedmodelling.klab.api.services.reasoner.objects
+                            .SemanticValidationResponse.Status.FAILED))
       return "Semantic validation failed";
     long errors =
         updates.stream()
@@ -1661,20 +2113,18 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     return warnings > 0 ? "Semantic warnings: " + warnings : "";
   }
 
+  private boolean hasDeferredValidation(NavigableAsset asset) {
+    if (asset instanceof KlabDocument<?> document)
+      return Boolean.TRUE.equals(
+          document.getMetadata().get(ResourcesService.VALIDATION_DEFERRED_METADATA));
+    for (var child : asset.children()) if (hasDeferredValidation(child)) return true;
+    return false;
+  }
+
   private String semanticDetails(NavigableAsset asset) {
-    return semanticResults(asset).stream()
-        .map(
-            update -> {
-              String text = update.request().document().getUrn() + ": " + update.status();
-              if (update.response() != null) {
-                if (update.response().getReason() != null)
-                  text += "\n" + update.response().getReason();
-                for (var notification : update.response().getNotifications())
-                  text += "\n" + notification.getMessage();
-              }
-              return text;
-            })
-        .collect(java.util.stream.Collectors.joining("\n"));
+    if (hasDeferredValidation(asset))
+      return "Saved changes have not been validated. Use Validate now.";
+    return WorkspaceSemanticValidation.details(semanticResults(asset));
   }
 
   static boolean consumePendingSave(
@@ -1705,8 +2155,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       boolean savedHere, String knownSource, String editorSource, String parsedSource) {
     return savedHere
         || (parsedSource != null
-            && (Objects.equals(normalizeEditorSource(knownSource), normalizeEditorSource(parsedSource))
-                || Objects.equals(normalizeEditorSource(editorSource), normalizeEditorSource(parsedSource))));
+            && (Objects.equals(
+                    normalizeEditorSource(knownSource), normalizeEditorSource(parsedSource))
+                || Objects.equals(
+                    normalizeEditorSource(editorSource), normalizeEditorSource(parsedSource))));
   }
 
   private void mergeChangeIntoTree(ResourceSet.Resource change, boolean causedByOpenEditorSave) {
@@ -1807,7 +2259,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     // offscreen cells will compute them from the current asset when they become visible.
     for (var cell : assetTreeCells) {
       if (cell.getTreeItem() == item && !cell.isEmpty()) {
-        cell.updateItem(item.getValue(), false);
+        cell.refreshDecoration(true);
       }
     }
   }
@@ -1830,7 +2282,6 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     }
 
     var added = new TreeItem<>(folderAsset);
-    added.setGraphic(Theme.getGraphics(folderAsset));
     parentNode.getChildren().add(added);
     return added;
   }
@@ -1870,6 +2321,9 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         if (existingChild.isPresent()) {
           // Update existing child
           var child = existingChild.get();
+          // Invalid/incomplete declarations may share a navigable path. Match each old
+          // node at most once, or reconciliation will move the same TreeItem twice.
+          existingChildren.remove(child);
           updateTree(child, newChild);
           updatedChildren.add(child);
         } else {
@@ -1959,6 +2413,25 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     return null;
   }
 
+  private void cursorPositionChanged(
+      MonacoEditorView editor, NavigableKlabDocument<?, ?> openedDocument, int offset) {
+    if (closed.get() || getEditor(openedDocument) != editor) return;
+    // Monaco can repeat cursor callbacks after save/layout/diagnostic updates. In particular,
+    // a callback queued before a save must not reselect or reveal a row after reconciliation.
+    var previous = editorCursorOffsets.put(editor, offset);
+    if (Objects.equals(previous, offset) || !isEditorSelected(openedDocument)) return;
+    var node = findNodeContaining(openedDocument.getUrn(), assetType(openedDocument));
+    if (node == null
+        || !(node.getValue() instanceof NavigableKlabDocument<?, ?> current)
+        || getEditor(current) != editor) return;
+    // Parsed offsets are meaningful only for the source that was parsed. Newer unsaved edits
+    // may shift them; resume navigation on the next cursor movement against matching source.
+    if (!Objects.equals(
+        normalizeEditorSource(current.getSourceCode()), normalizeEditorSource(editor.getText())))
+      return;
+    focusTreeOn(current.getAssetsAt(offset));
+  }
+
   private void focusTreeOn(List<NavigableAsset> assets) {
     if (treeView == null || assets == null || assets.isEmpty()) {
       return;
@@ -1968,9 +2441,11 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     if (item == null) {
       return;
     }
+    if (treeView.getSelectionModel().getSelectedItem() == item) return;
     expandAncestors(item);
     treeView.getSelectionModel().clearAndSelect(treeView.getRow(item));
     treeView.scrollTo(treeView.getRow(item));
+    traceTree("cursor navigation " + item.getValue().getUrn());
   }
 
   private TreeItem<NavigableAsset> findTreeItem(
@@ -2014,4 +2489,3 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     }
   }
 }
-

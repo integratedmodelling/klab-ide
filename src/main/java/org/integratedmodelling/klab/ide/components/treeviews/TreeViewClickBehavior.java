@@ -20,6 +20,11 @@ public final class TreeViewClickBehavior {
 
   private TreeViewClickBehavior() {}
 
+  /** Disclosure clicks expand/collapse only; they must not navigate the editor's cursor. */
+  public static boolean isDisclosureClick(MouseEvent event) {
+    return isDisclosureNode(targetNode(event));
+  }
+
   public static void disableBranchToggleOnDoubleClick(TreeView<?> treeView) {
     install(treeView, TreeViewClickBehavior::treeItemFromTreeViewEvent);
   }

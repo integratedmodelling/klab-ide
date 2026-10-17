@@ -15,6 +15,61 @@ import org.integratedmodelling.klab.api.services.reasoner.objects.*;
 import org.junit.jupiter.api.Test;
 
 class WorkspaceSemanticValidationTest {
+  @Test void newSaveDiscardsAlreadyQueuedManualResults() throws Exception {
+    var ui = new ConcurrentLinkedQueue<Runnable>();
+    var updates = new ArrayList<WorkspaceSemanticValidation.Update>();
+    var backend = reasoner(new AtomicLong(1), WorkspaceSemanticValidationTest::success);
+    try (var coordinator = new WorkspaceSemanticValidation(() -> scope(new AtomicReference<>(backend)), ui::add,
+        (key, update) -> updates.add(update))) {
+      coordinator.setAutomatic(false);
+      coordinator.documents(List.of(document("before save")));
+      updates.clear();
+      coordinator.validateOnce(() -> {});
+      var worker = WorkspaceSemanticValidation.class.getDeclaredField("worker"); worker.setAccessible(true);
+      ((ScheduledThreadPoolExecutor) worker.get(coordinator)).submit(() -> {}).get(5, TimeUnit.SECONDS);
+      coordinator.invalidatePending();
+      Runnable task; while ((task = ui.poll()) != null) task.run();
+      assertTrue(updates.isEmpty(), "Results from before the new save must not reach the UI");
+    }
+  }
+  @Test void pausedValidationDoesNotPollAndManualRunUsesLatestSnapshot() throws Exception {
+    var calls = new AtomicInteger();
+    var sources = new CopyOnWriteArrayList<String>();
+    var backend = reasoner(new AtomicLong(1), request -> {
+      calls.incrementAndGet(); sources.add(request.document().getSourceCode()); return success(request);
+    });
+    var ui = new ConcurrentLinkedQueue<Runnable>();
+    try (var coordinator = new WorkspaceSemanticValidation(() -> scope(new AtomicReference<>(backend)), ui::add, (key, update) -> {})) {
+      coordinator.setAutomatic(false);
+      coordinator.start();
+      coordinator.documents(List.of(document("old")));
+      coordinator.documents(List.of(document("latest")));
+      var worker = WorkspaceSemanticValidation.class.getDeclaredField("worker"); worker.setAccessible(true);
+      ((ScheduledThreadPoolExecutor) worker.get(coordinator)).submit(() -> {}).get(5, TimeUnit.SECONDS);
+      assertEquals(0, calls.get());
+      var completed = new AtomicBoolean();
+      coordinator.validateOnce(() -> completed.set(true));
+      until(completed::get, ui);
+      assertEquals(List.of("latest"), sources);
+      coordinator.documents(List.of(document("saved after manual validation")));
+      ((ScheduledThreadPoolExecutor) worker.get(coordinator)).submit(() -> {}).get(5, TimeUnit.SECONDS);
+      assertEquals(1, calls.get(), "Manual validation must not resume automatic validation");
+    }
+  }
+
+  @Test void deferredSnapshotsAreNotSentToTheReasoner() throws Exception {
+    var calls = new AtomicInteger();
+    var backend = reasoner(new AtomicLong(1), request -> { calls.incrementAndGet(); return success(request); });
+    var deferred = document("saved but deferred");
+    deferred.getMetadata().put(org.integratedmodelling.klab.api.services.ResourcesService.VALIDATION_DEFERRED_METADATA, true);
+    var ui = new ConcurrentLinkedQueue<Runnable>();
+    try (var coordinator = new WorkspaceSemanticValidation(() -> scope(new AtomicReference<>(backend)), ui::add, (key, update) -> fail("Deferred snapshots must not emit pending validation"))) {
+      coordinator.setAutomatic(false); coordinator.documents(List.of(deferred));
+      var completed = new AtomicBoolean(); coordinator.validateOnce(() -> completed.set(true));
+      until(completed::get, ui);
+      assertEquals(0, calls.get());
+    }
+  }
   private static org.integratedmodelling.klab.api.services.impl.ServiceStatusImpl status(
       String service, String boot, long revision, String state) {
     var status = new org.integratedmodelling.klab.api.services.impl.ServiceStatusImpl();
@@ -74,6 +129,92 @@ class WorkspaceSemanticValidationTest {
       assertEquals("namespace after", updates.get(2).request().getNamespace().getSourceCode());
       assertEquals("after", updates.get(3).request().getOntology().getStatements().getFirst().getUrn());
       coordinator.documents(List.of(namespace, ontology)); assertEquals(4, updates.size());
+    }
+  }
+
+  @Test void localBlockedReasonerIsObservedWithoutOperationalServiceLookup() throws Exception {
+    var status = status("local", "boot", 0, "unavailable");
+    status.getMetadata().put("semantic.validation.blocked", true);
+    status.getMetadata().put("semantic.validation.reason", "Missing authority provider descriptor");
+    var calls = new AtomicInteger(); var polls = new AtomicInteger();
+    var local = (Reasoner) Proxy.newProxyInstance(Reasoner.class.getClassLoader(), new Class<?>[] {Reasoner.class},
+        (self, method, args) -> switch (method.getName()) {
+          case "getUrl" -> java.net.URI.create("http://localhost:8091/reasoner").toURL();
+          case "status" -> { polls.incrementAndGet(); yield status; }
+          case "validateDocument" -> { calls.incrementAndGet(); throw new AssertionError("Must not validate blocked knowledge"); }
+          default -> null;
+        });
+    var scope = (Scope) Proxy.newProxyInstance(Scope.class.getClassLoader(), new Class<?>[] {Scope.class},
+        (self, method, args) -> {
+          if (method.getName().equals("getServices")) return List.of(local);
+          if (method.getName().equals("getService")) throw new IllegalStateException("No operational reasoner");
+          return null;
+        });
+    var ui = new ConcurrentLinkedQueue<Runnable>();
+    var updates = new ArrayList<WorkspaceSemanticValidation.Update>();
+    var document = document("source");
+    try (var coordinator = new WorkspaceSemanticValidation(() -> scope, ui::add, (key, update) -> updates.add(update))) {
+      coordinator.documents(List.of(document)); coordinator.start();
+      until(() -> updates.stream().anyMatch(u -> u.response() != null), ui);
+      assertEquals(SemanticValidationResponse.Status.FAILED, updates.getLast().response().getStatus());
+      assertTrue(updates.getLast().response().getReason().contains("provider descriptor"));
+      refresh(coordinator, document, polls, ui);
+      assertEquals(0, calls.get());
+      assertEquals(1, updates.stream().filter(u -> u.response() != null).count());
+    }
+  }
+  @Test void sharedFailureDetailsDoNotRepeatReasonAndMarkerOrEachDocument() {
+    var updates = new ArrayList<WorkspaceSemanticValidation.Update>();
+    for (var urn : List.of("imod", "biology")) {
+      var document = document("source"); document.setUrn(urn);
+      var request = SemanticValidationRequest.of(document, "1");
+      var response = SemanticValidationResponse.forRequest(request);
+      response.setStatus(SemanticValidationResponse.Status.FAILED);
+      response.setReason("Worldview ingestion blocked: missing ODO import");
+      response.addDocumentDiagnostic(request, org.integratedmodelling.klab.api.services.runtime.Notification.Level.Error);
+      updates.add(new WorkspaceSemanticValidation.Update(request, response));
+    }
+    var details = WorkspaceSemanticValidation.details(updates);
+    assertEquals(1, details.split("missing ODO import", -1).length - 1);
+    assertTrue(details.contains("imod, biology"));
+  }
+  @Test void unavailableDiagnosticsUpdateWithoutValidationOrRepeatedPresentation() throws Exception {
+    var status = new AtomicReference<>(status("reasoner", "boot", 0, "unavailable"));
+    status.get().getMetadata().put("semantic.validation.reason",
+        "Worldview ingestion blocked: CORE_ALIAS_TARGET_UNAVAILABLE: odo:PhysicalDomain");
+    var calls = new AtomicInteger(); var polls = new AtomicInteger();
+    var selected = new AtomicReference<>(signaledReasoner(status, polls, request -> {
+      calls.incrementAndGet(); return success(request);
+    }));
+    var ui = new ConcurrentLinkedQueue<Runnable>();
+    var updates = new ArrayList<WorkspaceSemanticValidation.Update>();
+    var document = document("source");
+    try (var coordinator = new WorkspaceSemanticValidation(
+        () -> scope(selected), ui::add, (key, update) -> updates.add(update))) {
+      coordinator.documents(List.of(document)); coordinator.start();
+      until(() -> updates.stream().anyMatch(u -> u.response() != null), ui);
+      assertTrue(updates.getLast().response().getReason().contains("odo:PhysicalDomain"));
+      assertNotNull(updates.getLast().response().getNotifications().getFirst().getLexicalContext());
+      for (int i = 0; i < 3; i++) refresh(coordinator, document, polls, ui);
+      assertEquals(1, updates.stream().filter(u -> u.response() != null).count());
+      var changed = status("reasoner", "boot", 0, "unavailable");
+      changed.getMetadata().put("semantic.validation.blocked", true);
+      changed.getMetadata().put("semantic.validation.reason", "Worldview ingestion blocked: missing authority TAXA");
+      status.set(changed);
+      refresh(coordinator, document, polls, ui);
+      assertTrue(updates.getLast().response().getReason().contains("TAXA"));
+      assertEquals(SemanticValidationResponse.Status.FAILED, updates.getLast().response().getStatus());
+      assertEquals(org.integratedmodelling.klab.api.services.runtime.Notification.Level.Error,
+          updates.getLast().response().getNotifications().getFirst().getLevel());
+      refresh(coordinator, document, polls, ui);
+      assertEquals(2, updates.stream().filter(u -> u.response() != null).count());
+      assertEquals(0, calls.get());
+      status.set(status("reasoner", "boot", 1, "ready"));
+      refresh(coordinator, document, polls, ui);
+      assertEquals(1, calls.get());
+      assertTrue(updates.getLast().response().valid());
+      refresh(coordinator, document, polls, ui);
+      assertEquals(1, calls.get());
     }
   }
 

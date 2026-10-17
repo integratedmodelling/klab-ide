@@ -96,7 +96,11 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
           TreeViewClickBehavior.disableBranchToggleOnDoubleClick(this.tree);
           this.tree.setOnMouseClicked(
               event -> {
-                // painful
+                if (TreeViewClickBehavior.isDisclosureClick(event)) {
+                  clickTimeline.stop();
+                  isClickTimelinePlaying = false;
+                  return;
+                }
                 TreeItem<?> item = tree.getSelectionModel().getSelectedItem();
                 if (item == null) return;
                 if (isClickTimelinePlaying) {
