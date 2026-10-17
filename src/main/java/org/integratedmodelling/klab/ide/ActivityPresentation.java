@@ -14,7 +14,10 @@ public final class ActivityPresentation {
   }
 
   public static String description(Activity activity) {
-    return activity == null || activity.getDescription() == null
-        || activity.getDescription().isBlank() ? type(activity) : activity.getDescription();
+    return activity == null
+            || activity.getDescription() == null
+            || activity.getDescription().isBlank()
+        ? type(activity)
+        : activity.getDescription();
   }
 }

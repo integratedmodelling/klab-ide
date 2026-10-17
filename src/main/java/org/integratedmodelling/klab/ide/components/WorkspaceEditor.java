@@ -986,7 +986,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                 () -> {
                   if (closed.get()) return;
                   validationCommandPending = false;
-          updateValidationControls();
+                  updateValidationControls();
                 });
           }
         });
@@ -1666,7 +1666,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                 Platform.runLater(
                     () -> {
                       consumePendingSave(pendingSavedSources, document.getUrn(), text);
-            });
+                    });
               }
             });
         return;

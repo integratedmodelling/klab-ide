@@ -5,8 +5,8 @@ import java.util.Map;
 import java.util.function.LongSupplier;
 
 /**
- * Distinguishes duplicate submission callbacks from the graph-backed event that makes a commit
- * safe to render.
+ * Distinguishes duplicate submission callbacks from the graph-backed event that makes a commit safe
+ * to render.
  */
 final class SubmissionCompletionTracker {
 

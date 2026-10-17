@@ -12,8 +12,13 @@ import org.integratedmodelling.klab.api.services.*;
 
 /** Selects an authoritative pair without changing defaults used by other IDE views. */
 final class WorldviewSource {
-  record Snapshot(Reasoner reasoner, String resourcesId, Worldview worldview,
-                  long revision, String content, boolean local) {}
+  record Snapshot(
+      Reasoner reasoner,
+      String resourcesId,
+      Worldview worldview,
+      long revision,
+      String content,
+      boolean local) {}
 
   static Snapshot load(UserScope scope) {
     if (scope == null) return null;
@@ -36,11 +41,19 @@ final class WorldviewSource {
           if (worldview == null || worldview.isEmpty()) continue;
           // There is one certificate worldview. Snapshot IDs are assigned independently by
           // Resources, Reasoner and collectWorldview(); they are not an identity handshake.
-          var entry = reasoners.entrySet().stream()
-              .filter(e -> Objects.equals(worldview.getWorldviewId(), e.getValue().getWorldviewId()))
-              .findFirst().orElse(reasoners.entrySet().iterator().next());
-          return snapshot(entry.getKey(), resources.serviceId(), worldview,
-              entry.getValue().getKnowledgeRevision(), true);
+          var entry =
+              reasoners.entrySet().stream()
+                  .filter(
+                      e ->
+                          Objects.equals(worldview.getWorldviewId(), e.getValue().getWorldviewId()))
+                  .findFirst()
+                  .orElse(reasoners.entrySet().iterator().next());
+          return snapshot(
+              entry.getKey(),
+              resources.serviceId(),
+              worldview,
+              entry.getValue().getKnowledgeRevision(),
+              true);
         }
       }
     }
@@ -57,8 +70,8 @@ final class WorldviewSource {
     return service.getUrl() != null && Utils.URLs.isLocalHost(service.getUrl());
   }
 
-  private static Snapshot snapshot(Reasoner reasoner, String resourcesId, Worldview worldview,
-      long revision, boolean local) {
+  private static Snapshot snapshot(
+      Reasoner reasoner, String resourcesId, Worldview worldview, long revision, boolean local) {
     return new Snapshot(reasoner, resourcesId, worldview, revision, fingerprint(worldview), local);
   }
 
@@ -71,7 +84,9 @@ final class WorldviewSource {
       for (var ontology : worldview.getOntologies()) document(digest, ontology);
       for (var strategy : worldview.getObservationStrategies()) document(digest, strategy);
       return HexFormat.of().formatHex(digest.digest());
-    } catch (NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
+    } catch (NoSuchAlgorithmException impossible) {
+      throw new IllegalStateException(impossible);
+    }
   }
 
   private static void document(MessageDigest digest, KlabDocument<?> document) {

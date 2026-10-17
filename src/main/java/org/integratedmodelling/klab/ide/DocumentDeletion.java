@@ -23,7 +23,8 @@ final class DocumentDeletion {
     // The API routes document deletion by project/document, while tree URNs are unqualified.
     var results = service.delete(project + "/" + urn, KlabAsset.classify(document), scope);
     if (results == null || results.isEmpty())
-      return List.of(ResourceSet.empty(Notification.error("No deletion result returned for " + urn)));
+      return List.of(
+          ResourceSet.empty(Notification.error("No deletion result returned for " + urn)));
     return results;
   }
 }
