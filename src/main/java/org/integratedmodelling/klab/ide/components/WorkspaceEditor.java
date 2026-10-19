@@ -1251,13 +1251,15 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                     ? semantic.replace("Semantic warnings", "Warnings")
                     : semantic.equals("Document errors")
                         ? "Errors"
-                        : semantic.equals("Validation out of date")
-                            ? "Out of date"
-                            : semantic.contains("waiting")
-                                ? "Waiting"
-                                : semantic.contains("unavailable")
-                                    ? "Unavailable"
-                                    : semantic.contains("failed") ? "Failed" : "Pending";
+                        : semantic.equals("Validating")
+                            ? "Validating"
+                            : semantic.equals("Validation out of date")
+                                ? "Out of date"
+                                : semantic.contains("waiting")
+                                    ? "Waiting"
+                                    : semantic.contains("unavailable")
+                                        ? "Unavailable"
+                                        : semantic.contains("failed") ? "Failed" : "Pending";
         boolean pending = badgeText.equals("Pending");
         spinner.setVisible(pending);
         badge.setVisible(!pending);

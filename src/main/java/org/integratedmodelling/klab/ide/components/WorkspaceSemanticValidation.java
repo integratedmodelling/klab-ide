@@ -43,14 +43,18 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
     return text.toString();
   }
 
-  record Update(SemanticValidationRequest request, SemanticValidationResponse response) {
+  record Update(SemanticValidationRequest request, SemanticValidationResponse response,
+      boolean validating) {
+    Update(SemanticValidationRequest request, SemanticValidationResponse response) {
+      this(request, response, false);
+    }
     String status() {
       if (response == null) return "Semantic validation pending";
       return switch (response.getStatus()) {
         case COMPLETE -> response.valid() ? "Ready" : "Semantic errors";
         case SYNTAX_ERRORS -> "Document errors";
         case STALE_KNOWLEDGE -> "Semantic validation waiting for knowledge synchronization";
-        case UNAVAILABLE -> "Semantic validation unavailable";
+        case UNAVAILABLE -> validating ? "Validating" : "Semantic validation unavailable";
         case FAILED -> "Semantic validation failed";
       };
     }
@@ -87,6 +91,9 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
     String unavailableAgainst = "<never>";
     volatile SemanticValidationResponse.Status lastStatus;
     volatile boolean waitingForKnowledge;
+    SemanticValidationResponse lastResponse;
+    boolean pendingPresentationEligible;
+    PendingCandidate presentationCandidate = PendingCandidate.NONE;
 
     Entry(SemanticValidationRequest request) {
       this.request = request;
@@ -113,11 +120,52 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
   private String publishedAuthority = "";
   private String publishedReason = "";
   private boolean publishedBlocked;
+  private PendingCandidate publishedCandidate = PendingCandidate.NONE;
+
+  /** Detached display context only: never changes readiness, retry stamps or protocol results. */
+  record PendingCandidate(long generation, Map<String, String> sources) {
+    PendingCandidate { sources = Map.copyOf(sources); }
+    static final PendingCandidate NONE = new PendingCandidate(-1, Map.of());
+
+    static PendingCandidate from(org.integratedmodelling.klab.api.services.KlabService.ServiceStatus status) {
+      if (status == null || !status.isConnected() || !status.isAvailable() || status.isShutdown()
+          || status.getMetadata() == null
+          || !(status.getMetadata().get("semantic.candidate") instanceof Map<?, ?> candidate)
+          || !"PENDING".equals(candidate.get("logicalStatus"))
+          || !"VALID".equals(candidate.get("beanStatus"))
+          || !(candidate.get("inputGeneration") instanceof Number generation)
+          || generation.longValue() < 0 || generation.doubleValue() != generation.longValue()
+          || !(candidate.get("candidateSources") instanceof Map<?, ?> values)) return NONE;
+      var sources = new HashMap<String, String>();
+      for (var entry : values.entrySet()) {
+        if (!(entry.getKey() instanceof String key) || !(entry.getValue() instanceof String hash))
+          return NONE;
+        sources.put(key, hash);
+      }
+      return new PendingCandidate(generation.longValue(), sources);
+    }
+
+    boolean matches(SemanticValidationRequest request) {
+      var document = request.document();
+      String key = org.integratedmodelling.klab.api.knowledge.KlabAsset.KnowledgeClass
+          .classify(document.getClass()).name() + ":" + document.getUrn();
+      String hash = SemanticValidationRequest.sourceHash(document.getSourceCode());
+      return generation >= 0 && hash != null && hash.equals(sources.get(key));
+    }
+  }
+
+  private static boolean unavailableWithoutErrors(SemanticValidationResponse response) {
+    return response != null && response.getStatus() == SemanticValidationResponse.Status.UNAVAILABLE
+        && response.getNotifications().stream().noneMatch(n ->
+            n.getLevel() == org.integratedmodelling.klab.api.services.runtime.Notification.Level.Error
+                || n.getLevel() == org.integratedmodelling.klab.api.services.runtime.Notification.Level.SystemError);
+  }
 
   // One atomic metadata value: boot UUID, settled cache revision, validation state. This is
   // readable knowledge, not an assertion that the entire worldview is transactionally accepted.
   private record Signal(
-      String stamp, long revision, String state, String session, String reason, boolean blocked) {
+      String stamp, long revision, String state, String session, String reason, boolean blocked,
+      PendingCandidate candidate) {
     boolean ready() {
       return state.equals("ready");
     }
@@ -219,7 +267,18 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
 
   private void deliver(
       String key, Entry entry, SemanticValidationResponse response, long epoch, String stamp) {
+    deliver(key, entry, response, epoch, stamp, false);
+  }
+
+  private void deliver(String key, Entry entry, SemanticValidationResponse response,
+      long epoch, String stamp, boolean pendingEligible) {
     entry.lastStatus = response == null ? null : response.getStatus();
+    entry.lastResponse = response;
+    entry.pendingPresentationEligible = pendingEligible && unavailableWithoutErrors(response);
+    var candidate = entry.pendingPresentationEligible ? publishedCandidate : null;
+    entry.presentationCandidate = candidate == null ? PendingCandidate.NONE : candidate;
+    var update = new Update(entry.request, response, candidate != null && candidate.matches(entry.request));
+    var uptime = lastUptime;
     var selected = observedReasoner;
     var published = publishedSignal;
     var authority = publishedAuthority;
@@ -232,13 +291,14 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
               && entries.get(key) == entry
               && Objects.equals(fingerprint, stamp)
               && (stamp == null
-                  || currentSelection(selected, published, authority, reason, blocked)))
-            listener.accept(key, new Update(entry.request, response));
+                  || currentSelection(selected, published, authority, reason, blocked, candidate, uptime)))
+            listener.accept(key, update);
         });
   }
 
   private boolean currentSelection(
-      Reasoner selected, String published, String authority, String reason, boolean blocked) {
+      Reasoner selected, String published, String authority, String reason, boolean blocked,
+      PendingCandidate candidate, long sampledUptime) {
     try {
       var scope = scopeSupplier.get();
       if (scope == null || selectedReasoner(scope) != selected) return false;
@@ -248,6 +308,8 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
           && status.isConnected()
           && status.isAvailable()
           && !status.isShutdown()
+          && (sampledUptime < 0 || status.getUptimeMs() >= sampledUptime)
+          && (candidate == null || candidate.equals(PendingCandidate.from(status)))
           && status.getMetadata() != null
           && Objects.equals(published, status.getMetadata().get("semantic.validation"))
           && reason.equals(validationReason(status.getMetadata(), published))
@@ -322,6 +384,7 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
     publishedSignal = published instanceof String value ? value : null;
     publishedReason = validationReason(metadata, publishedSignal);
     publishedBlocked = validationBlocked(metadata, publishedSignal);
+    publishedCandidate = PendingCandidate.from(status);
     var revisions = metadata == null ? null : metadata.get("authority.codelist.revisions");
     String authorityRevision = authorityRevisions(revisions);
     publishedAuthority = authorityRevision;
@@ -350,7 +413,8 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
           parts[2],
           status.getServiceId() + ":" + connection + ":" + parts[0] + ":" + authorityRevision,
           publishedReason,
-          publishedBlocked);
+          publishedBlocked,
+          publishedCandidate);
     }
     // Older servers have no settled signal. Keep compatibility, with bounded retries below.
     var capabilities = reasoner.capabilities(scope);
@@ -366,7 +430,8 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
         "ready",
         capabilities.getServiceId() + ":" + connection + ":legacy:" + authorityRevision,
         "",
-        false);
+        false,
+        PendingCandidate.NONE);
   }
 
   private void defer(Entry entry, String stamp) {
@@ -377,7 +442,8 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
   }
 
   private void unavailableEntry(
-      String key, Entry entry, long epoch, String stamp, String reason, boolean blocked) {
+      String key, Entry entry, long epoch, String stamp, String reason, boolean blocked,
+      boolean pendingEligible) {
     if (Objects.equals(entry.unavailableAgainst, stamp)) return;
     entry.unavailableAgainst = stamp;
     var response = documentErrors(entry.request);
@@ -391,7 +457,7 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
               ? org.integratedmodelling.klab.api.services.runtime.Notification.Level.Error
               : org.integratedmodelling.klab.api.services.runtime.Notification.Level.Warning);
     }
-    deliver(key, entry, response, epoch, stamp);
+    deliver(key, entry, response, epoch, stamp, pendingEligible);
   }
 
   private void refresh() {
@@ -469,6 +535,10 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
         }
         if (entries.get(item.getKey()) != entry) continue;
         if (documentErrors(entry.request) != null) continue;
+        // A candidate transition repaints an existing wait result without retrying validation.
+        if (entry.pendingPresentationEligible
+            && !entry.presentationCandidate.equals(signal.candidate()))
+          deliver(item.getKey(), entry, entry.lastResponse, epoch, stamp, true);
         // A changed saved ontology can repair a failed update through authoritative source sync.
         boolean repair =
             !signal.blocked()
@@ -487,7 +557,8 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
                       + signal.state()
                       + ")"
                   : signal.reason(),
-              signal.blocked());
+              signal.blocked(),
+              true);
           continue;
         }
         if (stamp.equals(entry.checkedAgainst)) continue;
@@ -496,13 +567,16 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
         deliver(item.getKey(), entry, null, epoch, stamp);
         entry.request.setKnowledgeRevision(signal.revision());
         SemanticValidationResponse response;
+        boolean pendingEligible = true;
         try {
           response = reasoner.validateDocument(entry.request, scope);
         } catch (RuntimeException e) {
+          pendingEligible = false;
           response = SemanticValidationResponse.forRequest(entry.request);
           response.setReason("Semantic validation unavailable: " + e.getMessage());
         }
         if (response == null) {
+          pendingEligible = false;
           response = SemanticValidationResponse.forRequest(entry.request);
           response.setReason("The reasoner returned no semantic validation result");
         }
@@ -550,7 +624,7 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
           response.addDocumentDiagnostic(
               entry.request,
               org.integratedmodelling.klab.api.services.runtime.Notification.Level.Error);
-        deliver(item.getKey(), entry, response, epoch, stamp);
+        deliver(item.getKey(), entry, response, epoch, stamp, pendingEligible);
       }
     } catch (RuntimeException e) {
       unavailable(epoch, "Semantic validation unavailable: " + e.getMessage());
@@ -563,7 +637,7 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
     fingerprint = null;
     for (var item : entries.entrySet()) {
       item.getValue().checkedAgainst = null;
-      unavailableEntry(item.getKey(), item.getValue(), epoch, null, reason, false);
+      unavailableEntry(item.getKey(), item.getValue(), epoch, null, reason, false, false);
     }
   }
 

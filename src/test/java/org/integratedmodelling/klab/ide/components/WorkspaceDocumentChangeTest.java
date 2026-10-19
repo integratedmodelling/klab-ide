@@ -104,8 +104,8 @@ class WorkspaceDocumentChangeTest {
       verifyRealPulses(target, ontologyNode);
       fx(() -> {
         target.createTopMenu();
-        var automatic = (javafx.scene.control.CheckBox) read(target, "automaticValidationControl");
-        var manual = (javafx.scene.control.Button) read(target, "validateNowControl");
+        var automatic = (org.integratedmodelling.klab.ide.components.generic.IconButton) read(target, "automaticValidationControl");
+        var manual = (org.integratedmodelling.klab.ide.components.generic.IconButton) read(target, "validateNowControl");
         assertTrue(automatic.isSelected()); assertTrue(manual.isDisabled());
         automatic.fire();
         assertFalse(automatic.isSelected()); assertFalse(manual.isDisabled());
@@ -123,7 +123,7 @@ class WorkspaceDocumentChangeTest {
       assertEquals(List.of(ResourcesService.SubmissionMode.UPDATE_DEFERRED, ResourcesService.SubmissionMode.VALIDATE), submissions);
       fx(() -> {
         assertFalse((boolean) read(target, "automaticValidation"));
-        assertFalse(((javafx.scene.control.Button) read(target, "validateNowControl")).isDisabled());
+        assertFalse(((org.integratedmodelling.klab.ide.components.generic.IconButton) read(target, "validateNowControl")).isDisabled());
         ((java.util.concurrent.ExecutorService) read(target, "validationCommands")).shutdown();
         return null;
       });
@@ -312,6 +312,16 @@ class WorkspaceDocumentChangeTest {
     tree.getRoot().addEventHandler(TreeItem.treeNotificationEvent(), event -> events.incrementAndGet());
     var response = new org.integratedmodelling.klab.api.services.reasoner.objects.SemanticValidationResponse();
     response.setStatus(org.integratedmodelling.klab.api.services.reasoner.objects.SemanticValidationResponse.Status.FAILED);
+    var waiting = new org.integratedmodelling.klab.api.services.reasoner.objects.SemanticValidationResponse();
+    waiting.setStatus(org.integratedmodelling.klab.api.services.reasoner.objects.SemanticValidationResponse.Status.UNAVAILABLE);
+    completed.invoke(editor, "imod:ontology:imod", new WorkspaceSemanticValidation.Update(update.request(), waiting, true));
+    var badge = (javafx.scene.control.Label) ((javafx.scene.layout.HBox) cell.getGraphic()).getChildren().getLast();
+    assertTrue(badge.isVisible());assertEquals("Validating", badge.getText());
+    assertEquals("Validating", badge.getAccessibleText());
+    assertEquals(org.integratedmodelling.klab.api.services.reasoner.objects.SemanticValidationResponse.Status.UNAVAILABLE,
+        waiting.getStatus(), "The badge must not rewrite semantic response status");
+    completed.invoke(editor, "imod:ontology:imod", new WorkspaceSemanticValidation.Update(update.request(), waiting));
+    assertTrue(badge.isVisible());assertEquals("Unavailable", badge.getText());
     for (int cycle = 0; cycle < 3; cycle++) {
       completed.invoke(editor, "imod:ontology:imod", new WorkspaceSemanticValidation.Update(update.request(), response));
       completed.invoke(editor, "imod:ontology:imod", new WorkspaceSemanticValidation.Update(update.request(), null));
