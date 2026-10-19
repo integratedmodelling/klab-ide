@@ -1,5 +1,6 @@
 package org.integratedmodelling.klab.ide.components;
 
+import org.integratedmodelling.common.diagnostics.DocumentValidationTrace;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.*;
 import java.util.concurrent.*;
@@ -208,9 +209,36 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
           SemanticValidationRequest.sourceHash(document.getSourceCode())
               + ":"
               + document.getLastUpdateTimestamp();
+      if (DocumentValidationTrace.enabled())
+        DocumentValidationTrace.snapshot(
+            DocumentValidationTrace.Event.IDE_INPUT,
+            document,
+            version,
+            -1,
+            lifecycle,
+            DocumentValidationTrace.Decision.OBSERVE);
       var previous = entries.get(key);
-      if (previous != null && Objects.equals(version, previous.request.getDocumentVersion()))
+      if (previous != null && Objects.equals(version, previous.request.getDocumentVersion())) {
+        if (DocumentValidationTrace.enabled())
+          DocumentValidationTrace.snapshot(
+              DocumentValidationTrace.Event.IDE_RETAINED,
+              previous.request.document(),
+              previous.request.getDocumentVersion(),
+              previous.request.getKnowledgeRevision(),
+              lifecycle,
+              DocumentValidationTrace.Decision.REUSE);
         continue;
+      }
+      if (previous != null) {
+        if (DocumentValidationTrace.enabled())
+          DocumentValidationTrace.snapshot(
+              DocumentValidationTrace.Event.IDE_RETAINED,
+              previous.request.document(),
+              previous.request.getDocumentVersion(),
+              previous.request.getKnowledgeRevision(),
+              lifecycle,
+              DocumentValidationTrace.Decision.REPLACE);
+      }
       var snapshot =
           snapshotMapper.convertValue(
               SemanticValidationRequest.of(document, version), SemanticValidationRequest.class);
@@ -291,8 +319,24 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
               && entries.get(key) == entry
               && Objects.equals(fingerprint, stamp)
               && (stamp == null
-                  || currentSelection(selected, published, authority, reason, blocked, candidate, uptime)))
+                  || currentSelection(selected, published, authority, reason, blocked, candidate, uptime))) {
+            if (DocumentValidationTrace.enabled())
+              DocumentValidationTrace.response(
+                  DocumentValidationTrace.Event.IDE_DELIVERY,
+                  entry.request,
+                  response,
+                  epoch,
+                  DocumentValidationTrace.Decision.ACCEPT);
             listener.accept(key, update);
+          } else {
+            if (DocumentValidationTrace.enabled())
+              DocumentValidationTrace.response(
+                  DocumentValidationTrace.Event.IDE_DELIVERY,
+                  entry.request,
+                  response,
+                  epoch,
+                  DocumentValidationTrace.Decision.DISCARD);
+          }
         });
   }
 
@@ -474,6 +518,8 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
 
   synchronized void invalidatePending() {
     lifecycle++;
+    if (DocumentValidationTrace.enabled()) for (var entry : entries.values())
+      DocumentValidationTrace.snapshot(DocumentValidationTrace.Event.IDE_INVALIDATED, entry.request.document(), entry.request.getDocumentVersion(), entry.request.getKnowledgeRevision(), lifecycle, DocumentValidationTrace.Decision.GLOBAL_SAVE);
     entries.values().forEach(entry -> entry.checkedAgainst = null);
   }
 
@@ -534,7 +580,17 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
           entry.unavailableAgainst = "<never>";
         }
         if (entries.get(item.getKey()) != entry) continue;
-        if (documentErrors(entry.request) != null) continue;
+        if (documentErrors(entry.request) != null) {
+          if (DocumentValidationTrace.enabled())
+            DocumentValidationTrace.snapshot(
+                DocumentValidationTrace.Event.IDE_DOCUMENT_ERRORS,
+                entry.request.document(),
+                entry.request.getDocumentVersion(),
+                entry.request.getKnowledgeRevision(),
+                epoch,
+                DocumentValidationTrace.Decision.SKIP_ERRORS);
+          continue;
+        }
         // A candidate transition repaints an existing wait result without retrying validation.
         if (entry.pendingPresentationEligible
             && !entry.presentationCandidate.equals(signal.candidate()))
@@ -566,6 +622,13 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
         entry.unavailableAgainst = "<never>";
         deliver(item.getKey(), entry, null, epoch, stamp);
         entry.request.setKnowledgeRevision(signal.revision());
+        if (DocumentValidationTrace.enabled())
+          DocumentValidationTrace.response(
+              DocumentValidationTrace.Event.IDE_RPC_SEND,
+              entry.request,
+              null,
+              epoch,
+              DocumentValidationTrace.Decision.OBSERVE);
         SemanticValidationResponse response;
         boolean pendingEligible = true;
         try {
@@ -580,6 +643,13 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
           response = SemanticValidationResponse.forRequest(entry.request);
           response.setReason("The reasoner returned no semantic validation result");
         }
+        if (DocumentValidationTrace.enabled())
+          DocumentValidationTrace.response(
+              DocumentValidationTrace.Event.IDE_RPC_RETURN,
+              entry.request,
+              response,
+              epoch,
+              DocumentValidationTrace.Decision.OBSERVE);
         var latest = signal(reasoner, scope);
         if (!active || lifecycle != epoch) return;
         var currentScope = scopeSupplier.get();

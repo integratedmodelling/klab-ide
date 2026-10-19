@@ -1,5 +1,6 @@
 package org.integratedmodelling.klab.ide.components;
 
+import org.integratedmodelling.common.diagnostics.DocumentValidationTrace;
 import atlantafx.base.theme.Styles;
 import atlantafx.base.theme.Tweaks;
 import java.io.IOException;
@@ -1243,6 +1244,13 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     private void updateValidationDecoration(NavigableAsset asset) {
       setTooltip(new Tooltip(Theme.getLabel(asset)));
       var semantic = editor.semanticSummary(asset);
+      if (DocumentValidationTrace.enabled() && asset instanceof KlabDocument<?> document) {
+        var result = editor.semanticUpdates.get(WorkspaceSemanticValidation.key(document));
+        DocumentValidationTrace.render(document, result == null ? null : result.request(),
+            result == null ? null : result.response(), semantic,
+            asset.localMetadata().get(NavigableAsset.ERROR_NOTIFICATION_COUNT_KEY, 0),
+            asset.localMetadata().get(NavigableAsset.WARNING_NOTIFICATION_COUNT_KEY, 0));
+      }
       if (!semantic.isEmpty()) {
         String badgeText =
             semantic.startsWith("Semantic errors")
@@ -1798,6 +1806,14 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       editor.markSaved(document.getSourceCode());
       editorSources.put(editor, document.getSourceCode());
       var notifications = document.getNotifications();
+      if (DocumentValidationTrace.enabled())
+        DocumentValidationTrace.snapshot(
+            DocumentValidationTrace.Event.IDE_INPUT,
+            document,
+            DocumentValidationTrace.version(document),
+            -1,
+            -1,
+            DocumentValidationTrace.Decision.OBSERVE);
       editor.markNotifications(
           notifications == null
               ? Objects.requireNonNullElse(fallbackNotifications, List.of())
@@ -1831,6 +1847,13 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   private void semanticValidationCompleted(String key, WorkspaceSemanticValidation.Update update) {
+    if (DocumentValidationTrace.enabled())
+      DocumentValidationTrace.response(
+          DocumentValidationTrace.Event.IDE_PRESENTATION,
+          update.request(),
+          update.response(),
+          -1,
+          DocumentValidationTrace.Decision.OBSERVE);
     var previous = semanticUpdates.get(key);
     if (Objects.equals(
         WorkspaceSemanticValidation.presentation(previous),
