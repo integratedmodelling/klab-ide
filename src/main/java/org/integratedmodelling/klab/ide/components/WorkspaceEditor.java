@@ -1,5 +1,7 @@
 package org.integratedmodelling.klab.ide.components;
 
+import org.integratedmodelling.klab.api.services.resources.AuthoringSource;
+import org.integratedmodelling.klab.api.services.reasoner.objects.SemanticValidationRequest;
 import org.integratedmodelling.common.diagnostics.DocumentValidationTrace;
 import atlantafx.base.theme.Styles;
 import atlantafx.base.theme.Tweaks;
@@ -1290,7 +1292,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     private void render(NavigableAsset asset, boolean empty) {
       if (asset != null && !empty) {
         // Let the cell skin truncate the name without shrinking the icon glyphs.
-        setText(Theme.getLabel(asset));
+        setText(asset instanceof KlabDocument<?> document ? AuthoringSource.label(document) : Theme.getLabel(asset));
         setTextOverrun(OverrunStyle.ELLIPSIS);
         setTooltip(new Tooltip(getText()));
         var appearance = getTreeGraphics(asset);
@@ -1355,6 +1357,11 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     }
   }
 
+  @Override
+  protected String editorTitle(NavigableAsset asset) {
+    return asset instanceof KlabDocument<?> document ? AuthoringSource.label(document) : super.editorTitle(asset);
+  }
+
   private void setWaiting(boolean b) {
     //    Platform.runLater(() -> this.progressBar.progressProperty().setValue(b ? -1d : 0d));
   }
@@ -1384,8 +1391,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
       // For now use the Urn
       // TODO these buttons etc. should be in a dedicated DocumentEditor subclass
-      String documentUri =
-          "inmemory:///klab/" + document.getUrn() + "." + document.getLanguage().fileExtension();
+      String documentUri = AuthoringSource.modelUri(document);
       var saveButton =
           IconButton.of(Codicons.SAVE, 12, Theme.FOREGROUND_COLOR, Theme.FOREGROUND_COLOR, null);
       saveButton.setTooltip(new Tooltip("Save"));
@@ -1499,6 +1505,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       ret.setUseSharedLspMetadata(false);
       ret.loadEditor(document.getSourceCode(), languageId, theme);
       editorSources.put(ret, document.getSourceCode());
+      editorSourceVersions.put(ret, (String) document.getMetadata().get(AuthoringSource.VERSION));
+      editorDocuments.put(ret, document);
 
       ret.setCursorPositionListener(offset -> cursorPositionChanged(ret, document, offset));
       ret.setOnDirtyChanged(
@@ -1529,6 +1537,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   @Override
   protected void disposeEditor(NavigableAsset asset, Node editor) {
     editorSources.remove(editor);
+      editorSourceVersions.remove(editor);
+      editorDocuments.remove(editor);
     editorCursorOffsets.remove(editor);
     if (editor instanceof MonacoEditorView monaco) {
       lspOpening.cancel(monaco);
@@ -1630,11 +1640,23 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     feedback.update(document, submit);
   }
 
+  private final Map<MonacoEditorView, String> editorSourceVersions = new IdentityHashMap<>();
+  private final Map<MonacoEditorView, KlabDocument<?>> editorDocuments = new IdentityHashMap<>();
+
+  static void bindAuthoringSave(KlabDocument<?> opened, KlabDocument<?> current,
+      org.integratedmodelling.klab.api.lang.kim.impl.KlabDocumentImpl<?> payload) {
+    var bound = AuthoringSource.id(opened) != null && current != null && AuthoringSource.same(opened,current)
+        ? current : opened;
+    payload.setUrn(bound.getUrn());
+    payload.setProjectName(bound.getProjectName());
+    AuthoringSource.copy(bound,payload);
+  }
+
   private void saveDocument(String text, NavigableAsset asset) {
     //    Logging.INSTANCE.info("Save document requested: " + asset.getUrn());
     if (asset instanceof KlabDocument<?> document) {
       pendingSavedSources
-          .computeIfAbsent(document.getUrn(), ignored -> new ArrayDeque<>())
+          .computeIfAbsent(WorkspaceSemanticValidation.key(document), ignored -> new ArrayDeque<>())
           .add(text);
       if (document instanceof org.integratedmodelling.klab.api.lang.kim.KimOntology
           || document instanceof org.integratedmodelling.klab.api.lang.kim.KimNamespace) {
@@ -1652,6 +1674,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         payload.setUrn(document.getUrn());
         payload.setProjectName(asset.parent(NavigableProject.class).getUrn());
         payload.setSourceCode(text);
+        bindAuthoringSave(document, getEditor(asset) instanceof MonacoEditorView editor ? editorDocuments.get(editor) : null, payload);
+        if (AuthoringSource.id(document) != null && getEditor(asset) instanceof MonacoEditorView editor
+            && editorSourceVersions.get(editor) != null)
+          payload.getMetadata().put(AuthoringSource.VERSION, editorSourceVersions.get(editor));
         var mode =
             automaticValidation
                 ? ResourcesService.SubmissionMode.UPDATE
@@ -1675,7 +1701,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
               } catch (Exception failure) {
                 Platform.runLater(
                     () -> {
-                      consumePendingSave(pendingSavedSources, document.getUrn(), text);
+                      consumePendingSave(pendingSavedSources, WorkspaceSemanticValidation.key(document), text);
                     });
               }
             });
@@ -1719,12 +1745,13 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           setWaiting(true);
           for (var change : resourceChanges) {
             var parsedDocument = findChangedDocument(change);
+            if (!currentSourceUpdate(change, parsedDocument)) continue;
             boolean causedByOpenEditorSave =
                 change.getOperation() == CRUDOperation.UPDATE
                     && parsedDocument != null
                     && consumePendingSave(
                         pendingSavedSources,
-                        change.getResourceUrn(),
+                        WorkspaceSemanticValidation.key(parsedDocument),
                         parsedDocument.getSourceCode());
             if (hasChangedAssets || change.getOperation() == CRUDOperation.DELETE) {
               mergeChangeIntoTree(change, causedByOpenEditorSave);
@@ -1787,12 +1814,36 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   static TreeItem<NavigableAsset> findChangedTreeNode(TreeItem<NavigableAsset> root, ResourceSet.Resource change) {
+    var match = findChangedTreeNodeByIdentity(root,change);
+    if (match != null && AuthoringSource.id(change) != null && change.getOperation() == CRUDOperation.DELETE
+        && (!(match.getValue() instanceof KlabDocument<?> document) || !currentSourceUpdate(change,document))) return null;
+    return match;
+  }
+
+  private static TreeItem<NavigableAsset> findChangedTreeNodeByIdentity(TreeItem<NavigableAsset> root, ResourceSet.Resource change) {
     var search = root;
     if (change.getKnowledgeClass() == KlabAsset.KnowledgeClass.ONTOLOGY && change.getProjectUrn() != null) {
       search = findTreeNode(root, change.getProjectUrn(), KlabAsset.KnowledgeClass.PROJECT);
       if (search == null) return null;
     }
-    return findTreeNode(search, change.getResourceUrn(), change.getKnowledgeClass());
+    var matches = new ArrayList<TreeItem<NavigableAsset>>();
+    collectChangedTreeNodes(search, change, matches);
+    if (matches.size() != 1) return null;
+    return matches.getFirst();
+  }
+
+  static boolean currentSourceUpdate(ResourceSet.Resource change, KlabDocument<?> current) {
+    return AuthoringSource.id(change) == null
+        || (current != null && AuthoringSource.matches(change,current)
+            && change.getMetadata().get(AuthoringSource.VERSION) instanceof String version && !version.isBlank()
+            && Objects.equals(change.getMetadata().get(AuthoringSource.VERSION),current.getMetadata().get(AuthoringSource.VERSION)));
+  }
+
+  private static void collectChangedTreeNodes(TreeItem<NavigableAsset> item, ResourceSet.Resource change,
+      List<TreeItem<NavigableAsset>> matches) {
+    if (item == null) return;
+    if (AuthoringSource.matches(change, item.getValue())) matches.add(item);
+    for (var child : item.getChildren()) collectChangedTreeNodes(child, change, matches);
   }
 
   static KlabAsset findChangedAsset(NavigableKlabAsset<?> root, ResourceSet.Resource change) {
@@ -1802,16 +1853,33 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           ? receiver : root.findAsset(change.getProjectUrn(), NavigableProject.class, KlabAsset.KnowledgeClass.PROJECT);
       if (search == null) return null;
     }
-    return search.findAsset(change.getResourceUrn(), KlabAsset.class, change.getKnowledgeClass());
+    var matches = new ArrayList<KlabAsset>();
+    collectChangedAssets(search, change, matches);
+    return matches.size() == 1 ? matches.getFirst() : null;
+  }
+
+  private static void collectChangedAssets(NavigableAsset parent, ResourceSet.Resource change, List<KlabAsset> matches) {
+    for (var child : parent.children()) {
+      if (AuthoringSource.matches(change, child)) matches.add(child);
+      collectChangedAssets(child, change, matches);
+    }
+  }
+
+  private NavigableKlabAsset<?> sourceModel() {
+    if (workspace instanceof NavigableKlabAsset<?> model) return model;
+    return root != null && root.getValue() instanceof NavigableKlabAsset<?> model ? model : null;
   }
 
   private NavigableKlabDocument<?, ?> findChangedDocument(ResourceSet.Resource change) {
-    if (workspace instanceof NavigableKlabAsset<?> root) {
+    var model = sourceModel();
+    if (model != null) {
       var asset =
-          findChangedAsset(root, change);
+          findChangedAsset(model, change);
       if (asset instanceof NavigableKlabDocument<?, ?> document) {
         return document;
       }
+      if (AuthoringSource.id(change) != null && change.getOperation() == CRUDOperation.DELETE)
+        return model.acceptedSourceDeletion(change);
     }
     var node = findChangedTreeNode(this.root, change);
     return node != null && node.getValue() instanceof NavigableKlabDocument<?, ?> document
@@ -1824,6 +1892,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     if (document != null && getEditor(document) instanceof MonacoEditorView editor) {
       editor.markSaved(document.getSourceCode());
       editorSources.put(editor, document.getSourceCode());
+      editorSourceVersions.put(editor, (String) document.getMetadata().get(AuthoringSource.VERSION));
+      editorDocuments.put(editor, document);
       var notifications = document.getNotifications();
       if (DocumentValidationTrace.enabled())
         DocumentValidationTrace.snapshot(
@@ -2208,17 +2278,32 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private void mergeChangeIntoTree(ResourceSet.Resource change, boolean causedByOpenEditorSave) {
 
     TreeItem<NavigableAsset> focus = null;
-    if (change.getOperation() == CRUDOperation.DELETE) {
+    var operation = change.getOperation();
+    // A recreation may already be authoritative while the tree still shows its old incarnation.
+    // Reconcile the one physical row instead of appending a duplicate after a delayed DELETE.
+    if (operation == CRUDOperation.CREATE && AuthoringSource.id(change) != null
+        && findChangedTreeNodeByIdentity(this.root,change) != null) operation = CRUDOperation.UPDATE;
+    if (operation == CRUDOperation.DELETE) {
 
-      var root = findChangedTreeNode(this.root, change);
+      var model = sourceModel();
+      boolean sourceAware = AuthoringSource.id(change) != null;
+      if (sourceAware && (model == null || model.acceptedSourceDeletion(change) == null)) return;
+      var root = sourceAware ? findChangedTreeNodeByIdentity(this.root,change) : findChangedTreeNode(this.root, change);
       if (root != null) {
         closeEditor(root.getValue());
-        pendingSavedSources.remove(change.getResourceUrn());
+        pendingSavedSources.remove(WorkspaceSemanticValidation.key((KlabDocument<?>) root.getValue()));
         focus = root.getParent();
         if (focus != null) focus.getChildren().remove(root);
       }
+      if (sourceAware && this.root != null) {
+        // Consume only after the physical row is absent. A delayed/repeated callback then
+        // has neither a current source nor a receipt, so it cannot revive or remove a row.
+        var remaining = new ArrayList<TreeItem<NavigableAsset>>();
+        collectChangedTreeNodes(this.root, change, remaining);
+        if (remaining.isEmpty()) model.acknowledgeSourceDeletion(change);
+      }
 
-    } else if (change.getOperation() == CRUDOperation.CREATE
+    } else if (operation == CRUDOperation.CREATE
         && workspace instanceof NavigableKlabAsset<?> wroot) {
 
       // Find the proper place to put it
@@ -2235,7 +2320,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       }
       // TODO enqueue an event to edit a newly created document. Doing it here hangs everything.
 
-    } else if (change.getOperation() == CRUDOperation.UPDATE
+    } else if (operation == CRUDOperation.UPDATE
         && workspace instanceof NavigableKlabAsset<?> wroot) {
       var node = findChangedTreeNode(this.root, change);
       var newAsset =
@@ -2465,7 +2550,15 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     // a callback queued before a save must not reselect or reveal a row after reconciliation.
     var previous = editorCursorOffsets.put(editor, offset);
     if (Objects.equals(previous, offset) || !isEditorSelected(openedDocument)) return;
-    var node = findNodeContaining(openedDocument.getUrn(), assetType(openedDocument));
+    var change = new ResourceSet.Resource();
+    change.setKnowledgeClass(assetType(openedDocument));
+    change.setResourceUrn(openedDocument.getUrn());
+    change.setProjectUrn(openedDocument.getProjectName());
+    if (AuthoringSource.id(openedDocument) != null) {
+      change.getMetadata().put(AuthoringSource.ID, AuthoringSource.id(openedDocument));
+      change.setServiceId(openedDocument.getServiceId());
+    }
+    var node = findChangedTreeNode(root, change);
     if (node == null
         || !(node.getValue() instanceof NavigableKlabDocument<?, ?> current)
         || getEditor(current) != editor) return;

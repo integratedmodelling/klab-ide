@@ -21,7 +21,7 @@ final class DocumentDeletion {
     if (project == null || project.isBlank() || urn == null || urn.isBlank())
       throw new IllegalArgumentException("Document deletion requires a project and document URN");
     // The API routes document deletion by project/document, while tree URNs are unqualified.
-    var results = service.delete(project + "/" + urn, KlabAsset.classify(document), scope);
+    var results = service.delete(project + "/" + org.integratedmodelling.klab.api.services.resources.AuthoringSource.selector(document), KlabAsset.classify(document), scope);
     if (results == null || results.isEmpty())
       return List.of(
           ResourceSet.empty(Notification.error("No deletion result returned for " + urn)));

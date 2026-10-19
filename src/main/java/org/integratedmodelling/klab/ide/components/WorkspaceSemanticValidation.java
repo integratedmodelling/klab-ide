@@ -186,10 +186,7 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
   }
 
   static String key(KlabDocument<?> document) {
-    return document.getProjectName()
-        + ":"
-        + (document instanceof KimOntology ? "ontology:" : "namespace:")
-        + document.getUrn();
+    return org.integratedmodelling.klab.api.services.resources.AuthoringSource.key(document);
   }
 
   // Called on the UI thread. Snapshot now: navigable documents may be replaced by later saves.
@@ -205,10 +202,7 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
                       .VALIDATION_DEFERRED_METADATA))) continue;
       var key = key(document);
       retained.add(key);
-      String version =
-          SemanticValidationRequest.sourceHash(document.getSourceCode())
-              + ":"
-              + document.getLastUpdateTimestamp();
+      String version = DocumentValidationTrace.version(document);
       if (DocumentValidationTrace.enabled())
         DocumentValidationTrace.snapshot(
             DocumentValidationTrace.Event.IDE_INPUT,
