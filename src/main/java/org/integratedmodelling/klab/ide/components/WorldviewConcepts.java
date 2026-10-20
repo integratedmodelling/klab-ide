@@ -12,7 +12,9 @@ final class WorldviewConcepts {
     var concepts = index(worldview);
     return concepts.entrySet().stream()
         .filter(entry -> "odo:Subject".equals(entry.getKey().getUpperConceptDefined()))
-        .map(Map.Entry::getValue).sorted().findFirst()
+        .map(Map.Entry::getValue)
+        .sorted()
+        .findFirst()
         .orElseGet(() -> concepts.values().stream().sorted().findFirst().orElse(null));
   }
 
@@ -23,8 +25,8 @@ final class WorldviewConcepts {
     return result;
   }
 
-  private static void index(KimConceptStatement statement, String ontology,
-      Map<KimConceptStatement, String> result) {
+  private static void index(
+      KimConceptStatement statement, String ontology, Map<KimConceptStatement, String> result) {
     String urn = statement.getUrn();
     if (urn != null && !urn.isBlank()) {
       String namespace = statement.getNamespace();

@@ -42,8 +42,11 @@ record ObservationDropTarget(Geometry geometry, String label) {
   }
 
   static KimSymbolDefinition gridDefinition(Object asset) {
-    if (asset instanceof NavigableKlabStatement<?> statement) asset=statement.getDelegate();
-    return asset instanceof KimSymbolDefinition definition && "grid".equals(definition.getDefineClass()) ? definition : null;
+    if (asset instanceof NavigableKlabStatement<?> statement) asset = statement.getDelegate();
+    return asset instanceof KimSymbolDefinition definition
+            && "grid".equals(definition.getDefineClass())
+        ? definition
+        : null;
   }
 
   private static String name(Observation observation) {

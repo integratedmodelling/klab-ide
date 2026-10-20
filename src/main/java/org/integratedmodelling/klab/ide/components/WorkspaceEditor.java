@@ -1,8 +1,5 @@
 package org.integratedmodelling.klab.ide.components;
 
-import org.integratedmodelling.klab.api.services.resources.AuthoringSource;
-import org.integratedmodelling.klab.api.services.reasoner.objects.SemanticValidationRequest;
-import org.integratedmodelling.common.diagnostics.DocumentValidationTrace;
 import atlantafx.base.theme.Styles;
 import atlantafx.base.theme.Tweaks;
 import java.io.IOException;
@@ -18,7 +15,7 @@ import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
-import javafx.scene.layout.VBox;
+import org.integratedmodelling.common.diagnostics.DocumentValidationTrace;
 import org.integratedmodelling.common.services.client.ResourcesMerger;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.authentication.CRUDOperation;
@@ -27,13 +24,13 @@ import org.integratedmodelling.klab.api.data.RepositoryState;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.organization.ProjectStorage;
-import org.integratedmodelling.klab.api.knowledge.organization.Workspace;
 import org.integratedmodelling.klab.api.lang.kactors.KActorsAction;
 import org.integratedmodelling.klab.api.lang.kactors.KActorsBehavior;
 import org.integratedmodelling.klab.api.lang.kim.KlabDocument;
 import org.integratedmodelling.klab.api.lang.kim.KlabStatement;
 import org.integratedmodelling.klab.api.services.ResourcesService;
 import org.integratedmodelling.klab.api.services.RuntimeService;
+import org.integratedmodelling.klab.api.services.resources.AuthoringSource;
 import org.integratedmodelling.klab.api.services.resources.ResourceInfo;
 import org.integratedmodelling.klab.api.services.resources.ResourceSet;
 import org.integratedmodelling.klab.api.services.resources.workflow.Flow;
@@ -45,7 +42,6 @@ import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableAsset;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableDocument;
 import org.integratedmodelling.klab.api.view.modeler.navigation.NavigableFolder;
 import org.integratedmodelling.klab.ide.IDEContextScope;
-import org.integratedmodelling.klab.ide.KlabIDEApplication;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.generic.IconButton;
@@ -55,7 +51,6 @@ import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.integratedmodelling.klab.ide.utils.AsyncLoad;
 import org.integratedmodelling.klab.ide.utils.AsyncOpen;
 import org.integratedmodelling.klab.modeler.model.*;
-import org.integratedmodelling.klabeditor.Document;
 import org.integratedmodelling.klabeditor.MonacoEditorView;
 import org.integratedmodelling.klabeditor.lsp.KlabLspService;
 import org.integratedmodelling.klabeditor.lsp.LspDocumentSession;
@@ -1248,8 +1243,11 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       var semantic = editor.semanticSummary(asset);
       if (DocumentValidationTrace.enabled() && asset instanceof KlabDocument<?> document) {
         var result = editor.semanticUpdates.get(WorkspaceSemanticValidation.key(document));
-        DocumentValidationTrace.render(document, result == null ? null : result.request(),
-            result == null ? null : result.response(), semantic,
+        DocumentValidationTrace.render(
+            document,
+            result == null ? null : result.request(),
+            result == null ? null : result.response(),
+            semantic,
             asset.localMetadata().get(NavigableAsset.ERROR_NOTIFICATION_COUNT_KEY, 0),
             asset.localMetadata().get(NavigableAsset.WARNING_NOTIFICATION_COUNT_KEY, 0));
       }
@@ -1292,7 +1290,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     private void render(NavigableAsset asset, boolean empty) {
       if (asset != null && !empty) {
         // Let the cell skin truncate the name without shrinking the icon glyphs.
-        setText(asset instanceof KlabDocument<?> document ? AuthoringSource.label(document) : Theme.getLabel(asset));
+        setText(
+            asset instanceof KlabDocument<?> document
+                ? AuthoringSource.label(document)
+                : Theme.getLabel(asset));
         setTextOverrun(OverrunStyle.ELLIPSIS);
         setTooltip(new Tooltip(getText()));
         var appearance = getTreeGraphics(asset);
@@ -1359,7 +1360,9 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   @Override
   protected String editorTitle(NavigableAsset asset) {
-    return asset instanceof KlabDocument<?> document ? AuthoringSource.label(document) : super.editorTitle(asset);
+    return asset instanceof KlabDocument<?> document
+        ? AuthoringSource.label(document)
+        : super.editorTitle(asset);
   }
 
   private void setWaiting(boolean b) {
@@ -1537,8 +1540,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   @Override
   protected void disposeEditor(NavigableAsset asset, Node editor) {
     editorSources.remove(editor);
-      editorSourceVersions.remove(editor);
-      editorDocuments.remove(editor);
+    editorSourceVersions.remove(editor);
+    editorDocuments.remove(editor);
     editorCursorOffsets.remove(editor);
     if (editor instanceof MonacoEditorView monaco) {
       lspOpening.cancel(monaco);
@@ -1643,13 +1646,19 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private final Map<MonacoEditorView, String> editorSourceVersions = new IdentityHashMap<>();
   private final Map<MonacoEditorView, KlabDocument<?>> editorDocuments = new IdentityHashMap<>();
 
-  static void bindAuthoringSave(KlabDocument<?> opened, KlabDocument<?> current,
+  static void bindAuthoringSave(
+      KlabDocument<?> opened,
+      KlabDocument<?> current,
       org.integratedmodelling.klab.api.lang.kim.impl.KlabDocumentImpl<?> payload) {
-    var bound = AuthoringSource.id(opened) != null && current != null && AuthoringSource.same(opened,current)
-        ? current : opened;
+    var bound =
+        AuthoringSource.id(opened) != null
+                && current != null
+                && AuthoringSource.same(opened, current)
+            ? current
+            : opened;
     payload.setUrn(bound.getUrn());
     payload.setProjectName(bound.getProjectName());
-    AuthoringSource.copy(bound,payload);
+    AuthoringSource.copy(bound, payload);
   }
 
   private void saveDocument(String text, NavigableAsset asset) {
@@ -1674,8 +1683,14 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         payload.setUrn(document.getUrn());
         payload.setProjectName(asset.parent(NavigableProject.class).getUrn());
         payload.setSourceCode(text);
-        bindAuthoringSave(document, getEditor(asset) instanceof MonacoEditorView editor ? editorDocuments.get(editor) : null, payload);
-        if (AuthoringSource.id(document) != null && getEditor(asset) instanceof MonacoEditorView editor
+        bindAuthoringSave(
+            document,
+            getEditor(asset) instanceof MonacoEditorView editor
+                ? editorDocuments.get(editor)
+                : null,
+            payload);
+        if (AuthoringSource.id(document) != null
+            && getEditor(asset) instanceof MonacoEditorView editor
             && editorSourceVersions.get(editor) != null)
           payload.getMetadata().put(AuthoringSource.VERSION, editorSourceVersions.get(editor));
         var mode =
@@ -1701,7 +1716,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
               } catch (Exception failure) {
                 Platform.runLater(
                     () -> {
-                      consumePendingSave(pendingSavedSources, WorkspaceSemanticValidation.key(document), text);
+                      consumePendingSave(
+                          pendingSavedSources, WorkspaceSemanticValidation.key(document), text);
                     });
               }
             });
@@ -1813,16 +1829,22 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     return findTreeNode(this.root, assetUrn, knowledgeClass);
   }
 
-  static TreeItem<NavigableAsset> findChangedTreeNode(TreeItem<NavigableAsset> root, ResourceSet.Resource change) {
-    var match = findChangedTreeNodeByIdentity(root,change);
-    if (match != null && AuthoringSource.id(change) != null && change.getOperation() == CRUDOperation.DELETE
-        && (!(match.getValue() instanceof KlabDocument<?> document) || !currentSourceUpdate(change,document))) return null;
+  static TreeItem<NavigableAsset> findChangedTreeNode(
+      TreeItem<NavigableAsset> root, ResourceSet.Resource change) {
+    var match = findChangedTreeNodeByIdentity(root, change);
+    if (match != null
+        && AuthoringSource.id(change) != null
+        && change.getOperation() == CRUDOperation.DELETE
+        && (!(match.getValue() instanceof KlabDocument<?> document)
+            || !currentSourceUpdate(change, document))) return null;
     return match;
   }
 
-  private static TreeItem<NavigableAsset> findChangedTreeNodeByIdentity(TreeItem<NavigableAsset> root, ResourceSet.Resource change) {
+  private static TreeItem<NavigableAsset> findChangedTreeNodeByIdentity(
+      TreeItem<NavigableAsset> root, ResourceSet.Resource change) {
     var search = root;
-    if (change.getKnowledgeClass() == KlabAsset.KnowledgeClass.ONTOLOGY && change.getProjectUrn() != null) {
+    if (change.getKnowledgeClass() == KlabAsset.KnowledgeClass.ONTOLOGY
+        && change.getProjectUrn() != null) {
       search = findTreeNode(root, change.getProjectUrn(), KlabAsset.KnowledgeClass.PROJECT);
       if (search == null) return null;
     }
@@ -1834,12 +1856,18 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   static boolean currentSourceUpdate(ResourceSet.Resource change, KlabDocument<?> current) {
     return AuthoringSource.id(change) == null
-        || (current != null && AuthoringSource.matches(change,current)
-            && change.getMetadata().get(AuthoringSource.VERSION) instanceof String version && !version.isBlank()
-            && Objects.equals(change.getMetadata().get(AuthoringSource.VERSION),current.getMetadata().get(AuthoringSource.VERSION)));
+        || (current != null
+            && AuthoringSource.matches(change, current)
+            && change.getMetadata().get(AuthoringSource.VERSION) instanceof String version
+            && !version.isBlank()
+            && Objects.equals(
+                change.getMetadata().get(AuthoringSource.VERSION),
+                current.getMetadata().get(AuthoringSource.VERSION)));
   }
 
-  private static void collectChangedTreeNodes(TreeItem<NavigableAsset> item, ResourceSet.Resource change,
+  private static void collectChangedTreeNodes(
+      TreeItem<NavigableAsset> item,
+      ResourceSet.Resource change,
       List<TreeItem<NavigableAsset>> matches) {
     if (item == null) return;
     if (AuthoringSource.matches(change, item.getValue())) matches.add(item);
@@ -1848,9 +1876,14 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   static KlabAsset findChangedAsset(NavigableKlabAsset<?> root, ResourceSet.Resource change) {
     NavigableKlabAsset<?> search = root;
-    if (change.getKnowledgeClass() == KlabAsset.KnowledgeClass.ONTOLOGY && change.getProjectUrn() != null) {
-      search = root instanceof NavigableProject receiver && Objects.equals(receiver.getUrn(), change.getProjectUrn())
-          ? receiver : root.findAsset(change.getProjectUrn(), NavigableProject.class, KlabAsset.KnowledgeClass.PROJECT);
+    if (change.getKnowledgeClass() == KlabAsset.KnowledgeClass.ONTOLOGY
+        && change.getProjectUrn() != null) {
+      search =
+          root instanceof NavigableProject receiver
+                  && Objects.equals(receiver.getUrn(), change.getProjectUrn())
+              ? receiver
+              : root.findAsset(
+                  change.getProjectUrn(), NavigableProject.class, KlabAsset.KnowledgeClass.PROJECT);
       if (search == null) return null;
     }
     var matches = new ArrayList<KlabAsset>();
@@ -1858,7 +1891,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     return matches.size() == 1 ? matches.getFirst() : null;
   }
 
-  private static void collectChangedAssets(NavigableAsset parent, ResourceSet.Resource change, List<KlabAsset> matches) {
+  private static void collectChangedAssets(
+      NavigableAsset parent, ResourceSet.Resource change, List<KlabAsset> matches) {
     for (var child : parent.children()) {
       if (AuthoringSource.matches(change, child)) matches.add(child);
       collectChangedAssets(child, change, matches);
@@ -1873,8 +1907,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private NavigableKlabDocument<?, ?> findChangedDocument(ResourceSet.Resource change) {
     var model = sourceModel();
     if (model != null) {
-      var asset =
-          findChangedAsset(model, change);
+      var asset = findChangedAsset(model, change);
       if (asset instanceof NavigableKlabDocument<?, ?> document) {
         return document;
       }
@@ -1892,7 +1925,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     if (document != null && getEditor(document) instanceof MonacoEditorView editor) {
       editor.markSaved(document.getSourceCode());
       editorSources.put(editor, document.getSourceCode());
-      editorSourceVersions.put(editor, (String) document.getMetadata().get(AuthoringSource.VERSION));
+      editorSourceVersions.put(
+          editor, (String) document.getMetadata().get(AuthoringSource.VERSION));
       editorDocuments.put(editor, document);
       var notifications = document.getNotifications();
       if (DocumentValidationTrace.enabled())
@@ -2281,17 +2315,23 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     var operation = change.getOperation();
     // A recreation may already be authoritative while the tree still shows its old incarnation.
     // Reconcile the one physical row instead of appending a duplicate after a delayed DELETE.
-    if (operation == CRUDOperation.CREATE && AuthoringSource.id(change) != null
-        && findChangedTreeNodeByIdentity(this.root,change) != null) operation = CRUDOperation.UPDATE;
+    if (operation == CRUDOperation.CREATE
+        && AuthoringSource.id(change) != null
+        && findChangedTreeNodeByIdentity(this.root, change) != null)
+      operation = CRUDOperation.UPDATE;
     if (operation == CRUDOperation.DELETE) {
 
       var model = sourceModel();
       boolean sourceAware = AuthoringSource.id(change) != null;
       if (sourceAware && (model == null || model.acceptedSourceDeletion(change) == null)) return;
-      var root = sourceAware ? findChangedTreeNodeByIdentity(this.root,change) : findChangedTreeNode(this.root, change);
+      var root =
+          sourceAware
+              ? findChangedTreeNodeByIdentity(this.root, change)
+              : findChangedTreeNode(this.root, change);
       if (root != null) {
         closeEditor(root.getValue());
-        pendingSavedSources.remove(WorkspaceSemanticValidation.key((KlabDocument<?>) root.getValue()));
+        pendingSavedSources.remove(
+            WorkspaceSemanticValidation.key((KlabDocument<?>) root.getValue()));
         focus = root.getParent();
         if (focus != null) focus.getChildren().remove(root);
       }
@@ -2307,8 +2347,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         && workspace instanceof NavigableKlabAsset<?> wroot) {
 
       // Find the proper place to put it
-      var newAsset =
-          findChangedAsset(wroot, change);
+      var newAsset = findChangedAsset(wroot, change);
       if (newAsset == null) return;
       var parentAsset = wroot.getParentFor(newAsset, wroot);
       var root =
@@ -2323,8 +2362,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     } else if (operation == CRUDOperation.UPDATE
         && workspace instanceof NavigableKlabAsset<?> wroot) {
       var node = findChangedTreeNode(this.root, change);
-      var newAsset =
-          findChangedAsset(wroot, change);
+      var newAsset = findChangedAsset(wroot, change);
 
       if (node != null && newAsset instanceof NavigableAsset navigableAsset) {
         var oldAsset = node.getValue();

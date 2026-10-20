@@ -68,9 +68,11 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
     this.controller =
         KlabIDEController.instance().viewController(ResourcesNavigatorController.class);
     this.controller.registerView(this);
-    sceneProperty().addListener((property, before, after) -> {
-      if (before != null && after == null) cancelOpening();
-    });
+    sceneProperty()
+        .addListener(
+            (property, before, after) -> {
+              if (before != null && after == null) cancelOpening();
+            });
   }
 
   @Override
@@ -93,9 +95,14 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
   }
 
   @Override
-  public void reset() { cancelOpening(); }
+  public void reset() {
+    cancelOpening();
+  }
 
-  private void cancelOpening() { openingEpoch++; opening.cancelAll(); }
+  private void cancelOpening() {
+    openingEpoch++;
+    opening.cancelAll();
+  }
 
   public List<ResourcesService> getServices() {
     return KlabIDEController.instance().user().getServices(ResourcesService.class).stream()
@@ -160,7 +167,11 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
       var loading = new HBox(8, progress, new Label("Opening workspace."));
       loading.setAlignment(Pos.CENTER_LEFT);
       var cancel = new Button("Cancel");
-      cancel.setOnAction(event -> { cancelOpening(); updateBrowser(); });
+      cancel.setOnAction(
+          event -> {
+            cancelOpening();
+            updateBrowser();
+          });
       loading.getChildren().add(cancel);
       components.add(loading);
     }
@@ -382,44 +393,76 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
         var urn = resourceInfo.getUrn();
         var key = safeServiceId(service) + ":" + urn;
         long epoch = openingEpoch;
-        java.util.function.BooleanSupplier current = () -> workspaceOpenCurrent(user, service, epoch);
-        if (opening.open(key, () -> WorkspaceOpening.prepare(service, urn, user,
-              () -> epoch != openingEpoch || user != KlabIDEController.instance().user()),
+        java.util.function.BooleanSupplier current =
+            () -> workspaceOpenCurrent(user, service, epoch);
+        if (opening.open(
+            key,
+            () ->
+                WorkspaceOpening.prepare(
+                    service,
+                    urn,
+                    user,
+                    () -> epoch != openingEpoch || user != KlabIDEController.instance().user()),
             current,
             prepared -> {
               try {
                 if (openEditors.containsKey(urn)) return;
-                var newEditor = new WorkspaceEditor(service, prepared, this,
-                    KlabIDEController.instance().getDefaultWorkflowProvider());
+                var newEditor =
+                    new WorkspaceEditor(
+                        service,
+                        prepared,
+                        this,
+                        KlabIDEController.instance().getDefaultWorkflowProvider());
                 openEditors.put(urn, newEditor);
-                addEditor(newEditor,
-                    urn + "@" + serviceLabels.getOrDefault(safeServiceId(service), safeServiceId(service)),
-                    new IconLabel(Theme.WORKSPACE_ICON, 18, "-color-fg-default"), true,
-                    current, this::hideBrowser, () -> {
+                addEditor(
+                    newEditor,
+                    urn
+                        + "@"
+                        + serviceLabels.getOrDefault(
+                            safeServiceId(service), safeServiceId(service)),
+                    new IconLabel(Theme.WORKSPACE_ICON, 18, "-color-fg-default"),
+                    true,
+                    current,
+                    this::hideBrowser,
+                    () -> {
                       openEditors.remove(urn, newEditor);
                       newEditor.close();
                       updateBrowser();
                     });
-              } catch (Throwable failure) { reportOpenFailure(urn, failure); }
-            }, failure -> reportOpenFailure(urn, failure), this::updateBrowser)) updateBrowser();
+              } catch (Throwable failure) {
+                reportOpenFailure(urn, failure);
+              }
+            },
+            failure -> reportOpenFailure(urn, failure),
+            this::updateBrowser)) updateBrowser();
       } catch (Throwable failure) {
         reportOpenFailure(resourceInfo.getUrn(), failure);
       }
     }
   }
 
-  private boolean workspaceOpenCurrent(org.integratedmodelling.klab.api.scope.UserScope user,
-      ResourcesService service, long epoch) {
+  private boolean workspaceOpenCurrent(
+      org.integratedmodelling.klab.api.scope.UserScope user, ResourcesService service, long epoch) {
     try {
-      return epoch == openingEpoch && user == KlabIDEController.instance().user()
-          && user.getServices(ResourcesService.class).stream().anyMatch(selected -> selected == service);
-    } catch (RuntimeException unavailable) { return false; }
+      return epoch == openingEpoch
+          && user == KlabIDEController.instance().user()
+          && user.getServices(ResourcesService.class).stream()
+              .anyMatch(selected -> selected == service);
+    } catch (RuntimeException unavailable) {
+      return false;
+    }
   }
 
   private void reportOpenFailure(String urn, Throwable failure) {
     ApplicationLog.report("Unable to open workspace " + urn, failure);
-    KlabIDEController.instance().alert(Notification.error(
-        "Unable to open workspace " + urn + ". Details were written to " + ApplicationLog.file(), failure));
+    KlabIDEController.instance()
+        .alert(
+            Notification.error(
+                "Unable to open workspace "
+                    + urn
+                    + ". Details were written to "
+                    + ApplicationLog.file(),
+                failure));
   }
 
   @Override
