@@ -1,12 +1,9 @@
 package org.integratedmodelling.klab.ide.api;
 
-import org.integratedmodelling.klab.api.data.RuntimeAsset;
+import java.util.concurrent.CompletableFuture;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.observation.scale.time.Schedule;
 import org.integratedmodelling.klab.ide.IDEContextScope;
-
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * A digital twin viewer is dedicated to a single digital twin and gets informed of any event that
@@ -31,8 +28,8 @@ public interface DigitalTwinViewer extends DigitalTwinReactor {
   void knowledgeGraphModified();
 
   /** Called after committed graph changes are applied; never for an uncommitted activity. */
-  default void temporalTransitionCommitted(org.integratedmodelling.klab.api.digitaltwin.TransitionCommit transition) {}
-
+  default void temporalTransitionCommitted(
+      org.integratedmodelling.klab.api.digitaltwin.TransitionCommit transition) {}
 
   void scheduleModified(Schedule schedule);
 
@@ -46,13 +43,15 @@ public interface DigitalTwinViewer extends DigitalTwinReactor {
    */
   void activitiesModified();
 
-//  /**
-//   * Communicate the IDs of all observations to be focused on from a recent successful commit to the
-//   * knowledge graph. Any observation beyond the first is unlinked to the submitted observation, so
-//   * it should be added to the graph for visibility.
-//   *
-//   * @param rootAsset
-//   * @param focalAssets
-//   */
-//  void focusObservations(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets);
+  //  /**
+  //   * Communicate the IDs of all observations to be focused on from a recent successful commit to
+  // the
+  //   * knowledge graph. Any observation beyond the first is unlinked to the submitted observation,
+  // so
+  //   * it should be added to the graph for visibility.
+  //   *
+  //   * @param rootAsset
+  //   * @param focalAssets
+  //   */
+  //  void focusObservations(RuntimeAsset rootAsset, List<RuntimeAsset> focalAssets);
 }
