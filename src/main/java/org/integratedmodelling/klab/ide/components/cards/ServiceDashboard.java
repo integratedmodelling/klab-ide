@@ -975,6 +975,12 @@ public class ServiceDashboard extends BaseAssetViewComponent {
     CompletableFuture.supplyAsync(
             () -> {
               try {
+                if (service instanceof BaseServiceClient client) {
+                  return (setting == Setting.UPDATE_COMPONENT
+                          ? client.updateComponent(descriptor.id(), descriptor.version())
+                          : client.removeComponent(descriptor.id(), descriptor.version()))
+                      .get();
+                }
                 return service.settings().set(setting, request).get();
               } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
