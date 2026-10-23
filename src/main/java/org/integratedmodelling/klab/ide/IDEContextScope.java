@@ -244,6 +244,11 @@ public class IDEContextScope implements ContextScope {
         notifyViewers(viewer -> viewer.setObserver(refreshed));
       }
     }
+    if (isDetachedQueryResult(observation)) {
+      // ID 0 is shared by every view. Do not deduplicate, select an observer, or add a commit.
+      notifyViewers(viewer -> viewer.submissionFinished(observation));
+      return;
+    }
     if (observation != null
         && observation.getObservable() != null
         && observation
@@ -309,6 +314,10 @@ public class IDEContextScope implements ContextScope {
   public void setFocus(RuntimeAsset root, RuntimeAsset focus) {
     setFocalAssets(root, focus);
     //    executor.execute(() -> viewers.forEach(v -> v.focusObservations(root, ids)));
+  }
+
+  static boolean isDetachedQueryResult(Observation observation) {
+    return observation != null && observation.getId() == Observation.QUERY_ID;
   }
 
   static boolean isKnowledgeGraphAsset(RuntimeAsset asset) {

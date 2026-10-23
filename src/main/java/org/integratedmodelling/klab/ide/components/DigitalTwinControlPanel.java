@@ -626,6 +626,12 @@ public class DigitalTwinControlPanel extends BorderPane implements DigitalTwinVi
   public void submissionFinished(Observation observation) {
     var eventScope = scope;
     if (eventScope == null) return;
+    if (observation.getId() == Observation.QUERY_ID) {
+      runOnFxThread(() -> {
+        if (scope == eventScope) setStatus(Status.IDLE);
+      });
+      return;
+    }
     var root =
         observation.getMetadata().containsKey(Metadata.IM_COMMIT)
             ? observation.getMetadata().get(Metadata.IM_COMMIT, KnowledgeGraph.Commit.class)

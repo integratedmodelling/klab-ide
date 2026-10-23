@@ -544,9 +544,8 @@ public class ValueCard extends BaseCard<Observation> {
               CompletableFuture.supplyAsync(
                   () ->
                       readAll(
-                          runtime.exportAsset(
-                              request.observation().getUrn(),
-                              KlabAsset.KnowledgeClass.OBSERVATION,
+                          runtime.exportObservation(
+                              request.observation(),
                               "image/png",
                               exportParameters(
                                   request.timestamp(),
@@ -562,9 +561,8 @@ public class ValueCard extends BaseCard<Observation> {
                       () ->
                           new String(
                                   readAll(
-                                      runtime.exportAsset(
-                                          query.observation().getUrn(),
-                                          KlabAsset.KnowledgeClass.OBSERVATION,
+                                      runtime.exportObservation(
+                                          query.observation(),
                                           "text/plain",
                                           pointParameters(query),
                                           scope)),

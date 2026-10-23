@@ -171,6 +171,10 @@ public class DigitalTwinEditor extends EditorPage<IDEContextScope, RuntimeAsset>
 
   @Override
   public void submissionFinished(Observation observation) {
+    if (observation.getId() == Observation.QUERY_ID) {
+      if (!observation.isEmpty()) Platform.runLater(() -> edit(observation));
+      return;
+    }
     if (knowledgeGraphView != null) {
       knowledgeGraphView.submissionFinished(observation);
     }

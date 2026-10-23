@@ -319,12 +319,11 @@ public class GeoJsonCard extends BaseCard<RuntimeAsset> {
               CompletableFuture.supplyAsync(
                   () ->
                       readUtf8(
-                          runtime.exportAsset(
-                              urn(asset),
-                              KlabAsset.KnowledgeClass.OBSERVATION,
-                              "application/geo+json",
-                              Parameters.create(),
-                              scope))));
+                          asset instanceof Observation observation
+                              ? runtime.exportObservation(observation, "application/geo+json",
+                                  Parameters.create(), scope)
+                              : runtime.exportAsset(urn(asset), KlabAsset.KnowledgeClass.OBSERVATION,
+                                  "application/geo+json", Parameters.create(), scope))));
     }
   }
 

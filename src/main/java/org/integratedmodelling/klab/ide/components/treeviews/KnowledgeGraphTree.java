@@ -128,6 +128,7 @@ public class KnowledgeGraphTree extends KlabTreeView<RuntimeAsset> implements Di
 
   @Override
   public void submissionFinished(Observation observation) {
+    if (observation.getId() == Observation.QUERY_ID) return;
     requestGraphRefresh();
   }
 
