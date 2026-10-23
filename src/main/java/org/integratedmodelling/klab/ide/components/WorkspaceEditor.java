@@ -582,7 +582,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                 .findFirst();
         var editLocally =
             new MenuItem(
-                "Edit and run locally",
+                behavior.getBehaviorType() == KActorsBehavior.Type.APP
+                    ? "Edit and run application locally" : "Edit and run locally",
                 new IconLabel(MaterialDesign.MDI_CLOUD_DOWNLOAD, 16, THEME_ICON_COLOR));
         editLocally.setOnAction(event -> editBehaviorLocally(behavior, asset));
         if (localRuntime.isEmpty()) {

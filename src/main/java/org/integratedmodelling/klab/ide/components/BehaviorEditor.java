@@ -137,6 +137,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       new Timeline(new KeyFrame(Duration.seconds(1), event -> removeStoppedAgents()));
   private AgentDebuggerView debuggerView;
   private Agent currentDebugTarget;
+  private ApplicationWebView applicationView;
 
   public BehaviorEditor(
       Path file,
@@ -573,7 +574,47 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   }
 
   private boolean doRun() {
+    if (isApplication()) {
+      return runApplication();
+    }
     return launchAgent(false, false);
+  }
+
+  private boolean isApplication() {
+    return behavior != null && behavior.getBehaviorType() == KActorsBehavior.Type.APP;
+  }
+
+  private boolean canRunWebApplication() {
+    return isApplication()
+        && managedOrigin != null
+        && (behavior.getPlatform() == KActorsBehavior.Platform.ANY
+            || behavior.getPlatform() == KActorsBehavior.Platform.WEB);
+  }
+
+  private boolean runApplication() {
+    var runtime = getLocalRuntime();
+    if (!canRunWebApplication() || runtime.isEmpty() || runtime.get().getUrl() == null) {
+      KlabIDEController.instance().handleNotification(Notification.error(
+          "Web applications require a published project and a local runtime. "
+              + "The application platform must be WEB or ANY."));
+      return false;
+    }
+    if (applicationView == null) {
+      applicationView = new ApplicationWebView(
+          runtime.get(), KlabIDEController.instance().user(), managedOrigin.behaviorUrn(),
+          message -> KlabIDEController.instance().handleNotification(Notification.error(message)));
+      var view = applicationView;
+      var tab = showAuxiliaryEditor("application-ui", "Application — " + behavior.getUrn(), view);
+      tab.addEventHandler(Tab.CLOSED_EVENT, event -> {
+        view.close();
+        if (applicationView == view) applicationView = null;
+        refreshAgentStates();
+      });
+    }
+    selectAuxiliaryEditor("application-ui");
+    applicationView.start();
+    refreshAgentStates();
+    return true;
   }
 
   private boolean doDebug() {
@@ -795,6 +836,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   }
 
   private boolean doStop() {
+    if (applicationView != null) applicationView.stop();
     var stopped = true;
     for (var agent : agentSnapshot()) {
       stopped &= stopAndRemoveAgent(agent);
@@ -1355,6 +1397,10 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
 
   @Override
   public void close() {
+    if (applicationView != null) {
+      applicationView.close();
+      applicationView = null;
+    }
     if (notificationPopup != null) {
       notificationPopup.hide();
       notificationPopup = null;
@@ -1553,7 +1599,11 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   }
 
   private void updateAgentActionButtons(boolean sourceIsValid) {
-    var canRun = sourceIsValid && compilationSuccessful && getLocalRuntime().isPresent();
+    var canRun = sourceIsValid && getLocalRuntime().isPresent()
+        && (isApplication() ? canRunWebApplication() : compilationSuccessful);
+    run.setTooltip(new Tooltip(isApplication()
+        ? "Run the published project application in an embedded web view (publish changes first)"
+        : "Compile the behavior and run a new agent"));
     run.enabled(canRun);
     run.getStyleClass().removeAll(Styles.SUCCESS, Styles.DANGER);
     if (canRun) {
@@ -1563,16 +1613,16 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       run.setTextFill(Color.GRAY);
     }
 
-    debug.enabled(canRun);
+    debug.enabled(canRun && !isApplication());
     debug.getStyleClass().removeAll(Styles.SUCCESS, Styles.ACCENT);
-    if (canRun) {
+    if (canRun && !isApplication()) {
       debug.getStyleClass().add(Styles.SUCCESS);
       debug.setTextFill(Color.GREEN);
     } else {
       debug.setTextFill(Color.GRAY);
     }
 
-    var canStop = getLocalRuntime().isPresent() && hasAliveAgents();
+    var canStop = applicationView != null || getLocalRuntime().isPresent() && hasAliveAgents();
     stop.enabled(canStop);
     stop.getStyleClass().removeAll(Styles.SUCCESS, Styles.DANGER);
     if (canStop) {
@@ -1584,7 +1634,9 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
 
     if (statusLabel != null) {
       var running = agentSnapshot().stream().filter(Agent::isAlive).count();
-      statusLabel.setText(running == 0 ? "Stopped" : running + " agent(s) running");
+      statusLabel.setText(isApplication() && applicationView != null
+          ? "Application controls in the application tab"
+          : running == 0 ? "Stopped" : running + " agent(s) running");
     }
 
     publish.enabled(

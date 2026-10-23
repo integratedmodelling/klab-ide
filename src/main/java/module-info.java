@@ -54,6 +54,7 @@ module org.integratedmodelling.klab.ide {
   requires flexmark.util.html;
   requires com.google.gson;
   requires java.net.http;
+  requires jdk.httpserver;
   requires io.github.makbn.jlmap.api;
   requires io.github.makbn.jlmap.fx;
     requires java.logging;
@@ -61,7 +62,7 @@ module org.integratedmodelling.klab.ide {
     opens org.integratedmodelling.klab.ide to
       javafx.fxml;
   opens org.integratedmodelling.klab.ide.components to
-      javafx.fxml;
+      javafx.fxml, javafx.web;
 
   exports org.integratedmodelling.klab.ide;
   exports org.integratedmodelling.klab.ide.components;

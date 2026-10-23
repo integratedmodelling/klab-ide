@@ -86,8 +86,7 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
         .bind(this.descriptionLabel.textProperty().isNotEmpty().and(noEditors));
     this.descriptionLabel.managedProperty().bind(this.descriptionLabel.visibleProperty());
     var menuTab = new Tab("");
-    menuTab.setGraphic(
-        new IconLabel(Material2MZ.MENU, 24, "-color-fg-default"));
+    menuTab.setGraphic(new IconLabel(Material2MZ.MENU, 24, "-color-fg-default"));
     menuTab.setClosable(false);
     menuTab.setDisable(true);
     menuTab
@@ -171,14 +170,23 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
   protected abstract void assetEditorClosed(T assetEditor);
 
   protected record HeaderAction(
-      Ikon icon, String tooltip, Runnable action, BooleanSupplier selected) {
+      Ikon icon,
+      String tooltip,
+      Runnable action,
+      BooleanSupplier selected,
+      BooleanSupplier disabled) {
     public HeaderAction(Ikon icon, String tooltip, Runnable action) {
-      this(icon, tooltip, action, null);
+      this(icon, tooltip, action, null, null);
     }
 
     public static HeaderAction toggle(
         Ikon icon, String tooltip, Runnable action, BooleanSupplier selected) {
-      return new HeaderAction(icon, tooltip, action, selected);
+      return new HeaderAction(icon, tooltip, action, selected, null);
+    }
+
+    public static HeaderAction availableWhen(
+        Ikon icon, String tooltip, Runnable action, BooleanSupplier available) {
+      return new HeaderAction(icon, tooltip, action, null, () -> !available.getAsBoolean());
     }
   }
 
@@ -223,6 +231,7 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
         button.setToggled(action.selected().getAsBoolean());
       }
       button.setAccessibleText(action.tooltip());
+      if (action.disabled() != null) button.setDisable(action.disabled().getAsBoolean());
       button.tooltip(action.tooltip());
       buttons.getChildren().add(button);
     }
@@ -250,14 +259,23 @@ public abstract class BrowsablePage<T extends Node, A> extends StackPane impleme
   }
 
   /** Check again at deferred tab attachment; the requesting view may have closed meanwhile. */
-  protected void addEditor(EditorPage<?, ?> node, String title, Node icon, boolean closable,
-      BooleanSupplier current, Runnable attached, Runnable discarded) {
+  protected void addEditor(
+      EditorPage<?, ?> node,
+      String title,
+      Node icon,
+      boolean closable,
+      BooleanSupplier current,
+      Runnable attached,
+      Runnable discarded) {
     var tab = new Tab(title, node);
     tab.setClosable(closable);
     tab.setGraphic(icon);
     Platform.runLater(
         () -> {
-          if (!current.getAsBoolean()) { discarded.run(); return; }
+          if (!current.getAsBoolean()) {
+            discarded.run();
+            return;
+          }
           this.tabPane.getTabs().add(tab);
           this.tabPane.select(tab);
           node.showContent();

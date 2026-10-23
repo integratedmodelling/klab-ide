@@ -182,13 +182,12 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
                     }
                   },
                   () -> includePublishedLocal));
-          if (!batchAdapters.isEmpty()) {
-            headerActions.add(
-                new HeaderAction(
-                    Material2AL.BATCH_PREDICTION,
-                    "Import resources in batch",
-                    this::openBatchInput));
-          }
+          headerActions.add(
+              HeaderAction.availableWhen(
+                  Material2AL.BATCH_PREDICTION,
+                  "Import resources in batch",
+                  this::openBatchInput,
+                  () -> !batchAdapters.isEmpty()));
           vBox.getChildren()
               .add(makeHeader("Resources", headerActions.toArray(HeaderAction[]::new)));
           if (resourceDialog != null) {
@@ -200,14 +199,10 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
 
   private void ensureBatchAdaptersLoaded() {
 
-    // TODO with this condition, the service will be one at most; keep the list for
-    //  possible future extension for admins.
     var services =
-        List.copyOf(KlabIDEController.instance().user().getServices(ResourcesService.class))
-            .stream()
-            .filter(s -> s.isLocal())
-            .toList();
-    var signature = services.stream().map(ResourcesService::serviceId).sorted().toList();
+        List.copyOf(KlabIDEController.instance().user().getServices(ResourcesService.class));
+    var signature = services.stream()
+        .map(service -> service.serviceId() + ":" + service.isLocal()).sorted().toList();
     if (signature.equals(batchServiceSignature)
         && (batchAdaptersLoaded || batchAdapterTask != null)) {
       return;
@@ -234,6 +229,9 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
                 resolvedServiceName = service.serviceId();
               }
               String serviceName = resolvedServiceName;
+              if (service.isLocal()) {
+                options.add(new BatchResourceInput.AdapterOption(service, null, serviceName));
+              }
               try {
                 service.capabilities(KlabIDEController.instance().user()).getComponents().stream()
                     .flatMap(component -> component.adapters().stream())
@@ -254,7 +252,7 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
             return options.stream()
                 .sorted(
                     java.util.Comparator.comparing(BatchResourceInput.AdapterOption::serviceName)
-                        .thenComparing(option -> option.adapter().getName()))
+                        .thenComparing(option -> option.legacy() ? "" : option.adapter().getName()))
                 .toList();
           }
         };
@@ -283,18 +281,27 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
   }
 
   private void openBatchInput() {
+    if (batchAdapters.isEmpty()) return;
     if (batchInput != null) {
       selectView(batchInput);
     } else {
+      var openedInput = new AtomicReference<BatchResourceInput>();
+      Runnable closeInput = () -> removeView(openedInput.get());
       batchInput =
           new BatchResourceInput(
-              batchAdapters, this::submitBatchInput, this::closeBatchInput, this::closeBatchInput);
+              batchAdapters, this::submitBatchInput, closeInput, closeInput);
+      openedInput.set(batchInput);
       addView(batchInput, "Batch input", new FontIcon(Material2AL.BATCH_PREDICTION));
     }
     hideBrowser();
   }
 
   private CompletionStage<Boolean> submitBatchInput(BatchResourceInput.Input input) {
+    if (input.adapter() == null) {
+      var results = new LegacyResourceImportView(this::viewResource, input.service().serviceId());
+      addView(results, "Legacy import results", new FontIcon(Material2AL.BATCH_PREDICTION));
+      return results.start(input, this::updateBrowser);
+    }
     var submitted = new ResourceImpl();
     submitted.setUrn(Urn.UNDEFINED_URN);
     submitted.setServiceId(input.service().serviceId());
@@ -338,12 +345,6 @@ public class ResourcesView extends BrowsablePage<ResourceEditor, Resource> {
     thread.setDaemon(true);
     thread.start();
     return completion;
-  }
-
-  private void closeBatchInput() {
-    if (batchInput != null) {
-      removeView(batchInput);
-    }
   }
 
   private void addResource() {

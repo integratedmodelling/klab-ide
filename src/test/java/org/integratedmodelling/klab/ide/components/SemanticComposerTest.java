@@ -20,6 +20,92 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 class SemanticComposerTest {
+  @Test void editorConceptSelectsItsExactSearchResultAndShowsDocumentation() throws Exception {
+    var fake = new FakeSearch();
+    fake.selectAddsToken = true;
+    fake.matches = List.of(match("other:Tree"), match("test:Tree"));
+    fake.matches.forEach(match -> match.setMatchType(SemanticMatch.Type.CONCEPT));
+    var concept = new org.integratedmodelling.common.knowledge.ConceptImpl();
+    concept.setUrn("test:Tree");
+    concept.getType().add(org.integratedmodelling.klab.api.knowledge.SemanticType.SUBJECT);
+    concept.getMetadata().put(org.integratedmodelling.klab.api.data.Metadata.DC_COMMENT, "Tree documentation");
+    fake.after = (request, reply) -> {
+      if (!fake.code.isEmpty()) {
+        reply.setCurrentConcept(concept);
+        reply.setClauses(List.of(new SemanticClauseRestriction(
+            org.integratedmodelling.klab.api.knowledge.SemanticRole.INHERENT, concept, true)));
+      }
+    };
+    var composer = fx(() -> new SemanticComposer(() -> fake.reasoner(),
+        o -> CompletableFuture.completedFuture(null), () -> {},
+        new SemanticComposer.InitialState("test:Tree", null)));
+    try {
+      ready(composer);
+      assertEquals(List.of("test:Tree"), fake.selections);
+      assertEquals("test:Tree", fake.requests.getFirst().getQueryString());
+      var selected = fake.requests.get(1);
+      assertEquals(42, selected.getSearchId());
+      assertEquals(fake.requests.getFirst().getRequestId(), selected.getMatchesRequestId());
+      fx(() -> {
+        assertEquals("", query(composer).getText());
+        assertEquals(List.of("test:Tree"), displayedTokens(composer));
+        var card = (org.integratedmodelling.klab.ide.components.cards.ObservableCard)
+            ((javafx.scene.layout.VBox) composer.lookup("#semantic-card")).getChildren().getFirst();
+        var content = (javafx.scene.layout.VBox) card.getCenter();
+        assertTrue(content.getChildren().stream().anyMatch(n -> n instanceof Label l
+            && "Tree documentation".equals(l.getText())));
+        assertTrue(content.getChildren().stream().anyMatch(HBox.class::isInstance));
+        press(query(composer), KeyCode.BACK_SPACE);
+        release(query(composer), KeyCode.BACK_SPACE);
+        return null;
+      });
+      ready(composer);
+      assertEquals(List.of(), fx(() -> displayedTokens(composer)));
+      assertEquals(1, fake.count(SemanticSearchRequest.Mode.SELECT));
+    } finally { fx(() -> { composer.close(); return null; }); }
+  }
+
+  @Test void missingEditorConceptDoesNotSelectASimilarResult() throws Exception {
+    var fake = new FakeSearch();
+    fake.matches = List.of(match("other:Tree"), match("test:TreeHeight"));
+    fake.matches.forEach(match -> match.setMatchType(SemanticMatch.Type.CONCEPT));
+    var composer = fx(() -> new SemanticComposer(() -> fake.reasoner(),
+        o -> CompletableFuture.completedFuture(null), () -> {},
+        new SemanticComposer.InitialState("test:Tree", null)));
+    try {
+      ready(composer);
+      assertEquals(0, fake.count(SemanticSearchRequest.Mode.SELECT));
+      assertEquals("test:Tree", fx(() -> query(composer).getText()));
+    } finally { fx(() -> { composer.close(); return null; }); }
+  }
+
+  @Test void typingDuringTheEditorSearchCancelsAutomaticSelection() throws Exception {
+    var fake = new FakeSearch();
+    fake.matches.forEach(match -> match.setMatchType(SemanticMatch.Type.CONCEPT));
+    var started = new CompletableFuture<Void>();
+    var releaseSearch = new CompletableFuture<Void>();
+    fake.before = request -> {
+      if (request.getRequestId() == 1) {
+        started.complete(null);
+        releaseSearch.join();
+      }
+    };
+    var composer = fx(() -> new SemanticComposer(() -> fake.reasoner(),
+        o -> CompletableFuture.completedFuture(null), () -> {},
+        new SemanticComposer.InitialState("test:Tree", null)));
+    try {
+      started.get(10, TimeUnit.SECONDS);
+      fx(() -> { query(composer).setText("Forest"); return null; });
+      releaseSearch.complete(null);
+      ready(composer);
+      assertEquals(0, fake.count(SemanticSearchRequest.Mode.SELECT));
+      assertEquals("Forest", fx(() -> query(composer).getText()));
+    } finally {
+      releaseSearch.complete(null);
+      fx(() -> { composer.close(); return null; });
+    }
+  }
+
   @BeforeAll static void startFx() throws Exception {
     var ready = new CompletableFuture<Void>();
     try { Platform.startup(() -> {

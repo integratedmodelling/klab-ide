@@ -70,6 +70,7 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
 
   private final java.util.Map<Integer, TokenChoice> tokenChoices = new java.util.HashMap<>();
   private Observable initialObservable;
+  private String initialConcept;
   private final AuthorityBrowser authorities;
   private final EventHandler<KeyEvent> releaseKeys =
       e -> {
@@ -248,6 +249,7 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
         .addListener(
             (o, old, value) -> {
               if (updating || closed || submitting) return;
+              initialConcept = null;
               queryRevision++;
               authorities.invalidate();
               if (activeRequest != null
@@ -427,6 +429,7 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
     if (initialState != null && initialState.query() != null && !initialState.query().isBlank()) {
       updating = true;
       query.setText(initialState.query());
+      initialConcept = initialState.query();
       updating = false;
     }
     if (initialObservable != null)
@@ -683,6 +686,23 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
       query.positionCaret(0);
     }
     activeRequest = null;
+    if (initialConcept != null
+        && request.getSearchMode() == SemanticSearchRequest.Mode.TOKEN
+        && current
+        && reply.getErrors().isEmpty()) {
+      // Editor context follows the same validated proposal/selection contract as a user search.
+      // Never accept a similarly named concept from another ontology or repeat the seed on undo.
+      String concept = initialConcept;
+      initialConcept = null;
+      var exact = reply.getMatches().stream()
+          .filter(match -> match.getMatchType() == SemanticMatch.Type.CONCEPT
+              && concept.equals(match.getId()))
+          .findFirst();
+      if (exact.isPresent()) {
+        send(SemanticSearchRequest.Mode.SELECT, exact.get());
+        return;
+      }
+    }
     // Do not erase a rejected edit's diagnostic by immediately issuing an unrelated query.
     drain(
         !current && (accepted || reply.getErrors().isEmpty() || revision != queryRevision)
@@ -824,6 +844,7 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
     unconfirmedIdentity = null;
     tokenChoices.clear();
     initialObservable = null;
+    initialConcept = null;
     sessionLost = false;
     stateUncertain = false;
     matchesCurrent = false;
@@ -875,6 +896,7 @@ public final class SemanticComposer extends VBox implements AutoCloseable {
 
   private void sourceChanged() {
     if (closed || updating) return;
+    initialConcept = null;
     queryRevision++;
     authorities.invalidate();
     results.getItems().clear();
