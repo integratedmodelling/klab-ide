@@ -129,28 +129,14 @@ public class ServicePageViewComponent extends VBox {
 
     Tab logTab = null;
     var instance = KlabIDEController.instance().getInstance(service);
-    if (instance != null) {
-      var configurationPath = instance.getConfigurationPath();
-      var logFile =
-          new File(
-              configurationPath
-                  + File.separator
-                  + "logs"
-                  + File.separator
-                  + instance.getProduct().getType().relativeConfigurationPath()
-                  + ".log");
-
-      //        if (logFile.exists()) {
-      var logView =
-          new LogViewer(
-              logFile.toPath(),
-              EnumSet.of(LogViewer.Column.TIME, LogViewer.Column.LEVEL, LogViewer.Column.MESSAGE));
-
-      // make another tab and set the logView in it
+    if (instance != null || (!service.isLocal() && ServiceDashboard.hasAdministerPermission(capabilities))) {
+      java.nio.file.Path localFile = instance == null ? null : instance.getConfigurationPath().resolve("logs").resolve(
+          instance.getProduct().getType().relativeConfigurationPath() + ".log");
+      var logView = ServiceDashboard.createLogView(service, localFile, capabilities);
+      logView.setActive(false);
       logTab = new Tab("Logs", logView);
-      //          settingsPane.getTabs().add(logTab);
-
-      //        }
+      logTab.selectedProperty().addListener((property, before, selected) -> logView.setActive(selected));
+      logTab.setOnClosed(event -> logView.close());
     }
 
     if (ServiceDashboard.hasAdministerPermission(capabilities)) {

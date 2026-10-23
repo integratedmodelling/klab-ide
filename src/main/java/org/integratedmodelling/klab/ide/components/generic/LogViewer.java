@@ -190,21 +190,19 @@ public class LogViewer extends VBox {
   // ── Internal state ────────────────────────────────────────────────────────────
 
   private Path logFile;
+  private LogSource remoteSource;
+  private volatile long sourceGeneration;
+  private volatile LocalTail localTail;
+  private final Map<String, LogEntry> remoteEntries = new LinkedHashMap<>();
+  private static final int MAX_REMOTE_ROWS = 5000;
   private final ObservableList<LogEntry> entries = FXCollections.observableArrayList();
   private final TableView<LogEntry> tableView = new TableView<>(entries);
   private final Map<Column, TableColumn<LogEntry, String>> columnMap = new LinkedHashMap<>();
 
   /**
-   * The most recently parsed entry on the watcher thread; used to detect continuation lines. Also
-   * used (and reset) on the FX thread during initial load.
+   * Last displayed entry; parsing and property mutations are confined to the FX thread.
    */
   private LogEntry lastParsedEntry = null;
-
-  /**
-   * Byte offset of the start of the next unread line in the file. Points to just after the last
-   * '\n' character successfully processed. Only written on the watcher thread after initial load.
-   */
-  private volatile long lastReadPosition = 0;
 
   /**
    * Whether the view should auto-scroll to the bottom when new entries arrive. Starts {@code true};
@@ -233,7 +231,17 @@ public class LogViewer extends VBox {
    * @param visibleColumns the columns to display on construction
    */
   public LogViewer(Path logFile, Set<Column> visibleColumns) {
+    this(logFile, visibleColumns, null);
+  }
+
+  /** Display a bounded remote diagnostic source; existing Path constructors retain file mode. */
+  public LogViewer(LogSource source) {
+    this(null, EnumSet.allOf(Column.class), java.util.Objects.requireNonNull(source));
+  }
+
+  private LogViewer(Path logFile, Set<Column> visibleColumns, LogSource source) {
     this.logFile = logFile;
+    this.remoteSource = source;
 
     configureTableView();
     buildColumns();
@@ -250,8 +258,9 @@ public class LogViewer extends VBox {
     VBox.setVgrow(tableView, Priority.ALWAYS);
     getChildren().add(tableView);
 
-    loadExistingContent();
-    startWatching();
+    if (remoteSource == null) {
+      startWatching();
+    } else startRemotePolling();
   }
 
   // ── Public API ────────────────────────────────────────────────────────────────
@@ -284,6 +293,7 @@ public class LogViewer extends VBox {
    */
   public void clear() {
     entries.clear();
+    remoteEntries.clear();
     lastParsedEntry = null;
   }
 
@@ -296,12 +306,67 @@ public class LogViewer extends VBox {
   public void setFile(Path newFile) {
     shutdown();
     this.logFile = newFile;
-    lastReadPosition = 0;
+    remoteSource = null;
+    remoteEntries.clear();
     lastParsedEntry = null;
     autoScroll = true;
     entries.clear();
-    loadExistingContent();
     startWatching();
+  }
+
+  /** Select or explicitly reset remote viewing; call on the FX thread. */
+  public void setSource(LogSource source) {
+    shutdown();
+    remoteSource = java.util.Objects.requireNonNull(source);
+    remoteSource.reset();
+    logFile = null;
+    entries.clear(); remoteEntries.clear();
+    startRemotePolling();
+  }
+
+  private void startRemotePolling() {
+    long generation = ++sourceGeneration;
+    LogSource selected = remoteSource;
+    var polling = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(task -> {
+      var thread = new Thread(task, "remote-admin-log-poller");
+      thread.setDaemon(true); return thread;
+    });
+    watcherService = polling;
+    polling.scheduleWithFixedDelay(() -> {
+      try {
+        var page = selected.poll();
+        Platform.runLater(() -> {
+          if (generation != sourceGeneration || selected != remoteSource) return;
+          for (var record : page.records()) {
+            String message = record.message() + (record.diagnostics().isEmpty() ? "" : " " + record.diagnostics())
+                + (record.stackTrace().isEmpty() ? "" : "\n" + record.stackTrace())
+                + (record.truncated() ? "\n[truncated]" : "")
+                + (record.partial() ? "\n[partial event]" : "");
+            var existing = remoteEntries.get(record.eventId());
+            if (existing != null) existing.messageProperty().set(message);
+            else {
+              var entry = new LogEntry(record.timestamp(), record.level(), "", "", record.logger(), message);
+              remoteEntries.put(record.eventId(), entry); entries.add(entry);
+            }
+          }
+          while (remoteEntries.size() > MAX_REMOTE_ROWS) {
+            var iterator = remoteEntries.entrySet().iterator();
+            var oldest = iterator.next(); entries.remove(oldest.getValue()); iterator.remove();
+          }
+          if (autoScroll) scrollToBottom();
+        });
+      } catch (RuntimeException failure) {
+        // No raw remote exception messages: a caller may select a different/nonconforming service.
+        String diagnostic = failure instanceof org.integratedmodelling.common.utils.Utils.Http.Client.RequestFailure http
+            ? "Remote logs unavailable (HTTP " + http.getStatus() + "); explicit reset required"
+            : "Remote logs unavailable; explicit reset required";
+        Platform.runLater(() -> {
+          if (generation != sourceGeneration || selected != remoteSource) return;
+          entries.add(new LogEntry("", "WARN", "", "", "remote.logs", diagnostic));
+        });
+        polling.shutdown();
+      }
+    }, 0, 1, java.util.concurrent.TimeUnit.SECONDS);
   }
 
   /**
@@ -309,6 +374,8 @@ public class LogViewer extends VBox {
    * scene to avoid resource leaks.
    */
   public void shutdown() {
+    sourceGeneration++;
+    if (remoteSource != null) remoteSource.close();
     if (watcherService != null) {
       watcherService.shutdownNow();
       watcherService = null;
@@ -533,141 +600,129 @@ public class LogViewer extends VBox {
 
   // ── Initial file load ─────────────────────────────────────────────────────────
 
-  private void loadExistingContent() {
-    if (!Files.exists(logFile)) return;
-    try {
-      byte[] bytes = Files.readAllBytes(logFile);
-      if (bytes.length == 0) return;
+  private static final Pattern SERVICE_LOG_PATTERN = Pattern.compile(
+      "^\\[?(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d+)\\]?\\s+"
+          + "(TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\\s+\\[([^\\]]+)\\]\\s+"
+          + "(\\S+?)(?::\\s+|\\s+-\\s+)(.*)$");
 
-      // Find where the last complete line ends so lastReadPosition stays consistent
-      int lastNewline = bytes.length - 1;
-      while (lastNewline >= 0 && bytes[lastNewline] != '\n') lastNewline--;
-      lastReadPosition = lastNewline + 1; // byte offset just after the last '\n'
-
-      String content = new String(bytes, 0, (int) lastReadPosition, StandardCharsets.UTF_8);
-      List<LogEntry> batch = parseLines(content.split("\r?\n", -1), true);
-
-      Platform.runLater(
-          () -> {
-            entries.addAll(batch);
-            scrollToBottom();
-          });
-    } catch (IOException e) {
-      // File unreadable – will retry once the watcher fires
-    }
+  /** One immutable file selection and worker-owned cursor; no state leaks across setFile. */
+  private static final class LocalTail {
+    final Path file;
+    final long generation;
+    long position;
+    Object identity;
+    java.nio.file.attribute.FileTime modified;
+    byte[] prefix = new byte[0], tail = new byte[0];
+    boolean initialized, replacement;
+    LocalTail(Path file, long generation) { this.file = file; this.generation = generation; }
   }
-
-  // ── File watching ─────────────────────────────────────────────────────────────
 
   private void startWatching() {
-    watcherService =
-        Executors.newSingleThreadExecutor(
-            r -> {
-              Thread t = new Thread(r, "LogViewer[" + logFile.getFileName() + "]");
-              t.setDaemon(true);
-              return t;
-            });
-    watcherService.submit(this::watchLoop);
+    var selected = new LocalTail(logFile, sourceGeneration);
+    localTail = selected;
+    watcherService = Executors.newSingleThreadExecutor(task -> {
+      var thread = new Thread(task, "LogViewer[" + selected.file.getFileName() + "]");
+      thread.setDaemon(true); return thread;
+    });
+    watcherService.submit(() -> watchLoop(selected));
   }
 
-  private void watchLoop() {
-    Path parent = logFile.getParent();
-    if (parent == null) parent = Path.of(".");
-
-    try (WatchService watcher = FileSystems.getDefault().newWatchService()) {
-      parent.register(
-          watcher, StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_MODIFY);
-
-      while (!Thread.currentThread().isInterrupted()) {
-        WatchKey key;
-        try {
-          key = watcher.poll(500, TimeUnit.MILLISECONDS);
-        } catch (InterruptedException e) {
-          Thread.currentThread().interrupt();
-          break;
-        }
+  private void watchLoop(LocalTail selected) {
+    WatchService watcher = null;
+    try {
+      try {
+        watcher = FileSystems.getDefault().newWatchService();
+        selected.file.toAbsolutePath().getParent().register(watcher,
+            StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_DELETE,
+            StandardWatchEventKinds.ENTRY_MODIFY);
+      } catch (IOException unavailable) {
+        if (watcher != null) watcher.close();
+        watcher = null;
+      }
+      // Register before the initial read. Periodic reconciliation covers missed events and creation.
+      while (!Thread.currentThread().isInterrupted() && selected.generation == sourceGeneration) {
+        readLocalContent(selected);
+        if (watcher == null) { Thread.sleep(500); continue; }
+        WatchKey key = watcher.poll(500, TimeUnit.MILLISECONDS);
         if (key == null) continue;
-
-        for (WatchEvent<?> event : key.pollEvents()) {
-          if (event.kind() == StandardWatchEventKinds.OVERFLOW) continue;
-          @SuppressWarnings("unchecked")
-          Path changed = ((WatchEvent<Path>) event).context();
-          if (logFile.getFileName().equals(changed)) {
-            readNewContent();
+        synchronized (selected) {
+          for (var event : key.pollEvents()) {
+            if (event.kind() != StandardWatchEventKinds.OVERFLOW
+                && selected.file.getFileName().equals(event.context())
+                && (event.kind() == StandardWatchEventKinds.ENTRY_CREATE
+                    || event.kind() == StandardWatchEventKinds.ENTRY_DELETE)) selected.replacement = true;
           }
         }
-        key.reset();
+        if (!key.reset()) { watcher.close(); watcher = null; }
       }
-    } catch (IOException e) {
-      // Watcher setup failed – silently stop tailing
+    } catch (InterruptedException interrupted) {
+      Thread.currentThread().interrupt();
+    } catch (IOException unavailable) {
+      // Setup failure normally falls back to periodic reconciliation.
+    } finally {
+      if (watcher != null) try { watcher.close(); } catch (IOException ignored) {}
     }
   }
 
   private void readNewContent() {
-    try {
-      long currentSize = Files.size(logFile);
+    var selected = localTail;
+    if (selected != null) readLocalContent(selected);
+  }
 
-      if (currentSize < lastReadPosition) {
-        // File was truncated or rotated – reload from the beginning
-        lastReadPosition = 0;
-        lastParsedEntry = null;
-        Platform.runLater(entries::clear);
-      }
-      if (currentSize == lastReadPosition) return;
+  private static byte[] readRange(java.nio.channels.FileChannel channel, long offset, int length)
+      throws IOException {
+    var buffer = java.nio.ByteBuffer.allocate(length);
+    while (buffer.hasRemaining()) {
+      int count = channel.read(buffer, offset + buffer.position());
+      if (count <= 0) break;
+    }
+    return Arrays.copyOf(buffer.array(), buffer.position());
+  }
 
-      // Read only the new bytes appended since last position
-      int newByteCount = (int) (currentSize - lastReadPosition);
-      byte[] buf = new byte[newByteCount];
-      try (FileInputStream fis = new FileInputStream(logFile.toFile())) {
-        long remaining = lastReadPosition;
-        while (remaining > 0) {
-          long skipped = fis.skip(remaining);
-          if (skipped <= 0) break;
-          remaining -= skipped;
+  private void readLocalContent(LocalTail selected) {
+    synchronized (selected) {
+      if (selected.generation != sourceGeneration) return;
+      try (var channel = java.nio.channels.FileChannel.open(selected.file, StandardOpenOption.READ)) {
+        var attrs = Files.readAttributes(selected.file, java.nio.file.attribute.BasicFileAttributes.class);
+        Object identity = java.util.List.of(String.valueOf(attrs.fileKey()), attrs.creationTime());
+        long size = channel.size();
+        boolean reset = !selected.initialized || selected.replacement
+            || !java.util.Objects.equals(selected.identity, identity) || size < selected.position;
+        if (!reset && selected.position > 0) {
+          reset = (size == selected.position && !attrs.lastModifiedTime().equals(selected.modified))
+              || !Arrays.equals(selected.prefix, readRange(channel, 0, selected.prefix.length))
+              || !Arrays.equals(selected.tail,
+                  readRange(channel, selected.position - selected.tail.length, selected.tail.length));
         }
-        int totalRead = 0;
-        while (totalRead < buf.length) {
-          int n = fis.read(buf, totalRead, buf.length - totalRead);
-          if (n == -1) break;
-          totalRead += n;
-        }
-        buf = Arrays.copyOf(buf, totalRead);
+        long offset = reset ? 0 : selected.position;
+        byte[] bytes = readRange(channel, offset, Math.toIntExact(size - offset));
+        int complete = bytes.length;
+        while (complete > 0 && bytes[complete - 1] != '\n') complete--;
+        if (complete == 0 && !reset) return;
+        long position = offset + complete;
+        byte[] prefix = readRange(channel, 0, (int)Math.min(position, 4096));
+        byte[] tail = readRange(channel, Math.max(0, position - 4096), (int)Math.min(position, 4096));
+        var after = Files.readAttributes(selected.file, java.nio.file.attribute.BasicFileAttributes.class);
+        if (!identity.equals(java.util.List.of(String.valueOf(after.fileKey()), after.creationTime()))) return;
+        selected.position = position; selected.identity = identity;
+        selected.modified = attrs.lastModifiedTime(); selected.prefix = prefix; selected.tail = tail;
+        selected.initialized = true; selected.replacement = false;
+        String content = new String(bytes, 0, complete, StandardCharsets.UTF_8);
+        boolean clear = reset;
+        Platform.runLater(() -> {
+          if (selected.generation != sourceGeneration || remoteSource != null) return;
+          if (clear) { entries.clear(); lastParsedEntry = null; }
+          entries.addAll(parseLines(content.split("\\r?\\n", -1), clear));
+          tableView.refresh(); // Continuation-only changes must update expanded cells too.
+          if (autoScroll) scrollToBottom();
+        });
+      } catch (IOException unavailable) {
+        // A missing/temporarily unreadable file is retried on the next poll.
       }
-
-      // Process only up to (and including) the last '\n' so we never parse partial lines
-      int lastNewlineInBuf = buf.length - 1;
-      while (lastNewlineInBuf >= 0 && buf[lastNewlineInBuf] != '\n') lastNewlineInBuf--;
-      if (lastNewlineInBuf < 0) return; // No complete line yet
-
-      lastReadPosition += lastNewlineInBuf + 1;
-
-      String content = new String(buf, 0, lastNewlineInBuf + 1, StandardCharsets.UTF_8);
-      String[] lines = content.split("\r?\n", -1);
-      List<LogEntry> batch = parseLines(lines, false);
-      if (batch.isEmpty()) return;
-
-      boolean shouldScroll = autoScroll;
-      Platform.runLater(
-          () -> {
-            entries.addAll(batch);
-            if (shouldScroll) scrollToBottom();
-          });
-
-    } catch (IOException e) {
-      // Transient read error – will retry on the next modification event
     }
   }
 
-  // ── Log parsing ───────────────────────────────────────────────────────────────
-
-  /**
-   * Parses an array of raw text lines into {@link LogEntry} objects. Continuation lines (lines that
-   * do not match the log pattern) are appended to the most recently parsed entry's message.
-   *
-   * @param lines lines to parse
-   * @param resetContext {@code true} to clear the continuation-line tracking first (initial load)
-   * @return list of newly created entries (continuation lines do not produce new entries)
-   */
+  /** Invoked only on the FX thread, including continuation-line property changes. */
   private List<LogEntry> parseLines(String[] lines, boolean resetContext) {
     if (resetContext) lastParsedEntry = null;
     List<LogEntry> batch = new ArrayList<>();
@@ -679,9 +734,13 @@ public class LogViewer extends VBox {
             new LogEntry(m.group(1), m.group(3), m.group(2), m.group(4), m.group(5), m.group(6));
         batch.add(entry);
         lastParsedEntry = entry;
-      } else if (lastParsedEntry != null) {
-        // Continuation / stack-trace line – fold into the previous entry's message
-        lastParsedEntry.appendMessage(line);
+      } else {
+        Matcher current = SERVICE_LOG_PATTERN.matcher(line);
+        if (current.matches()) {
+          var entry = new LogEntry(current.group(1), current.group(2), "", current.group(3),
+              current.group(4), current.group(5));
+          batch.add(entry); lastParsedEntry = entry;
+        } else if (lastParsedEntry != null) lastParsedEntry.appendMessage(line);
       }
     }
     return batch;

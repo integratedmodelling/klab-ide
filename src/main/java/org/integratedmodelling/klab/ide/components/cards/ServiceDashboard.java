@@ -111,6 +111,8 @@ public class ServiceDashboard extends BaseAssetViewComponent {
   private ToggleGroup viewGroup;
   private ToggleButton settingsButton;
   private ToggleButton importButton;
+  private ToggleButton logsButton;
+  private KlabService.ServiceCapabilities logPermissions;
   private final ReadinessTransition capabilitiesReadiness = new ReadinessTransition();
   private CompletableFuture<KlabService.ServiceCapabilities> capabilitiesFuture;
 
@@ -145,12 +147,11 @@ public class ServiceDashboard extends BaseAssetViewComponent {
     importButton.setToggleGroup(viewGroup);
     dashboardButton.setSelected(true);
     navigation.getChildren().addAll(dashboardButton, importButton);
-    ToggleButton logsButton = null;
-    if (isLocalService()) {
-      logsButton = viewButton(MaterialDesign.MDI_FILE_DOCUMENT, "Service logs");
-      logsButton.setToggleGroup(viewGroup);
-      navigation.getChildren().add(logsButton);
-    }
+    logsButton = viewButton(MaterialDesign.MDI_FILE_DOCUMENT, "Service logs");
+    logsButton.setId("service-logs");
+    logsButton.setToggleGroup(viewGroup);
+    logsButton.setDisable(!isLocalService());
+    navigation.getChildren().add(logsButton);
     HBox.setHgrow(links, Priority.ALWAYS);
     var linkBar = new HBox(10, links, navigation);
     linkBar.setAlignment(Pos.CENTER_LEFT);
@@ -218,6 +219,8 @@ public class ServiceDashboard extends BaseAssetViewComponent {
                     populateComponents(null, true);
                     return;
                   }
+                  logPermissions = capabilities;
+                  if (logsButton != null) logsButton.setDisable(!isLocalService() && !hasAdministerPermission(capabilities));
                   populateComponents(capabilities, false);
                   if (hasAdministerPermission(capabilities)) addSettingsButton();
                 }));
@@ -321,6 +324,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
   }
 
   private Node logView() {
+    if (!isLocalService()) return createLogView(service, null, logPermissions);
     var productType =
         Distribution.Product.Type.forService(service.status().getServiceType());
     var configurationPath =
@@ -334,11 +338,13 @@ public class ServiceDashboard extends BaseAssetViewComponent {
             .resolve("logs")
             .resolve(productType.relativeConfigurationPath() + ".log")
             .toFile();
-    var viewer =
-        new LogViewer(
-            logFile.toPath(),
-            EnumSet.of(LogViewer.Column.TIME, LogViewer.Column.LEVEL, LogViewer.Column.MESSAGE));
-    return viewer;
+    return createLogView(service, logFile.toPath(), logPermissions);
+  }
+
+  /** Shared production entry used by both service dashboard and service detail Logs tab. */
+  static ServiceLogView createLogView(KlabService service, java.nio.file.Path localFile,
+      KlabService.ServiceCapabilities capabilities) {
+    return new ServiceLogView(service, localFile, hasAdministerPermission(capabilities));
   }
 
   private Node importView(KlabService.ServiceCapabilities capabilities) {
