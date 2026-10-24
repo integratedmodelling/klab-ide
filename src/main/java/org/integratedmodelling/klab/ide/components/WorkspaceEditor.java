@@ -432,6 +432,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   @Override
   protected void disposeAuxiliaryEditor(Node editor) {
+    if (editor instanceof ProjectMaterialBrowser browser) {
+      materialBrowsers.values().removeIf(value -> value == browser);
+      browser.close();
+    }
     if (editor instanceof WorkspaceSettingsEditor settingsEditor) {
       if (workspaceSettingsEditor == settingsEditor) workspaceSettingsEditor = null;
       settingsEditor.close();
@@ -623,6 +627,28 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   private final Map<String, ProjectSettingsEditor> projectSettingsEditors = new HashMap<>();
+  private final Map<String, ProjectMaterialBrowser> materialBrowsers = new HashMap<>();
+
+  private void openProjectMaterial(NavigableProject project) {
+    String key = "project-material:" + project.getUrn();
+    if (materialBrowsers.containsKey(key)) { selectAuxiliaryEditor(key); return; }
+    var browser = new ProjectMaterialBrowser(service, KlabIDEController.instance().user(),
+        project.getUrn(), result -> KlabIDEController.instance().handleResultSets(result),
+        () -> closeAuxiliaryEditor(key));
+    browser.updateRepositoryState(project.getRepositoryState());
+    browser.setOnPublish(() -> {
+      var parameters = getOperationParameters(project, RepositoryState.Operation.SYNC_AND_PUBLISH);
+      if (parameters != null) KlabIDEController.instance().manageProject(
+          service, project.getUrn(), RepositoryState.Operation.SYNC_AND_PUBLISH, parameters);
+    });
+    materialBrowsers.put(key, browser);
+    var tab = showAuxiliaryEditor(key, project.getUrn() + " material", browser);
+    tab.setOnCloseRequest(event -> {
+      if (browser.isBusy() || !browser.discardDraft()) event.consume();
+    });
+    tab.selectedProperty().addListener((observable, before, after) -> { if (after) browser.refresh(); });
+    tab.addEventHandler(Tab.CLOSED_EVENT, event -> { materialBrowsers.remove(key); browser.close(); });
+  }
 
   private void openProjectSettings(NavigableProject project) {
     String key = "project-settings:" + project.getUrn();
@@ -670,8 +696,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         project = parent == null ? null : parent.getUrn();
       }
       var managedBehavior =
-          service.retrieve(
-              behavior.getUrn(), KActorsBehavior.class, KlabIDEController.instance().user());
+          ProjectBehaviorSource.retrieve(service, KlabIDEController.instance().user(), project,
+              behavior.getUrn(), behavior.getBehaviorType());
       if (managedBehavior == null || project == null || project.isBlank()) {
         KlabIDEController.instance()
             .handleNotification(
@@ -684,6 +710,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                   service.serviceId(),
                   project,
                   managedBehavior.getUrn(),
+                  managedBehavior.getBehaviorType(),
                   managedBehavior.getSourceCode());
       KlabIDEController.instance().openBehaviorFile(checkout.file());
     } catch (IOException | IllegalArgumentException e) {
@@ -829,6 +856,16 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     contextMenu.getItems().add(teamMenu);
     contextMenu.getItems().add(new SeparatorMenuItem());
     contextMenu.getItems().addAll(lockUnlock, projectSettings, deleteProject);
+    // Query the service's effective project grants; never expose the browser to read-only users.
+    CompletableFuture.supplyAsync(() -> service.info(project.getUrn(),
+        KlabAsset.KnowledgeClass.PROJECT,
+        org.integratedmodelling.klab.api.services.resources.ResourceInfo.class,
+        KlabIDEController.instance().user())).whenComplete((info, error) -> Platform.runLater(() -> {
+          if (closed.get() || error != null || !ProjectMaterialBrowser.canBrowse(info)) return;
+          var material = new MenuItem("Additional material…", new IconLabel(Theme.FOLDER_ICON, 16, THEME_ICON_COLOR));
+          material.setOnAction(event -> openProjectMaterial(project));
+          contextMenu.getItems().add(material);
+        }));
   }
 
   @Override
@@ -1614,6 +1651,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     if (!closed.compareAndSet(false, true)) return;
     lspOpening.cancelAll();
     validationCommands.shutdown(); // Finish already accepted saves; do not discard source writes.
+    materialBrowsers.values().forEach(ProjectMaterialBrowser::close);
     semanticValidation.close();
     super.close();
   }
@@ -1755,6 +1793,11 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     Platform.runLater(
         () -> {
           this.workspace = workspace;
+          for (var projectChange : changes.getProjects()) {
+            var browser = materialBrowsers.get("project-material:" + projectChange.getResourceUrn());
+            if (browser != null && projectChange.getRepositoryState() != null)
+              browser.updateRepositoryState(projectChange.getRepositoryState());
+          }
           var selectedItem = treeView.getSelectionModel().getSelectedItem();
           var selectedAsset = selectedItem == null ? null : selectedItem.getValue();
           var focusedItem = treeView.getFocusModel().getFocusedItem();
@@ -1763,6 +1806,11 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           for (var change : resourceChanges) {
             var parsedDocument = findChangedDocument(change);
             if (!currentSourceUpdate(change, parsedDocument)) continue;
+            // Keep application mirrors current even when no tree row changes (or is open).
+            if (change.getOperation() != CRUDOperation.DELETE
+                && parsedDocument instanceof KActorsBehavior behavior) {
+              KlabIDEController.instance().synchronizeManagedBehavior(service, behavior);
+            }
             boolean causedByOpenEditorSave =
                 change.getOperation() == CRUDOperation.UPDATE
                     && parsedDocument != null
@@ -2384,9 +2432,6 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           rebindEditor(oldAsset, navigableAsset);
         } else {
           refreshEditor(oldAsset, navigableAsset);
-        }
-        if (navigableAsset instanceof KActorsBehavior updatedBehavior) {
-          KlabIDEController.instance().synchronizeManagedBehavior(service, updatedBehavior);
         }
       }
     } else if (change.getOperation() == CRUDOperation.UPDATE_METADATA

@@ -1647,13 +1647,18 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
                 : getManagedResourcesService().isPresent()));
   }
 
-  void refreshManagedBehavior(KActorsBehavior updatedBehavior, boolean sourceChanged) {
-    if (managedOrigin == null || updatedBehavior == null) return;
+  void refreshManagedBehavior(KActorsBehavior updatedBehavior) {
+    // The callback may have been queued before the user started typing.
+    if (managedOrigin == null || updatedBehavior == null || hasUnsavedSourceChanges()) return;
+    var source = Objects.requireNonNullElse(updatedBehavior.getSourceCode(), "");
+    boolean changed = monacoEditor != null && !Objects.equals(monacoEditor.getText(), source);
     this.behavior = new NavigableKActorsBehavior(updatedBehavior, null);
+    managedOrigin = mirrors.origin(file).orElse(managedOrigin);
     setEditedAsset(this.behavior);
     this.currentNotifications = notificationSnapshot(updatedBehavior.getNotifications());
-    if (sourceChanged && monacoEditor != null) {
-      monacoEditor.setText(Objects.requireNonNullElse(updatedBehavior.getSourceCode(), ""));
+    if (changed) {
+      monacoEditor.setText(source);
+      if (applicationView != null) applicationView.projectSourceChanged();
     }
     if (monacoEditor != null) {
       monacoEditor.markNotifications(updatedBehavior.getNotifications(), true);

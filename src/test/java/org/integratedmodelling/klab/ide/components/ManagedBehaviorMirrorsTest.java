@@ -13,6 +13,44 @@ class ManagedBehaviorMirrorsTest {
 
   @TempDir Path temporaryDirectory;
 
+  @Test void sameUrnApplicationAndBehaviorHaveIndependentMirrors() throws Exception {
+    var mirrors = new ManagedBehaviorMirrors(temporaryDirectory);
+    var behavior = mirrors.checkout("service", "project", "staging.vxii.demoapp",
+        org.integratedmodelling.klab.api.lang.kactors.KActorsBehavior.Type.BEHAVIOR, "original behavior");
+    var app = mirrors.checkout("service", "project", "staging.vxii.demoapp",
+        org.integratedmodelling.klab.api.lang.kactors.KActorsBehavior.Type.APP, "saved application");
+    assertFalse(behavior.file().equals(app.file()));
+    mirrors.synchronize("service", "project", "staging.vxii.demoapp",
+        org.integratedmodelling.klab.api.lang.kactors.KActorsBehavior.Type.APP, "new application");
+    assertEquals("original behavior", Files.readString(behavior.file()));
+    assertEquals("new application", Files.readString(app.file()));
+  }
+
+  @Test void cleanLegacyMirrorCanBeMigratedToTheSelectedApplication() throws Exception {
+    var mirrors = new ManagedBehaviorMirrors(temporaryDirectory);
+    var legacy = mirrors.checkout("service", "project", "staging.vxii.demoapp", "original template");
+    var app = mirrors.checkout("service", "project", "staging.vxii.demoapp",
+        org.integratedmodelling.klab.api.lang.kactors.KActorsBehavior.Type.APP, "saved web application");
+    assertEquals(legacy.file(), app.file());
+    assertEquals("saved web application", Files.readString(app.file()));
+    assertEquals(org.integratedmodelling.klab.api.lang.kactors.KActorsBehavior.Type.APP, app.origin().behaviorType());
+  }
+
+  @Test
+  void repeatedCheckoutReconcilesSuccessiveProjectSavesWithoutChangeNotifications() throws Exception {
+    var mirrors = new ManagedBehaviorMirrors(temporaryDirectory);
+    var original = mirrors.checkout("service", "project", "application.one", "original template");
+
+    for (String saved : java.util.List.of("saved project v2", "saved project v3")) {
+      var reopened = mirrors.checkout("service", "project", "application.one", saved);
+      assertFalse(reopened.created());
+      assertEquals(original.file(), reopened.file());
+      assertEquals(saved, Files.readString(reopened.file()));
+      assertEquals(ManagedBehaviorMirrors.LocalState.SYNCHRONIZED, mirrors.localState(reopened.file()));
+      assertEquals(reopened.origin(), mirrors.origin(reopened.file()).orElseThrow());
+    }
+  }
+
   @Test
   void repeatedCheckoutPreservesUnsubmittedLocalChanges() throws Exception {
     var mirrors = new ManagedBehaviorMirrors(temporaryDirectory);

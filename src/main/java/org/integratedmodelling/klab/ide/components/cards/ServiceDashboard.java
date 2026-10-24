@@ -110,6 +110,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
   private HBox navigation;
   private ToggleGroup viewGroup;
   private ToggleButton settingsButton;
+  private ToggleButton credentialsButton;
   private ToggleButton importButton;
   private ToggleButton logsButton;
   private KlabService.ServiceCapabilities logPermissions;
@@ -222,7 +223,21 @@ public class ServiceDashboard extends BaseAssetViewComponent {
                   logPermissions = capabilities;
                   if (logsButton != null) logsButton.setDisable(!isLocalService() && !hasAdministerPermission(capabilities));
                   populateComponents(capabilities, false);
-                  if (hasAdministerPermission(capabilities)) addSettingsButton();
+                  if (hasAdministerPermission(capabilities)) {
+                    addSettingsButton();
+                    if (credentialsButton == null) {
+                      credentialsButton = viewButton(MaterialDesign.MDI_KEY, "Credentials");
+                      credentialsButton.setId("service-credentials");
+                      credentialsButton.setToggleGroup(viewGroup);
+                      credentialsButton.setOnAction(e -> display.getChildren().setAll(
+                          new CredentialsView(service, KlabIDEController.instance().user())));
+                      navigation.getChildren().add(credentialsButton);
+                    }
+                  } else if (credentialsButton != null) {
+                    if (credentialsButton.isSelected()) display.getChildren().setAll(new Label("Credential administration requires an administrator."));
+                    navigation.getChildren().remove(credentialsButton);
+                    credentialsButton = null;
+                  }
                 }));
   }
 

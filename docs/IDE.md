@@ -179,6 +179,38 @@ Open a project's context menu to create:
 The same menu contains project locking, deletion, and version-control operations. Deleting a
 project requires confirmation and permanently removes its contents for all users.
 
+### Manage additional project material
+
+Right-click a project and choose **Additional material…** to manage CSS, localization properties,
+images, and other supporting files. This action and its folder browser are available only with
+project create or write access, including material-contributor access. Read-only users cannot list
+these folders. Deletion also requires delete permission.
+
+Use **New folder…** at the material root, then select a folder to create text files or **Import
+files…** from your computer. Imports preserve binary content and refuse to overwrite existing files.
+Managed folders (`src`, `apps`, `behaviors`, `scripts`, `testcases`, `strategies`, `components`,
+`resources`, `docs`, and `META-INF`) and Git control paths are excluded and cannot be created as
+material folders. Every file and folder name must begin with an ASCII letter or digit; internal
+entries beginning with punctuation or non-ASCII characters are hidden and cannot be added.
+
+Select a file to view its contents or preview a supported image. Ordinary text files (`.txt`, `.text`,
+`.log`, and extensionless notes) keep the lightweight editor. Use **Edit file** in the toolbar or tree
+context menu for other text files: CSS, localization properties, Markdown, JSON, and other structured
+text open in Monaco with the appropriate bundled language support. Markdown opens as a rendered
+preview with tables, task lists, strikethrough, and fenced code; **Preview file** shows the current
+draft without losing edits. Unicode byte-order marks and UTF-16 encodings are preserved on save.
+
+Use **Export…** for a local copy of any supported file. Files are limited to 32 MiB. **Delete…**
+removes files or empty folders. File changes are staged when the project uses Git; commit and publish
+through the project's Team menu. Empty folders remain local until files are added.
+The browser also exposes **Commit and publish project…**, using the same project dialog and
+repository operation as the Team menu. Save drafts before publishing. Tree revision marks use the
+same prefixes as the workspace tree and update after saves, imports, and repository operations.
+
+The compact icon toolbar exposes action names in tooltips. Folder and file-type icons distinguish
+entries in the tree. Use **Close browser** at the right end of the toolbar to close the tab;
+unsaved changes require confirmation before they are discarded.
+
 ### Edit and save a document
 
 Documents open in a source editor with syntax support when the language service is available.

@@ -14,6 +14,7 @@ import java.util.HexFormat;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
+import org.integratedmodelling.klab.api.lang.kactors.KActorsBehavior;
 
 /** Persistent local checkouts of behaviors whose authoritative copy belongs to a project. */
 public final class ManagedBehaviorMirrors {
@@ -30,7 +31,8 @@ public final class ManagedBehaviorMirrors {
       String projectUrn,
       String behaviorUrn,
       String synchronizedSourceHash,
-      Path file) {}
+      Path file,
+      KActorsBehavior.Type behaviorType) {}
 
   public enum Synchronization {
     NO_MIRROR,
@@ -58,12 +60,27 @@ public final class ManagedBehaviorMirrors {
 
   public synchronized Checkout checkout(
       String serviceId, String projectUrn, String behaviorUrn, String source) throws IOException {
+    return checkout(serviceId, projectUrn, behaviorUrn, null, source);
+  }
+
+  public synchronized Checkout checkout(String serviceId, String projectUrn, String behaviorUrn,
+      KActorsBehavior.Type type, String source) throws IOException {
     requireIdentity(serviceId, projectUrn, behaviorUrn);
-    var existingOrigin = findOrigin(serviceId, projectUrn, behaviorUrn);
+    var existingOrigin = findOrigin(serviceId, projectUrn, behaviorUrn, type);
     if (existingOrigin.isPresent() && Files.isRegularFile(existingOrigin.get().file())) {
-      return new Checkout(existingOrigin.get().file(), existingOrigin.get(), false);
+      // A checkout is also an authoritative project read. Reconcile missed change events,
+      // while synchronize() continues to protect unsubmitted local edits.
+      synchronize(serviceId, projectUrn, behaviorUrn, type, source);
+      var file = existingOrigin.get().file();
+      var current = origin(file).orElseThrow();
+      if (current.behaviorType() == null && type != null) {
+        current = new Origin(current.serviceId(), current.projectUrn(), current.behaviorUrn(),
+            current.synchronizedSourceHash(), file, type);
+        writeOrigin(current);
+      }
+      return new Checkout(file, current, false);
     }
-    var directory = directoryFor(serviceId, projectUrn, behaviorUrn);
+    var directory = directoryFor(serviceId, projectUrn, typedIdentity(behaviorUrn, type));
     var file = sourceFile(directory, behaviorUrn);
     Files.createDirectories(directory);
     var created = !Files.exists(file);
@@ -80,7 +97,7 @@ public final class ManagedBehaviorMirrors {
             projectUrn,
             behaviorUrn,
             hash(created ? Objects.requireNonNullElse(source, "") : Files.readString(file)),
-            file);
+            file, type);
     writeOrigin(origin);
     return new Checkout(file, origin, created);
   }
@@ -105,8 +122,10 @@ public final class ManagedBehaviorMirrors {
         return Optional.empty();
       }
       return Optional.of(
-          new Origin(serviceId, projectUrn, behaviorUrn, synchronizedHash, normalized));
-    } catch (IOException e) {
+          new Origin(serviceId, projectUrn, behaviorUrn, synchronizedHash, normalized,
+              properties.getProperty("behaviorType") == null ? null
+                  : KActorsBehavior.Type.valueOf(properties.getProperty("behaviorType"))));
+    } catch (IOException | IllegalArgumentException e) {
       return Optional.empty();
     }
   }
@@ -145,7 +164,7 @@ public final class ManagedBehaviorMirrors {
             origin.projectUrn(),
             behaviorUrn,
             hash(Objects.requireNonNullElse(source, "")),
-            origin.file());
+            origin.file(), origin.behaviorType());
     writeOrigin(updated);
     return updated;
   }
@@ -153,7 +172,12 @@ public final class ManagedBehaviorMirrors {
   public synchronized Synchronization synchronize(
       String serviceId, String projectUrn, String behaviorUrn, String remoteSource)
       throws IOException {
-    var origin = findOrigin(serviceId, projectUrn, behaviorUrn);
+    return synchronize(serviceId, projectUrn, behaviorUrn, null, remoteSource);
+  }
+
+  public synchronized Synchronization synchronize(String serviceId, String projectUrn,
+      String behaviorUrn, KActorsBehavior.Type type, String remoteSource) throws IOException {
+    var origin = findOrigin(serviceId, projectUrn, behaviorUrn, type);
     var file = origin.map(Origin::file).orElse(pathFor(serviceId, projectUrn, behaviorUrn));
     if (origin.isEmpty() || !Files.isRegularFile(file)) return Synchronization.NO_MIRROR;
 
@@ -174,16 +198,21 @@ public final class ManagedBehaviorMirrors {
   }
 
   public Path pathFor(String serviceId, String projectUrn, String behaviorUrn) {
-    return findOrigin(serviceId, projectUrn, behaviorUrn)
-        .map(Origin::file)
-        .orElseGet(() -> sourceFile(directoryFor(serviceId, projectUrn, behaviorUrn), behaviorUrn));
+    return pathFor(serviceId, projectUrn, behaviorUrn, null);
   }
 
-  private Optional<Origin> findOrigin(String serviceId, String projectUrn, String behaviorUrn) {
+  public Path pathFor(String serviceId, String projectUrn, String behaviorUrn, KActorsBehavior.Type type) {
+    return findOrigin(serviceId, projectUrn, behaviorUrn, type)
+        .map(Origin::file)
+        .orElseGet(() -> sourceFile(directoryFor(serviceId, projectUrn, typedIdentity(behaviorUrn, type)), behaviorUrn));
+  }
+
+  private Optional<Origin> findOrigin(String serviceId, String projectUrn, String behaviorUrn, KActorsBehavior.Type type) {
     requireIdentity(serviceId, projectUrn, behaviorUrn);
     var projectDirectory =
         root.resolve(identifiedSegment(serviceId)).resolve(identifiedSegment(projectUrn));
     if (!Files.isDirectory(projectDirectory)) return Optional.empty();
+    Optional<Origin> legacy = Optional.empty();
     try (var directories = Files.list(projectDirectory)) {
       for (var directory : directories.filter(Files::isDirectory).toList()) {
         try (var files = Files.list(directory)) {
@@ -194,7 +223,8 @@ public final class ManagedBehaviorMirrors {
                 && serviceId.equals(candidate.get().serviceId())
                 && projectUrn.equals(candidate.get().projectUrn())
                 && behaviorUrn.equals(candidate.get().behaviorUrn())) {
-              return candidate;
+              if (Objects.equals(type, candidate.get().behaviorType())) return candidate;
+              if (candidate.get().behaviorType() == null) legacy = candidate;
             }
           }
         }
@@ -202,7 +232,11 @@ public final class ManagedBehaviorMirrors {
     } catch (IOException e) {
       return Optional.empty();
     }
-    return Optional.empty();
+    return legacy;
+  }
+
+  private static String typedIdentity(String urn, KActorsBehavior.Type type) {
+    return type == null ? urn : urn + "-" + type.name().toLowerCase(java.util.Locale.ROOT);
   }
 
   private static Path sourceFile(Path directory, String behaviorUrn) {
@@ -227,6 +261,7 @@ public final class ManagedBehaviorMirrors {
     properties.setProperty("serviceId", origin.serviceId());
     properties.setProperty("projectUrn", origin.projectUrn());
     properties.setProperty("behaviorUrn", origin.behaviorUrn());
+    if (origin.behaviorType() != null) properties.setProperty("behaviorType", origin.behaviorType().name());
     properties.setProperty("synchronizedSourceHash", origin.synchronizedSourceHash());
     var metadata = origin.file().getParent().resolve(METADATA_FILE);
     var temporary = Files.createTempFile(metadata.getParent(), "origin-", ".tmp");

@@ -487,7 +487,7 @@ public enum Theme {
     return asset.toString();
   }
 
-  private static String repositoryStatusPrefix(RepositoryState.Status repositoryStatus) {
+  public static String repositoryStatusPrefix(RepositoryState.Status repositoryStatus) {
 
     if (repositoryStatus == null) {
       return "";

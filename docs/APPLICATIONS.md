@@ -17,11 +17,21 @@ window leaves the run active until Stop or the application/editor tab closes. St
 also closes its loopback connection. This is useful for comparing browser engines; the
 renderer limitations below also apply to external destinations.
 
-The runtime's UI instance API launches **published project applications** by URN. Publish
-source changes from the behavior editor before running. Opening or reconnecting the view
-does not publish source. Desktop/mobile applications keep their source editor but cannot
+The runtime's UI instance API launches **saved project applications** by URN. Saves in the
+workspace editor update that project source directly. Changes made in a separate local
+behavior mirror still need its Publish action. Reopening a managed copy reconciles newer
+project source unless it would overwrite local changes; project change notifications also
+refresh clean open copies. Existing runtime instances retain the source they started with:
+use **Stop**, then **Run saved application** after a save. **Reconnect** keeps the same instance.
+Opening or reconnecting the view does not publish source. Desktop/mobile applications keep their source editor but cannot
 use this web runner. For a standalone file, publish it to a project and open the published
 application from the workspace tree first.
+
+Local editing resolves the selected behavior type from its project catalog. An application
+and an older behavior can declare the same URN; they must not share a global lookup or a
+managed mirror. Mirrors retain the behavior type, and clean older mirrors are migrated
+when reopened. The runtime launcher also resolves the project's application when a
+same-URN behavior shadows it in the global index.
 
 The IDE launches one instance per application tab through `POST /api/v1/ui/instances`.
 It uses a single-use ticket and the runtime's `/ui-bus` WebSocket to attach to that

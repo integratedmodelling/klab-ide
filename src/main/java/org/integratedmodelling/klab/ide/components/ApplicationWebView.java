@@ -75,7 +75,7 @@ public final class ApplicationWebView extends BorderPane implements AutoCloseabl
                       status.setText(message);
                       console.appendText(message + System.lineSeparator());
                     }));
-    var run = new Button("Run published application");
+    var run = new Button("Run saved application");
     run.setOnAction(event -> start());
     var stop = new Button("Stop");
     stop.setOnAction(event -> stop());
@@ -114,7 +114,7 @@ public final class ApplicationWebView extends BorderPane implements AutoCloseabl
     var toolbar = new HBox(8, run, stop, reconnect, new Label("Open in:"), destination, status);
     toolbar.setStyle("-fx-padding: 8;");
     var notice =
-        new Label("Published application: " + urn + " — publish source changes before running.");
+        new Label("Project application: " + urn + " — save changes, then Stop and Run to load them.");
     notice.setWrapText(true);
     notice.setStyle("-fx-padding: 4 8 4 8;");
     setTop(new VBox(toolbar, notice));
@@ -152,7 +152,11 @@ public final class ApplicationWebView extends BorderPane implements AutoCloseabl
   }
 
   public void start() {
-    if (closed || runActive) return;
+    if (closed) return;
+    if (runActive) {
+      status.setText("Already running — Stop and Run to load the latest saved project source");
+      return;
+    }
     chosen = destination.getValue();
     if (chosen == null || chosen == custom) return;
     if (chosen != internal) {
@@ -177,6 +181,14 @@ public final class ApplicationWebView extends BorderPane implements AutoCloseabl
   public void stop() {
     pendingStart = false;
     session.stop();
+  }
+
+  void projectSourceChanged() {
+    String message = runActive
+        ? "Project source updated — Stop and Run to load the saved changes"
+        : "Project source updated — the next run uses the saved project source";
+    status.setText(message);
+    console.appendText(message + System.lineSeparator());
   }
 
   private void openBrowser() {

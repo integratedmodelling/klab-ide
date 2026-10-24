@@ -193,6 +193,16 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
     hideBrowser();
     var existing = openEditors.get(path);
     if (existing != null) {
+      if (mirrors.origin(path).isPresent() && !existing.hasUnsavedSourceChanges()) {
+        try {
+          var refreshed = KlabIDEController.instance().user().getService(ResourcesService.class)
+              .parseAsset(path.toUri().toURL(), KActorsBehavior.class, KlabIDEController.instance().user());
+          if (refreshed != null) existing.refreshManagedBehavior(refreshed);
+        } catch (IOException failure) {
+          KlabIDEController.instance().handleNotification(
+              Notification.warning("Unable to refresh the managed behavior editor", failure));
+        }
+      }
       remember(path, existing.getBehaviorType());
       selectEditor(existing);
       return;
@@ -240,7 +250,7 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
     try {
       var path =
           mirrors.pathFor(
-              service.serviceId(), remoteBehavior.getProjectName(), remoteBehavior.getUrn());
+              service.serviceId(), remoteBehavior.getProjectName(), remoteBehavior.getUrn(), remoteBehavior.getBehaviorType());
       var editor = openEditors.get(path);
       if (editor != null && editor.hasUnsavedSourceChanges()) return;
       var synchronization =
@@ -248,6 +258,7 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
               service.serviceId(),
               remoteBehavior.getProjectName(),
               remoteBehavior.getUrn(),
+              remoteBehavior.getBehaviorType(),
               remoteBehavior.getSourceCode());
       if (synchronization == ManagedBehaviorMirrors.Synchronization.NO_MIRROR
           || synchronization == ManagedBehaviorMirrors.Synchronization.DIRTY) return;
@@ -257,9 +268,7 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
       if (editor != null) {
         Platform.runLater(
             () ->
-                editor.refreshManagedBehavior(
-                    remoteBehavior,
-                    synchronization == ManagedBehaviorMirrors.Synchronization.UPDATED));
+                editor.refreshManagedBehavior(remoteBehavior));
       }
     } catch (IOException e) {
       KlabIDEController.instance()
