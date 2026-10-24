@@ -187,6 +187,10 @@ public class WorkspaceView extends BrowsablePage<WorkspaceEditor, NavigableWorks
     browserComponents.getChildren().addAll(components);
   }
 
+  void refreshAfterLocalImport() {
+    refreshCatalog();
+  }
+
   private void refreshCatalog() {
     var services = getServices();
     var currentServiceIds =

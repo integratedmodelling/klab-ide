@@ -86,6 +86,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private final Map<String, IconButton> pairButtons = new HashMap<>();
   private final Map<String, IconButton> reviewButtons = new HashMap<>();
   private final Set<String> assetsWithFlows = new HashSet<>();
+  private final Map<String, String> pendingGitCredentials = new HashMap<>();
   private final Map<String, WorkspaceSemanticValidation.Update> semanticUpdates = new HashMap<>();
   private final Map<String, Label> semanticStatusLabels = new HashMap<>();
   private final Set<AssetTreeCell> assetTreeCells = Collections.newSetFromMap(new WeakHashMap<>());
@@ -720,6 +721,46 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   private void setupProjectMenu(ContextMenu contextMenu, NavigableProject project) {
+    if (!service.isLocal()) {
+      var export = new MenuItem("Export to local services");
+      export.setDisable(true);
+      contextMenu.getItems().addAll(export, new SeparatorMenuItem());
+      var user = KlabIDEController.instance().user();
+      CompletableFuture.supplyAsync(() -> user.getServices(ResourcesService.class).stream()
+          .filter(ResourcesService::isLocal)
+          .filter(candidate -> candidate.status() != null && candidate.status().isOperational())
+          .findFirst().filter(candidate -> !LocalProjectExport.present(candidate, project.getUrn(), user)))
+          .whenComplete((local, error) -> Platform.runLater(() -> {
+            if (closed.get() || error != null || local.isEmpty()) return;
+            export.setDisable(false);
+            export.setOnAction(event -> {
+              export.setDisable(true);
+              CompletableFuture.supplyAsync(() -> {
+                try {
+                  return LocalProjectExport.transfer(service, local.get(), project,
+                      workspace.getUrn(), user);
+                } catch (Exception failure) {
+                  throw new java.util.concurrent.CompletionException(failure);
+                }
+              }).whenComplete((result, failure) -> {
+                if (failure == null && result != null)
+                  KlabIDEController.instance().handleResultSets(List.of(result));
+                Platform.runLater(() -> {
+                  if (failure != null || result == null || result.getResults().isEmpty()
+                      || Utils.Notifications.hasErrors(result.getNotifications())) {
+                    KlabIDEController.instance().handleNotification(Notification.error(
+                        "Unable to export project to local services",
+                        failure == null ? "The import did not return a project" : failure.getMessage()));
+                  } else {
+                    view.refreshAfterLocalImport();
+                    KlabIDEController.instance().handleNotification(Notification.info(
+                        "Project " + project.getUrn() + " is now available in local services"));
+                  }
+                });
+              });
+            });
+          }));
+    }
     var lockUnlock =
         new MenuItem(
             project.isLocked() ? "Unlock" : "Lock",
@@ -833,14 +874,36 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
             e -> {
               var parameters = getOperationParameters(project, op);
               if (parameters != null) {
-                KlabIDEController.instance()
-                    .manageProject(service, project.getUrn(), op, parameters);
+                var credentialId = pendingGitCredentials.get(project.getUrn());
+                if (credentialId == null) {
+                  KlabIDEController.instance().manageProject(service, project.getUrn(), op, parameters);
+                } else {
+                  CompletableFuture.supplyAsync(() -> service.manageRepository(
+                      project.getUrn(), op, KlabIDEController.instance().user(), credentialId, parameters))
+                      .whenComplete((results, failure) -> {
+                        if (failure == null) KlabIDEController.instance().handleResultSets(results);
+                        else Platform.runLater(() -> KlabIDEController.instance()
+                            .handleNotification(Notification.error(failure)));
+                      });
+                }
               }
             });
         teamMenu.getItems().add(teamOperation);
       }
 
       // TODO add Untrack after separator
+      if (service.isLocal()) {
+        var credentials = new MenuItem("Use Git credential set...");
+        credentials.setOnAction(event -> {
+          var dialog = new TextInputDialog(pendingGitCredentials.getOrDefault(project.getUrn(), ""));
+          dialog.setTitle("Local Git credentials");
+          dialog.setHeaderText("Enter a credential set ID from this local resources service");
+          dialog.setContentText("Set ID (remembered after the next Git operation):");
+          dialog.showAndWait().filter(id -> !id.isBlank())
+              .ifPresent(id -> pendingGitCredentials.put(project.getUrn(), id.trim()));
+        });
+        teamMenu.getItems().add(credentials);
+      }
       var detach =
           new MenuItem(
               "Detach from version control",

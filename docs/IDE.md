@@ -167,6 +167,23 @@ Moving the source cursor also selects the most specific matching item in the wor
 Long names are truncated independently of the asset icons; a tooltip exposes the full name.
 A dot beside an icon marks an asset with an associated workflow.
 
+### Copy a remote project to local services
+
+In a remote workspace, open the project's context menu and choose **Export to local services**.
+The action is disabled while no local Resources service is operational or the project is already
+present locally. Importing never replaces an existing local project.
+
+A tracked project is cloned from its Git origin and branch through the local Resources import API.
+Edits present only in the remote service's working tree are excluded. An untracked project is
+transferred as a ZIP snapshot into the local `local` workspace. Project files, including additional
+material, are preserved; Git configuration and credentials are excluded from snapshots.
+
+The local copy can be edited and supplies its namespaces and ontologies to local resolution.
+Publishing uses the local project's Team actions and the origin repository's Git permissions.
+Installed Git credential helpers remain available. To link a Resources-service credential set,
+choose **Team → Use Git credential set...** and enter its ID. The next Git operation remembers that
+ID on the local repository; later operations recheck its grants without asking for it again.
+
 ### Create project content
 
 Open a project's context menu to create:
