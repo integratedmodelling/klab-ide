@@ -63,6 +63,25 @@ class ApplicationBrowserBridgeTest {
     }
   }
 
+  @Test void fileTransfersRemainAuthenticatedSameOriginAndBounded() throws Exception {
+    var requests = new LinkedBlockingQueue<String>();
+    try (var bridge = new ApplicationBrowserBridge(HTML, input -> {}, json -> {
+      requests.add(json); return java.util.concurrent.CompletableFuture.completedFuture(JsonParser.parseString("{\"id\":\"opaque-file\"}").getAsJsonObject());
+    }); var http = HttpClient.newHttpClient()) {
+      String body = "{\"operation\":\"download\",\"handle\":\"opaque-file\"}";
+      String origin = bridge.url().getScheme() + "://" + bridge.url().getRawAuthority();
+      assertEquals(403, http.send(request(bridge, "/file").header("Origin", "https://attacker.invalid")
+          .POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString()).statusCode());
+      assertTrue(requests.isEmpty());
+      var accepted = http.send(request(bridge, "/file").header("Origin", origin)
+          .POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
+      assertEquals(200, accepted.statusCode()); assertEquals(body, requests.remove()); assertTrue(accepted.body().contains("opaque-file"));
+      assertEquals(413, http.send(request(bridge, "/file").header("Origin", origin)
+          .POST(HttpRequest.BodyPublishers.ofByteArray(new byte[5600001])).build(), HttpResponse.BodyHandlers.ofString()).statusCode());
+      assertTrue(requests.isEmpty());
+    }
+  }
+
   private static HttpRequest.Builder request(ApplicationBrowserBridge bridge, String route) {
     return HttpRequest.newBuilder(bridge.url().resolve(route))
         .header("Authorization", "Bearer " + bridge.url().getFragment());

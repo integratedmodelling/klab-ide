@@ -17,6 +17,9 @@ final class ApplicationUiSession implements AutoCloseable {
     String ticket(String id);
 
     boolean stop(String id);
+    default JsonObject file(String id, JsonObject request) {
+      throw new UnsupportedOperationException("Application file transfers are unavailable");
+    }
   }
 
   private final Api api;
@@ -103,7 +106,7 @@ final class ApplicationUiSession implements AutoCloseable {
                 () -> {
                   if (socket == ws) {
                     detach();
-                    status.accept("Disconnected — use Reconnect to resume");
+                    status.accept("Disconnected (WebSocket " + code + ") — use Reconnect to resume");
                   }
                 });
             return null;
@@ -144,6 +147,22 @@ final class ApplicationUiSession implements AutoCloseable {
           if (!"input".equals(frame.get("type").getAsString())) return;
           socket.sendText(frame.toString(), true).join();
         });
+  }
+
+  CompletableFuture<JsonObject> file(String json) {
+    var result = new CompletableFuture<JsonObject>();
+    if (closed || json.length() > 5600000) {
+      result.completeExceptionally(new IllegalStateException("Application file transfer unavailable")); return result;
+    }
+    try {
+      worker.execute(() -> {
+        try {
+          if (closed || id == null || socket == null) throw new IllegalStateException("Application disconnected");
+          result.complete(api.file(id, JsonParser.parseString(json).getAsJsonObject()));
+        } catch (Exception failure) { result.completeExceptionally(failure); }
+      });
+    } catch (RejectedExecutionException failure) { result.completeExceptionally(failure); }
+    return result;
   }
 
   void stop() {

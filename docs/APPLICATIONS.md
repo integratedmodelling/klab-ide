@@ -5,17 +5,26 @@ application in the workspace tree. This opens the usual managed source mirror. F
 application declaring platform `WEB` or `ANY`, its Run button opens an **Application** tab
 containing a JavaFX WebView and Run, Stop, and Reconnect controls.
 
-The **Open in** choice selects **Internal WebView**, the default browser, or a detected
-installed browser. **Choose browser…** lets you locate another browser executable or a
-nonstandard installation. The choice locks for the duration of a run; Stop enables it
-again so the next run can target a different browser.
+Use the **browser icon menu beside Debug/Run in the source editor** to choose **Internal
+WebView**, the default browser, or a detected installed browser before running.
+**Choose browser…** lets you locate another browser executable or a nonstandard
+installation. The running application's **Open in** choice shares this setting. Changing
+the destination during a run reconnects the new renderer to the same application instance
+and retained state; it does not launch another application.
 
 External browsers use the same portable renderer and runtime instance through a temporary
 loopback connection hosted by the IDE. Service credentials stay in Java. Reconnect can
 reopen the chosen browser, and browser reload resumes the current view. Closing a browser
 window leaves the run active until Stop or the application/editor tab closes. Stopping
 also closes its loopback connection. This is useful for comparing browser engines; the
-renderer limitations below also apply to external destinations.
+same Quasar widget catalog is used in both destinations. The IDE accepts only a
+local runtime with a local URL; it cannot launch applications on remote services.
+
+Local UI attachment tickets retain the original HTTP request's verified local authentication
+context only on the runtime server. This requires a loopback request authenticated as local.
+Attachment and heartbeat checks revalidate that context, expiry, identity and project access.
+Server credentials are never returned to either renderer. Remote browser sessions retain
+their existing credential-based authentication path.
 
 The runtime's UI instance API launches **saved project applications** by URN. Saves in the
 workspace editor update that project source directly. Changes made in a separate local
@@ -41,14 +50,47 @@ also requests termination, including when a launch is still in flight. Launch re
 retain their idempotency key until the instance is stopped. Credentials remain in Java;
 the WebView receives snapshots and can send widget input only.
 
-The embedded renderer currently supports the portable core controls (text, buttons,
-checkboxes, inputs, numbers, selects and progress), container surfaces, layout properties,
-and project stylesheets. It reports unsupported extended widgets and custom toolkits
-explicitly. It does not embed the full Quasar dashboard, support file transfer, or attach
-an agent debugger. The connection console records launch and transport status; the UI
-instance response currently exposes no agent handle for the ordinary agent console.
+The embedded renderer now uses the same Quasar scaffold and extended widgets as the runtime
+browser interface. It includes forms, choices, sliders/ranges, dates/times/colors, collections,
+navigation, Markdown/images/icons, media, and upload/download. The previous message
+`Widget "..." requires the runtime web interface` came from a separate primitive-only HTML
+renderer and is no longer the fallback for these widgets.
 
-Validation uses `ApplicationUiSessionTest` for launch/close races, idempotent retries,
+Build the shared browser assets in `klab-services`, then rebuild the IDE:
+
+```powershell
+# From the klab-services checkout:
+mvn -pl klab.core.services -am -Pwebui "-DskipTests" install
+mvn -f ../klab-ide/pom.xml "-DskipTests" package
+```
+
+Restart the IDE and Stop/Run the application after rebuilding. `-Pwebui` creates the
+`klab.core.services:application-ui` asset-only classifier used by the IDE at runtime; it
+imports no service implementation dependencies. There are no per-widget feature flags.
+The page loads an offline, precompiled script and CSS rather than a CDN or ES modules.
+Missing assets produce an explicit `Missing packaged Quasar renderer` build diagnostic.
+For modular IDE launches, assets may come from the asset-only JAR on the runtime classpath;
+they need not remain unpacked in `target/classes`. The loader checks both the IDE module
+and its classloader, so an IDE-only rebuild does not hide an already-installed renderer.
+
+Conveyor distributes the renderer inside `target/klab-ide-all-1.0.0-SNAPSHOT.jar`, its
+existing application input; no external Node.js installation or asset directory is needed.
+Every Maven `package` checks that this shaded JAR contains the HTML, renderer JavaScript
+and CSS, including builds with `-DskipTests`. The check runs before Conveyor is invoked
+by `-Pconveyor`, so Jenkins' existing `clean package` pipeline also enforces it. The services
+Jenkins pipeline already uses `-Pwebui` for install/deploy, publishing the
+`klab.core.services:application-ui` classifier alongside the matching service artifacts
+so clean CI agents can resolve the IDE's runtime dependency.
+
+File operations use the Java-owned session to reach the same bounded and authorized runtime
+file endpoints; service credentials stay in Java. The internal view saves through a native
+Save dialog, while external browsers use normal downloads. Custom installed toolkits still
+require their runtime web renderer, and media codecs depend on the browser engine.
+The runner does not attach an agent debugger. Its connection console records launch and
+transport status; the instance response exposes no agent handle for the ordinary agent console.
+
+`ApplicationRendererFxTest` exercises the packaged Quasar bundle in an actual JavaFX WebView.
+Validation also uses `ApplicationUiSessionTest` for launch/close races, idempotent retries,
 failed-stop retries, and runtime context paths. A live authenticated runtime is required
 for end-to-end application launch testing.
 `ApplicationBrowserBridgeTest` checks transport authorization, snapshot replay after

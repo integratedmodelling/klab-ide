@@ -17,6 +17,7 @@ final class ApplicationBrowserBridge implements AutoCloseable {
   private final HttpServer server;
   private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
   private final Consumer<String> input;
+  private final java.util.function.Function<String, CompletionStage<JsonObject>> files;
   private final String token;
   private final String origin;
   private final byte[] html;
@@ -28,7 +29,11 @@ final class ApplicationBrowserBridge implements AutoCloseable {
   private record Event(long cursor, JsonObject frame) {}
 
   ApplicationBrowserBridge(String renderer, Consumer<String> input) throws IOException {
-    this.input = input;
+    this(renderer, input, request -> CompletableFuture.failedFuture(new IllegalStateException("Application file transfers are unavailable")));
+  }
+  ApplicationBrowserBridge(String renderer, Consumer<String> input,
+      java.util.function.Function<String, CompletionStage<JsonObject>> files) throws IOException {
+    this.input = input; this.files = files;
     byte[] secret = new byte[32];
     new SecureRandom().nextBytes(secret);
     token = Base64.getUrlEncoder().withoutPadding().encodeToString(secret);
@@ -115,7 +120,15 @@ final class ApplicationBrowserBridge implements AutoCloseable {
         reply(request, 403, "text/plain", new byte[0]);
         return;
       }
-      if (path.equals("/input") && method.equals("POST")) {
+      if (path.equals("/file") && method.equals("POST")) {
+        if (!origin.equals(request.getRequestHeaders().getFirst("Origin"))) { reply(request, 403, "text/plain", new byte[0]); return; }
+        byte[] body = request.getRequestBody().readNBytes(5600001);
+        if (body.length > 5600000) { reply(request, 413, "text/plain", new byte[0]); return; }
+        var response = new JsonObject();
+        try { response.add("value", files.apply(new String(body, StandardCharsets.UTF_8)).toCompletableFuture().get(35, TimeUnit.SECONDS)); }
+        catch (Exception failure) { response.addProperty("error", "Application file transfer failed"); }
+        reply(request, 200, "application/json", response.toString().getBytes(StandardCharsets.UTF_8));
+      } else if (path.equals("/input") && method.equals("POST")) {
         if (!origin.equals(request.getRequestHeaders().getFirst("Origin"))) {
           reply(request, 403, "text/plain", new byte[0]);
           return;
@@ -203,8 +216,11 @@ final class ApplicationBrowserBridge implements AutoCloseable {
         history.replaceState(null,'',location.pathname);
         const headers={Authorization:'Bearer '+token}; let cursor=0,stopped=false;
         window.ide={input:frame=>fetch('/input',{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:frame})
-          .then(r=>{if(!r.ok)throw Error('Application input failed');}).catch(fail)};
-        function fail(){disconnected();status.textContent='IDE connection unavailable. Return to the IDE to reconnect or start a new run.';}
+          .then(r=>{if(!r.ok)throw Error('Application input failed');}).catch(fail),
+          file:(id,request)=>fetch('/file',{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:request})
+            .then(async r=>{if(!r.ok)throw Error('Application file transfer failed');applicationUiFileReply(id,await r.text());})
+            .catch(error=>applicationUiFileReply(id,JSON.stringify({error:error.message})))};
+        function fail(){disconnected();document.getElementById('status').textContent='IDE connection unavailable. Return to the IDE to reconnect or start a new run.';}
         async function poll(){
           while(!stopped){
             try{

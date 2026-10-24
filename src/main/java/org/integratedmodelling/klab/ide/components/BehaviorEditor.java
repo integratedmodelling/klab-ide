@@ -138,6 +138,8 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   private AgentDebuggerView debuggerView;
   private Agent currentDebugTarget;
   private ApplicationWebView applicationView;
+  private final ApplicationBrowserOptions applicationBrowser = new ApplicationBrowserOptions();
+  private javafx.scene.control.MenuButton applicationBrowserMenu;
 
   public BehaviorEditor(
       Path file,
@@ -295,6 +297,10 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
             false,
             this::doRun);
     this.stop = icon(Material2MZ.STOP, "Stop all running agents", false, false, this::doStop);
+    applicationBrowserMenu = applicationBrowser.createMenu(
+        () -> getScene() == null ? null : getScene().getWindow());
+    applicationBrowserMenu.setVisible(isApplication());
+    applicationBrowserMenu.managedProperty().bind(applicationBrowserMenu.visibleProperty());
     this.publish =
         icon(
             managedOrigin == null ? MaterialDesign.MDI_CLOUD_UPLOAD : MaterialDesign.MDI_CLOUD_SYNC,
@@ -315,6 +321,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
             compile,
             sourceCode,
             new Separator(Orientation.VERTICAL),
+            applicationBrowserMenu,
             debug,
             run,
             stop);
@@ -601,7 +608,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     }
     if (applicationView == null) {
       applicationView = new ApplicationWebView(
-          runtime.get(), KlabIDEController.instance().user(), managedOrigin.behaviorUrn(),
+          runtime.get(), KlabIDEController.instance().user(), managedOrigin.behaviorUrn(), applicationBrowser,
           message -> KlabIDEController.instance().handleNotification(Notification.error(message)));
       var view = applicationView;
       var tab = showAuxiliaryEditor("application-ui", "Application — " + behavior.getUrn(), view);
@@ -1599,6 +1606,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   }
 
   private void updateAgentActionButtons(boolean sourceIsValid) {
+    if (applicationBrowserMenu != null) applicationBrowserMenu.setVisible(isApplication());
     var canRun = sourceIsValid && getLocalRuntime().isPresent()
         && (isApplication() ? canRunWebApplication() : compilationSuccessful);
     run.setTooltip(new Tooltip(isApplication()

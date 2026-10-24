@@ -81,7 +81,7 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
     openEditors.remove(editor.getFile());
     var removedDebugAgents = editor.getDebugAgents();
     debugAgents.removeAll(removedDebugAgents);
-    if (removedDebugAgents.contains(currentDebugTarget)) {
+    if (currentDebugTarget != null && removedDebugAgents.contains(currentDebugTarget)) {
       setDebugTarget(debugAgents.stream().findFirst().orElse(null));
     }
     editor.close();

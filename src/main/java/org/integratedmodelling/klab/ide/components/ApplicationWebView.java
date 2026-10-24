@@ -1,6 +1,7 @@
 package org.integratedmodelling.klab.ide.components;
 
 import com.google.gson.*;
+import atlantafx.base.theme.Styles;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -9,13 +10,15 @@ import javafx.concurrent.Worker;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.web.WebView;
-import javafx.stage.FileChooser;
 import netscape.javascript.JSObject;
 import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.ServicesAPI;
 import org.integratedmodelling.klab.api.configuration.Configuration;
 import org.integratedmodelling.klab.api.scope.UserScope;
 import org.integratedmodelling.klab.api.services.RuntimeService;
+import org.integratedmodelling.klab.ide.components.generic.IconButton;
+import org.kordamp.ikonli.material2.Material2AL;
+import org.kordamp.ikonli.material2.Material2MZ;
 
 /** Embedded portable UI renderer. Credentials and runtime transport stay outside the WebView. */
 public final class ApplicationWebView extends BorderPane implements AutoCloseable {
@@ -23,16 +26,15 @@ public final class ApplicationWebView extends BorderPane implements AutoCloseabl
   private final Label status = new Label("Stopped");
   private final TextArea console = new TextArea();
   private final ApplicationUiSession session;
-  private final ChoiceBox<ApplicationBrowser> destination = new ChoiceBox<>();
-  private final ApplicationBrowser internal =
-      new ApplicationBrowser("Internal WebView", java.util.List.of());
-  private final ApplicationBrowser custom =
-      new ApplicationBrowser("Choose browser…", java.util.List.of());
+  private final ChoiceBox<ApplicationBrowser> destination;
+  private final ApplicationBrowserOptions browserOptions;
+  private final javafx.beans.value.ChangeListener<ApplicationBrowser> destinationChanged;
   private ApplicationBrowser chosen;
   private ApplicationBrowserBridge browserBridge;
   private boolean runActive;
   private boolean browserOpened;
   private String renderer;
+  private JsonObject instanceMetadata;
   // Strong reference required while WebKit owns the JavaScript wrapper.
   private final InputBridge bridge = new InputBridge();
   private boolean ready;
@@ -45,7 +47,15 @@ public final class ApplicationWebView extends BorderPane implements AutoCloseabl
       UserScope user,
       String urn,
       java.util.function.Consumer<String> cleanupFailure) {
+    this(runtime, user, urn, new ApplicationBrowserOptions(), cleanupFailure);
+  }
+
+  ApplicationWebView(RuntimeService runtime, UserScope user, String urn,
+      ApplicationBrowserOptions browserOptions, java.util.function.Consumer<String> cleanupFailure) {
+    requireLocalRuntime(runtime);
     this.urn = urn;
+    this.browserOptions = browserOptions;
+    destination = browserOptions.createChoice(() -> getScene() == null ? null : getScene().getWindow());
     session =
         new ApplicationUiSession(
             new RuntimeApi(runtime, user),
@@ -54,6 +64,7 @@ public final class ApplicationWebView extends BorderPane implements AutoCloseabl
                 Platform.runLater(
                     () -> {
                       if (closed) return;
+                      if ("instance".equals(frame.get("type").getAsString())) instanceMetadata = frame.deepCopy();
                       if (browserBridge != null) browserBridge.accept(frame);
                       else if (ready)
                         web.getEngine()
@@ -75,49 +86,36 @@ public final class ApplicationWebView extends BorderPane implements AutoCloseabl
                       status.setText(message);
                       console.appendText(message + System.lineSeparator());
                     }));
-    var run = new Button("Run saved application");
-    run.setOnAction(event -> start());
-    var stop = new Button("Stop");
-    stop.setOnAction(event -> stop());
-    var reconnect = new Button("Reconnect");
-    reconnect.setOnAction(
-        event -> {
-          session.reconnect();
-          if (browserBridge != null) openBrowser();
-        });
-    destination.getItems().add(internal);
-    destination.getItems().addAll(ApplicationBrowser.installed());
-    destination.getItems().add(custom);
-    destination.setValue(internal);
-    destination.setPrefWidth(170);
-    destination.setTooltip(
-        new Tooltip("Choose the destination before running. Stop to change browsers."));
-    destination
-        .getSelectionModel()
-        .selectedItemProperty()
-        .addListener(
-            (obs, previous, selected) -> {
-              if (selected != custom) return;
-              var chooser = new FileChooser();
-              chooser.setTitle("Choose browser executable");
-              var executable =
-                  chooser.showOpenDialog(getScene() == null ? null : getScene().getWindow());
-              if (executable == null) destination.setValue(previous == null ? internal : previous);
-              else {
-                var browser =
-                    new ApplicationBrowser(
-                        executable.getName(), java.util.List.of(executable.getAbsolutePath()));
-                destination.getItems().add(destination.getItems().size() - 1, browser);
-                destination.setValue(browser);
-              }
+    var run = toolbarButton(Material2MZ.PLAY_ARROW, "Run saved application", this::start);
+    var stop = toolbarButton(Material2MZ.STOP, "Stop application", this::stop);
+    var reconnect =
+        toolbarButton(
+            Material2AL.AUTORENEW,
+            "Reconnect application",
+            () -> {
+              session.reconnect();
+              if (browserBridge != null) openBrowser();
             });
-    var toolbar = new HBox(8, run, stop, reconnect, new Label("Open in:"), destination, status);
-    toolbar.setStyle("-fx-padding: 8;");
+    destination.setPrefWidth(170);
+    destinationChanged = (obs, previous, selected) -> {
+      if (runActive && !closed && !selected.equals(chosen)) switchDestination(selected);
+    };
+    browserOptions.selectedProperty().addListener(destinationChanged);
+    var statusSpacer = new Region();
+    HBox.setHgrow(statusSpacer, Priority.ALWAYS);
+    var toolbar = new HBox(4, run, stop, reconnect, new Separator(), new Label("Open in:"), destination,
+        statusSpacer, status);
+    toolbar.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+    toolbar.setPadding(new javafx.geometry.Insets(4, 8, 4, 8));
+    toolbar.getStyleClass().add(Styles.DENSE);
     var notice =
         new Label("Project application: " + urn + " — save changes, then Stop and Run to load them.");
     notice.setWrapText(true);
-    notice.setStyle("-fx-padding: 4 8 4 8;");
-    setTop(new VBox(toolbar, notice));
+    notice.setStyle("-fx-font-size: 10px; -fx-text-fill: -color-fg-muted;");
+    var noticePane = new VBox(notice);
+    noticePane.setPadding(new javafx.geometry.Insets(4, 8, 4, 8));
+    noticePane.setStyle("-fx-background-color: -color-bg-subtle; -fx-border-color: -color-border-muted; -fx-border-width: 1 0 1 0;");
+    setTop(new VBox(toolbar, noticePane));
     console.setEditable(false);
     console.setPrefRowCount(4);
     var transcript = new TitledPane("Application connection console", console);
@@ -142,13 +140,30 @@ public final class ApplicationWebView extends BorderPane implements AutoCloseabl
                 status.setText("Could not load the embedded application renderer");
               }
             });
-    try (var source = ApplicationWebView.class.getResourceAsStream("/application-ui.html")) {
-      if (source == null) throw new IOException("Missing embedded application renderer");
-      renderer = new String(source.readAllBytes(), StandardCharsets.UTF_8);
+    try {
+      renderer = ApplicationRenderer.load();
       web.getEngine().loadContent(renderer);
     } catch (IOException failure) {
       throw new IllegalStateException(failure);
     }
+  }
+
+  private static IconButton toolbarButton(
+      org.kordamp.ikonli.Ikon icon, String description, Runnable action) {
+    var button =
+        new IconButton(icon, 16, "-color-fg-default", "-color-fg-muted", false) {
+          @Override
+          protected void action() {
+            action.run();
+          }
+        };
+    button.tooltip(description);
+    button.setAccessibleText(description);
+    button.getStyleClass().add(Styles.FLAT);
+    button.setMinSize(28, 28);
+    button.setPrefSize(28, 28);
+    button.setMaxSize(28, 28);
+    return button;
   }
 
   public void start() {
@@ -158,10 +173,10 @@ public final class ApplicationWebView extends BorderPane implements AutoCloseabl
       return;
     }
     chosen = destination.getValue();
-    if (chosen == null || chosen == custom) return;
-    if (chosen != internal) {
+    if (chosen == null) return;
+    if (!chosen.equals(ApplicationBrowserOptions.INTERNAL)) {
       try {
-        browserBridge = new ApplicationBrowserBridge(renderer, session::input);
+        browserBridge = new ApplicationBrowserBridge(renderer, session::input, session::file);
       } catch (IOException failure) {
         status.setText("Could not open browser connection: " + failure.getMessage());
         return;
@@ -170,10 +185,9 @@ public final class ApplicationWebView extends BorderPane implements AutoCloseabl
           new Label(
               "Application destination: "
                   + chosen.name()
-                  + ". Use Stop to select another browser."));
+                  + ". Change browser to reconnect to the same running instance."));
     } else setCenter(web);
     runActive = true;
-    destination.setDisable(true);
     if (ready) session.start(urn);
     else pendingStart = true;
   }
@@ -181,6 +195,27 @@ public final class ApplicationWebView extends BorderPane implements AutoCloseabl
   public void stop() {
     pendingStart = false;
     session.stop();
+  }
+
+  private void switchDestination(ApplicationBrowser selected) {
+    ApplicationBrowserBridge replacement = null;
+    if (!selected.equals(ApplicationBrowserOptions.INTERNAL)) {
+      try { replacement = new ApplicationBrowserBridge(renderer, session::input, session::file); }
+      catch (IOException failure) {
+        status.setText("Could not open browser connection: " + failure.getMessage());
+        browserOptions.selectedProperty().set(chosen); return;
+      }
+    }
+    if (browserBridge != null) browserBridge.close();
+    browserBridge = replacement; browserOpened = false; chosen = selected;
+    setCenter(replacement == null ? web : new Label("Application destination: " + selected.name()));
+    if (instanceMetadata != null) {
+      var metadata = instanceMetadata.deepCopy();
+      metadata.getAsJsonObject("value").getAsJsonObject("state").add("snapshot", JsonNull.INSTANCE);
+      if (replacement != null) { replacement.accept(metadata); openBrowser(); }
+      else if (ready) web.getEngine().executeScript("receive(JSON.parse(" + new Gson().toJson(metadata.toString()) + "))");
+      session.reconnect();
+    }
   }
 
   void projectSourceChanged() {
@@ -225,6 +260,7 @@ public final class ApplicationWebView extends BorderPane implements AutoCloseabl
       if (!closed) setCenter(new Label("Application stopped. Choose a destination and run again."));
     }
     browserOpened = false;
+    instanceMetadata = null;
     runActive = false;
     destination.setDisable(false);
   }
@@ -233,12 +269,39 @@ public final class ApplicationWebView extends BorderPane implements AutoCloseabl
     public void input(String frame) {
       if (!closed) session.input(frame);
     }
+    public void file(String requestId, String request) {
+      if (closed) return;
+      session.file(request).whenComplete((value, failure) -> {
+        var response = new JsonObject();
+        if (failure == null) response.add("value", value);
+        else response.addProperty("error", "Application file transfer failed: " + failure.getMessage());
+        Platform.runLater(() -> {
+          if (!closed && ready) web.getEngine().executeScript("applicationUiFileReply("
+              + new Gson().toJson(requestId) + "," + new Gson().toJson(response.toString()) + ")");
+        });
+      });
+    }
+    public void save(String name, String content) {
+      if (closed || content.length() > 5592408) throw new IllegalStateException("Download unavailable");
+      var chooser = new javafx.stage.FileChooser();
+      chooser.setTitle("Save application download"); chooser.setInitialFileName(name);
+      var target = chooser.showSaveDialog(getScene() == null ? null : getScene().getWindow());
+      if (target != null) {
+        byte[] bytes = java.util.Base64.getDecoder().decode(content);
+        Thread.ofVirtual().name("ide-application-download").start(() -> {
+          try { java.nio.file.Files.write(target.toPath(), bytes); }
+          catch (IOException error) { Platform.runLater(() -> status.setText("Could not save application download: " + error.getMessage())); }
+        });
+      }
+    }
   }
 
   @Override
   public void close() {
     if (closed) return;
     closed = true;
+    browserOptions.selectedProperty().removeListener(destinationChanged);
+    ((Runnable) destination.getProperties().get("dispose-browser-options")).run();
     pendingStart = false;
     finishRun();
     session.close();
@@ -248,6 +311,7 @@ public final class ApplicationWebView extends BorderPane implements AutoCloseabl
   private record RuntimeApi(RuntimeService runtime, UserScope user)
       implements ApplicationUiSession.Api {
     private Utils.Http.Client client() {
+      requireLocalRuntime(runtime);
       return Utils.Http.getServiceClient(runtime.getUrl())
           .withScope(user)
           .withTimeout(30)
@@ -297,5 +361,14 @@ public final class ApplicationWebView extends BorderPane implements AutoCloseabl
     public boolean stop(String id) {
       return request(client -> client.delete("/api/v1/ui/instances/" + id));
     }
+    public JsonObject file(String id, JsonObject request) {
+      return ApplicationRuntimeFiles.request(runtime, user, id, request);
+    }
+  }
+
+  static void requireLocalRuntime(RuntimeService runtime) {
+    if (runtime == null || !runtime.isLocal() || runtime.getUrl() == null
+        || !org.integratedmodelling.klab.api.utils.Utils.URLs.isLocalHost(runtime.getUrl()))
+      throw new IllegalArgumentException("IDE applications require a locally running runtime service");
   }
 }
