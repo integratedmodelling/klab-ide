@@ -28,7 +28,11 @@ final class LegacyResourceImportView extends VBox {
     super(12);
     setPadding(new Insets(24));
     summary.getStyleClass().add(Styles.TITLE_3);
-    var source = column("Legacy definition", row -> row.manifest().getAbsolutePath());
+    var source =
+        column(
+            "Legacy definition",
+            row -> row.manifest().getAbsoluteFile().getParentFile().getName(),
+            row -> row.manifest().getAbsolutePath());
     source.setPrefWidth(300);
     var status =
         column(
@@ -192,6 +196,13 @@ final class LegacyResourceImportView extends VBox {
 
   private static TableColumn<LegacyResourceImport.Outcome, String> column(
       String title, java.util.function.Function<LegacyResourceImport.Outcome, String> value) {
+    return column(title, value, value);
+  }
+
+  private static TableColumn<LegacyResourceImport.Outcome, String> column(
+      String title,
+      java.util.function.Function<LegacyResourceImport.Outcome, String> value,
+      java.util.function.Function<LegacyResourceImport.Outcome, String> tooltip) {
     var column = new TableColumn<LegacyResourceImport.Outcome, String>(title);
     column.setSortable(false);
     column.setCellValueFactory(cell -> new ReadOnlyStringWrapper(value.apply(cell.getValue())));
@@ -202,7 +213,11 @@ final class LegacyResourceImportView extends VBox {
               protected void updateItem(String text, boolean empty) {
                 super.updateItem(text, empty);
                 setText(empty ? null : text);
-                setTooltip(empty || text == null || text.isBlank() ? null : new Tooltip(text));
+                String help =
+                    empty || getIndex() < 0 || getIndex() >= getTableView().getItems().size()
+                        ? null
+                        : tooltip.apply(getTableView().getItems().get(getIndex()));
+                setTooltip(help == null || help.isBlank() ? null : new Tooltip(help));
               }
             });
     return column;
