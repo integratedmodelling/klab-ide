@@ -10,6 +10,8 @@ import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.*;
 import org.integratedmodelling.klab.api.knowledge.*;
 import org.integratedmodelling.klab.api.knowledge.Observable;
@@ -19,6 +21,7 @@ import org.integratedmodelling.klab.ide.*;
 import org.integratedmodelling.klab.ide.components.cards.ObservableCard;
 import org.integratedmodelling.klab.ide.components.generic.TreeSearchField;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
+import org.integratedmodelling.klabeditor.MonacoEditorView.ObservableCompositionContext;
 import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
@@ -180,18 +183,25 @@ public class WorldviewEditor extends EditorPage<Worldview, Object> {
   }
 
   private void composeInput(boolean useWholeExpression) {
-    cancelInput();
-    composing = true;
-    inputBusy.set(true);
-    long ticket = ++inputGeneration;
     String text =
         conceptInput.getSelectedText().isBlank()
             ? conceptInput.getText()
             : conceptInput.getSelectedText();
-    var context =
-        new org.integratedmodelling.klabeditor.MonacoEditorView.ObservableCompositionContext(
-            useWholeExpression ? text : null, text);
-    ObservableComposerDialog.show(conceptInput, () -> reasoner, context)
+    compose(conceptInput, new ObservableCompositionContext(useWholeExpression ? text : null, text));
+  }
+
+  private void composeGraph() {
+    // A graph selection is a complete concept, independent of the locator's text.
+    compose(graph, new ObservableCompositionContext(selectedUrn, selectedUrn));
+  }
+
+  private void compose(Node owner, ObservableCompositionContext context) {
+    if (composing || closed) return;
+    cancelInput();
+    composing = true;
+    inputBusy.set(true);
+    long ticket = ++inputGeneration;
+    ObservableComposerDialog.show(owner, () -> reasoner, context)
         .whenComplete(
             (observable, error) ->
                 Platform.runLater(
@@ -204,7 +214,7 @@ public class WorldviewEditor extends EditorPage<Worldview, Object> {
                         return;
                       }
                       if (observable != null) applyInput(observable, false);
-                      conceptInput.requestFocus();
+                      owner.requestFocus();
                     }));
   }
 
@@ -610,6 +620,30 @@ public class WorldviewEditor extends EditorPage<Worldview, Object> {
     var scroll = new ContentZoomScrollPane(panel);
     scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
     scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+    panel.setFocusTraversable(true);
+    panel.addEventHandler(
+        MouseEvent.MOUSE_CLICKED,
+        event -> {
+          if (event.getButton() != javafx.scene.input.MouseButton.PRIMARY) return;
+          selectedUrn = null;
+          if (tree != null) tree.getSelectionModel().clearSelection();
+          styleGraph(panel, snapshot);
+          panel.requestFocus();
+        });
+    scroll.addEventFilter(
+        KeyEvent.KEY_PRESSED,
+        event -> {
+          if (event.getCode() == KeyCode.SPACE
+              && !event.isControlDown() && !event.isAltDown() && !event.isMetaDown()) {
+            event.consume();
+            composeGraph();
+          }
+        });
+    scroll.addEventFilter(
+        KeyEvent.KEY_TYPED,
+        event -> {
+          if (" ".equals(event.getCharacter())) event.consume();
+        });
     graphArea.setCenter(scroll);
     // Initialize on a real layout pass, including when this tab was initially hidden.
     panel
@@ -704,6 +738,7 @@ public class WorldviewEditor extends EditorPage<Worldview, Object> {
             if (event.getButton() != javafx.scene.input.MouseButton.PRIMARY) return;
             var current = currentConcept(concept);
             select(current);
+            graph.requestFocus();
             if (event.getClickCount() == 2) center(current.getUrn());
             event.consume();
           });

@@ -19,6 +19,170 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 class WorldviewEditorTest {
+  @Test void graphSpaceLoadsSelectionAndBackgroundCompositionCentersItsRelationships() throws Exception {
+    var selected = new ConceptImpl(); selected.setUrn("test:Selected");
+    selected.getType().add(SemanticType.SUBJECT);
+    selected.getMetadata().put(org.integratedmodelling.klab.api.data.Metadata.DC_COMMENT,
+        "Selected concept documentation");
+    var composed = new ConceptImpl(); composed.setUrn("test:Composed");
+    composed.getType().add(SemanticType.SUBJECT);
+    var child = new ConceptImpl(); child.setUrn("test:Child");
+    child.getType().add(SemanticType.SUBJECT);
+    var selectedObservable = new ObservableImpl();
+    selectedObservable.setSemantics(selected); selectedObservable.setUrn(selected.getUrn());
+    var composedObservable = new ObservableImpl();
+    composedObservable.setSemantics(composed); composedObservable.setUrn(composed.getUrn());
+    var queries = new CopyOnWriteArrayList<String>();
+    var reasoner = (Reasoner) Proxy.newProxyInstance(Reasoner.class.getClassLoader(),
+        new Class<?>[]{Reasoner.class}, (proxy, method, args) -> switch (method.getName()) {
+          case "resolveObservable" -> {
+            assertEquals(selected.getUrn(), args[0]); yield selectedObservable;
+          }
+          case "resolveConcept" -> selected;
+          case "children" -> args[0] == composed ? List.of(child) : List.of();
+          case "parents", "influences", "relationshipSources", "relationshipTargets" -> List.of();
+          case "describedType" -> null;
+          case "semanticSearch" -> {
+            var request = (org.integratedmodelling.klab.api.services.reasoner.objects.SemanticSearchRequest) args[0];
+            var reply = new org.integratedmodelling.klab.api.services.reasoner.objects.SemanticSearchResponse(
+                42, request.getRequestId());
+            if (request.getSearchMode() == org.integratedmodelling.klab.api.services.reasoner.objects.SemanticSearchRequest.Mode.TOKEN) {
+              queries.add(request.getQueryString());
+              var match = new org.integratedmodelling.klab.api.services.reasoner.objects.SemanticMatch();
+              match.setId(composed.getUrn()); match.setName("Composed");
+              match.setMatchType(org.integratedmodelling.klab.api.services.reasoner.objects.SemanticMatch.Type.CONCEPT);
+              reply.setMatches(List.of(match));
+            } else if (request.getSearchMode() == org.integratedmodelling.klab.api.services.reasoner.objects.SemanticSearchRequest.Mode.SELECT) {
+              reply.setObservable(composedObservable);
+            }
+            yield reply;
+          }
+          default -> null;
+        });
+    var previousController = KlabIDEController.instance();
+    var stage = fx(() -> {
+      new KlabIDEController();
+      var editor = new WorldviewEditor(new WorldviewImpl(), reasoner) {
+        @Override protected void onVisualize(boolean visible) {}
+      };
+      editor.createContentTree();
+      var window = new Stage(); window.setScene(new Scene(editor, 900, 600)); window.show();
+      ((TextField) read(editor, "conceptInput")).setText("stale locator text");
+      return window;
+    });
+    var editor = (WorldviewEditor) stage.getScene().getRoot();
+    try {
+      fx(() -> { invokeApply(editor, selectedObservable); return null; });
+      await(() -> read(editor, "graph") != null
+          && !((javafx.beans.property.BooleanProperty) read(editor, "graphBusy")).get());
+      var panel = fx(() -> (com.brunomnsilva.smartgraph.graphview.SmartGraphPanel<org.integratedmodelling.klab.api.knowledge.Concept, WorldviewGraphModel.Link>) read(editor, "graph"));
+      await(() -> panel.getSmartVertices().size() == 1
+          && Boolean.TRUE.equals(((javafx.scene.Node) panel.getStylableLabel(
+              panel.getModel().vertices().iterator().next())).getProperties().get("worldview-click")));
+      for (boolean shift : List.of(false, true)) {
+        fx(() -> {
+          var vertex = panel.getModel().vertices().iterator().next();
+          ((javafx.scene.Node) panel.getStylableLabel(vertex)).fireEvent(graphClick());
+          assertEquals(selected.getUrn(), read(editor, "selectedUrn"));
+          panel.fireEvent(space(shift));
+          return null;
+        });
+        await(() -> composerStage(stage) != null);
+        var overlay = fx(() -> composerStage(stage));
+        await(() -> !((javafx.scene.layout.VBox) overlay.getScene().lookup("#semantic-card")).getChildren().isEmpty());
+        fx(() -> {
+          var card = overlay.getScene().lookup("#semantic-card");
+          assertTrue(card.lookupAll(".label").stream().anyMatch(n -> n instanceof javafx.scene.control.Label l
+              && "Selected concept documentation".equals(l.getText())));
+          overlay.close(); return null;
+        });
+        await(() -> !(boolean) read(editor, "composing"));
+        assertEquals(selected.getUrn(), fx(() -> read(editor, "focus")), "Dismissal must preserve focus");
+      }
+      for (boolean shift : List.of(true, false)) {
+        queries.clear();
+        fx(() -> {
+          panel.fireEvent(graphClick());
+          assertNull(read(editor, "selectedUrn"));
+          panel.fireEvent(space(shift)); return null;
+        });
+        await(() -> composerStage(stage) != null && !queries.isEmpty());
+        var overlay = fx(() -> composerStage(stage));
+        fx(() -> {
+          assertTrue(queries.getFirst() == null || queries.getFirst().isBlank());
+          assertEquals("", ((TextField) overlay.getScene().lookup("#semantic-query")).getText());
+          assertTrue(((javafx.scene.layout.VBox) overlay.getScene().lookup("#semantic-card")).getChildren().isEmpty());
+          return null;
+        });
+        if (shift) {
+          fx(() -> { overlay.close(); return null; });
+          await(() -> !(boolean) read(editor, "composing"));
+        } else {
+          await(() -> !((javafx.scene.control.TableView<?>) overlay.getScene().lookup("#semantic-matches")).getItems().isEmpty());
+          fx(() -> {
+            overlay.getScene().lookup("#semantic-matches").fireEvent(new javafx.scene.input.KeyEvent(
+                javafx.scene.input.KeyEvent.KEY_PRESSED, "", "", javafx.scene.input.KeyCode.ENTER,
+                false, false, false, false));
+            return null;
+          });
+          await(() -> !composerButton(overlay, "Continue").isDisabled());
+          fx(() -> { composerButton(overlay, "Continue").fire(); return null; });
+          await(() -> composed.getUrn().equals(read(editor, "focus"))
+              && !((javafx.beans.property.BooleanProperty) read(editor, "graphBusy")).get());
+          fx(() -> {
+            var snapshot = (WorldviewGraphModel.Snapshot) read(editor, "snapshot");
+            assertTrue(snapshot.concepts().containsKey(child.getUrn()));
+            assertTrue(snapshot.links().stream().anyMatch(l -> l.source().equals(child.getUrn())
+                || l.target().equals(child.getUrn())));
+            assertEquals(composed.getUrn(), read(editor, "selectedUrn"));
+            return null;
+          });
+        }
+      }
+    } finally {
+      fx(() -> {
+        var overlay = composerStage(stage); if (overlay != null) overlay.close();
+        editor.close(); stage.close();
+        try {
+          var singleton = KlabIDEController.class.getDeclaredField("_this"); singleton.setAccessible(true);
+          singleton.set(null, previousController);
+        } catch (ReflectiveOperationException error) { throw new AssertionError(error); }
+        return null;
+      });
+    }
+  }
+
+  private static Stage composerStage(Stage owner) {
+    return javafx.stage.Window.getWindows().stream()
+        .filter(w -> w instanceof Stage s && s.getOwner() == owner && s.getTitle().equals("Compose observable"))
+        .map(Stage.class::cast).findFirst().orElse(null);
+  }
+
+  private static javafx.scene.control.Button composerButton(Stage stage, String name) {
+    return stage.getScene().getRoot().lookupAll(".button").stream()
+        .filter(n -> n instanceof javafx.scene.control.Button b && name.equals(b.getAccessibleText()))
+        .map(javafx.scene.control.Button.class::cast).findFirst().orElseThrow();
+  }
+
+  private static javafx.scene.input.KeyEvent space(boolean shift) {
+    return new javafx.scene.input.KeyEvent(javafx.scene.input.KeyEvent.KEY_PRESSED, " ", " ",
+        javafx.scene.input.KeyCode.SPACE, shift, false, false, false);
+  }
+
+  private static javafx.scene.input.MouseEvent graphClick() {
+    return new javafx.scene.input.MouseEvent(javafx.scene.input.MouseEvent.MOUSE_CLICKED,
+        0, 0, 0, 0, javafx.scene.input.MouseButton.PRIMARY, 1,
+        false, false, false, false, false, false, false, false, false, true, null);
+  }
+
+  private static void invokeApply(WorldviewEditor editor, ObservableImpl observable) {
+    try {
+      var method = WorldviewEditor.class.getDeclaredMethod("applyInput",
+          org.integratedmodelling.klab.api.knowledge.Observable.class, boolean.class);
+      method.setAccessible(true); method.invoke(editor, observable, false);
+    } catch (ReflectiveOperationException error) { throw new AssertionError(error); }
+  }
+
   @Test void relationshipMenusUseCompactAtlantaSwitchesAndStayOpen() throws Exception {
     fx(() -> {
       var item = new GraphLayerMenuItem("Subclass");
@@ -80,6 +244,11 @@ class WorldviewEditorTest {
     try { Platform.startup(() -> { Platform.setImplicitExit(false); ready.complete(null); }); }
     catch (IllegalStateException started) { Platform.runLater(() -> ready.complete(null)); }
     ready.get(15, TimeUnit.SECONDS);
+    fx(() -> {
+      javafx.application.Application.setUserAgentStylesheet(
+          new atlantafx.base.theme.PrimerLight().getUserAgentStylesheet());
+      return null;
+    });
   }
 
   @Test void urnConfirmationUsesReturnedConceptAndRetainsGraphPanelAndVertices() throws Exception {
