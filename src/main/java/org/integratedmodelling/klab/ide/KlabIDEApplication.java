@@ -58,7 +58,7 @@ public class KlabIDEApplication extends Application {
     scene = new Scene(sceneRoot, 1480, 1060);
     Runtime.getRuntime().addShutdownHook(new Thread(this::shutdownController, "klab-ide-shutdown"));
     scene.getStylesheets().add(getClass().getResource("custom.css").toExternalForm());
-    stage.setTitle("k.LAB Modeler :: v1.0 pre-alpha :: © 2025 Integrated Modelling Partnership");
+    stage.setTitle("k.LAB Modeler :: v1.0 alpha :: © 2026 Integrated Modelling Partnership");
     stage.setOnCloseRequest(
         event -> {
           Platform.exit();
