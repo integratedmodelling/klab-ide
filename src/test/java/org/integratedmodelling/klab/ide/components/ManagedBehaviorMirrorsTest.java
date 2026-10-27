@@ -13,6 +13,40 @@ class ManagedBehaviorMirrorsTest {
 
   @TempDir Path temporaryDirectory;
 
+  @Test void serviceTimestampsPersistAndRejectOlderSnapshotsForEveryBehaviorType() throws Exception {
+    var mirrors = new ManagedBehaviorMirrors(temporaryDirectory);
+    for (var type : org.integratedmodelling.klab.api.lang.kactors.KActorsBehavior.Type.values()) {
+      var checkout = mirrors.checkout("service", "project", "shared.urn", type, "v1", 100);
+      assertEquals(ManagedBehaviorMirrors.Synchronization.UPDATED,
+          mirrors.synchronize("service", "project", "shared.urn", type, "v2", 200));
+      var reopened = new ManagedBehaviorMirrors(temporaryDirectory);
+      assertEquals(200, reopened.origin(checkout.file()).orElseThrow().synchronizedTimestamp());
+      assertEquals(ManagedBehaviorMirrors.Synchronization.STALE,
+          reopened.synchronize("service", "project", "shared.urn", type, "v1", 100));
+      assertEquals("v2", Files.readString(checkout.file()));
+      // Equal timestamps still need a source comparison (coarse service clocks).
+      reopened.synchronize("service", "project", "shared.urn", type, "v3", 200);
+      assertEquals("v3", Files.readString(checkout.file()));
+      Files.writeString(checkout.file(), "local edits");
+      assertEquals(ManagedBehaviorMirrors.Synchronization.DIRTY,
+          reopened.synchronize("service", "project", "shared.urn", type, "v4", 300));
+      assertEquals("local edits", Files.readString(checkout.file()));
+      assertEquals(200, reopened.origin(checkout.file()).orElseThrow().synchronizedTimestamp());
+    }
+  }
+
+  @Test void recreatingDeletedSourceUpdatesItsSynchronizationMetadata() throws Exception {
+    var mirrors = new ManagedBehaviorMirrors(temporaryDirectory);
+    var type = org.integratedmodelling.klab.api.lang.kactors.KActorsBehavior.Type.UNITTEST;
+    var checkout = mirrors.checkout("service", "project", "test", type, "v1", 100);
+    Files.delete(checkout.file());
+    var recreated = mirrors.checkout("service", "project", "test", type, "v2", 200);
+    assertEquals(200, recreated.origin().synchronizedTimestamp());
+    assertEquals(ManagedBehaviorMirrors.LocalState.SYNCHRONIZED, mirrors.localState(recreated.file()));
+    mirrors.synchronize("service", "project", "test", type, "v3", 300);
+    assertEquals("v3", Files.readString(recreated.file()));
+  }
+
   @Test void sameUrnApplicationAndBehaviorHaveIndependentMirrors() throws Exception {
     var mirrors = new ManagedBehaviorMirrors(temporaryDirectory);
     var behavior = mirrors.checkout("service", "project", "staging.vxii.demoapp",

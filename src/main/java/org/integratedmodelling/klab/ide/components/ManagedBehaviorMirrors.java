@@ -32,12 +32,14 @@ public final class ManagedBehaviorMirrors {
       String behaviorUrn,
       String synchronizedSourceHash,
       Path file,
-      KActorsBehavior.Type behaviorType) {}
+      KActorsBehavior.Type behaviorType,
+      long synchronizedTimestamp) {}
 
   public enum Synchronization {
     NO_MIRROR,
     UNCHANGED,
     UPDATED,
+    STALE,
     DIRTY
   }
 
@@ -65,17 +67,22 @@ public final class ManagedBehaviorMirrors {
 
   public synchronized Checkout checkout(String serviceId, String projectUrn, String behaviorUrn,
       KActorsBehavior.Type type, String source) throws IOException {
+    return checkout(serviceId, projectUrn, behaviorUrn, type, source, 0);
+  }
+
+  public synchronized Checkout checkout(String serviceId, String projectUrn, String behaviorUrn,
+      KActorsBehavior.Type type, String source, long timestamp) throws IOException {
     requireIdentity(serviceId, projectUrn, behaviorUrn);
     var existingOrigin = findOrigin(serviceId, projectUrn, behaviorUrn, type);
     if (existingOrigin.isPresent() && Files.isRegularFile(existingOrigin.get().file())) {
       // A checkout is also an authoritative project read. Reconcile missed change events,
       // while synchronize() continues to protect unsubmitted local edits.
-      synchronize(serviceId, projectUrn, behaviorUrn, type, source);
+      synchronize(serviceId, projectUrn, behaviorUrn, type, source, timestamp);
       var file = existingOrigin.get().file();
       var current = origin(file).orElseThrow();
       if (current.behaviorType() == null && type != null) {
         current = new Origin(current.serviceId(), current.projectUrn(), current.behaviorUrn(),
-            current.synchronizedSourceHash(), file, type);
+            current.synchronizedSourceHash(), file, type, current.synchronizedTimestamp());
         writeOrigin(current);
       }
       return new Checkout(file, current, false);
@@ -88,7 +95,7 @@ public final class ManagedBehaviorMirrors {
       writeAtomically(file, Objects.requireNonNullElse(source, ""));
     }
     var existing = origin(file);
-    if (existing.isPresent()) {
+    if (existing.isPresent() && !created) {
       return new Checkout(file, existing.get(), created);
     }
     var origin =
@@ -97,7 +104,7 @@ public final class ManagedBehaviorMirrors {
             projectUrn,
             behaviorUrn,
             hash(created ? Objects.requireNonNullElse(source, "") : Files.readString(file)),
-            file, type);
+            file, type, timestamp);
     writeOrigin(origin);
     return new Checkout(file, origin, created);
   }
@@ -124,7 +131,8 @@ public final class ManagedBehaviorMirrors {
       return Optional.of(
           new Origin(serviceId, projectUrn, behaviorUrn, synchronizedHash, normalized,
               properties.getProperty("behaviorType") == null ? null
-                  : KActorsBehavior.Type.valueOf(properties.getProperty("behaviorType"))));
+                  : KActorsBehavior.Type.valueOf(properties.getProperty("behaviorType")),
+              Long.parseLong(properties.getProperty("synchronizedTimestamp", "0"))));
     } catch (IOException | IllegalArgumentException e) {
       return Optional.empty();
     }
@@ -154,6 +162,12 @@ public final class ManagedBehaviorMirrors {
 
   public synchronized Origin markSynchronized(Path file, String behaviorUrn, String source)
       throws IOException {
+    return markSynchronized(file, behaviorUrn, source,
+        origin(file).map(Origin::synchronizedTimestamp).orElse(0L));
+  }
+
+  private Origin markSynchronized(Path file, String behaviorUrn, String source, long timestamp)
+      throws IOException {
     var origin =
         origin(file)
             .orElseThrow(() -> new IOException("Behavior is not a managed mirror: " + file));
@@ -164,7 +178,7 @@ public final class ManagedBehaviorMirrors {
             origin.projectUrn(),
             behaviorUrn,
             hash(Objects.requireNonNullElse(source, "")),
-            origin.file(), origin.behaviorType());
+            origin.file(), origin.behaviorType(), timestamp);
     writeOrigin(updated);
     return updated;
   }
@@ -177,28 +191,58 @@ public final class ManagedBehaviorMirrors {
 
   public synchronized Synchronization synchronize(String serviceId, String projectUrn,
       String behaviorUrn, KActorsBehavior.Type type, String remoteSource) throws IOException {
+    return synchronize(serviceId, projectUrn, behaviorUrn, type, remoteSource, 0);
+  }
+
+  public synchronized Synchronization synchronize(String serviceId, String projectUrn,
+      String behaviorUrn, KActorsBehavior.Type type, String remoteSource, long timestamp)
+      throws IOException {
     var origin = findOrigin(serviceId, projectUrn, behaviorUrn, type);
     var file = origin.map(Origin::file).orElse(pathFor(serviceId, projectUrn, behaviorUrn));
     if (origin.isEmpty() || !Files.isRegularFile(file)) return Synchronization.NO_MIRROR;
+    // Service revisions, unlike local file mtimes, survive reopening and queued notifications.
+    if (timestamp > 0 && timestamp < origin.get().synchronizedTimestamp())
+      return Synchronization.STALE;
+    long revision = Math.max(timestamp, origin.get().synchronizedTimestamp());
 
     var localSource = Files.readString(file, StandardCharsets.UTF_8);
     var localHash = hash(localSource);
     var remote = Objects.requireNonNullElse(remoteSource, "");
     var remoteHash = hash(remote);
     if (localHash.equals(remoteHash)) {
-      markSynchronized(file, remote);
+      markSynchronized(file, behaviorUrn, remote, revision);
       return Synchronization.UNCHANGED;
     }
     if (!localHash.equals(origin.get().synchronizedSourceHash())) {
       return Synchronization.DIRTY;
     }
     writeAtomically(file, remote);
-    markSynchronized(file, remote);
+    markSynchronized(file, behaviorUrn, remote, revision);
     return Synchronization.UPDATED;
   }
 
   public Path pathFor(String serviceId, String projectUrn, String behaviorUrn) {
     return pathFor(serviceId, projectUrn, behaviorUrn, null);
+  }
+
+  /** Explicit conflict resolution: retain the local bytes before accepting the project source. */
+  synchronized Path useProjectSource(Path file, KActorsBehavior remote) throws IOException {
+    var current = origin(file).orElseThrow(() -> new IOException("Not a managed behavior: " + file));
+    if (!Objects.equals(current.behaviorUrn(), remote.getUrn())
+        || !Objects.equals(current.projectUrn(), remote.getProjectName())
+        || (current.behaviorType() != null && current.behaviorType() != remote.getBehaviorType()))
+      throw new IOException("Project source does not match the local behavior");
+    if (remote.getLastUpdateTimestamp() > 0
+        && remote.getLastUpdateTimestamp() < current.synchronizedTimestamp())
+      throw new IOException("Project source is older than the last synchronized revision");
+    var backup = Files.createTempFile(file.getParent(), file.getFileName() + ".local-", ".bak");
+    Files.copy(file, backup, StandardCopyOption.REPLACE_EXISTING);
+    var source = Objects.requireNonNullElse(remote.getSourceCode(), "");
+    writeAtomically(file, source);
+    writeOrigin(new Origin(current.serviceId(), current.projectUrn(), current.behaviorUrn(),
+        hash(source), current.file(), remote.getBehaviorType(),
+        Math.max(current.synchronizedTimestamp(), remote.getLastUpdateTimestamp())));
+    return backup;
   }
 
   public Path pathFor(String serviceId, String projectUrn, String behaviorUrn, KActorsBehavior.Type type) {
@@ -263,6 +307,7 @@ public final class ManagedBehaviorMirrors {
     properties.setProperty("behaviorUrn", origin.behaviorUrn());
     if (origin.behaviorType() != null) properties.setProperty("behaviorType", origin.behaviorType().name());
     properties.setProperty("synchronizedSourceHash", origin.synchronizedSourceHash());
+    properties.setProperty("synchronizedTimestamp", Long.toString(origin.synchronizedTimestamp()));
     var metadata = origin.file().getParent().resolve(METADATA_FILE);
     var temporary = Files.createTempFile(metadata.getParent(), "origin-", ".tmp");
     try {

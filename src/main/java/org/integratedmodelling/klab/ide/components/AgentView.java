@@ -195,8 +195,10 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
     if (existing != null) {
       if (mirrors.origin(path).isPresent() && !existing.hasUnsavedSourceChanges()) {
         try {
-          var refreshed = KlabIDEController.instance().user().getService(ResourcesService.class)
-              .parseAsset(path.toUri().toURL(), KActorsBehavior.class, KlabIDEController.instance().user());
+          var user = KlabIDEController.instance().user();
+          var refreshed = ProjectBehaviorSource.openMirror(
+              mirrors, path, user.getService(ResourcesService.class), user,
+              remote -> chooseProjectSource(path, remote));
           if (refreshed != null) existing.refreshManagedBehavior(refreshed);
         } catch (IOException failure) {
           KlabIDEController.instance().handleNotification(
@@ -208,14 +210,10 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
       return;
     }
     try {
-      var behavior =
-          KlabIDEController.instance()
-              .user()
-              .getService(ResourcesService.class)
-              .parseAsset(
-                  path.toUri().toURL(),
-                  KActorsBehavior.class,
-                  KlabIDEController.instance().user());
+      var user = KlabIDEController.instance().user();
+      var behavior = ProjectBehaviorSource.openMirror(
+          mirrors, path, user.getService(ResourcesService.class), user,
+          remote -> chooseProjectSource(path, remote));
       var managedOrigin = mirrors.origin(path).orElse(null);
 
       remember(path, behavior == null ? null : behavior.getBehaviorType());
@@ -241,6 +239,22 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
     }
   }
 
+  /** Resolve a saved local conflict without discarding the local source. */
+  private boolean chooseProjectSource(Path file, KActorsBehavior remote) {
+    var useProject = new javafx.scene.control.ButtonType("Use project source");
+    var keepLocal = new javafx.scene.control.ButtonType("Keep local copy",
+        javafx.scene.control.ButtonBar.ButtonData.CANCEL_CLOSE);
+    var dialog = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.CONFIRMATION,
+        "The local copy differs from its last synchronized version, and the project has different source.\n\n"
+            + "Use project source loads the saved Resources version and preserves the current local file "
+            + "as a .bak file beside it. Keep local copy opens the local version.\n\n" + file,
+        useProject, keepLocal);
+    dialog.setTitle("Local behavior differs from project");
+    dialog.setHeaderText(remote.getUrn());
+    if (getScene() != null) dialog.initOwner(getScene().getWindow());
+    return dialog.showAndWait().orElse(keepLocal) == useProject;
+  }
+
   /** Reconcile an existing managed mirror after its project behavior changes. */
   public void synchronizeManagedBehavior(ResourcesService service, KActorsBehavior remoteBehavior) {
     if (service == null
@@ -259,9 +273,10 @@ public class AgentView extends BrowsablePage<BehaviorEditor, NavigableKActorsBeh
               remoteBehavior.getProjectName(),
               remoteBehavior.getUrn(),
               remoteBehavior.getBehaviorType(),
-              remoteBehavior.getSourceCode());
+              remoteBehavior.getSourceCode(), remoteBehavior.getLastUpdateTimestamp());
       if (synchronization == ManagedBehaviorMirrors.Synchronization.NO_MIRROR
-          || synchronization == ManagedBehaviorMirrors.Synchronization.DIRTY) return;
+          || synchronization == ManagedBehaviorMirrors.Synchronization.DIRTY
+          || synchronization == ManagedBehaviorMirrors.Synchronization.STALE) return;
 
       Platform.runLater(this::updateBrowser);
 

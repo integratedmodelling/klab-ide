@@ -36,14 +36,24 @@ class WorkspaceBehaviorSynchronizationTest {
     ready.get(15, TimeUnit.SECONDS);
   }
 
-  @Test void successiveWorkspaceSavesRefreshAnApplicationMirrorWithoutTreeChanges() throws Exception {
-    var mirrors = new ManagedBehaviorMirrors(temporaryDirectory);
-    var checkout = mirrors.checkout("resources", "project", "project.app", "original template");
+  @Test void successiveWorkspaceSavesRefreshEveryBehaviorFamilyWithoutTreeChanges() throws Exception {
+    for (var type : KActorsBehavior.Type.values()) checkWorkspaceSaves(type);
+  }
+
+  private void checkWorkspaceSaves(KActorsBehavior.Type type) throws Exception {
+    var mirrors = new ManagedBehaviorMirrors(temporaryDirectory.resolve(type.name()));
+    var checkout = mirrors.checkout("resources", "project", "project.app", type, "original template", 100);
     var application = new KActorsBehaviorImpl();
     application.setUrn("project.app"); application.setProjectName("project");
-    application.setBehaviorType(KActorsBehavior.Type.APP);
+    application.setBehaviorType(type);
     application.setSourceCode("original template");
-    var project = new ProjectImpl(); project.setUrn("project"); project.setApps(List.of(application));
+    var project = new ProjectImpl(); project.setUrn("project");
+    switch (type) {
+      case APP -> project.setApps(List.of(application));
+      case UNITTEST -> project.setTestCases(List.of(application));
+      case SCRIPT -> project.setScripts(List.of(application));
+      default -> project.setBehaviors(List.of(application));
+    }
     var workspace = new WorkspaceImpl(); workspace.setUrn("workspace"); workspace.setProjects(List.of(project));
     var resources = (ResourcesService) Proxy.newProxyInstance(ResourcesService.class.getClassLoader(),
         new Class<?>[]{ResourcesService.class}, (self, method, args) -> switch (method.getName()) {
@@ -58,7 +68,8 @@ class WorkspaceBehaviorSynchronizationTest {
       new KlabIDEController() {
         @Override public UserScope user() { return null; }
         @Override public void synchronizeManagedBehavior(ResourcesService service, KActorsBehavior behavior) {
-          try { mirrors.synchronize("resources", behavior.getProjectName(), behavior.getUrn(), behavior.getSourceCode()); }
+          try { mirrors.synchronize("resources", behavior.getProjectName(), behavior.getUrn(),
+              behavior.getBehaviorType(), behavior.getSourceCode(), behavior.getLastUpdateTimestamp()); }
           catch (java.io.IOException failure) { throw new RuntimeException(failure); }
         }
       };
@@ -71,6 +82,7 @@ class WorkspaceBehaviorSynchronizationTest {
       for (String saved : List.of("saved application v2", "saved application v3")) {
         fx(() -> {
           application.setSourceCode(saved);
+          application.setLastUpdateTimestamp(application.getLastUpdateTimestamp() + 200);
           var change = new ResourceSet.Resource(); change.setResourceUrn(application.getUrn());
           change.setKnowledgeClass(KlabAsset.classify(application)); change.setOperation(CRUDOperation.UPDATE);
           var changes = new ResourceSet(); changes.getBehaviors().add(change);
@@ -79,6 +91,8 @@ class WorkspaceBehaviorSynchronizationTest {
         });
         fx(() -> null); // Drain the queued reconciliation.
         assertEquals(saved, Files.readString(checkout.file()));
+        assertEquals(application.getLastUpdateTimestamp(),
+            mirrors.origin(checkout.file()).orElseThrow().synchronizedTimestamp());
       }
     } finally {
       fx(() -> {

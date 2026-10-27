@@ -1658,22 +1658,28 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   void refreshManagedBehavior(KActorsBehavior updatedBehavior) {
     // The callback may have been queued before the user started typing.
     if (managedOrigin == null || updatedBehavior == null || hasUnsavedSourceChanges()) return;
+    var currentOrigin = mirrors.origin(file).orElse(managedOrigin);
+    if (updatedBehavior.getLastUpdateTimestamp() > 0
+        && updatedBehavior.getLastUpdateTimestamp() < currentOrigin.synchronizedTimestamp()) return;
     var source = Objects.requireNonNullElse(updatedBehavior.getSourceCode(), "");
-    boolean changed = monacoEditor != null && !Objects.equals(monacoEditor.getText(), source);
+    boolean changed = behavior == null || !Objects.equals(behavior.getSourceCode(), source);
     this.behavior = new NavigableKActorsBehavior(updatedBehavior, null);
-    managedOrigin = mirrors.origin(file).orElse(managedOrigin);
+    managedOrigin = currentOrigin;
     setEditedAsset(this.behavior);
     this.currentNotifications = notificationSnapshot(updatedBehavior.getNotifications());
-    if (changed) {
+    this.stale = false;
+    if (monacoEditor != null && !Objects.equals(monacoEditor.getText(), source)) {
       monacoEditor.setText(source);
       if (applicationView != null) applicationView.projectSourceChanged();
     }
     if (monacoEditor != null) {
       monacoEditor.markNotifications(updatedBehavior.getNotifications(), true);
     }
-    resetCompilationVisualStatus(updatedBehavior.getNotifications());
+    if (changed) resetCompilationVisualStatus(updatedBehavior.getNotifications());
     updateSourceEditorGraphic();
     if (treeView != null) treeView.setRoot(createTreeRoot());
+    if (changed && compile != null && compile.isToggled() && sourceIsValid()
+        && getLocalRuntime().isPresent()) doCompile();
     updateStatus();
   }
 

@@ -712,7 +712,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                   project,
                   managedBehavior.getUrn(),
                   managedBehavior.getBehaviorType(),
-                  managedBehavior.getSourceCode());
+                  managedBehavior.getSourceCode(),
+                  managedBehavior.getLastUpdateTimestamp());
       KlabIDEController.instance().openBehaviorFile(checkout.file());
     } catch (IOException | IllegalArgumentException e) {
       KlabIDEController.instance()
@@ -1869,7 +1870,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           for (var change : resourceChanges) {
             var parsedDocument = findChangedDocument(change);
             if (!currentSourceUpdate(change, parsedDocument)) continue;
-            // Keep application mirrors current even when no tree row changes (or is open).
+            // Keep every behavior family current even when no tree row changes (or is open).
             if (change.getOperation() != CRUDOperation.DELETE
                 && parsedDocument instanceof KActorsBehavior behavior) {
               KlabIDEController.instance().synchronizeManagedBehavior(service, behavior);

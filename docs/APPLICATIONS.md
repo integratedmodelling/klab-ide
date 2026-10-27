@@ -42,6 +42,17 @@ managed mirror. Mirrors retain the behavior type, and clean older mirrors are mi
 when reopened. The runtime launcher also resolves the project's application when a
 same-URN behavior shadows it in the global index.
 
+The same synchronization applies to test cases, scripts, and other behavior types.
+Opening a managed copy from recents checks its owning project's catalog again. Mirrors
+persist the service's last-update timestamp so delayed older revisions cannot replace
+newer source; equal timestamps still compare source contents. Local edits remain protected.
+When automatic compilation is enabled, refreshed source is compiled again so Run and
+Debug use the updated behavior.
+If both copies differ from the last synchronized source, reopening offers **Use project
+source** or **Keep local copy**. Using project source preserves the local file as a `.bak`
+beside the mirror before loading the Resources version. Removing a recent-file card only
+removes it from the list; it does not delete or reset the managed mirror.
+
 The IDE launches one instance per application tab through `POST /api/v1/ui/instances`.
 It uses a single-use ticket and the runtime's `/ui-bus` WebSocket to attach to that
 instance. Reconnect replaces the attachment; it does not create another application.
