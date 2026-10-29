@@ -26,6 +26,7 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
+import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SelectionMode;
@@ -130,6 +131,9 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   private final Set<Agent> agents = Collections.synchronizedSet(new LinkedHashSet<>());
   private final Set<Agent> debugAgents = Collections.synchronizedSet(new LinkedHashSet<>());
   private final Map<String, AgentConsoleView> agentConsoles = new LinkedHashMap<>();
+  private final TestCaseExecutionState testExecution = new TestCaseExecutionState();
+  private boolean testLaunchInProgress;
+  private String requestedTestAction;
   private final Map<String, TestCaseResultsView> testCaseResults = new ConcurrentHashMap<>();
   private final Map<String, AutoCloseable> testCaseSubscriptions = new ConcurrentHashMap<>();
   private final Map<String, PauseTransition> testCaseStartTimeouts = new ConcurrentHashMap<>();
@@ -384,7 +388,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
         localRuntime
             .get()
             .createAgent(
-                this.behavior.getDelegate(),
+                executionBehavior(this.behavior.getDelegate(), requestedTestAction),
                 chooseNextName(this.behavior, testing),
                 options,
                 KlabIDEController.instance().user());
@@ -406,6 +410,21 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     compilationSuccessful = false;
     updateStatus();
     return null;
+  }
+
+  static KActorsBehavior executionBehavior(KActorsBehavior behavior, String action) {
+    if (action == null) return behavior;
+    var request = Utils.Json.parseObject(Utils.Json.asString(behavior), KActorsBehaviorImpl.class);
+    request.getProperties().put("testAction", action);
+    return request;
+  }
+
+  private boolean isTestCase() {
+    return behavior != null && behavior.getBehaviorType() == KActorsBehavior.Type.UNITTEST;
+  }
+
+  private boolean canLaunchTest() {
+    return !testLaunchInProgress && !testExecution.isRunning() && !hasAliveAgents();
   }
 
   private String chooseNextName(KActorsBehavior behavior, boolean testing) {
@@ -629,6 +648,23 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   }
 
   private boolean launchAgent(boolean debugging, boolean testing) {
+    return launchAgent(debugging, testing, null);
+  }
+
+  private boolean launchAgent(boolean debugging, boolean testing, String action) {
+    if (isTestCase() && !canLaunchTest()) return false;
+    testLaunchInProgress = isTestCase();
+    requestedTestAction = action;
+    try {
+      return launchAgentInternal(debugging, testing);
+    } finally {
+      testLaunchInProgress = false;
+      requestedTestAction = null;
+      refreshAgentStates();
+    }
+  }
+
+  private boolean launchAgentInternal(boolean debugging, boolean testing) {
     if (!compilationSuccessful || getLocalRuntime().isEmpty()) {
       return false;
     }
@@ -656,6 +692,9 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
         registerDebugSession(agent);
       }
       if (!agent.start()) {
+        var results = testCaseResults.get(agent.getUrn());
+        if (results != null) results.fail(agent.getName(), "Test agent failed to start");
+        testExecution.stopped(agent.getUrn());
         closeTestCaseSubscription(agent.getUrn());
         removeAgentConsole(agent);
         if (debugging) {
@@ -667,8 +706,11 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     // Ordinary agents are started by RuntimeService. Finite agents are started above, after every
     // observer is attached. A stopped handle here is therefore a finite agent that completed.
     if (!agent.isAlive()) {
-      disconnectAgent(agent);
-      refreshAgentStates();
+      Platform.runLater(() -> {
+        agentStopped(agent);
+        disconnectAgent(agent);
+        refreshAgentStates();
+      });
       return true;
     }
     if (debugging && !finiteBehavior) {
@@ -719,7 +761,10 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
       KlabIDEController.instance().handleNotification(Notification.error(detail));
       return false;
     }
-    var subscription = clientAgent.addMessageListener(message -> handleTestMessage(agent, message));
+    testExecution.begin(agent.getUrn());
+    refreshAgentStates();
+    var subscription = clientAgent.addMessageListener(
+        message -> Platform.runLater(() -> handleTestMessage(agent, message)));
     testCaseSubscriptions.put(agent.getUrn(), subscription);
     var startTimeout = new PauseTransition(Duration.seconds(5));
     startTimeout.setOnFinished(
@@ -728,19 +773,16 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
             var detail =
                 "The runtime accepted the test start request but sent no lifecycle messages.";
             view.fail(title, detail);
-            clientAgent.setAlive(false);
-            agentStopped(agent);
+            // A missing report is not evidence of termination. Request stop and retain ownership
+            // until the runtime acknowledges it through the normal agent lifecycle.
+            clientAgent.stop();
             KlabIDEController.instance().handleNotification(Notification.error(detail));
           }
           testCaseStartTimeouts.remove(agent.getUrn());
         });
     testCaseStartTimeouts.put(agent.getUrn(), startTimeout);
     startTimeout.play();
-    tab.setOnCloseRequest(
-        event -> {
-          testCaseResults.remove(agent.getUrn());
-          closeTestCaseSubscription(agent.getUrn());
-        });
+    // Monitoring belongs to the execution; closing its presentation must not release the run lock.
     return true;
   }
 
@@ -764,6 +806,8 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     if (view != null) {
       view.accept(type, payload);
     }
+    testExecution.accept(agent.getUrn(), type, payload);
+    refreshAgentStates();
     if (type == RuntimeAgent.TestMessageType.TESTCASE_FINISHED) {
       closeTestCaseSubscription(agent.getUrn());
     }
@@ -1519,6 +1563,15 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
   }
 
   private void agentStopped(Agent agent) {
+    if (testExecution.owns(agent.getUrn())) {
+      var results = testCaseResults.get(agent.getUrn());
+      if (results != null && !results.statistics().finished()) {
+        results.fail(agent.getName(), "Test execution stopped before completion");
+      }
+      testExecution.stopped(agent.getUrn());
+      closeTestCaseSubscription(agent.getUrn());
+      refreshAgentStates();
+    }
     if (!keepsAgentConsoleAfterStop()) {
       removeAgentConsole(agent);
     }
@@ -1612,6 +1665,7 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
     run.setTooltip(new Tooltip(isApplication()
         ? "Run the published project application in an embedded web view (publish changes first)"
         : "Compile the behavior and run a new agent"));
+    canRun &= !isTestCase() || canLaunchTest();
     run.enabled(canRun);
     run.getStyleClass().removeAll(Styles.SUCCESS, Styles.DANGER);
     if (canRun) {
@@ -1713,7 +1767,30 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
         setGraphic(Theme.getGraphics(b.getDelegate()));
       } else if (item instanceof KActorsAction action) {
         setText(action.getUrn());
-        setGraphic(new IconLabel(Theme.ACTION_ICON, 15, "-color-fg-default"));
+        var row = new HBox(6, new IconLabel(Theme.ACTION_ICON, 15, "-color-fg-default"));
+        row.setAlignment(Pos.CENTER_LEFT);
+        var state = testExecution.status(action.getUrn());
+        if (state == TestCaseExecutionState.Status.RUNNING) {
+          var spinner = new ProgressIndicator(-1);
+          spinner.setMinSize(12, 12);
+          spinner.setPrefSize(12, 12);
+          spinner.setMaxSize(12, 12);
+          row.getChildren().add(spinner);
+        } else if (state != null) {
+          row.getChildren().add(new IconLabel(Material2AL.CHECK_CIRCLE, 12,
+              state == TestCaseExecutionState.Status.PASSED
+                  ? "-color-success-fg" : "-color-danger-fg"));
+        }
+        setGraphic(row);
+        if (isTestCase() && !Set.of("init", "main").contains(action.getUrn())
+            && action.getAnnotations().stream().anyMatch(a -> "test".equals(a.getName()))) {
+          var runTest = new MenuItem("Run this test", new IconLabel(Material2MZ.PLAY_ARROW, 14, Color.GREEN));
+          runTest.setOnAction(event -> launchAgent(false, false, action.getUrn()));
+          var menu = new ContextMenu(runTest);
+          menu.setOnShowing(event -> runTest.setDisable(
+              !sourceIsValid() || !compilationSuccessful || getLocalRuntime().isEmpty() || !canLaunchTest()));
+          setContextMenu(menu);
+        }
       } else if (item instanceof AgentGroup group) {
         setText(group.label());
         setGraphic(new IconLabel(Material2MZ.PEOPLE, 15, "-color-fg-default"));

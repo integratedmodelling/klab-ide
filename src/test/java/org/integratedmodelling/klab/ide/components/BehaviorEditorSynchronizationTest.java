@@ -70,6 +70,27 @@ class BehaviorEditorSynchronizationTest {
           editor.refreshManagedBehavior(original);
           verify(runtime, times(1)).createAgent(same(updated), anyString(), any(), eq(user));
           verify(sourceEditor, never()).setText("original");
+          if (type == KActorsBehavior.Type.UNITTEST) {
+            var executionField = BehaviorEditor.class.getDeclaredField("testExecution");
+            executionField.setAccessible(true);
+            var execution = (TestCaseExecutionState) executionField.get(editor);
+            var updateButtons = BehaviorEditor.class.getDeclaredMethod("updateAgentActionButtons", boolean.class);
+            updateButtons.setAccessible(true);
+            var runField = BehaviorEditor.class.getDeclaredField("run");
+            runField.setAccessible(true);
+            var run = (javafx.scene.control.ToggleButton) runField.get(editor);
+            execution.begin("active-test");
+            updateButtons.invoke(editor, true);
+            assertTrue(run.isDisabled());
+            var launch = BehaviorEditor.class.getDeclaredMethod("launchAgent", boolean.class, boolean.class);
+            launch.setAccessible(true);
+            assertEquals(false, launch.invoke(editor, false, false));
+            assertEquals(false, launch.invoke(editor, true, false));
+            execution.stopped("active-test");
+            updateButtons.invoke(editor, true);
+            assertFalse(run.isDisabled());
+          }
+
         }
         return null;
       });
