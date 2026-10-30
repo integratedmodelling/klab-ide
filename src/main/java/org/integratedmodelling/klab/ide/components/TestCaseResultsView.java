@@ -1,11 +1,16 @@
 package org.integratedmodelling.klab.ide.components;
 
 import atlantafx.base.theme.Styles;
+import java.nio.file.Files;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TitledPane;
@@ -14,6 +19,8 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.stage.FileChooser;
+import org.integratedmodelling.common.utils.Utils;
 import org.integratedmodelling.klab.api.actors.RuntimeAgent;
 import org.integratedmodelling.klab.api.collections.DomainObject;
 import org.integratedmodelling.klab.ide.Theme;
@@ -118,6 +125,9 @@ public final class TestCaseResultsView extends DomainObjectView {
     var state = new Label(stats.finished() ? (failed ? "Failed" : "Finished") : "Running");
     state.setTextFill(
         stats.finished() ? (failed ? Color.FIREBRICK : Color.FORESTGREEN) : Color.DODGERBLUE);
+    var json = new Hyperlink("Json");
+    json.setDisable(!stats.finished());
+    json.setOnAction(event -> saveReport(report));
     var spacer = new Region();
     HBox.setHgrow(spacer, Priority.ALWAYS);
     var heading =
@@ -126,6 +136,7 @@ public final class TestCaseResultsView extends DomainObjectView {
             new IconLabel(Theme.TESTCASE_ICON, 20, Theme.FOREGROUND_COLOR),
             title,
             spacer,
+            json,
             state);
     heading.setAlignment(Pos.CENTER_LEFT);
     box.getChildren().add(heading);
@@ -160,6 +171,39 @@ public final class TestCaseResultsView extends DomainObjectView {
       box.getChildren().add(createObjectNode(test, depth + 1));
     }
     return box;
+  }
+
+  private void saveReport(DomainObject report) {
+    var chooser = new FileChooser();
+    chooser.setTitle("Save JSON test report");
+    chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON files (*.json)", "*.json"));
+    var name = report.get("testcase", String.class);
+    chooser.setInitialFileName(
+        (name == null || name.isBlank() ? "test-report" : name.replaceAll("[^a-zA-Z0-9._-]", "_"))
+            + ".json");
+    var destination = chooser.showSaveDialog(getScene() == null ? null : getScene().getWindow());
+    if (destination == null) {
+      return;
+    }
+    try {
+      Files.writeString(destination.toPath(), Utils.Json.asString(reportData(report)));
+    } catch (Exception error) {
+      var alert = new Alert(Alert.AlertType.ERROR);
+      alert.setTitle("Save JSON test report");
+      alert.setHeaderText("Could not save the test report");
+      alert.setContentText(error.getMessage());
+      if (getScene() != null) {
+        alert.initOwner(getScene().getWindow());
+      }
+      alert.showAndWait();
+    }
+  }
+
+  // DomainObject is a Map: include its separate child tree explicitly during serialization.
+  private static Map<String, Object> reportData(DomainObject report) {
+    var data = new LinkedHashMap<String, Object>(report);
+    data.put("children", report.getChildren().stream().map(TestCaseResultsView::reportData).toList());
+    return data;
   }
 
   private Node createTest(DomainObject test, int depth) {
