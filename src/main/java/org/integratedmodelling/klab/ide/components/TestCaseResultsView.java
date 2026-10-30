@@ -14,6 +14,7 @@ import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TitledPane;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -119,26 +120,35 @@ public final class TestCaseResultsView extends DomainObjectView {
   private Node createTestCase(DomainObject report, int depth) {
     var box = new VBox(10);
     var title = new Label(String.valueOf(report.get("testcase")));
+    title.getStyleClass().add("test-case-results-title");
+    title.setMinWidth(0);
+    title.setMaxWidth(240);
     title.getStyleClass().add(Styles.TITLE_3);
     var stats = statistics();
     boolean failed = stats.finished() && !report.get("outcome", stats.testsFailed() == 0);
     var state = new Label(stats.finished() ? (failed ? "Failed" : "Finished") : "Running");
     state.setTextFill(
         stats.finished() ? (failed ? Color.FIREBRICK : Color.FORESTGREEN) : Color.DODGERBLUE);
-    var json = new Hyperlink("Json");
+    var json =
+        new Hyperlink(
+            "Json", new IconLabel(Material2AL.CLOUD_DOWNLOAD, 14, "-color-accent-fg"));
     json.setDisable(!stats.finished());
     json.setOnAction(event -> saveReport(report));
     var spacer = new Region();
     HBox.setHgrow(spacer, Priority.ALWAYS);
+    var metadata = createMetadataChips(report);
     var heading =
         new HBox(
             8,
             new IconLabel(Theme.TESTCASE_ICON, 20, Theme.FOREGROUND_COLOR),
             title,
+            metadata,
             spacer,
             json,
             state);
+    heading.getStyleClass().add("test-case-results-title-bar");
     heading.setAlignment(Pos.CENTER_LEFT);
+    heading.setPadding(new Insets(5, 8, 5, 8));
     box.getChildren().add(heading);
     if (report.description() != null && !report.description().isBlank()) {
       var description = new Label(report.description());
@@ -163,14 +173,28 @@ public final class TestCaseResultsView extends DomainObjectView {
                 + formatElapsed(stats.elapsedMilliseconds()));
     summary.setWrapText(true);
     box.getChildren().add(summary);
-    var properties = createProperties(report, REPORT_PROPERTIES);
-    if (!properties.getChildren().isEmpty()) {
-      box.getChildren().add(properties);
-    }
     for (var test : report.getChildren()) {
       box.getChildren().add(createObjectNode(test, depth + 1));
     }
     return box;
+  }
+
+  private HBox createMetadataChips(DomainObject report) {
+    var metadata = new HBox(6);
+    metadata.getStyleClass().add("test-case-results-metadata");
+    HBox.setHgrow(metadata, Priority.ALWAYS);
+    for (var key : report.keySet()) {
+      if (REPORT_PROPERTIES.contains(key) || report.get(key) == null) {
+        continue;
+      }
+      var value = new Label(humanize(key) + ": " + report.get(key));
+      value.getStyleClass().add("test-case-results-chip");
+      value.setMaxWidth(220);
+      value.setWrapText(false);
+      value.setTooltip(new Tooltip(value.getText()));
+      metadata.getChildren().add(value);
+    }
+    return metadata;
   }
 
   private void saveReport(DomainObject report) {
