@@ -737,8 +737,11 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
     // switch the main area to the requested view.
     Platform.runLater(
         () -> {
-          mainArea.getChildren().removeIf(child -> child != modalPane);
-          mainArea.getChildren().add(0, ui);
+          // Reselecting the attached view must not detach its editors and restart their work.
+          if (!mainArea.getChildren().contains(ui)) {
+            mainArea.getChildren().removeIf(child -> child != modalPane);
+            mainArea.getChildren().add(0, ui);
+          }
           if (modalPane != null) {
             ensureModalPaneAttached();
           }

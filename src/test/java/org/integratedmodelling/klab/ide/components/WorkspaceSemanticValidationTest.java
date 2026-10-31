@@ -15,6 +15,195 @@ import org.integratedmodelling.klab.api.services.reasoner.objects.*;
 import org.junit.jupiter.api.Test;
 
 class WorkspaceSemanticValidationTest {
+  @Test void unchangedHideShowReusesValidationAndRedeliversQueuedResults() throws Exception {
+    for (boolean deliverBeforePause : List.of(false, true)) {
+      var calls = new AtomicInteger(); var polls = new AtomicInteger();
+      var state = new AtomicReference<>(status("reasoner", "boot", 1, "ready"));
+      var backend = signaledReasoner(state, polls, request -> { calls.incrementAndGet(); return success(request); });
+      var ui = new ConcurrentLinkedQueue<Runnable>();
+      var updates = new ArrayList<WorkspaceSemanticValidation.Update>();
+      var document = document("unchanged");
+      try (var coordinator = new WorkspaceSemanticValidation(() -> scope(new AtomicReference<>(backend)),
+          ui::add, (key, update) -> updates.add(update))) {
+        coordinator.documents(List.of(document)); coordinator.start();
+        settle(coordinator);
+        assertEquals(1, calls.get());
+        if (deliverBeforePause) drain(ui);
+        coordinator.pause();
+        updates.clear(); drain(ui);
+        assertTrue(updates.isEmpty(), "Detached-scene callbacks must be discarded");
+        coordinator.documents(List.of(document)); coordinator.start();
+        settle(coordinator); drain(ui);
+        assertEquals(1, calls.get(), "Visibility alone must not resubmit unchanged documents");
+        assertEquals("Ready", updates.getLast().status(), "Cached results must replace any pending UI");
+      }
+    }
+  }
+
+  @Test void resumeRechecksSourceBootKnowledgeAuthorityAndReasonerIdentity() throws Exception {
+    for (String change : List.of("source", "boot", "revision", "authority", "selection", "uptime")) {
+      var calls = new AtomicInteger(); var polls = new AtomicInteger();
+      var state = new AtomicReference<>(status("reasoner", "boot", 1, "ready"));
+      Function<SemanticValidationRequest, SemanticValidationResponse> validate = request -> {
+        calls.incrementAndGet(); return success(request);
+      };
+      var selected = new AtomicReference<>(signaledReasoner(state, polls, validate));
+      var ui = new ConcurrentLinkedQueue<Runnable>();
+      var updates = new ArrayList<WorkspaceSemanticValidation.Update>();
+      var document = document("before");
+      try (var coordinator = new WorkspaceSemanticValidation(() -> scope(selected), ui::add,
+          (key, update) -> updates.add(update))) {
+        coordinator.documents(List.of(document)); coordinator.start(); settle(coordinator); drain(ui);
+        assertEquals(1, calls.get()); coordinator.pause(); updates.clear();
+        switch (change) {
+          case "source" -> document.setSourceCode("after");
+          case "boot" -> state.set(status("reasoner", "new-boot", 1, "ready"));
+          case "revision" -> state.set(status("reasoner", "boot", 2, "ready"));
+          case "authority" -> state.get().getMetadata().put("authority.codelist.revisions", Map.of("A", 2));
+          case "selection" -> selected.set(signaledReasoner(state, polls, validate));
+          case "uptime" -> state.get().setUptimeMs(0);
+        }
+        coordinator.documents(List.of(document)); coordinator.start(); settle(coordinator); drain(ui);
+        assertEquals(2, calls.get(), change);
+        assertEquals("Ready", updates.getLast().status(), change);
+        assertEquals(document.getSourceCode(), updates.getLast().request().document().getSourceCode());
+      }
+    }
+  }
+
+  @Test void pauseResumeDuringAnInFlightRequestRetainsItsResultWithoutOverlappingWorkers() throws Exception {
+    for (String change : List.of("none", "source", "boot", "revision", "authority")) {
+      var calls = new AtomicInteger(); var polls = new AtomicInteger();
+      var entered = new CountDownLatch(1); var release = new CountDownLatch(1);
+      var state = new AtomicReference<>(status("reasoner", "boot", 1, "ready"));
+      var backend = signaledReasoner(state, polls, request -> {
+        if (calls.incrementAndGet() == 1) {
+          entered.countDown();
+          try { assertTrue(release.await(5, TimeUnit.SECONDS)); }
+          catch (InterruptedException e) { throw new AssertionError(e); }
+        }
+        return success(request);
+      });
+      var ui = new ConcurrentLinkedQueue<Runnable>();
+      var updates = new ArrayList<WorkspaceSemanticValidation.Update>();
+      var document = document("before");
+      try (var coordinator = new WorkspaceSemanticValidation(() -> scope(new AtomicReference<>(backend)),
+          ui::add, (key, update) -> updates.add(update))) {
+        coordinator.documents(List.of(document)); coordinator.start();
+        assertTrue(entered.await(5, TimeUnit.SECONDS));
+        coordinator.pause(); updates.clear(); drain(ui);
+        assertTrue(updates.isEmpty());
+        switch (change) {
+          case "source" -> document.setSourceCode("after");
+          case "boot" -> state.set(status("reasoner", "new", 1, "ready"));
+          case "revision" -> state.set(status("reasoner", "boot", 2, "ready"));
+          case "authority" -> state.get().getMetadata().put("authority.codelist.revisions", Map.of("A", 2));
+        }
+        coordinator.documents(List.of(document)); coordinator.start();
+        release.countDown(); settle(coordinator); drain(ui);
+        assertEquals(change.equals("none") ? 1 : 2, calls.get(), change);
+        assertEquals("Ready", updates.getLast().status());
+        assertEquals(document.getSourceCode(), updates.getLast().request().document().getSourceCode());
+        assertTrue(updates.stream().allMatch(u -> u.request().document().getSourceCode().equals(document.getSourceCode())));
+      } finally { release.countDown(); }
+    }
+  }
+
+  @Test void responseCompletingWhileHiddenIsReplayedEvenInManualMode() throws Exception {
+    var calls = new AtomicInteger(); var polls = new AtomicInteger();
+    var entered = new CountDownLatch(1); var release = new CountDownLatch(1);
+    var state = new AtomicReference<>(status("reasoner", "boot", 1, "ready"));
+    var backend = signaledReasoner(state, polls, request -> {
+      calls.incrementAndGet(); entered.countDown();
+      try { assertTrue(release.await(5, TimeUnit.SECONDS)); }
+      catch (InterruptedException e) { throw new AssertionError(e); }
+      return success(request);
+    });
+    var ui = new ConcurrentLinkedQueue<Runnable>();
+    var updates = new ArrayList<WorkspaceSemanticValidation.Update>();
+    try (var coordinator = new WorkspaceSemanticValidation(() -> scope(new AtomicReference<>(backend)),
+        ui::add, (key, update) -> updates.add(update))) {
+      coordinator.setAutomatic(false); coordinator.documents(List.of(document("saved")));
+      coordinator.validateOnce(() -> {}); assertTrue(entered.await(5, TimeUnit.SECONDS));
+      coordinator.pause(); updates.clear(); release.countDown(); settle(coordinator); drain(ui);
+      assertTrue(updates.isEmpty());
+      coordinator.start(); settle(coordinator); drain(ui);
+      assertEquals(1, calls.get()); assertEquals("Ready", updates.getLast().status());
+    } finally { release.countDown(); }
+  }
+
+  @Test void resumeReplaysWaitingAndBackoffResultsWithoutAnotherRpc() throws Exception {
+    for (String signal : List.of("ready", "loading")) {
+      var calls = new AtomicInteger(); var polls = new AtomicInteger();
+      var state = new AtomicReference<>(status("reasoner", "boot", 1, signal));
+      var backend = signaledReasoner(state, polls, request -> {
+        calls.incrementAndGet(); return SemanticValidationResponse.forRequest(request);
+      });
+      var ui = new ConcurrentLinkedQueue<Runnable>();
+      var updates = new ArrayList<WorkspaceSemanticValidation.Update>();
+      try (var coordinator = new WorkspaceSemanticValidation(() -> scope(new AtomicReference<>(backend)),
+          ui::add, (key, update) -> updates.add(update))) {
+        coordinator.documents(List.of(document("saved"))); coordinator.start(); settle(coordinator);
+        coordinator.pause(); updates.clear(); drain(ui); assertTrue(updates.isEmpty());
+        coordinator.start(); settle(coordinator); drain(ui);
+        assertEquals(signal.equals("ready") ? 1 : 0, calls.get());
+        assertNotNull(updates.getLast().response());
+      }
+    }
+  }
+
+  @Test void manualModeResumeMarksChangedKnowledgeOutOfDateWithoutValidating() throws Exception {
+    for (String change : List.of("source", "boot", "revision", "authority")) {
+      var calls = new AtomicInteger(); var polls = new AtomicInteger();
+      var state = new AtomicReference<>(status("reasoner", "boot", 1, "ready"));
+      var backend = signaledReasoner(state, polls, request -> { calls.incrementAndGet(); return success(request); });
+      var ui = new ConcurrentLinkedQueue<Runnable>();
+      var updates = new ArrayList<WorkspaceSemanticValidation.Update>();
+      var document = document("saved");
+      try (var coordinator = new WorkspaceSemanticValidation(() -> scope(new AtomicReference<>(backend)),
+          ui::add, (key, update) -> updates.add(update))) {
+        coordinator.setAutomatic(false); coordinator.documents(List.of(document));
+        coordinator.validateOnce(() -> {}); settle(coordinator); drain(ui);
+        assertEquals("Ready", updates.getLast().status());
+        coordinator.pause(); updates.clear();
+        switch (change) {
+          case "source" -> document.setSourceCode("changed");
+          case "boot" -> state.set(status("reasoner", "new", 1, "ready"));
+          case "revision" -> state.set(status("reasoner", "boot", 2, "ready"));
+          case "authority" -> state.get().getMetadata().put("authority.codelist.revisions", Map.of("A", 2));
+        }
+        coordinator.documents(List.of(document)); coordinator.start(); settle(coordinator); drain(ui);
+        assertEquals(1, calls.get(), change);
+        assertEquals(SemanticValidationResponse.Status.STALE_KNOWLEDGE, updates.getLast().response().getStatus());
+        assertTrue(updates.getLast().response().getReason().contains("Validate now"));
+      }
+    }
+  }
+
+  @Test void finalDisposalRejectsCallbacksAndCannotBeResumed() throws Exception {
+    var calls = new AtomicInteger(); var polls = new AtomicInteger();
+    var state = new AtomicReference<>(status("reasoner", "boot", 1, "ready"));
+    var backend = signaledReasoner(state, polls, request -> { calls.incrementAndGet(); return success(request); });
+    var ui = new ConcurrentLinkedQueue<Runnable>();
+    var updates = new ArrayList<WorkspaceSemanticValidation.Update>();
+    var coordinator = new WorkspaceSemanticValidation(() -> scope(new AtomicReference<>(backend)),
+        ui::add, (key, update) -> updates.add(update));
+    coordinator.documents(List.of(document("saved"))); coordinator.start(); settle(coordinator);
+    coordinator.close(); updates.clear(); drain(ui);
+    coordinator.start(); coordinator.documents(List.of(document("different"))); drain(ui);
+    assertTrue(updates.isEmpty()); assertEquals(1, calls.get());
+  }
+
+  private static void settle(WorkspaceSemanticValidation coordinator) throws Exception {
+    var field = WorkspaceSemanticValidation.class.getDeclaredField("worker"); field.setAccessible(true);
+    ((ScheduledThreadPoolExecutor) field.get(coordinator)).schedule(() -> {}, 300, TimeUnit.MILLISECONDS)
+        .get(5, TimeUnit.SECONDS);
+  }
+
+  private static void drain(Queue<Runnable> ui) {
+    Runnable task; while ((task = ui.poll()) != null) task.run();
+  }
+
   @Test void newSaveDiscardsAlreadyQueuedManualResults() throws Exception {
     var ui = new ConcurrentLinkedQueue<Runnable>();
     var updates = new ArrayList<WorkspaceSemanticValidation.Update>();

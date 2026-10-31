@@ -96,6 +96,7 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
     SemanticValidationResponse lastResponse;
     boolean pendingPresentationEligible;
     PendingCandidate presentationCandidate = PendingCandidate.NONE;
+    volatile long presentedVisibility = -1;
 
     Entry(SemanticValidationRequest request) {
       this.request = request;
@@ -113,6 +114,8 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
   private ScheduledFuture<?> requested;
   private volatile long lifecycle;
   private volatile boolean active;
+  private volatile boolean closed;
+  private volatile long visibility;
   private volatile boolean automatic = true;
   private volatile String fingerprint;
   private Reasoner observedReasoner;
@@ -216,6 +219,7 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
 
   // Called on the UI thread. Snapshot now: navigable documents may be replaced by later saves.
   void documents(Collection<? extends KlabDocument<?>> documents) {
+    if (closed) return;
     var retained = new HashSet<String>();
     for (var document : documents) {
       if (!(document instanceof KimNamespace || document instanceof KimOntology)) continue;
@@ -288,11 +292,18 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
   }
 
   synchronized void start() {
+    if (closed) return;
     if (active) {
       refreshSoon();
       return;
     }
     active = true;
+    if (worker != null) {
+      // Serialize resume with any RPC still completing while hidden. Even manual mode must
+      // replay an undelivered result after checking the current document and semantic signal.
+      worker.execute(() -> refreshNow(false, automatic));
+      return;
+    }
     lifecycle++;
     worker =
         new ScheduledThreadPoolExecutor(
@@ -304,6 +315,14 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
             });
     worker.setRemoveOnCancelPolicy(true);
     worker.scheduleWithFixedDelay(this::refresh, 0, 30, TimeUnit.SECONDS);
+  }
+
+  /** Temporary scene detachment keeps completed validation and the observed service identity. */
+  synchronized void pause() {
+    if (!active) return;
+    active = false;
+    visibility++; // Queued UI callbacks from the detached scene must not be applied on return.
+    if (requested != null) requested.cancel(false);
   }
 
   private synchronized void refreshSoon() {
@@ -337,9 +356,11 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
     var authority = publishedAuthority;
     var reason = publishedReason;
     var blocked = publishedBlocked;
+    long presentationVisibility = visibility;
     ui.execute(
         () -> {
           if (active
+              && visibility == presentationVisibility
               && lifecycle == epoch
               && entries.get(key) == entry
               && Objects.equals(fingerprint, stamp)
@@ -353,6 +374,7 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
                   response,
                   epoch,
                   DocumentValidationTrace.Decision.ACCEPT);
+            entry.presentedVisibility = presentationVisibility;
             listener.accept(key, update);
           } else {
             if (DocumentValidationTrace.enabled())
@@ -524,7 +546,11 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
       String reason,
       boolean blocked,
       boolean pendingEligible) {
-    if (Objects.equals(entry.unavailableAgainst, stamp)) return;
+    if (Objects.equals(entry.unavailableAgainst, stamp)) {
+      if (entry.presentedVisibility != visibility)
+        deliver(key, entry, entry.lastResponse, epoch, stamp, entry.pendingPresentationEligible);
+      return;
+    }
     entry.unavailableAgainst = stamp;
     var response = documentErrors(entry.request);
     if (response == null) {
@@ -567,6 +593,7 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
   }
 
   synchronized void validateOnce(Runnable completed) {
+    if (closed) return;
     start();
     long epoch = lifecycle;
     worker.execute(() -> manualAttempt(epoch, 0, completed));
@@ -591,6 +618,10 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
   }
 
   private void refreshNow(boolean force) {
+    refreshNow(force, true);
+  }
+
+  private void refreshNow(boolean force, boolean validate) {
     long epoch = lifecycle;
     if (!active) return;
     try {
@@ -660,8 +691,21 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
               true);
           continue;
         }
-        if (stamp.equals(entry.checkedAgainst)) continue;
-        if (stamp.equals(entry.attemptedAgainst) && clock.getAsLong() < entry.retryAfter) continue;
+        if (stamp.equals(entry.checkedAgainst)
+            || (stamp.equals(entry.attemptedAgainst) && clock.getAsLong() < entry.retryAfter)) {
+          if (entry.presentedVisibility != visibility)
+            deliver(item.getKey(), entry, entry.lastResponse, epoch, stamp,
+                entry.pendingPresentationEligible);
+          continue;
+        }
+        if (!validate) {
+          entry.checkedAgainst = null;
+          var stale = SemanticValidationResponse.forRequest(entry.request);
+          stale.setStatus(SemanticValidationResponse.Status.STALE_KNOWLEDGE);
+          stale.setReason("Saved semantic validation is out of date; use Validate now");
+          deliver(item.getKey(), entry, stale, epoch, stamp);
+          continue;
+        }
         entry.unavailableAgainst = "<never>";
         deliver(item.getKey(), entry, null, epoch, stamp);
         entry.request.setKnowledgeRevision(signal.revision());
@@ -694,7 +738,9 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
               epoch,
               DocumentValidationTrace.Decision.OBSERVE);
         var latest = signal(reasoner, scope);
-        if (!active || lifecycle != epoch) return;
+        // A hidden editor may retain this completed result. Resume runs on this same worker,
+        // rechecks its signal, and republishes it under the new visibility epoch.
+        if (closed || lifecycle != epoch) return;
         var currentScope = scopeSupplier.get();
         if (currentScope == null || selectedReasoner(currentScope) != reasoner) {
           fingerprint = null;
@@ -756,8 +802,10 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
 
   @Override
   public synchronized void close() {
+    closed = true;
     active = false;
     lifecycle++;
+    visibility++;
     fingerprint = null;
     entries
         .values()

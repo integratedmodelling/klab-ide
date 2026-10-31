@@ -154,10 +154,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         .addListener(
             (property, oldScene, newScene) -> {
               if (closed.get()) return;
-              if (newScene == null) semanticValidation.close();
+              if (newScene == null) semanticValidation.pause();
               else {
-                semanticValidation.start();
                 requestSemanticValidation();
+                semanticValidation.start();
               }
             });
     var access = prepared.access();
@@ -484,9 +484,9 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     if (closed.get()) return;
     KlabIDEController.instance().setFocalEditor(this, visibleAfterCall);
     if (visibleAfterCall) {
-      semanticValidation.start();
       requestSemanticValidation();
-    } else semanticValidation.close();
+      semanticValidation.start();
+    } else semanticValidation.pause();
   }
 
   private NavigableAsset draggedAsset;
