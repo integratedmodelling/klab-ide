@@ -463,6 +463,11 @@ public class IDEContextScope implements ContextScope {
   }
 
   @Override
+  public Long getObserverId() {
+    return delegate.getObserverId();
+  }
+
+  @Override
   public Observation getObserver() {
     return delegate.getObserver();
   }
