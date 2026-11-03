@@ -6,14 +6,74 @@ import static org.mockito.Mockito.*;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import javafx.application.Platform;
+import javafx.scene.control.Button;
 import org.integratedmodelling.klab.api.engine.Engine;
 import org.integratedmodelling.klab.api.scope.UserScope;
 import org.integratedmodelling.klab.api.services.KlabService;
 import org.integratedmodelling.klab.api.services.ResourcesService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeAll;
 
 class ServiceDashboardSelectionTest {
+  @BeforeAll
+  static void startFx() throws Exception {
+    var ready = new CompletableFuture<Void>();
+    try {
+      Platform.startup(() -> { Platform.setImplicitExit(false); ready.complete(null); });
+    } catch (IllegalStateException started) {
+      Platform.runLater(() -> ready.complete(null));
+    }
+    ready.get(15, TimeUnit.SECONDS);
+  }
+
+  @Test
+  void remoteAvailabilityEnablesGreyRailButtonWithoutEngineStatusChange() throws Exception {
+    var controller = controller(List.of(), Engine.Status.ServiceProvision.INOPERATIVE);
+    var buttonReady = new CompletableFuture<Button>();
+    Platform.runLater(() -> {
+      var button = new Button();
+      button.setStyle("-fx-text-fill: -color-fg-muted;");
+      button.setDisable(true);
+      buttonReady.complete(button);
+    });
+    var button = buttonReady.get(5, TimeUnit.SECONDS);
+    var field = KlabIDEController.class.getDeclaredField("resourcesButton");
+    field.setAccessible(true);
+    field.set(controller, button);
+    var remote = service("remote", false, true);
+
+    controller.notifyServiceStatus(remote, remote.status());
+    assertButtonState(button, false);
+
+    when(remote.status().isAvailable()).thenReturn(false);
+    controller.notifyServiceStatus(remote, remote.status());
+    assertButtonState(button, true);
+  }
+
+  private static void assertButtonState(Button button, boolean disabled) throws Exception {
+    var checked = new CompletableFuture<Void>();
+    Platform.runLater(() -> {
+      try {
+        assertEquals(disabled, button.isDisabled());
+        assertEquals("-fx-text-fill: -color-fg-muted;", button.getStyle());
+        if (!disabled) {
+          var selected = new java.util.concurrent.atomic.AtomicBoolean();
+          button.setOnAction(event -> selected.set(true));
+          button.fire();
+          assertTrue(selected.get());
+        }
+        checked.complete(null);
+      } catch (Throwable failure) {
+        checked.completeExceptionally(failure);
+      }
+    });
+    checked.get(5, TimeUnit.SECONDS);
+  }
+
   @Test
   void includesAvailableRemoteServiceWithoutOperationalProvision() throws Exception {
     var controller = controller(List.of(), Engine.Status.ServiceProvision.INOPERATIVE);

@@ -1447,6 +1447,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   @Override
   public void notifyServiceStatus(KlabService service, KlabService.ServiceStatus status) {
     this.serviceStatus.put(service, status);
+    refreshServiceDashboardAccess(status.getServiceType());
     if (ontologyView != null && (status.getServiceType() == KlabService.Type.RESOURCES
         || status.getServiceType() == KlabService.Type.REASONER)) ontologyView.refresh();
     // Status messages may contain a freshly deserialized service descriptor. Do
@@ -1457,6 +1458,30 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
             listeners.forEach(listener -> listener.accept(status));
           }
         });
+  }
+
+  /** Dashboard access follows availability independently of the operational indicator styling. */
+  private void refreshServiceDashboardAccess(KlabService.Type serviceType) {
+    if (serviceType == null) return;
+    var button = switch (serviceType) {
+      case REASONER -> reasonerButton;
+      case RESOURCES -> resourcesButton;
+      case RESOLVER -> resolverButton;
+      case RUNTIME -> runtimeButton;
+      default -> null;
+    };
+    if (button == null) return;
+    Platform.runLater(() -> {
+      var status = engineStatus.get();
+      var provision = status == null ? null : status.getServicesProvision().get(serviceType);
+      boolean availableRemote = serviceStatus.entrySet().stream()
+          .anyMatch(entry -> !entry.getKey().isLocal()
+              && entry.getValue().getServiceType() == serviceType
+              && entry.getValue().isAvailable());
+      boolean provisionAvailable =
+          provision != null && (provision.isOperational() || provision.isLocal());
+      button.setDisable(!provisionAvailable && !availableRemote);
+    });
   }
 
   private static boolean sameService(
@@ -1607,13 +1632,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
             case LOCAL_REMOTE_SINGLE, LOCAL_REMOTE_MULTI -> Theme.LOCAL_AND_REMOTE_SERVICE_ICON;
           };
 
-      boolean availableRemote = serviceStatus.entrySet().stream()
-          .anyMatch(entry -> !entry.getKey().isLocal()
-              && entry.getValue().getServiceType() == serviceType
-              && entry.getValue().isAvailable());
-      boolean disableDashboard =
-          !provision.isOperational() && !provision.isLocal() && !availableRemote;
-      Platform.runLater(() -> button.setDisable(disableDashboard));
+      refreshServiceDashboardAccess(serviceType);
 
       if (serviceType == KlabService.Type.RUNTIME) {
         if (provision.isOperational()) {
