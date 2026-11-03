@@ -33,6 +33,7 @@ public interface DigitalTwinViewer extends DigitalTwinReactor {
 
   void scheduleModified(Schedule schedule);
 
+
   void cleanup();
 
   /**
