@@ -8,6 +8,19 @@ import org.integratedmodelling.klab.api.scope.ContextScope;
 import org.junit.jupiter.api.Test;
 
 class ObserverScopeIdentityTest {
+  @Test void wrapperPreservesTheDelegatesRetainedCycleAndDoesNotInventOne() {
+    var delegate = mock(ClientContextScope.class);
+    var scope = mock(IDEContextScope.class, CALLS_REAL_METHODS);
+    scope.delegate = delegate;
+    var cycle = new org.integratedmodelling.klab.api.services.runtime.objects.ResolutionCycleBinding(
+        1, "cycle", "session.context", "runtime", true, null);
+    when(delegate.getResolutionCycleBinding()).thenReturn(cycle, null);
+    assertSame(cycle, scope.getResolutionCycleBinding());
+    assertNull(scope.getResolutionCycleBinding());
+    verify(delegate, times(2)).getResolutionCycleBinding();
+    verifyNoMoreInteractions(delegate);
+  }
+
   @Test void wrapperDelegatesTransportIdentityWithoutRefreshingButKeepsNormalAccessChecks() throws Exception {
     var delegate = mock(ClientContextScope.class);
     var scope = mock(IDEContextScope.class, CALLS_REAL_METHODS);

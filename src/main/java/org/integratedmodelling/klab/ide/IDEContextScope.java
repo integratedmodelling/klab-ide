@@ -468,6 +468,11 @@ public class IDEContextScope implements ContextScope {
   }
 
   @Override
+  public org.integratedmodelling.klab.api.services.runtime.objects.ResolutionCycleBinding getResolutionCycleBinding() {
+    return delegate.getResolutionCycleBinding();
+  }
+
+  @Override
   public Observation getObserver() {
     return delegate.getObserver();
   }
