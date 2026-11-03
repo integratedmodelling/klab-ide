@@ -6,15 +6,24 @@ import java.lang.reflect.Proxy;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.scene.Scene;
+import javafx.scene.chart.LineChart;
+import javafx.scene.control.Label;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Path;
 import org.integratedmodelling.klab.api.scope.UserScope;
 import org.integratedmodelling.klab.api.services.KlabService;
 import org.integratedmodelling.klab.api.services.impl.AbstractServiceCapabilities;
 import org.integratedmodelling.klab.api.services.impl.ServiceStatusImpl;
 import org.integratedmodelling.klab.ide.KlabIDEController;
+import org.integratedmodelling.klab.ide.Theme;
+import org.integratedmodelling.klab.ide.components.generic.Notebook;
+import org.kordamp.ikonli.materialdesign.MaterialDesign;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -24,6 +33,69 @@ class ServiceDashboardRecoveryTest {
     try { Platform.startup(() -> { Platform.setImplicitExit(false); ready.complete(null); }); }
     catch (IllegalStateException started) { Platform.runLater(() -> ready.complete(null)); }
     ready.get(15, TimeUnit.SECONDS);
+  }
+
+  @Test void chartsRemainStyledAcrossNotebookReattachment() throws Exception {
+    var previous = KlabIDEController.instance();
+    var previousStylesheet = fx(Application::getUserAgentStylesheet);
+    var root = fx(StackPane::new);
+    var status = new ServiceStatusImpl();
+    var service = (KlabService) Proxy.newProxyInstance(KlabService.class.getClassLoader(),
+        new Class<?>[]{KlabService.class}, (self, method, args) -> switch (method.getName()) {
+          case "status" -> status;
+          case "isLocal" -> false;
+          case "hashCode" -> System.identityHashCode(self);
+          case "equals" -> self == args[0];
+          default -> null;
+        });
+    try {
+      fx(() -> {
+        new KlabIDEController() { @Override public UserScope user() { return null; } };
+        Application.setUserAgentStylesheet(Theme.LIGHT_DEFAULT.getStylesheet());
+        var dashboard = new ServiceDashboard(service, "Test", true);
+        var notebook = new Notebook();
+        root.getChildren().add(notebook);
+        new Scene(root, 1200, 800);
+        notebook.addCard("service", MaterialDesign.MDI_SERVER, "Service", dashboard);
+        var detachments = new AtomicInteger();
+        dashboard.sceneProperty().addListener((property, before, after) -> {
+          if (after == null) detachments.incrementAndGet();
+        });
+        for (int i = 0; i < 8; i++) {
+          root.applyCss(); root.layout();
+          for (int j = 0; j < 90; j++) sample(dashboard, status);
+          notebook.addCard("other" + i, MaterialDesign.MDI_SERVER, "Other", new Label("Other"));
+          assertEquals(0, detachments.get(), "Adding another card must retain the dashboard's scene");
+          notebook.pinCard("service");
+          detachments.set(0);
+          notebook.addCard("temporary", MaterialDesign.MDI_SERVER, "Temporary", new Label("Temporary"));
+          notebook.removeCard("temporary");
+          assertEquals(0, detachments.get(), "Refreshing other cards must retain the pinned dashboard");
+          notebook.unpinCard("service");
+          detachments.set(0);
+          notebook.removeCard("other" + i);
+          assertEquals(0, detachments.get(), "Removing another card must retain the dashboard's scene");
+          root.getChildren().clear();
+          root.getChildren().add(notebook);
+          detachments.set(0);
+          root.applyCss(); root.layout();
+          var chart = (LineChart<?, ?>) dashboard.lookup(".chart");
+          assertNotNull(chart);
+          var line = (Path) chart.lookup(".chart-series-line");
+          assertNotNull(line);
+          assertNotEquals(Color.BLACK, line.getStroke(), "Chart lost its theme after reattachment");
+          assertNotNull(((Label) chart.lookup(".chart-title")).getSkin());
+        }
+        return null;
+      });
+    } finally {
+      fx(() -> {
+        root.getChildren().clear();
+        Application.setUserAgentStylesheet(previousStylesheet);
+        return null;
+      });
+      restoreController(previous);
+    }
   }
 
   @Test void unavailableDashboardRecoversOnceWhenCachedStatusBecomesOperational() throws Exception {

@@ -287,9 +287,9 @@ public class Notebook extends BorderPane {
 
   private void refreshView() {
     empty.set(cards.isEmpty());
-    pinnedContainer.getChildren().clear();
-    cardContainer.getChildren().clear();
-    indexContainer.getChildren().clear();
+    var pinned = new ArrayList<Node>();
+    var unpinned = new ArrayList<Node>();
+    var index = new ArrayList<Node>();
 
     boolean hasPinned = false;
     boolean hasUnpinned = false;
@@ -297,19 +297,30 @@ public class Notebook extends BorderPane {
     // Pinned cards go into the fixed area above the scroll pane
     for (CardEntry e : cards) {
       if (e.pinned) {
-        pinnedContainer.getChildren().add(e.cardView);
-        indexContainer.getChildren().add(e.indexCard);
+        pinned.add(e.cardView);
+        index.add(e.indexCard);
         hasPinned = true;
       }
     }
     // Unpinned cards go inside the scroll pane
     for (CardEntry e : cards) {
       if (!e.pinned) {
-        cardContainer.getChildren().add(e.cardView);
-        indexContainer.getChildren().add(e.indexCard);
+        unpinned.add(e.cardView);
+        index.add(e.indexCard);
         hasUnpinned = true;
       }
     }
+
+    // Retain unchanged cards in their parent. Clearing these lists detached every dashboard,
+    // invalidated its CSS ancestry, and restarted scene-bound monitoring (including log viewers)
+    // even when only an unrelated card was added or removed. Remove moved cards before insertion
+    // so pin/unpin never relies on JavaFX's implicit reparenting.
+    pinnedContainer.getChildren().removeIf(node -> !pinned.contains(node));
+    cardContainer.getChildren().removeIf(node -> !unpinned.contains(node));
+    indexContainer.getChildren().removeIf(node -> !index.contains(node));
+    reconcileChildren(pinnedContainer, pinned);
+    reconcileChildren(cardContainer, unpinned);
+    reconcileChildren(indexContainer, index);
 
     // Show a subtle divider between the pinned and scrollable zones when both are present
     pinnedContainer.setStyle(
@@ -318,6 +329,16 @@ public class Notebook extends BorderPane {
                 + " -fx-border-color: transparent transparent transparent transparent;"
                 + " -fx-border-width: 0 0 1 0; -fx-padding: 0 0 6 0;"
             : "-fx-background-color: -color-bg-default;");
+  }
+
+  private static void reconcileChildren(VBox container, List<Node> desired) {
+    var children = container.getChildren();
+    for (int i = 0; i < desired.size(); i++) {
+      var node = desired.get(i);
+      if (i < children.size() && children.get(i) == node) continue;
+      children.remove(node);
+      children.add(i, node);
+    }
   }
 
   /** Collapses all cards in the notebook, except for the pinned one if any. */
