@@ -601,8 +601,10 @@ distinguishes implemented checks from missing semantic validation.
 
 ### Semantic validation in workspace editors
 
-Parsed namespaces and ontologies are checked asynchronously when a workspace loads, when an
-editor opens, and after Resources returns a saved document. Validation uses the user's selected
+Opening, reopening or showing a workspace or document retains Resources' saved diagnostics;
+unchanged source is not submitted for semantic validation and does not start Reasoner polling.
+The source baseline is recorded before handling workspace changes. Automatic validation enrols
+only added or changed saved namespaces and ontologies. Validation uses the user's selected
 reasoner and never blocks editing or saving on an HTTP request. Tree badges show aggregated
 semantic errors for documents and projects; their tooltips include diagnostic messages. The
 editor status distinguishes pending, unavailable, syntax-blocked and unsynchronized knowledge
@@ -612,11 +614,14 @@ still denotes an editing lock.
 
 Semantic diagnostics use a separate Monaco marker owner, preserving parser and LSP markers.
 Editing clears semantic markers until the next saved source is validated. Late responses for
-superseded documents or a closed workspace are discarded. The background worker checks reasoner
-availability and knowledge revision every 30 seconds, retrying unavailable or unsynchronized
-validation and rechecking documents after knowledge changes. It stops when the workspace leaves
-the scene and resumes when reopened. Failed checks are retried after source/revision changes or
-workspace reopening. For saved ontologies, the reasoner synchronizes the authoritative source and
+superseded documents or a closed workspace are discarded. While changed source is pending, the
+background worker checks Reasoner readiness every 30 seconds and retries unavailable or
+unsynchronized validation. Completed source diagnostics are retained until another source change
+or explicit Validate now, without revalidation on visibility or Reasoner status changes. A
+source-identical Resources diagnostic refresh replaces the local overlay without another check.
+Saving another document does not invalidate completed source snapshots. The worker pauses when
+the workspace leaves the scene. Explicit Validate now can still enrol all saved documents.
+For saved ontologies, the reasoner synchronizes the authoritative source and
 its imports before validation; missing sources are reported as unavailable. Validation does not
 publish ontology drafts. See the [reasoner validation contract](https://github.com/integratedmodelling/klab-services/blob/develop/docs/REASONING.md#semantic-document-validation).
 

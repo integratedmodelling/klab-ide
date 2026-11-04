@@ -15,6 +15,70 @@ import org.integratedmodelling.klab.api.services.reasoner.objects.*;
 import org.junit.jupiter.api.Test;
 
 class WorkspaceSemanticValidationTest {
+  @Test void publishedWorkspaceOpeningAndVisibilityDoNotValidateOrPoll() throws Exception {
+    var calls=new AtomicInteger();var polls=new AtomicInteger();
+    var state=new AtomicReference<>(status("reasoner","boot",1,"ready"));
+    var backend=signaledReasoner(state,polls,request->{calls.incrementAndGet();return success(request);});
+    var saved=document("published");
+    for(int reopening=0;reopening<2;reopening++) {
+      var ui=new ConcurrentLinkedQueue<Runnable>();
+      var updates=new ArrayList<WorkspaceSemanticValidation.Update>();
+      try(var coordinator=new WorkspaceSemanticValidation(()->scope(new AtomicReference<>(backend)),
+          ui::add,(key,update)->updates.add(update))) {
+        coordinator.observeDocuments(List.of(saved));coordinator.start();settle(coordinator);drain(ui);
+        coordinator.pause();saved.setLastUpdateTimestamp(saved.getLastUpdateTimestamp()+1);
+        coordinator.observeDocuments(List.of(saved));coordinator.start();settle(coordinator);drain(ui);
+        assertEquals(0,calls.get());assertEquals(0,polls.get());assertTrue(updates.isEmpty());
+      }
+    }
+  }
+
+  @Test void sourceChangesValidateOnlyAffectedSavedDocumentAndExplicitValidationStillWorks() throws Exception {
+    var calls=new ArrayList<String>();var polls=new AtomicInteger();
+    var state=new AtomicReference<>(status("reasoner","boot",1,"ready"));
+    var backend=signaledReasoner(state,polls,request->{calls.add(request.document().getUrn());return success(request);});
+    var selected=new AtomicReference<>(backend);
+    var first=document("before");first.setUrn("first");
+    var second=document("unchanged");second.setUrn("second");
+    var ui=new ConcurrentLinkedQueue<Runnable>();var updates=new ArrayList<WorkspaceSemanticValidation.Update>();
+    try(var coordinator=new WorkspaceSemanticValidation(()->scope(selected),ui::add,(key,update)->updates.add(update))) {
+      coordinator.observeDocuments(List.of(first,second));coordinator.start();settle(coordinator);drain(ui);
+      first.setSourceCode("after");coordinator.observeDocuments(List.of(first,second));settle(coordinator);drain(ui);
+      assertEquals(List.of("first"),calls);
+      int previousPolls=polls.get();
+      state.set(status("reasoner","new-boot",2,"ready"));
+      coordinator.pause();coordinator.observeDocuments(List.of(first,second));coordinator.start();
+      settle(coordinator);drain(ui);
+      assertEquals(List.of("first"),calls);assertEquals(previousPolls,polls.get());
+      assertEquals("Ready",updates.getLast().status());
+      coordinator.invalidatePending();
+      coordinator.observeDocuments(List.of(first,second));settle(coordinator);drain(ui);
+      assertEquals(List.of("first"),calls,"A save lifecycle change must not revalidate completed source");
+      coordinator.documents(List.of(first,second));
+      var finished=new CompletableFuture<Void>();coordinator.validateOnce(()->finished.complete(null));
+      until(finished::isDone,ui);
+      assertEquals(3,calls.size());assertEquals(2,Collections.frequency(calls,"first"));
+      assertEquals(1,Collections.frequency(calls,"second"));
+    }
+  }
+
+  @Test void authoritativeDiagnosticRefreshClearsOverlayWithoutRevalidatingSource() throws Exception {
+    var calls=new AtomicInteger();var polls=new AtomicInteger();
+    var state=new AtomicReference<>(status("reasoner","boot",1,"ready"));
+    var backend=signaledReasoner(state,polls,request->{calls.incrementAndGet();return success(request);});
+    var saved=document("before");var ui=new ConcurrentLinkedQueue<Runnable>();
+    var updates=new ArrayList<WorkspaceSemanticValidation.Update>();
+    try(var coordinator=new WorkspaceSemanticValidation(()->scope(new AtomicReference<>(backend)),
+        ui::add,(key,update)->updates.add(update))) {
+      coordinator.observeDocuments(List.of(saved));coordinator.start();settle(coordinator);
+      saved.setSourceCode("edited");coordinator.observeDocuments(List.of(saved));settle(coordinator);drain(ui);
+      assertEquals(1,calls.get());assertEquals("Ready",updates.getLast().status());
+      saved.setLastUpdateTimestamp(1);coordinator.observeDocuments(List.of(saved));settle(coordinator);drain(ui);
+      assertNull(updates.getLast());assertEquals(1,calls.get());
+      coordinator.pause();coordinator.start();settle(coordinator);drain(ui);assertEquals(1,calls.get());
+    }
+  }
+
   @Test void unchangedHideShowReusesValidationAndRedeliversQueuedResults() throws Exception {
     for (boolean deliverBeforePause : List.of(false, true)) {
       var calls = new AtomicInteger(); var polls = new AtomicInteger();

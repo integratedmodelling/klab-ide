@@ -93,9 +93,9 @@ class WorkspaceDocumentChangeTest {
         assertTrue(projectNode.isExpanded());
         assertSame(namespaceNode, ((TreeView<NavigableAsset>) read(target, "treeView")).getSelectionModel().getSelectedItem());
         var updates = (Map<String, WorkspaceSemanticValidation.Update>) read(target, "semanticUpdates");
-        assertEquals(2, updates.size());
+        assertEquals(1, updates.size());
         assertEquals("saved ontology", updates.get("imod:ontology:imod").request().document().getSourceCode());
-        assertEquals("namespace", updates.get("imod:namespace:imod").request().document().getSourceCode());
+        assertFalse(updates.containsKey("imod:namespace:imod"), "Opening the workspace must not enrol unchanged source");
         verifyRepeatedNavigationKeepsTreePosition(target, namespaceNode, ontologyNode);
         verifyValidationCellGraphics(target, ontologyNode, updates.get("imod:ontology:imod"));
         verifyCursorCallbacksUseCurrentParse((NavigationEditor) target, ontologyNode, namespaceNode);

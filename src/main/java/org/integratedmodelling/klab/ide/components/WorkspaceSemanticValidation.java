@@ -97,6 +97,7 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
     boolean pendingPresentationEligible;
     PendingCandidate presentationCandidate = PendingCandidate.NONE;
     volatile long presentedVisibility = -1;
+    volatile boolean sourceTriggered;
 
     Entry(SemanticValidationRequest request) {
       this.request = request;
@@ -106,6 +107,8 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
   // Reuse serializer/type caches across snapshots; convertValue still detaches each document.
   private final ObjectMapper snapshotMapper = JacksonConfiguration.newObjectMapper();
   private final Map<String, Entry> entries = new ConcurrentHashMap<>();
+  private final Map<String, String> observedSources = new HashMap<>();
+  private boolean observedWorkspace;
   private final Supplier<Scope> scopeSupplier;
   private final Executor ui;
   private final BiConsumer<String, Update> listener;
@@ -218,6 +221,35 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
   }
 
   // Called on the UI thread. Snapshot now: navigable documents may be replaced by later saves.
+  void observeDocuments(Collection<? extends KlabDocument<?>> documents) {
+    if (closed) return;
+    var retained = new HashSet<String>();
+    var changed = new ArrayList<KlabDocument<?>>();
+    for (var document : documents) {
+      if (!(document instanceof KimNamespace || document instanceof KimOntology)) continue;
+      var key = key(document);
+      retained.add(key);
+      var hash = SemanticValidationRequest.sourceHash(document.getSourceCode());
+      var previous = observedSources.put(key, hash);
+      var entry = entries.get(key);
+      // A source-identical Resources refresh is authoritative for its diagnostics. Discard
+      // stale local overlays and in-flight delivery, without submitting it for validation.
+      if (entry != null && Objects.equals(previous, hash)
+          && !Objects.equals(DocumentValidationTrace.version(document), entry.request.getDocumentVersion())) {
+        entries.remove(key, entry);
+        listener.accept(key, null);
+        entry = null;
+      }
+      if (entry != null || observedWorkspace && !Objects.equals(previous, hash))
+        changed.add(document);
+    }
+    observedSources.keySet().retainAll(retained);
+    observedWorkspace = true;
+    documents(changed);
+    entries.values().forEach(entry -> entry.sourceTriggered = true);
+  }
+
+  // Explicit enrolment (Validate now); automatic workspace observation uses observeDocuments.
   void documents(Collection<? extends KlabDocument<?>> documents) {
     if (closed) return;
     var retained = new HashSet<String>();
@@ -589,7 +621,9 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
             entry.request.getKnowledgeRevision(),
             lifecycle,
             DocumentValidationTrace.Decision.GLOBAL_SAVE);
-    entries.values().forEach(entry -> entry.checkedAgainst = null);
+    entries.values().forEach(entry -> {
+      if (!completedSource(entry)) entry.checkedAgainst = null;
+    });
   }
 
   synchronized void validateOnce(Runnable completed) {
@@ -621,9 +655,34 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
     refreshNow(force, true);
   }
 
+  private static boolean completedSource(Entry entry) {
+    return entry.sourceTriggered && entry.checkedAgainst != null && entry.lastResponse != null
+        && switch (entry.lastResponse.getStatus()) {
+          case COMPLETE, SYNTAX_ERRORS, FAILED -> true;
+          default -> false;
+        };
+  }
+
+  /** Replay source diagnostics as presentation, without treating them as a live admission grant. */
+  private void replaySource(String key, Entry entry, long epoch) {
+    long visible = visibility;
+    if (entry.presentedVisibility == visible) return;
+    var update = new Update(entry.request, entry.lastResponse);
+    ui.execute(() -> {
+      if (active && lifecycle == epoch && visibility == visible && entries.get(key) == entry) {
+        entry.presentedVisibility = visible;
+        listener.accept(key, update);
+      }
+    });
+  }
+
   private void refreshNow(boolean force, boolean validate) {
     long epoch = lifecycle;
-    if (!active) return;
+    if (!active || entries.isEmpty()) return;
+    if (!force && entries.values().stream().allMatch(WorkspaceSemanticValidation::completedSource)) {
+      entries.forEach((key, entry) -> replaySource(key, entry, epoch));
+      return;
+    }
     try {
       var scope = scopeSupplier.get();
       var reasoner = selectedReasoner(scope);
@@ -638,6 +697,10 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
       for (var item : List.copyOf(entries.entrySet())) {
         if (!active || epoch != lifecycle) return;
         var entry = item.getValue();
+        if (!force && completedSource(entry)) {
+          replaySource(item.getKey(), entry, epoch);
+          continue;
+        }
         entry.waitingForKnowledge =
             !signal.ready() && !signal.blocked() && !signal.state().equals("failed");
         if (Boolean.TRUE.equals(

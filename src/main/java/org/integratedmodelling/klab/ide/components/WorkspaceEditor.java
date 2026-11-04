@@ -146,6 +146,11 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     this.workflowUIProvider =
         workflowUIProvider == null ? WorkflowUIProvider.NONE : workflowUIProvider;
     this.workspace = getEditedAsset();
+    // Record the supplied saved sources before any asynchronous workspace-change event or
+    // scene attachment. Visibility must not be the first source observation.
+    var publishedDocuments = new ArrayList<KlabDocument<?>>();
+    collectSemanticDocuments(this.workspace, publishedDocuments);
+    semanticValidation.observeDocuments(publishedDocuments);
     if (hasDeferredValidation(workspace)) {
       automaticValidation = false;
       semanticValidation.setAutomatic(false);
@@ -2070,7 +2075,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
             .map(WorkspaceSemanticValidation::key)
             .collect(java.util.stream.Collectors.toSet());
     semanticUpdates.keySet().retainAll(keys);
-    semanticValidation.documents(documents);
+    semanticValidation.observeDocuments(documents);
   }
 
   private void collectSemanticDocuments(NavigableAsset asset, List<KlabDocument<?>> documents) {
@@ -2083,7 +2088,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   private void semanticValidationCompleted(String key, WorkspaceSemanticValidation.Update update) {
-    if (DocumentValidationTrace.enabled())
+    if (update != null && DocumentValidationTrace.enabled())
       DocumentValidationTrace.response(
           DocumentValidationTrace.Event.IDE_PRESENTATION,
           update.request(),
@@ -2094,7 +2099,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     if (Objects.equals(
         WorkspaceSemanticValidation.presentation(previous),
         WorkspaceSemanticValidation.presentation(update))) {
-      semanticUpdates.put(key, update);
+      if (update == null) semanticUpdates.remove(key); else semanticUpdates.put(key, update);
       return;
     }
     var affected = new HashSet<TreeItem<NavigableAsset>>();
@@ -2105,7 +2110,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         decorations.put(
             cell, semanticSummary(cell.getItem()) + "\n" + semanticDetails(cell.getItem()));
     }
-    semanticUpdates.put(key, update);
+    if (update == null) semanticUpdates.remove(key); else semanticUpdates.put(key, update);
     // TreeItem graphics fire tree modification events. Validation only changes decoration:
     // repaint the affected visible cells without touching selection, focus, or tree structure.
     for (var cell : assetTreeCells) {
@@ -2123,7 +2128,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           && getEditor(document) instanceof MonacoEditorView editor)
         showSemanticValidation(document, editor);
     }
-    traceTree("validation " + key + " " + update.status());
+    traceTree("validation " + key + " " + (update == null ? "Resources snapshot" : update.status()));
   }
 
   private void scheduleTreeLayout() {
@@ -2319,7 +2324,9 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
       combined.addAll(authorityNotifications.getOrDefault(editor, List.of()));
     editor.markSemanticNotifications(combined, editor.getText());
     if (label != null) {
-      String status = matches ? update.status() : "Semantic validation pending";
+      String status = matches ? update.status() : update == null
+          ? (Utils.Notifications.hasErrors(document.getNotifications()) ? "Document errors" : "Ready")
+          : "Semantic validation pending";
 
       label.setText(status);
       label.setWrapText(
@@ -2328,7 +2335,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           new Tooltip(
               matches && update.response() != null
                   ? Objects.toString(update.response().getReason(), update.status())
-                  : "Validating saved source"));
+                  : update == null ? "Saved source diagnostics supplied by Resources" : "Validating saved source"));
     }
   }
 
