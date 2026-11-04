@@ -10,14 +10,18 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TitledPane;
 import javafx.scene.control.Tooltip;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
@@ -248,10 +252,7 @@ public final class TestCaseResultsView extends DomainObjectView {
     }
     var stacktrace = test.get("stacktrace", String.class);
     if (stacktrace != null && !stacktrace.isBlank()) {
-      var trace = new Label(stacktrace);
-      trace.setWrapText(true);
-      trace.setStyle("-fx-font-family: monospace; -fx-font-size: 10px;");
-      var details = new TitledPane("Test failure", trace);
+      var details = new TitledPane("Test failure", createCopyableText(stacktrace, true));
       details.setExpanded(false);
       content.getChildren().add(details);
     }
@@ -345,14 +346,44 @@ public final class TestCaseResultsView extends DomainObjectView {
     }
     var stacktrace = assertion.get("stacktrace", String.class);
     if (stacktrace != null && !stacktrace.isBlank()) {
-      var trace = new Label(stacktrace);
-      trace.setWrapText(true);
-      trace.setStyle("-fx-font-family: monospace; -fx-font-size: 10px;");
-      var details = new TitledPane("Stack trace", trace);
+      var details = new TitledPane("Stack trace", createCopyableText(stacktrace, true));
       details.setExpanded(false);
       box.getChildren().add(details);
     }
     return box;
+  }
+
+  private Node createCopyableText(String text, boolean monospace) {
+    var value = new Label(text);
+    value.setWrapText(true);
+    value.setMaxWidth(Double.MAX_VALUE);
+    value.setPadding(new Insets(0, 28, 0, 0));
+    if (monospace) {
+      value.setStyle("-fx-font-family: monospace; -fx-font-size: 10px;");
+    }
+
+    var copy =
+        new Button(null, new IconLabel(Material2AL.CONTENT_COPY, 12, "-color-fg-default"));
+    copy.getStyleClass().addAll("button-icon", "flat");
+    copy.setMinSize(22, 22);
+    copy.setPrefSize(22, 22);
+    copy.setMaxSize(22, 22);
+    copy.setFocusTraversable(false);
+    copy.setAccessibleText("Copy text");
+    copy.setTooltip(new Tooltip("Copy to clipboard"));
+    copy.setOnAction(event -> copyToClipboard(text));
+
+    var content = new StackPane(value, copy);
+    StackPane.setAlignment(copy, Pos.TOP_RIGHT);
+    StackPane.setMargin(copy, new Insets(-2, 0, 0, 0));
+    return content;
+  }
+
+  private static void copyToClipboard(String text) {
+    var clipboard = Clipboard.getSystemClipboard();
+    var content = new ClipboardContent();
+    content.putString(text);
+    clipboard.setContent(content);
   }
 
   private static String formatElapsed(long milliseconds) {
