@@ -187,8 +187,12 @@ public final class TestCaseResultsView extends DomainObjectView {
     var metadata = new HBox(6);
     metadata.getStyleClass().add("test-case-results-metadata");
     HBox.setHgrow(metadata, Priority.ALWAYS);
+    var skipped = Set.of("owner", "version", "klab.version", "runtime");
     for (var key : report.keySet()) {
       if (REPORT_PROPERTIES.contains(key) || report.get(key) == null) {
+        continue;
+      }
+      if (skipped.contains(key)) {
         continue;
       }
       var value = new Label(humanize(key) + ": " + report.get(key));
