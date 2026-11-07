@@ -49,6 +49,10 @@ class ReviewEditorJourneyTest {
       assertEquals("Unsaved brief remains across uploads",description(editor).getText());
       assertEquals(1,fixture.uploads);
       ((Button)editor.lookup("#review-save-details")).fire();
+    });
+    WorkflowNativeControlsTest.await(() -> fixture.saves == 1 && !editorRef.get().isDisabled());
+    WorkflowProposalTransitionTest.fx(() -> {
+      var editor = editorRef.get();
       assertEquals(1,fixture.saves); assertEquals("Revised title",fixture.saved.getStates().values().iterator().next().getTitle());
       ((Button)editor.lookup("#workflow-diagram-button")).fire();
       assertTrue(javafx.stage.Window.getWindows().stream().anyMatch(w -> w.isShowing() && w.getScene().getRoot() instanceof DialogPane));
@@ -92,8 +96,16 @@ class ReviewEditorJourneyTest {
       assertNotNull(editor.lookup("#workflow-action-prepare-review-draft"));
       fixture.conflictSave=true; title(editor).setText("Keep on conflict");
       ((Button)editor.lookup("#review-save-details")).fire();
+    });
+    WorkflowNativeControlsTest.await(() -> !editorRef.get().isDisabled());
+    WorkflowProposalTransitionTest.fx(() -> {
+      var editor = editorRef.get();
       assertEquals("Keep on conflict",title(editor).getText()); assertEquals(0,fixture.saves);
-      fixture.conflictSave=false; ((Button)editor.lookup("#review-save-details")).fire(); assertEquals(1,fixture.saves);
+      fixture.conflictSave=false; ((Button)editor.lookup("#review-save-details")).fire();
+    });
+    WorkflowNativeControlsTest.await(() -> fixture.saves == 1 && !editorRef.get().isDisabled());
+    WorkflowProposalTransitionTest.fx(() -> {
+      var editor = editorRef.get();
       ((Button)editor.lookup("#workflow-action-prepare-review-draft")).fire();
     });
     var entered = new java.util.concurrent.atomic.AtomicBoolean();
@@ -182,6 +194,10 @@ class ReviewEditorJourneyTest {
       assertEquals(dirty ? "Unsaved local title" : "Concurrent server title", title(editor).getText());
       assertEquals("Concurrent server brief", description(editor).getText(), "Clean fields must not be restored over server edits");
       ((Button) editor.lookup("#review-save-details")).fire();
+    });
+    WorkflowNativeControlsTest.await(() -> !editorRef.get().isDisabled());
+    WorkflowProposalTransitionTest.fx(() -> {
+      var editor = editorRef.get();
       assertEquals(dirty ? 0 : 1, fixture.saves, "A conflicted draft must not adopt the newer save revision");
       assertEquals("Concurrent server title", fixture.saved.getStates().values().iterator().next().getTitle());
       if (dirty) {

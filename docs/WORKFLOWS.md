@@ -81,6 +81,11 @@ Graph load failures leave the descriptions accessible and offer **Refresh graph*
 The definition version is visible in the header and start
 menu. Existing flows load their pinned definition, including historical versions.
 
+Workspace workflow menus show **Loading workflows...** while the catalog and saved flows are
+retrieved off the UI thread. Opening a saved flow immediately shows a loading tab. Repeated opens
+focus the same tab without fetching again or replacing unsaved edits. **Cancel opening** or closing
+the tab prevents a late response from reopening it. A failed load offers **Retry opening**.
+
 In bootstrap and coalescing, editors can name the stage, write a review brief, and attach a proposal,
 comments, candidate ontology, or supporting material allowed by the stage schema. **Choose file**
 and the drop target use the selected attachment type. Before creation, files remain pending and can
@@ -94,6 +99,20 @@ edits. **Prepare review draft** exposes the behavior's required input fields whe
 has already been supplied. Save stage details before preparing. Use **Open bootstrap review UI** to
 edit the prepared proposal and comments and open review; **Refresh saved workflow** loads subsequent
 changes. Closed stages remain inspectable, with editing and attachment controls disabled.
+
+Creation, saving stage details, saved-flow refresh, action discovery, and draft preparation show
+an explicit progress message while the service works. Repeated clicks cannot submit duplicates.
+The editor remains visible but is locked until the accepted operation finishes. Errors retain local
+fields; closing a containing editor prevents a late result from updating the disposed view.
+
+If stage saving reports that revision-checked details are unsupported, the error identifies the
+actual loaded Resources implementation, its artifact, and the class declaring the method. An API
+jar paired with an older common/client jar can otherwise inherit the interface's unsupported
+default without making any HTTP request. Build/install matching Services API and common artifacts
+into the Maven repository selected for the IDE build, then run IDE tests and package against that
+same repository. `WorkflowClientCompatibilityTest` checks the real IDE dependency classpath for
+these unsupported inherited workflow/review defaults before packaging. Do not assume that
+rebuilding only the IDE replaces an already-resolved common/client artifact.
 
 The header **Delete flow** trash button is available to administrators after a flow is saved,
 including failed bootstrap attempts and progressed or closed flows. Administrator rights come
@@ -121,6 +140,10 @@ in-memory synthetic data for native chooser and deletion QA; it never contacts a
 can take a PNG path produced by the service's `ReviewFlowChartIntegrationTest` to verify the original
 renderer output in the native viewer.
 
+`WorkflowProgressTest` blocks service responses with latches while exercising production workspace
+tabs and JavaFX controls. It verifies immediate visible progress, a responsive UI thread, duplicate
+click guards, opening/action cancellation, retained fields on errors, and suppressed late results.
+
 ### Repair verification (2026-11-07)
 
 Java 21 verification used an isolated Maven repository and test home, after the matching Services
@@ -145,3 +168,27 @@ Native UI verification did not contact a live Resources service or delete any us
 authorization, false/error transport results, persistence cleanup, and PNG generation are separately
 covered by the matching Services tests. The IDE regressions also verify cleanup of duplicate open
 views of the same saved flow.
+
+### Progress and packaged-client verification (2026-11-07)
+
+- Focused workflow/review/proposal suite: **53 tests passed**, including seven delayed-control
+  regressions and the actual client-dependency compatibility contract.
+  Log: `target/workflow-progress-focused.log`.
+- Full IDE suite: **393 tests, 392 passed, one error, no skipped tests**. The sole error remains
+  the known baseline `SemanticComposerTest` sizing assertion (451.2 expected, 454.4 actual).
+  Log: `target/workflow-progress-full.log`.
+- Normal non-Conveyor `package` completed, including packaged application-UI verification. Tests
+  were skipped in this packaging invocation only after recording the separate full-suite result.
+  No publish, install, deployment, or live Modeler action was performed.
+  Log: `target/workflow-progress-package.log`.
+- The resulting `target/klab-ide-all-1.0.0-SNAPSHOT.jar` contains API, ResourcesClient, and
+  ResourcesMerger classes byte-for-byte identical to the verified isolated dependencies. `javap`
+  confirms concrete implementations of revision-checked details, action discovery/execution, and
+  review-cycle/artifact methods in both clients. Inspection: `target/workflow-progress-packaged-classes.txt`.
+
+`WorkflowProgressFixture` is an opt-in native QA launcher using the real workspace/editor hosts
+and synthetic service responses delayed by 3.5 seconds. It has no network calls or user flow data.
+The fixture launched successfully, but the additional visual inspection could not start because
+the shared Windows computer-use helper remained occupied by another verification. No native input
+was sent and no visual pass is claimed for these progress changes. The automated JavaFX regressions
+did exercise real Scenes, menus, controls, delayed service calls, and close/cancel interactions.

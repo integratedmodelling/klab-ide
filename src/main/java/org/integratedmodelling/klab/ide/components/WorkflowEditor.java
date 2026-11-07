@@ -179,6 +179,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   private ComboBox<TransitionChoice> transitionSelector;
   private Button submitButton;
   private Dialog<Void> workflowDiagram;
+  private Dialog<Map<String, Object>> actionDialog;
   private Task<BufferedImage> diagramTask;
   private Button deleteFlowButton;
   private boolean deleting;
@@ -187,6 +188,10 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   private boolean serviceDeletionAdministrator;
   private Task<Boolean> deletionPermissionTask;
   private boolean submitting;
+  private long operationGeneration;
+  private final Label operationMessage = new Label();
+  private final ProgressIndicator operationProgress = new ProgressIndicator();
+  private final HBox operationStatus = new HBox(8, operationProgress, operationMessage);
   private final Map<String, StageEditor> proposalDrafts = new LinkedHashMap<>();
   private record StageDetails(String title, String description) {}
   private final Map<String, StageDetails> savedDetails = new LinkedHashMap<>();
@@ -255,6 +260,15 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     var scroll = new ScrollPane(stageArea);
     scroll.setFitToWidth(true);
     setCenter(scroll);
+    operationStatus.setId("workflow-operation-status");
+    operationMessage.setId("workflow-operation-message");
+    operationMessage.setWrapText(true);
+    operationProgress.setMaxSize(20, 20);
+    operationStatus.setAlignment(Pos.CENTER_LEFT);
+    operationStatus.setPadding(new Insets(10, 0, 0, 0));
+    operationStatus.setVisible(false);
+    operationStatus.setManaged(false);
+    setBottom(operationStatus);
     refresh(selectInitialState());
     discoverDeletionPermission();
   }
@@ -1030,8 +1044,17 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
       refresh.setOnAction(event -> {
         try {
           if (requestClose()) {
-            reload(null);
-            clearError();
+            var flowId = flow.getId();
+            runOperation("Refreshing saved workflow...", () -> service.getFlow(flowId, scope), updated -> {
+              if (updated == null) throw new IllegalStateException("The flow is unavailable. Reopen the flow list to check its status.");
+              flow = updated;
+              proposalDrafts.clear();
+              pendingAttachments.clear();
+              deletionUncertain = false;
+              discoverDeletionPermission();
+              refresh(selectInitialState());
+              operationMessage.setText("Saved workflow refreshed.");
+            });
           }
         }
         catch (Throwable error) { fail(error); }
@@ -1179,9 +1202,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     var uploads = pendingAttachments.getOrDefault(selectedState.getId(), List.of()).stream()
         .map(WorkflowEditor::copyUpload).toList();
     creationAttempted = true;
-    submitting = true;
-    clearError();
-    setDisable(true);
+    var generation = beginOperation("Creating private bootstrap...");
     var task = new Task<Flow>() {
       @Override protected Flow call() {
         Flow created;
@@ -1197,19 +1218,20 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
       }
     };
     task.setOnSucceeded(event -> {
-      submitting = false;
-      setDisable(false);
+      if (generation != operationGeneration) return;
+      endOperation();
       flow = task.getValue();
       provisional = false;
       pendingAttachments.clear();
       proposalDrafts.clear();
       refresh(selectInitialState());
       status.setText(status.getText() + " | Initial stage saved; no review transition submitted");
+      operationMessage.setText("Private bootstrap created. Save any further edits before preparing a review draft.");
       if (initialized != null) initialized.accept(flow);
     });
     task.setOnFailed(event -> {
-      submitting = false;
-      setDisable(false);
+      if (generation != operationGeneration) return;
+      endOperation();
       boolean rejected = definiteCreationRejection(task.getException());
       if (rejected) creationAttempted = false;
       show(selectedState);
@@ -1257,27 +1279,10 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     if (!requestClose()) return;
     String flowId = flow.getId();
     String stateId = selectedState.getId();
-    submitting = true;
-    setDisable(true);
-    var task =
-        new Task<List<WorkflowBehavior.AvailableAction>>() {
-          @Override
-          protected List<WorkflowBehavior.AvailableAction> call() {
-            return service.getFlowActions(flowId, stateId, scope);
-          }
-        };
-    task.setOnFailed(
-        event -> {
-          submitting = false;
-          setDisable(false);
-          fail(task.getException());
-        });
-    task.setOnSucceeded(
-        event -> {
-          submitting = false;
-          setDisable(false);
+    runOperation("Checking review preparation options...", () -> service.getFlowActions(flowId, stateId, scope),
+        available -> {
           var action =
-              task.getValue().stream()
+              available.stream()
                   .filter(candidate -> candidate.id().equals(actionId))
                   .findFirst()
                   .orElse(null);
@@ -1287,14 +1292,12 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
           }
           promptBehaviorAction(flowId, stateId, action);
         });
-    var worker = new Thread(task, "workflow-action-discovery");
-    worker.setDaemon(true);
-    worker.start();
   }
 
   private void promptBehaviorAction(
       String flowId, String stateId, WorkflowBehavior.AvailableAction action) {
     var dialog = new Dialog<Map<String, Object>>();
+    actionDialog = dialog;
     dialog.setTitle(action.label() == null ? action.id() : action.label());
     dialog.setHeaderText(
         "Runs against the saved stage. The editor refreshes after completion; save any changes first.");
@@ -1332,44 +1335,31 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
               }
             });
     dialog.setResultConverter(button -> button == run ? values : null);
-    dialog
-        .showAndWait()
+    var generation = beginOperation("Waiting for review preparation details...");
+    java.util.Optional<Map<String, Object>> parameters;
+    try { parameters = dialog.showAndWait(); }
+    finally {
+      actionDialog = null;
+      if (generation == operationGeneration) endOperation();
+    }
+    if (generation != operationGeneration) return;
+    parameters
         .ifPresent(
-            parameters -> {
-              submitting = true;
-              setDisable(true);
-              var request = new WorkflowBehavior.ActionRequest(action.revision(), parameters);
-              var task =
-                  new Task<Flow>() {
-                    @Override
-                    protected Flow call() {
-                      return service.executeFlowAction(
-                          flowId, stateId, action.id(), request, scope);
-                    }
-                  };
-              task.setOnFailed(
-                  event -> {
-                    submitting = false;
-                    setDisable(false);
-                    fail(task.getException());
-                  });
-              task.setOnSucceeded(
-                  event -> {
-                    submitting = false;
-                    setDisable(false);
-                    if (task.getValue() == null) {
+            valuesToSend -> {
+              var request = new WorkflowBehavior.ActionRequest(action.revision(), valuesToSend);
+              runOperation("Preparing review draft. This can take a little while...",
+                  () -> service.executeFlowAction(flowId, stateId, action.id(), request, scope), result -> {
+                    if (result == null) {
                       fail(new IllegalStateException("No action result; reload before retrying"));
                       return;
                     }
-                    flow = task.getValue();
+                    flow = result;
                     proposalDrafts.clear();
                     var previous = flow.getStates().get(stateId);
                     refresh(previous == null || previous.getStatus() == Flow.StateStatus.CLOSED
                         ? selectInitialState() : previous);
+                    operationMessage.setText("Review draft prepared. Open the review UI to inspect it.");
                   });
-              var worker = new Thread(task, "workflow-action");
-              worker.setDaemon(true);
-              worker.start();
             });
   }
 
@@ -1439,21 +1429,46 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   }
 
   private void updateStage() {
+    if (submitting || deleting) return;
     try {
       requireUnconflictedDetails();
       clearError();
       var update = copyState(selectedState);
       update.setMetadata(selectedEditor.metadata().get());
-      if (ReviewStageEditor.supports(workflow)) {
-        var updated = service.updateFlowStateDetails(flow.getId(), selectedState.getId(),
-            new Flow.StateDetailsUpdate(flow.getRevision(), update.getTitle(), update.getDescription()), scope);
+      var flowId = flow.getId();
+      var stateId = selectedState.getId();
+      var request = new Flow.StateDetailsUpdate(flow.getRevision(), update.getTitle(), update.getDescription());
+      runOperation("Saving stage details...", () -> {
+        if (ReviewStageEditor.supports(workflow)) {
+          try { return service.updateFlowStateDetails(flowId, stateId, request, scope); }
+          catch (UnsupportedOperationException unsupported) {
+            throw new IllegalStateException(unsupportedDetailsDiagnostic(service), unsupported);
+          }
+        }
+        service.updateFlowState(flowId, stateId, update, scope);
+        return service.getFlow(flowId, scope);
+      }, updated -> {
         if (updated == null) throw new IllegalStateException("No saved stage was returned; refresh before retrying");
+        // Saving one stage must not discard unsaved fields on another stage, or edits queued while
+        // the response was in flight. Record saved baselines before restoring those local fields.
+        var drafts = new LinkedHashMap<String, StageDetails>();
+        flow.getStates().values().forEach(state -> {
+          var baseline = stateId.equals(state.getId())
+              ? new StageDetails(request.title(), request.description()) : savedDetails.get(state.getId());
+          if (baseline != null && (!Objects.equals(baseline.title(), state.getTitle())
+              || !Objects.equals(baseline.description(), state.getDescription())))
+            drafts.put(state.getId(), new StageDetails(state.getTitle(), state.getDescription()));
+        });
         flow = updated;
-        refresh(flow.getStates().get(selectedState.getId()));
-      } else {
-        service.updateFlowState(flow.getId(), selectedState.getId(), update, scope);
-        reload(selectedState.getId());
-      }
+        refresh(flow.getStates().get(stateId));
+        drafts.forEach((id, details) -> {
+          var state = flow.getStates().get(id);
+          if (state != null) { state.setTitle(details.title()); state.setDescription(details.description()); }
+        });
+        if (!drafts.isEmpty()) show(selectedState);
+        operationMessage.setText(drafts.isEmpty() ? "Stage details saved."
+            : "Stage details saved. Other local edits remain unsaved.");
+      });
     } catch (Throwable error) {
       fail(error);
     }
@@ -1833,9 +1848,64 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     errorMessage.setText("");
   }
 
+  private long beginOperation(String message) {
+    submitting = true;
+    clearError();
+    operationMessage.setText(message);
+    operationProgress.setVisible(true);
+    operationProgress.setManaged(true);
+    operationStatus.setVisible(true);
+    operationStatus.setManaged(true);
+    setDisable(true);
+    return ++operationGeneration;
+  }
+
+  private void endOperation() {
+    submitting = false;
+    setDisable(false);
+    operationProgress.setVisible(false);
+    operationProgress.setManaged(false);
+    operationMessage.setText("");
+  }
+
+  private <T> void runOperation(String message, Supplier<T> request, Consumer<T> completed) {
+    var generation = beginOperation(message);
+    var task = new Task<T>() { @Override protected T call() { return request.get(); } };
+    task.setOnSucceeded(event -> {
+      if (generation != operationGeneration) return;
+      endOperation();
+      try { completed.accept(task.getValue()); }
+      catch (Throwable error) { fail(error); }
+    });
+    task.setOnFailed(event -> {
+      if (generation != operationGeneration) return;
+      endOperation();
+      fail(task.getException());
+    });
+    var worker = new Thread(task, "workflow-operation");
+    worker.setDaemon(true);
+    worker.start();
+  }
+
+  static String unsupportedDetailsDiagnostic(ResourcesService service) {
+    var type = service.getClass();
+    var source = type.getProtectionDomain().getCodeSource();
+    var artifact = source == null ? "unknown artifact" : source.getLocation().toString();
+    var version = Objects.toString(type.getPackage().getImplementationVersion(), "version not recorded");
+    String implementation;
+    try {
+      implementation = type.getMethod("updateFlowStateDetails", String.class, String.class,
+          Flow.StateDetailsUpdate.class, UserScope.class).getDeclaringClass().getName();
+    } catch (ReflectiveOperationException unavailable) { implementation = "unavailable"; }
+    return "Revision-checked stage details are not supported by the loaded Resources implementation "
+        + type.getName() + " (" + artifact + "; " + version + "; method declared by " + implementation + "). "
+        + "Your fields are retained. Check that this client artifact matches the running Resources service before retrying.";
+  }
+
   private static String errorMessage(Throwable error) {
     Throwable cause = error;
-    while (cause.getCause() != null && cause.getCause() != cause) cause = cause.getCause();
+    while (cause.getCause() != null && cause.getCause() != cause
+        && !(cause.getMessage() != null && cause.getMessage().contains("loaded Resources implementation"))) cause = cause.getCause();
     var detail = cause.getMessage();
     return detail == null || detail.isBlank()
         ? "The workflow action could not be completed. Correct the stage and try again."
@@ -1844,11 +1914,13 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
 
   @Override
   public void close() {
+    ++operationGeneration; // Accepted mutations may finish, but cannot update a disposed editor.
     if (deletionPermissionTask != null) deletionPermissionTask.cancel(true);
     if (diagramTask != null) diagramTask.cancel(true);
     Runnable closeDiagram =
         () -> {
           if (workflowDiagram != null) workflowDiagram.close();
+          if (actionDialog != null) actionDialog.close();
         };
     if (Platform.isFxApplicationThread()) closeDiagram.run();
     else Platform.runLater(closeDiagram);

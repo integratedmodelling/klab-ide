@@ -334,13 +334,14 @@ public abstract class EditorPage<A, T> extends BorderPane implements DigitalTwin
       tab = new Tab(title, editor);
       var newTab = tab;
       tab.setOnCloseRequest(event -> {
-        if (editor instanceof org.integratedmodelling.klab.ide.components.WorkflowEditor workflow
+        var content = pairedContents.getOrDefault(newTab, newTab.getContent());
+        if (content instanceof org.integratedmodelling.klab.ide.components.WorkflowEditor workflow
             && !workflow.requestClose()) event.consume();
       });
       tab.setOnClosed(event -> {
         restorePairedEditors();
         auxiliaryEditors.remove(key, newTab);
-        disposeAuxiliaryEditor(editor);
+        disposeAuxiliaryEditor(newTab.getContent());
       });
       auxiliaryEditors.put(key, tab);
       editorTabs.getTabs().add(tab);

@@ -69,6 +69,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private final ResourcesService service;
   private final AtomicBoolean closed = new AtomicBoolean();
   private final AsyncOpen<MonacoEditorView, Boolean> lspOpening = new AsyncOpen<>();
+  private final AsyncOpen<String, List<Flow>> pairedWorkflowOpening = new AsyncOpen<>();
   private NavigableWorkspace workspace;
   private final WorkspaceView view;
   private WorkflowUIProvider workflowUIProvider;
@@ -81,6 +82,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   private final Map<Node, String> editorSources = new IdentityHashMap<>();
   private final Map<Node, Integer> editorCursorOffsets = new IdentityHashMap<>();
   private final Map<String, WorkflowEditor> workflowEditors = new HashMap<>();
+  private final Map<String, WorkflowOpening> workflowOpenings = new HashMap<>();
+  private final Map<String, Runnable> workflowOpeningCallbacks = new HashMap<>();
   private final Map<MonacoEditorView, Runnable> pairedReviewRefresh = new IdentityHashMap<>();
   private final Map<MonacoEditorView, Flow.State> pairedReviewStages = new IdentityHashMap<>();
   private final Map<String, IconButton> pairButtons = new HashMap<>();
@@ -188,19 +191,29 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   private void setupWorkflowMenu(ContextMenu contextMenu, NavigableAsset asset) {
     var scope = KlabIDEController.instance().user();
-    List<Workflow> workflows;
-    List<Flow> flows;
-    try {
-      workflows =
-          WorkflowCatalog.latest(workflowUIProvider.availableWorkflows(asset, scope));
-      flows =
-          service.getFlows(true, scope).stream()
-              .filter(flow -> Objects.equals(asset.getUrn(), flow.getAssetUrn()))
-              .toList();
-    } catch (Throwable error) {
+    var loading = new MenuItem("Loading workflows...");
+    loading.setDisable(true);
+    contextMenu.getItems().add(loading);
+    record Catalog(List<Workflow> workflows, List<Flow> flows) {}
+    var loader = new AsyncLoad<Catalog>();
+    contextMenu.addEventHandler(javafx.stage.WindowEvent.WINDOW_HIDDEN, event -> loader.invalidate());
+    loader.load(() -> new Catalog(
+        WorkflowCatalog.latest(workflowUIProvider.availableWorkflows(asset, scope)),
+        service.getFlows(true, scope).stream()
+            .filter(flow -> Objects.equals(asset.getUrn(), flow.getAssetUrn())).toList()), catalog -> {
+      if (closed.get()) return;
+      contextMenu.getItems().remove(loading);
+      populateWorkflowMenu(contextMenu, asset, catalog.workflows(), catalog.flows());
+    }, error -> {
+      if (closed.get()) return;
+      loading.setText("Could not load workflows. Close this menu and retry.");
       KlabIDEController.instance().handleNotification(Notification.error(error));
-      return;
-    }
+    });
+  }
+
+  private void populateWorkflowMenu(ContextMenu contextMenu, NavigableAsset asset,
+      List<Workflow> workflows, List<Flow> flows) {
+    var scope = KlabIDEController.instance().user();
     var participant = WorkflowParticipant.from(scope);
     var workflowMenus = new ArrayList<Menu>();
 
@@ -239,18 +252,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                 Flow::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
         .forEach(
             flow -> {
-              Workflow workflow;
-              try {
-                workflow =
-                    service.getWorkflow(org.integratedmodelling.klab.api.services.resources.workflow.WorkflowUrns.workflow(
-                        flow.getWorkflowId(), flow.getWorkflowVersion()), KlabIDEController.instance().user());
-              } catch (Throwable error) {
-                workflow = null;
-              }
-              var name = workflow == null ? flow.getWorkflowId() : workflowName(workflow);
+              // Menu labels must not fetch every pinned definition on the JavaFX thread.
+              var name = flow.getWorkflowId() + " " + Objects.toString(flow.getWorkflowVersion(), "");
               var item = new MenuItem(name + " — " + shortFlowId(flow));
-              var resolvedWorkflow = workflow;
-              item.setOnAction(event -> openWorkflow(flow, resolvedWorkflow));
+              item.setOnAction(event -> openWorkflow(flow, null));
               submenu.getItems().add(item);
             });
     if (!submenu.getItems().isEmpty()) workflowMenus.add(submenu);
@@ -300,18 +305,49 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   private void openWorkflow(Flow flow, Workflow knownWorkflow) {
-    try {
-      var workflow =
-          knownWorkflow == null
-              ? service.getWorkflow(org.integratedmodelling.klab.api.services.resources.workflow.WorkflowUrns.workflow(
-                        flow.getWorkflowId(), flow.getWorkflowVersion()), KlabIDEController.instance().user())
-              : knownWorkflow;
-      var editorKey = "workflow:" + flow.getId();
-      if (workflowEditors.containsKey(editorKey)) {
-        restorePairedEditors();
-        selectAuxiliaryEditor(editorKey);
-        return;
+    openWorkflow(flow, knownWorkflow, null);
+  }
+
+  private void openWorkflow(Flow flow, Workflow knownWorkflow, Runnable opened) {
+    if (flow == null || closed.get()) return;
+    var editorKey = "workflow:" + flow.getId();
+    var existingKey = workflowEditors.entrySet().stream()
+        .filter(entry -> Objects.equals(entry.getValue().getFlow().getId(), flow.getId()))
+        .map(Map.Entry::getKey).findFirst().orElse(null);
+    if (existingKey != null || workflowOpenings.containsKey(editorKey)) {
+      restorePairedEditors();
+      selectAuxiliaryEditor(existingKey == null ? editorKey : existingKey);
+      if (opened != null) {
+        if (existingKey != null) opened.run();
+        else workflowOpeningCallbacks.put(editorKey, opened);
       }
+      return;
+    }
+    if (knownWorkflow == null) {
+      var scope = KlabIDEController.instance().user();
+      var opening = new WorkflowOpening(() -> closeAuxiliaryEditor(editorKey));
+      workflowOpenings.put(editorKey, opening);
+      if (opened != null) workflowOpeningCallbacks.put(editorKey, opened);
+      showAuxiliaryEditor(editorKey, "Opening workflow...", opening);
+      opening.start(() -> service.getWorkflow(
+          org.integratedmodelling.klab.api.services.resources.workflow.WorkflowUrns.workflow(
+              flow.getWorkflowId(), flow.getWorkflowVersion()), scope), workflow -> {
+        if (closed.get() || workflowOpenings.get(editorKey) != opening) return;
+        installWorkflowEditor(flow, workflow, workflowOpeningCallbacks.get(editorKey));
+        workflowOpenings.remove(editorKey);
+        workflowOpeningCallbacks.remove(editorKey);
+      });
+      return;
+    }
+    try {
+      installWorkflowEditor(flow, knownWorkflow, opened);
+    } catch (Throwable error) {
+      KlabIDEController.instance().handleNotification(Notification.error(error));
+    }
+  }
+
+  private void installWorkflowEditor(Flow flow, Workflow workflow, Runnable opened) {
+    var editorKey = "workflow:" + flow.getId();
       var editor =
           new WorkflowEditor(
               service,
@@ -351,9 +387,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         refreshPairButton(document.getUrn());
       }
       showAuxiliaryEditor(editorKey, workflowName(workflow) + " — workflow", editor);
-    } catch (Throwable error) {
-      KlabIDEController.instance().handleNotification(Notification.error(error));
-    }
+      if (opened != null) opened.run();
   }
 
   private boolean toggleWorkflowPair(
@@ -420,32 +454,48 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                     Objects.equals(document.getUrn(), entry.getValue().getFlow().getAssetUrn()))
             .findFirst();
     if (existing.isPresent()) return toggleWorkflowPair(document, existing.get().getKey(), true);
-    var flows =
-        service.getFlows(true, KlabIDEController.instance().user()).stream()
-            .filter(flow -> Objects.equals(document.getUrn(), flow.getAssetUrn()))
-            .toList();
-    if (flows.isEmpty()) return false;
-    if (flows.size() > 1) {
-      var menu = new ContextMenu();
-      for (var flow : flows) {
-        var item = new MenuItem(flow.getWorkflowId() + " — " + shortFlowId(flow));
-        item.setOnAction(
-            event -> {
-              openWorkflow(flow, null);
-              toggleWorkflowPair(document, "workflow:" + flow.getId(), true);
-            });
-        menu.getItems().add(item);
-      }
-      menu.show(pairButtons.get(document.getUrn()), javafx.geometry.Side.BOTTOM, 0, 0);
-      return false;
-    }
-    var flow = flows.getFirst();
-    openWorkflow(flow, null);
-    return toggleWorkflowPair(document, "workflow:" + flow.getId(), true);
+    if (pairedWorkflowOpening.pendingKeys().contains(document.getUrn())) return false;
+    var scope = KlabIDEController.instance().user();
+    var loading = new MenuItem("Loading workflows...");
+    loading.setDisable(true);
+    var menu = new ContextMenu(loading);
+    menu.setOnHidden(event -> pairedWorkflowOpening.cancel(document.getUrn()));
+    menu.show(pairButtons.get(document.getUrn()), javafx.geometry.Side.BOTTOM, 0, 0);
+    pairedWorkflowOpening.open(document.getUrn(),
+        () -> service.getFlows(true, scope).stream()
+            .filter(flow -> Objects.equals(document.getUrn(), flow.getAssetUrn())).toList(),
+        () -> !closed.get(), flows -> {
+          if (flows.isEmpty()) { loading.setText("No saved workflows for this document"); return; }
+          if (flows.size() == 1) {
+            menu.hide();
+            var flow = flows.getFirst();
+            openWorkflow(flow, null, () -> toggleWorkflowPair(document, "workflow:" + flow.getId(), true));
+            return;
+          }
+          menu.getItems().clear();
+          for (var flow : flows) {
+            var item = new MenuItem(flow.getWorkflowId() + " - " + shortFlowId(flow));
+            item.setOnAction(event -> openWorkflow(flow, null,
+                () -> toggleWorkflowPair(document, "workflow:" + flow.getId(), true)));
+            menu.getItems().add(item);
+          }
+        }, error -> {
+          loading.setText("Could not load workflows. Close this menu and retry.");
+          KlabIDEController.instance().handleNotification(Notification.error(error));
+        }, () -> {});
+    return false;
   }
 
   @Override
   protected void disposeAuxiliaryEditor(Node editor) {
+    if (editor instanceof WorkflowOpening opening) {
+      workflowOpenings.entrySet().removeIf(entry -> {
+        if (entry.getValue() != opening) return false;
+        workflowOpeningCallbacks.remove(entry.getKey());
+        return true;
+      });
+      opening.close();
+    }
     if (editor instanceof ProjectMaterialBrowser browser) {
       materialBrowsers.values().removeIf(value -> value == browser);
       browser.close();
@@ -1725,6 +1775,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   public void close() {
     if (!closed.compareAndSet(false, true)) return;
     lspOpening.cancelAll();
+    pairedWorkflowOpening.cancelAll();
+    workflowOpenings.values().forEach(WorkflowOpening::close);
+    workflowOpenings.clear();
+    workflowOpeningCallbacks.clear();
     validationCommands.shutdown(); // Finish already accepted saves; do not discard source writes.
     materialBrowsers.values().forEach(ProjectMaterialBrowser::close);
     semanticValidation.close();

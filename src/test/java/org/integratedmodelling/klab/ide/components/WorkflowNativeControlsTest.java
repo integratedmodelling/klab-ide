@@ -182,6 +182,10 @@ class WorkflowNativeControlsTest {
       ((Button)editor.lookup("#workflow-delete-button")).fire(); assertEquals(1, fixture.deletions);
       WorkflowProposalTransitionTest.answer(ButtonType.OK);
       ((Button)editor.lookup("#workflow-refresh")).fire();
+    });
+    await(() -> !ref.get().isDisabled());
+    WorkflowProposalTransitionTest.fx(() -> {
+      var editor = ref.get();
       assertFalse(((Button)editor.lookup("#workflow-delete-button")).isDisabled());
       assertTrue(editor.lookupAll(".label").stream().filter(Label.class::isInstance)
           .map(Label.class::cast).noneMatch(label -> label.getText().contains("Deletion was not confirmed")));
