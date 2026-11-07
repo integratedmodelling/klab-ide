@@ -672,3 +672,16 @@ not submit an observation or promote concepts to collectives. Insertion is one u
 marks the document modified. If the document changes while composition is pending, the late result
 is discarded. Other views can reuse `ObservableComposerDialog.show(owner)` to obtain an asynchronous
 Observable (or null on cancellation).
+
+## Ontology review stages
+
+For workflows marked `reviewStages: true`, **Create workflow** persists the initial bootstrap
+without submitting a review transition. Creation is guarded against repeated clicks. If the
+service response is missing or fails, check the workflow list before creating another flow;
+the IDE does not automatically retry an operation whose outcome may be uncertain.
+
+The native stage view explains bootstrap, peer review, community review, and coalescing, then
+opens the selected Resources service's `/ui/review` page with the saved flow and stage IDs.
+Stage-specific editing and decisions run there, under service authorization. Generic native
+metadata updates, attachments, transitions, and deletion are not substitutes for those controls.
+The browser may require its own sign-in; IDE access does not imply browser authentication.

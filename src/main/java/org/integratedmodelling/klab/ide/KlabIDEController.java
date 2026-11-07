@@ -220,6 +220,9 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
                 org.integratedmodelling.klab.api.services.resources.workflow.Flow flow,
                 org.integratedmodelling.klab.api.services.resources.workflow.Flow.State state,
                 Workflow.StateSchema schema, boolean readOnly, Runnable validationChanged) {
+              var review = org.integratedmodelling.klab.ide.components.ReviewStageEditor.create(
+                  workflow, flow, state, user().getService(ResourcesService.class).getUrl());
+              if (review != null) return review;
               return ProposalStageEditor.create(workflow, flow, state, schema, readOnly, validationChanged);
             }
 

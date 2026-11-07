@@ -44,7 +44,7 @@ public interface WorkflowUIProvider {
 
   /**
    * Build the non-persistent client model shown while the first stage is being completed. No
-   * service call is made until the editor submits a successful transition.
+   * service call is made until the editor explicitly creates the workflow or submits a transition.
    */
   default Flow draftFlow(Workflow workflow, Flow.State initialState, UserScope scope) {
     var now = Instant.now();

@@ -168,6 +168,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   private final Consumer<Flow> deleted;
   private Flow flow;
   private boolean provisional;
+  private boolean creationAttempted;
   private Flow.State selectedState;
   private StageEditor selectedEditor;
   private VBox actionBar;
@@ -584,7 +585,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     selectedEditor.readOnly().accept(readOnly);
     stageArea.getChildren().add(selectedEditor.content());
 
-    if (!schema.getAttachments().isEmpty()) {
+    if (!ReviewStageEditor.supports(workflow) && !schema.getAttachments().isEmpty()) {
       stageArea.getChildren().add(attachments(schema, !canEdit(state)));
     }
     actionBar = actions(schema, readOnly);
@@ -811,7 +812,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
       bar.getChildren().add(buttons);
       return bar;
     }
-    if (readOnly) return bar;
+    if (readOnly || (ReviewStageEditor.supports(workflow) && !provisional)) return bar;
 
     var buttons = new HBox(8);
     buttons.setAlignment(Pos.CENTER_RIGHT);
@@ -828,6 +829,13 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
       }
     }
 
+    if (provisional && workflow.getBehavior() != null) {
+      var create = new Button("Create workflow");
+      create.setTooltip(new Tooltip("Save the initial stage without advancing to review"));
+      create.setOnAction(event -> createInitialFlow());
+      create.setDisable(creationAttempted);
+      buttons.getChildren().add(create);
+    }
     if (provisional) {
       var cancelWorkflow = new Button("Cancel workflow");
       cancelWorkflow.getStyleClass().add(Styles.DANGER);
@@ -841,6 +849,10 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
       buttons.getChildren().add(cancelWorkflow);
     }
 
+    if (ReviewStageEditor.supports(workflow)) {
+      bar.getChildren().add(buttons);
+      return bar;
+    }
     var cancel = new Button("Reset");
     cancel.setOnAction(
         event -> {
@@ -911,6 +923,50 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     }
     bar.getChildren().add(buttons);
     return bar;
+  }
+
+  /** Persist a behavior workflow before invoking its saved-stage actions. */
+  private void createInitialFlow() {
+    if (!provisional || submitting || creationAttempted || !canEdit(selectedState)) return;
+    if (pendingAttachments.values().stream().anyMatch(uploads -> !uploads.isEmpty())) {
+      fail(new IllegalStateException("Create the workflow before uploading attachments."));
+      return;
+    }
+    var initial = copyState(selectedState);
+    initial.setMetadata(Metadata.create(selectedEditor.metadata().get()));
+    initial.setId(null);
+    initial.setFlowId(null);
+    creationAttempted = true;
+    submitting = true;
+    clearError();
+    setDisable(true);
+    var task = new Task<Flow>() {
+      @Override protected Flow call() {
+        var created = service.createFlow(workflow.getId(), initial, scope);
+        if (created == null) throw new IllegalStateException("No created workflow was returned");
+        return created;
+      }
+    };
+    task.setOnSucceeded(event -> {
+      submitting = false;
+      setDisable(false);
+      flow = task.getValue();
+      provisional = false;
+      proposalDrafts.clear();
+      refresh(selectInitialState());
+      status.setText(status.getText() + " | Initial stage saved; no review transition submitted");
+      if (initialized != null) initialized.accept(flow);
+    });
+    task.setOnFailed(event -> {
+      submitting = false;
+      setDisable(false);
+      refresh(selectedState);
+      fail(new IllegalStateException(errorMessage(task.getException())
+          + ". Creation could not be confirmed. Reopen the workflow list to check whether it was saved before starting another workflow."));
+    });
+    var worker = new Thread(task, "workflow-creation");
+    worker.setDaemon(true);
+    worker.start();
   }
 
   private void discoverBehaviorAction(String actionId) {
@@ -1023,7 +1079,9 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
                     }
                     flow = task.getValue();
                     proposalDrafts.clear();
-                    refresh(flow.getStates().get(stateId));
+                    var previous = flow.getStates().get(stateId);
+                    refresh(previous == null || previous.getStatus() == Flow.StateStatus.CLOSED
+                        ? selectInitialState() : previous);
                   });
               var worker = new Thread(task, "workflow-action");
               worker.setDaemon(true);
@@ -1369,6 +1427,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   }
 
   private boolean isProposalWorkflow() {
+    if (ReviewStageEditor.supports(workflow)) return true;
     return workflow.getTransitions().values().stream()
         .anyMatch(transition -> transition.getMetadata().containsKey("proposalReviewOperation"));
   }
