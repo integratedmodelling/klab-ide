@@ -57,6 +57,43 @@ class WorkflowCreationTest {
       assertEquals("bootstrap", sent.get().getSchemaId()); editor.get().close();
     });
   }
+  @Test void behaviorHistoryOpensWithoutSchemaTransitionsOrMisleadingDiagram() throws Exception {
+    WorkflowProposalTransitionTest.fx(() -> {
+      var user = (UserIdentity) Proxy.newProxyInstance(UserIdentity.class.getClassLoader(), new Class<?>[]{UserIdentity.class},
+          (p,m,a) -> switch (m.getName()) { case "getUsername" -> "creator"; case "getEmailAddress" -> "creator@example.test"; case "isAuthenticated", "isAnonymous" -> false; case "getGroups" -> Set.of(); default -> null; });
+      var scope = (UserScope) Proxy.newProxyInstance(UserScope.class.getClassLoader(), new Class<?>[]{UserScope.class, ServiceSideScope.class},
+          (p,m,a) -> switch (m.getName()) { case "getUser" -> user; case "isAuthorized" -> true; default -> null; });
+      var workflow = new WorkflowImpl(); workflow.setId("pilot"); workflow.setVersion("0.3");
+      workflow.getMetadata().put("reviewStages", true);
+      var flow = Flow.create(); flow.setId("saved"); flow.setRevision(4); flow.setStatus(Flow.Status.CLOSED);
+      String previous = null;
+      for (String id : java.util.List.of("bootstrap", "peer-review", "community-review", "coalescing", "terminated")) {
+        var schema = new WorkflowImpl.StateSchemaImpl(); schema.setId(id); schema.setOpen(true);
+        workflow.getStates().put(id, schema);
+        var state = Flow.State.create(); state.setId(id + "-1"); state.setSchemaId(id);
+        state.setOwner("creator"); state.setStatus(Flow.StateStatus.CLOSED);
+        flow.getStates().put(state.getId(), state);
+        if (previous != null) {
+          var event = new org.integratedmodelling.klab.api.services.resources.workflow.impl.FlowImpl.TransactionImpl();
+          event.setTransitionId(switch (id) { case "coalescing" -> "enter-coalescing"; case "terminated" -> "terminate"; default -> "open-round"; });
+          event.setSourceStateId(previous); event.setTargetStateId(state.getId()); flow.getHistory().add(event);
+        }
+        previous = state.getId();
+      }
+      var service = (ResourcesService) Proxy.newProxyInstance(ResourcesService.class.getClassLoader(), new Class<?>[]{ResourcesService.class}, (p,m,a) -> null);
+      var editor = new WorkflowEditor(service, scope, workflow, flow,
+          (w,f,state,schema,readOnly,changed) -> ReviewStageEditor.create(w,f,state,null));
+      assertNull(editor.lookup("#workflow-diagram-button"));
+      for (var state : flow.getStates().values())
+        assertDoesNotThrow(() -> WorkflowProposalTransitionTest.call(editor, "show", Flow.State.class, state));
+      editor.close();
+      workflow.getMetadata().clear();
+      var generic = new WorkflowEditor(service, scope, workflow, flow, null);
+      assertNotNull(generic.lookup("#workflow-diagram-button"));
+      generic.close();
+    });
+  }
+
   private static void create(WorkflowEditor editor) {
     try { var method = WorkflowEditor.class.getDeclaredMethod("createInitialFlow"); method.setAccessible(true); method.invoke(editor); }
     catch (Exception e) { throw new RuntimeException(e); }

@@ -283,7 +283,9 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     diagram.setAccessibleText("Show workflow diagram");
     diagram.setTooltip(new Tooltip("Show workflow diagram"));
     diagram.setOnAction(event -> showWorkflowDiagram());
-    box.getChildren().add(diagram);
+    // The static schema diagram cannot represent behavior-generated review cycle transitions.
+    // Those flows expose their cycle history through the specialized Resources review UI.
+    if (!ReviewStageEditor.supports(workflow)) box.getChildren().add(diagram);
     if (canDeleteFlow()) {
       var delete = new Button(null, new FontIcon(Material2AL.DELETE));
       delete.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT, Styles.DANGER);
