@@ -27,7 +27,10 @@ public final class ReviewEditorJourneyFixture {
   volatile Flow saved;
   volatile Flow.InitializationRequest initialization;
   volatile int creations, saves, uploads, preparations;
-  boolean failCreation, rejectCreation, conflictSave;
+  volatile int diagrams, deletions;
+  boolean failCreation, rejectCreation, conflictSave, failDiagram, failDeletion, rejectDeletion;
+  Runnable beforeDelete;
+  java.nio.file.Path diagramPath;
   Runnable beforeRead;
 
   ReviewEditorJourneyFixture() {
@@ -54,6 +57,7 @@ public final class ReviewEditorJourneyFixture {
             }
             case "createFlow", "transitionFlow": throw new AssertionError("Review preparation must not use implicit transitions");
             case "getFlow": { if (beforeRead != null) { var hook = beforeRead; beforeRead = null; hook.run(); } return copy(); }
+            case "getFlows": return saved == null ? List.of() : List.of(copy());
             case "updateFlowStateDetails": {
               var update = (Flow.StateDetailsUpdate)a[2];
               if (conflictSave || update.expectedRevision() != saved.getRevision()) throw new IllegalStateException("Revision conflict; refresh before retrying");
@@ -78,7 +82,33 @@ public final class ReviewEditorJourneyFixture {
               upload.setMediaType("application/vnd.klab.proposal+yaml"); upload.setContent("proposal: synthetic-fixture".getBytes(StandardCharsets.UTF_8));
               add(upload, saved.getStates().get((String)a[1])); saved.setRevision(saved.getRevision()+1); preparations++; report("PREPARED"); return copy();
             }
-            case "info": throw new AssertionError("Behavior review must not request a static-only diagram");
+            case "info": {
+              diagrams++;
+              if (saved != null && (!saved.getUrn().equals(a[0]) || a[1] != KlabAsset.KnowledgeClass.FLOW))
+                throw new AssertionError("Persisted review must render its saved FLOW, not an INIT-only schema");
+              if (saved == null && (!workflow.getUrn().equals(a[0]) || a[1] != KlabAsset.KnowledgeClass.WORKFLOW))
+                throw new AssertionError("Unsaved review must render its pinned WORKFLOW definition");
+              if (failDiagram) throw new IllegalStateException("Synthetic graph service failure");
+              if (diagramPath != null) return javax.imageio.ImageIO.read(diagramPath.toFile());
+              var image = new java.awt.image.BufferedImage(900, 240, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+              var graphics = image.createGraphics();
+              try {
+                graphics.setColor(java.awt.Color.WHITE); graphics.fillRect(0,0,900,240);
+                graphics.setColor(new java.awt.Color(29,63,73));
+                graphics.drawRoundRect(30,80,240,90,12,12); graphics.drawRoundRect(560,80,280,90,12,12);
+                graphics.drawLine(270,125,560,125); graphics.drawLine(550,115,560,125); graphics.drawLine(550,135,560,125);
+                graphics.setFont(new java.awt.Font("SansSerif", java.awt.Font.PLAIN,16));
+                graphics.drawString("Synthetic bootstrap",55,130); graphics.drawString("Review cycle (fixture only)",580,130);
+                graphics.drawString("Isolated PNG transport fixture: no production data",30,35);
+              } finally { graphics.dispose(); }
+              return image;
+            }
+            case "deleteFlow": {
+              deletions++; if (beforeDelete != null) beforeDelete.run();
+              if (failDeletion) throw new IllegalStateException("Synthetic service deletion failure");
+              if (rejectDeletion) return false;
+              saved = null; bytes.clear(); System.out.println("DELETED synthetic fixture only"); return true;
+            }
             case "getUrl": return new URL("http://127.0.0.1:1");
             default: return null;
           }

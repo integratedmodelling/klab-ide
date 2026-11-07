@@ -44,6 +44,8 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
+import javafx.stage.FileChooser;
+import javax.imageio.ImageIO;
 import org.integratedmodelling.klab.api.data.Metadata;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
 import org.integratedmodelling.klab.api.scope.UserScope;
@@ -178,6 +180,12 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   private Button submitButton;
   private Dialog<Void> workflowDiagram;
   private Task<BufferedImage> diagramTask;
+  private Button deleteFlowButton;
+  private boolean deleting;
+  private boolean deletionCompleted;
+  private boolean deletionUncertain;
+  private boolean serviceDeletionAdministrator;
+  private Task<Boolean> deletionPermissionTask;
   private boolean submitting;
   private final Map<String, StageEditor> proposalDrafts = new LinkedHashMap<>();
   private record StageDetails(String title, String description) {}
@@ -248,6 +256,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     scroll.setFitToWidth(true);
     setCenter(scroll);
     refresh(selectInitialState());
+    discoverDeletionPermission();
   }
 
   public Flow getFlow() {
@@ -287,14 +296,12 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     diagram.setTooltip(new Tooltip("Show workflow diagram"));
     diagram.setOnAction(event -> showWorkflowDiagram());
     box.getChildren().add(diagram);
-    if (canDeleteFlow()) {
-      var delete = new Button(null, new FontIcon(Material2AL.DELETE));
-      delete.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT, Styles.DANGER);
-      delete.setAccessibleText("Delete flow");
-      delete.setTooltip(new Tooltip("Delete flow"));
-      delete.setOnAction(event -> deleteFlow());
-      box.getChildren().add(delete);
-    }
+    deleteFlowButton = new Button(null, new FontIcon(Material2AL.DELETE));
+    deleteFlowButton.setId("workflow-delete-button");
+    deleteFlowButton.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT, Styles.DANGER);
+    deleteFlowButton.setAccessibleText("Delete flow");
+    deleteFlowButton.setOnAction(event -> deleteFlow());
+    box.getChildren().add(deleteFlowButton);
     if (isProposalWorkflow()) {
       box.getChildren().remove(metadata);
       header.setSpacing(5);
@@ -319,25 +326,64 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     }
     dialog.setResizable(true);
     dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
-    var loading = new VBox(12, new ProgressIndicator(), new Label("Loading workflow diagram..."));
-    loading.setAlignment(Pos.CENTER);
-    var content = new BorderPane(loading);
+    var content = new BorderPane();
     content.setPrefSize(900, 620);
     dialog.getDialogPane().setContent(content);
+    var graph = new BorderPane();
+    var export = new Button("Export PNG...");
+    export.setId("workflow-export-png");
+    export.setDisable(true);
+    var retry = new Button("Refresh graph");
+    retry.setId("workflow-refresh-diagram");
+    var caption = new Label(!provisional && ReviewStageEditor.supports(workflow)
+        ? "Saved flow stages and review cycles" : "Pinned workflow definition " + workflow.getVersion());
+    var controls = new HBox(12, export, retry, caption);
+    controls.setAlignment(Pos.CENTER_LEFT);
+    controls.setPadding(new Insets(8));
+    graph.setTop(controls);
     if (ReviewStageEditor.supports(workflow)) {
-      content.setCenter(ReviewStageEditor.structure(workflow, flow));
-      dialog.setOnHidden(event -> { if (workflowDiagram == dialog) workflowDiagram = null; });
-      dialog.show();
-      return;
+      var graphTab = new javafx.scene.control.Tab("Graph", graph);
+      var detailsTab = new javafx.scene.control.Tab("Descriptions and history", ReviewStageEditor.structure(workflow, flow));
+      graphTab.setClosable(false);
+      detailsTab.setClosable(false);
+      var tabs = new javafx.scene.control.TabPane(graphTab, detailsTab);
+      tabs.setId("workflow-diagram-tabs");
+      content.setCenter(tabs);
+    } else {
+      content.setCenter(graph);
     }
+    retry.setOnAction(event -> loadWorkflowDiagram(dialog, graph, export, retry));
+    dialog.setOnHidden(event -> {
+      if (workflowDiagram == dialog) {
+        if (diagramTask != null) diagramTask.cancel(true);
+        workflowDiagram = null;
+        diagramTask = null;
+      }
+    });
+    dialog.show();
+    loadWorkflowDiagram(dialog, graph, export, retry);
+  }
+
+  private void loadWorkflowDiagram(Dialog<Void> dialog, BorderPane content, Button export, Button retry) {
+    if (diagramTask != null) diagramTask.cancel(true);
+    export.setDisable(true);
+    retry.setDisable(true);
+    var loading = new VBox(12, new ProgressIndicator(), new Label("Loading workflow diagram..."));
+    loading.setAlignment(Pos.CENTER);
+    content.setCenter(loading);
+    // Retain the original service-rendered ELK/PNG mechanism. A saved behavior-driven review must
+    // ask for its flow, not substitute the static definition's INIT-only graph.
+    var persistedReview = !provisional && ReviewStageEditor.supports(workflow);
+    var urn = persistedReview ? flow.getUrn() : workflow.getUrn();
+    var kind = persistedReview ? KlabAsset.KnowledgeClass.FLOW : KlabAsset.KnowledgeClass.WORKFLOW;
     var task =
         new Task<BufferedImage>() {
           @Override
           protected BufferedImage call() {
             var image =
                 service.info(
-                    workflow.getUrn(),
-                    KlabAsset.KnowledgeClass.WORKFLOW,
+                    urn,
+                    kind,
                     BufferedImage.class,
                     scope);
             if (image == null)
@@ -348,8 +394,10 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     diagramTask = task;
     task.setOnSucceeded(
         event -> {
-          if (!dialog.isShowing()) return;
+          if (!dialog.isShowing() || diagramTask != task) return;
+          retry.setDisable(false);
           var image = new ImageView(SwingFXUtils.toFXImage(task.getValue(), null));
+          image.setId("workflow-diagram-image");
           image.setPreserveRatio(true);
           image.setSmooth(true);
           image.setAccessibleText(
@@ -364,30 +412,50 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
                     image.setFitHeight(Math.max(1, bounds.getHeight() - 16));
                   });
           content.setCenter(scroll);
+          export.setDisable(false);
+          export.setOnAction(action -> exportWorkflowDiagram(dialog, task.getValue(), content));
         });
     task.setOnFailed(
         event -> {
-          if (!dialog.isShowing()) return;
+          if (!dialog.isShowing() || diagramTask != task) return;
+          retry.setDisable(false);
           var message =
               new Label(
                   "Could not load the workflow diagram. " + errorMessage(task.getException()));
           message.setWrapText(true);
+          message.setId("workflow-diagram-error");
           message.setStyle("-fx-text-fill: -color-danger-fg;");
           BorderPane.setMargin(message, new Insets(20));
           content.setCenter(message);
         });
-    dialog.setOnHidden(
-        event -> {
-          task.cancel(true);
-          if (workflowDiagram == dialog) {
-            workflowDiagram = null;
-            diagramTask = null;
-          }
-        });
-    dialog.show();
     var worker = new Thread(task, "workflow-diagram");
     worker.setDaemon(true);
     worker.start();
+  }
+
+  private void exportWorkflowDiagram(Dialog<Void> dialog, BufferedImage image, BorderPane content) {
+    var chooser = new FileChooser();
+    chooser.setTitle("Export workflow graph as PNG");
+    chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PNG image", "*.png"));
+    chooser.setInitialFileName((provisional ? workflow.getId() : flow.getId()).replaceAll("[^A-Za-z0-9._-]", "_") + ".png");
+    var file = chooser.showSaveDialog(dialog.getDialogPane().getScene().getWindow());
+    if (file == null) return;
+    var result = new Label();
+    result.setId("workflow-export-status");
+    result.setWrapText(true);
+    BorderPane.setMargin(result, new Insets(8));
+    content.setBottom(result);
+    try {
+      writeDiagramPng(image, file.toPath());
+      result.setText("Saved PNG: " + file.getAbsolutePath());
+    } catch (IOException error) {
+      result.setText("Could not export PNG: " + error.getMessage());
+      result.setStyle("-fx-text-fill: -color-danger-fg;");
+    }
+  }
+
+  static void writeDiagramPng(BufferedImage image, Path path) throws IOException {
+    if (!ImageIO.write(image, "png", path.toFile())) throw new IOException("No PNG writer is available");
   }
 
   private Label chip(String text) {
@@ -398,36 +466,122 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   }
 
   private boolean canDeleteFlow() {
-    if (isProposalWorkflow()) return false;
-    if (provisional) return false;
-    var participant = WorkflowParticipant.from(scope);
+    return !provisional && !deleting && !deletionCompleted && !deletionUncertain
+        && (serviceDeletionAdministrator
+            || deletionProblem(workflow, flow, WorkflowParticipant.from(scope)) == null);
+  }
+
+  private void discoverDeletionPermission() {
+    if (WorkflowParticipant.from(scope).getRoles().contains(WorkflowRole.ADMIN)) return;
+    if (deletionPermissionTask != null) deletionPermissionTask.cancel(true);
+    // Client UserScope is not normally a ServiceSideScope. Ask this exact service for its
+    // authenticated capability projection, as the other IDE administration controls do.
+    // A localhost URL or creator ownership must never confer administrator rights.
+    var task = new Task<Boolean>() {
+      @Override protected Boolean call() {
+        var capabilities = service.capabilities(scope);
+        return capabilities != null && capabilities.getPermissions() != null
+            && capabilities.getPermissions().contains(org.integratedmodelling.klab.api.authentication.CRUDOperation.ADMINISTER);
+      }
+    };
+    deletionPermissionTask = task;
+    task.setOnSucceeded(event -> {
+      if (deletionPermissionTask != task) return;
+      serviceDeletionAdministrator = Boolean.TRUE.equals(task.getValue());
+      updateDeleteControl();
+    });
+    task.setOnFailed(event -> {
+      if (deletionPermissionTask != task) return;
+      serviceDeletionAdministrator = false;
+      updateDeleteControl();
+    });
+    var worker = new Thread(task, "workflow-delete-permissions");
+    worker.setDaemon(true);
+    worker.start();
+  }
+
+  /** Client affordance only; the service repeats authorization and lifecycle checks atomically. */
+  static String deletionProblem(Workflow workflow, Flow flow, WorkflowParticipant participant) {
     return participant.getRoles().contains(WorkflowRole.ADMIN)
-        || (participant.getRoles().contains(WorkflowRole.EDITOR)
-            && participant.isWorkflowPermitted(workflow)
-            && Objects.equals(flow.getOwner(), participant.getIdentity()));
+        ? null : "Only an administrator can delete a flow.";
+  }
+
+  private void updateDeleteControl() {
+    if (deleteFlowButton == null) return;
+    deleteFlowButton.setVisible(!provisional);
+    deleteFlowButton.setManaged(!provisional);
+    deleteFlowButton.setDisable(!canDeleteFlow());
+    var problem = serviceDeletionAdministrator ? null : deletionProblem(workflow, flow, WorkflowParticipant.from(scope));
+    deleteFlowButton.setTooltip(new Tooltip(deletionUncertain
+        ? "Deletion result is uncertain. Refresh the saved workflow before retrying."
+        : problem == null ? "Delete flow" : problem));
   }
 
   private void deleteFlow() {
+    if (!canDeleteFlow() || submitting) return;
+    deleting = true; // Before showAndWait's nested event loop, including repeated clicks.
+    setDisable(true);
+    updateDeleteControl();
     var confirmation = new Alert(Alert.AlertType.CONFIRMATION);
     confirmation.setTitle("Delete workflow");
     confirmation.setHeaderText("Delete this flow and its complete history?");
     confirmation.setContentText(
-        "All stages, transitions, metadata, and attachments in this flow will be permanently deleted.");
+        "Flow: " + flow.getId() + "\nAsset: " + flow.getAssetUrn()
+            + "\nAll stages, transitions, review cycles, decisions, metadata, and attachments in this flow will be permanently deleted."
+            + " Unsaved edits will be discarded. This cannot be undone."
+            + "\nProject files and already exported archives are not deleted.");
     var delete = new ButtonType("Delete flow", ButtonBar.ButtonData.YES);
     var cancel = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
     confirmation.getButtonTypes().setAll(delete, cancel);
+    ((Button) confirmation.getDialogPane().lookupButton(delete)).setDefaultButton(false);
+    ((Button) confirmation.getDialogPane().lookupButton(cancel)).setDefaultButton(true);
     if (getScene() != null && getScene().getWindow() != null)
       confirmation.initOwner(getScene().getWindow());
-    if (confirmation.showAndWait().orElse(cancel) != delete) return;
-    try {
-      clearError();
-      var removed = flow;
-      service.deleteFlow(flow.getId(), scope);
-      if (deleted != null) deleted.accept(removed);
-      if (cancelJob != null) cancelJob.run();
-    } catch (Throwable error) {
-      fail(error);
+    if (confirmation.showAndWait().orElse(cancel) != delete) {
+      deleting = false;
+      setDisable(false);
+      updateDeleteControl();
+      return;
     }
+    clearError();
+    var removed = flow;
+    var task = new Task<Boolean>() {
+      @Override protected Boolean call() { return service.deleteFlow(removed.getId(), scope); }
+    };
+    task.setOnSucceeded(event -> {
+      deleting = false;
+      if (!Boolean.TRUE.equals(task.getValue())) {
+        setDisable(false);
+        updateDeleteControl();
+        fail(new IllegalStateException("The service did not confirm deletion. The flow remains open."));
+        return;
+      }
+      deletionCompleted = true;
+      proposalDrafts.clear();
+      pendingAttachments.clear();
+      savedDetails.clear();
+      detailsConflicts.clear();
+      reviewMarkerStages.clear();
+      close();
+      try {
+        if (deleted != null) deleted.accept(removed);
+      } finally {
+        // Successful deletion must close the selected tab even if refreshing the sidebar fails.
+        if (cancelJob != null) cancelJob.run();
+      }
+    });
+    task.setOnFailed(event -> {
+      deleting = false;
+      setDisable(false);
+      deletionUncertain = true;
+      updateDeleteControl();
+      fail(new IllegalStateException("Deletion was not confirmed. Your local edits are retained. "
+          + "Refresh the saved workflow or reopen the flow list to check its status before retrying. "
+          + errorMessage(task.getException())));
+    });
+    var worker = new Thread(task, "workflow-delete");
+    worker.setDaemon(true);
+    worker.start();
   }
 
   private Node stageBrowser() {
@@ -465,6 +619,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   }
 
   private void refresh(Flow.State selection) {
+    updateDeleteControl();
     savedDetails.clear();
     detailsConflicts.clear();
     flow.getStates().values().forEach(state -> savedDetails.put(state.getId(),
@@ -873,7 +1028,12 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
       refresh.setId("workflow-refresh");
       refresh.setTooltip(new Tooltip("Reload stages after changes in the review UI"));
       refresh.setOnAction(event -> {
-        try { if (requestClose()) reload(null); }
+        try {
+          if (requestClose()) {
+            reload(null);
+            clearError();
+          }
+        }
         catch (Throwable error) { fail(error); }
       });
       bar.getChildren().add(refresh);
@@ -1483,7 +1643,8 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
 
   /** Called by tab hosts before discarding local stage drafts. */
   public boolean requestClose() {
-    if (submitting) return false;
+    if (submitting || deleting) return false;
+    if (deletionCompleted) return true;
     boolean dirty =
         proposalDrafts.values().stream()
             .anyMatch(
@@ -1637,7 +1798,11 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   }
 
   private void reload(String stateId) {
-    flow = service.getFlow(flow.getId(), scope);
+    var reloaded = service.getFlow(flow.getId(), scope);
+    if (reloaded == null) throw new IllegalStateException("The flow is unavailable. Reopen the flow list to reconcile its deletion status.");
+    flow = reloaded;
+    deletionUncertain = false;
+    discoverDeletionPermission();
     refresh(stateId == null ? selectInitialState() : flow.getStates().get(stateId));
   }
 
@@ -1679,6 +1844,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
 
   @Override
   public void close() {
+    if (deletionPermissionTask != null) deletionPermissionTask.cancel(true);
     if (diagramTask != null) diagramTask.cancel(true);
     Runnable closeDiagram =
         () -> {

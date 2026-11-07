@@ -37,6 +37,8 @@ class ReviewEditorJourneyTest {
       assertEquals(1,fixture.creations); assertEquals(2,fixture.initialization.getAttachments().size());
       assertEquals("Water review",fixture.saved.getStates().values().iterator().next().getTitle());
       assertNull(editor.lookup("#workflow-create"));
+      assertTrue(editor.lookup("#workflow-delete-button").isVisible(), "Deletion must appear after a draft is persisted");
+      assertFalse(editor.lookup("#workflow-delete-button").isDisabled(), "Local administrator can remove a saved attempt");
       assertNull(editor.lookup("#workflow-action-prepare-review-draft"),"Do not regenerate over an uploaded proposal");
       assertNotNull(editor.lookup("#workflow-choose-attachment"));
       assertNotNull(editor.lookup("#review-save-details"));

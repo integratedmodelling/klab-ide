@@ -325,6 +325,12 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                 if (treeView != null) treeView.refresh();
               },
               deleted -> {
+                // A tab opened as a draft keeps its original auxiliary key after initialization.
+                // If the same persisted flow was opened again, remove every stale view of it.
+                var deletedViews = workflowEditors.entrySet().stream()
+                    .filter(entry -> Objects.equals(entry.getValue().getFlow().getId(), deleted.getId()))
+                    .map(Map.Entry::getKey).toList();
+                deletedViews.forEach(this::closeAuxiliaryEditor);
                 try {
                   boolean anotherFlow =
                       service.getFlows(true, KlabIDEController.instance().user()).stream()
@@ -335,6 +341,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                 } catch (RuntimeException ignored) {
                   // The deletion succeeded; refresh the indicator on the next service-backed view.
                 }
+                refreshPairButton(deleted.getAssetUrn());
                 if (treeView != null) treeView.refresh();
               });
       workflowEditors.put(editorKey, editor);
