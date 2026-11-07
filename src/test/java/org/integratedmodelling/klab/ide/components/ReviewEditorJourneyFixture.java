@@ -26,6 +26,10 @@ public final class ReviewEditorJourneyFixture {
   final Map<String, byte[]> bytes = new HashMap<>();
   volatile Flow saved;
   volatile Flow.InitializationRequest initialization;
+  volatile WorkflowBehavior.ActionRequest preparation;
+  List<WorkflowBehavior.Parameter> preparationParameters = List.of(
+      new WorkflowBehavior.Parameter("proposalId", "String", null),
+      new WorkflowBehavior.Parameter("purpose", "String", null));
   volatile int creations, saves, uploads, preparations;
   volatile int diagrams, deletions;
   boolean failCreation, rejectCreation, conflictSave, failDiagram, failDeletion, rejectDeletion;
@@ -73,9 +77,10 @@ public final class ReviewEditorJourneyFixture {
             }
             case "getFlowAttachment": return bytes.get((String)a[1]);
             case "getFlowActions": return List.of(new WorkflowBehavior.AvailableAction("prepare-review-draft", "Prepare review draft", "prepare",
-                List.of(new WorkflowBehavior.Parameter("proposalId", "String", null), new WorkflowBehavior.Parameter("purpose", "String", null)), saved.getRevision()));
+                preparationParameters, saved.getRevision()));
             case "executeFlowAction": {
               var request = (WorkflowBehavior.ActionRequest)a[3];
+              preparation = request;
               if (request.expectedRevision() != saved.getRevision() || request.parameters().get("proposalId").toString().isBlank()
                   || request.parameters().get("purpose").toString().isBlank()) throw new AssertionError("Preparation must use entered parameters and current revision");
               var upload = Flow.AttachmentUpload.create(); upload.setType("bootstrap-proposal"); upload.setFileName("prepared-proposal.yaml");

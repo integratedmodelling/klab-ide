@@ -1306,11 +1306,17 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     var fields = new LinkedHashMap<WorkflowBehavior.Parameter, TextField>();
     for (var parameter : action.missing()) {
       var field = new TextField();
-      field.setPromptText(parameter.javaType() == null ? "Text" : parameter.javaType());
-      content.getChildren().addAll(new Label(parameter.name()), field);
+      field.setId("workflow-action-input-" + parameter.name());
+      boolean requestedTier = "prepare-review-draft".equals(action.id()) && "requested_tier".equals(parameter.name());
+      var label = new Label(requestedTier ? "Requested tier" : parameter.name());
+      label.setLabelFor(field);
+      field.setAccessibleText(label.getText());
+      field.setPromptText(requestedTier ? "Integer of 1 or greater" : parameter.javaType() == null ? "Text" : parameter.javaType());
+      content.getChildren().addAll(label, field);
       fields.put(parameter, field);
     }
     var validation = new Label();
+    validation.setId("workflow-action-validation");
     validation.setWrapText(true);
     content.getChildren().add(validation);
     dialog.getDialogPane().setContent(content);
@@ -1325,10 +1331,15 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
             event -> {
               values.clear();
               try {
-                for (var entry : fields.entrySet())
-                  values.put(
-                      entry.getKey().name(),
-                      behaviorInput(entry.getKey(), entry.getValue().getText()));
+                for (var entry : fields.entrySet()) {
+                  try {
+                    values.put(entry.getKey().name(),
+                        behaviorActionInput(action.id(), entry.getKey(), entry.getValue().getText()));
+                  } catch (IllegalArgumentException invalid) {
+                    entry.getValue().requestFocus();
+                    throw invalid;
+                  }
+                }
               } catch (IllegalArgumentException invalid) {
                 validation.setText(invalid.getMessage());
                 event.consume();
@@ -1361,6 +1372,21 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
                     operationMessage.setText("Review draft prepared. Open the review UI to inspect it.");
                   });
             });
+  }
+
+  /** Validate preparation scope before sending any request; other actions keep their own integer semantics. */
+  static Object behaviorActionInput(String actionId, WorkflowBehavior.Parameter parameter, String value) {
+    if ("prepare-review-draft".equals(actionId) && "requested_tier".equals(parameter.name())) {
+      try {
+        int tier = Integer.parseInt(value == null ? "" : value.trim());
+        if (tier >= 1) return tier;
+      } catch (NumberFormatException invalid) {
+        // Give the same actionable diagnostic for blank, fractional and out-of-range input.
+      }
+      throw new IllegalArgumentException(
+          "Requested tier must be an integer of 1 or greater (maximum 2147483647).");
+    }
+    return behaviorInput(parameter, value);
   }
 
   static Object behaviorInput(WorkflowBehavior.Parameter parameter, String value) {
