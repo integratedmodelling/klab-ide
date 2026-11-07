@@ -229,7 +229,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
             @Override
             public List<Workflow> availableWorkflows(KlabAsset asset, UserScope scope) {
               var ret = scope.getService(ResourcesService.class).list(Workflow.class, scope);
-              return ret;
+              return org.integratedmodelling.klab.ide.components.WorkflowCatalog.latest(ret);
             }
           };
     }

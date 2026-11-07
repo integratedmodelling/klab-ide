@@ -1378,8 +1378,7 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
       if (participant.getRoles().contains(WorkflowRole.EDITOR)
           || participant.getRoles().contains(WorkflowRole.ADMIN))
         for (Workflow workflow :
-            Optional.ofNullable(workflowUIProvider.availableWorkflows(resource, scope))
-                .orElseGet(List::of)) {
+            WorkflowCatalog.latest(workflowUIProvider.availableWorkflows(resource, scope))) {
           if (workflow == null
               || !participant.isWorkflowPermitted(workflow)
               || !workflow.admitsAsset(KlabAsset.KnowledgeClass.RESOURCE)) continue;
@@ -1426,7 +1425,8 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
     try {
       Workflow workflow =
           known == null
-              ? service.getWorkflow(flow.getWorkflowId(), KlabIDEController.instance().user())
+              ? service.getWorkflow(org.integratedmodelling.klab.api.services.resources.workflow.WorkflowUrns.workflow(
+                        flow.getWorkflowId(), flow.getWorkflowVersion()), KlabIDEController.instance().user())
               : known;
       String editorKey = "workflow:" + flow.getId();
       WorkflowEditor editor =
@@ -1445,9 +1445,7 @@ public class ResourceEditor extends EditorPage<Resource, Resource> {
   }
 
   private static String workflowName(Workflow workflow) {
-    return workflow.getName() == null || workflow.getName().isBlank()
-        ? workflow.getId()
-        : workflow.getName();
+    return WorkflowCatalog.label(workflow);
   }
 
   private AdapterDescriptor selectedAdapter() {

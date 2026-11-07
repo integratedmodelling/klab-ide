@@ -180,6 +180,9 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   private Task<BufferedImage> diagramTask;
   private boolean submitting;
   private final Map<String, StageEditor> proposalDrafts = new LinkedHashMap<>();
+  private record StageDetails(String title, String description) {}
+  private final Map<String, StageDetails> savedDetails = new LinkedHashMap<>();
+  private final java.util.Set<String> detailsConflicts = new java.util.HashSet<>();
   private Consumer<Flow.State> stageLoaded;
 
   public void setOnStageLoaded(Consumer<Flow.State> listener) {
@@ -256,7 +259,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   }
 
   private Node header() {
-    var title = new Label(workflow.getName() == null ? workflow.getId() : workflow.getName());
+    var title = new Label(WorkflowCatalog.label(workflow));
     title.getStyleClass().add(Styles.TITLE_3);
     var asset = new Label(flow.getAssetUrn());
     asset.setStyle("-fx-text-fill: -color-fg-muted;");
@@ -283,9 +286,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     diagram.setAccessibleText("Show workflow diagram");
     diagram.setTooltip(new Tooltip("Show workflow diagram"));
     diagram.setOnAction(event -> showWorkflowDiagram());
-    // The static schema diagram cannot represent behavior-generated review cycle transitions.
-    // Those flows expose their cycle history through the specialized Resources review UI.
-    if (!ReviewStageEditor.supports(workflow)) box.getChildren().add(diagram);
+    box.getChildren().add(diagram);
     if (canDeleteFlow()) {
       var delete = new Button(null, new FontIcon(Material2AL.DELETE));
       delete.getStyleClass().addAll(Styles.BUTTON_CIRCLE, Styles.FLAT, Styles.DANGER);
@@ -323,6 +324,12 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     var content = new BorderPane(loading);
     content.setPrefSize(900, 620);
     dialog.getDialogPane().setContent(content);
+    if (ReviewStageEditor.supports(workflow)) {
+      content.setCenter(ReviewStageEditor.structure(workflow, flow));
+      dialog.setOnHidden(event -> { if (workflowDiagram == dialog) workflowDiagram = null; });
+      dialog.show();
+      return;
+    }
     var task =
         new Task<BufferedImage>() {
           @Override
@@ -458,6 +465,10 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   }
 
   private void refresh(Flow.State selection) {
+    savedDetails.clear();
+    detailsConflicts.clear();
+    flow.getStates().values().forEach(state -> savedDetails.put(state.getId(),
+        new StageDetails(state.getTitle(), state.getDescription())));
     var active = flow.getStatus() != Flow.Status.CLOSED;
     activeStatusChip.setText(flow.getStatus().name());
     activeStatusChip.getStyleClass().remove(Styles.SUCCESS);
@@ -587,7 +598,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     selectedEditor.readOnly().accept(readOnly);
     stageArea.getChildren().add(selectedEditor.content());
 
-    if (!ReviewStageEditor.supports(workflow) && !schema.getAttachments().isEmpty()) {
+    if (!schema.getAttachments().isEmpty()) {
       stageArea.getChildren().add(attachments(schema, !canEdit(state)));
     }
     actionBar = actions(schema, readOnly);
@@ -631,6 +642,8 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
               .toList();
       if (admittedRules.isEmpty()) return list;
       var rules = new ComboBox<Workflow.AttachmentRule>();
+      rules.setId("workflow-attachment-type");
+      rules.setAccessibleText("Attachment type");
       rules.getItems().setAll(admittedRules);
       rules.setCellFactory(ignored -> attachmentRuleCell());
       rules.setButtonCell(attachmentRuleCell());
@@ -663,7 +676,15 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
                 uploadBox.setPromptText(uploadPrompt(selected));
               });
       attachmentDetails.getChildren().setAll(attachmentRuleChips(rules.getValue()));
-      list.getChildren().addAll(selectorRow, uploadBox);
+      var browse = new Button("Choose file...");
+      browse.setId("workflow-choose-attachment");
+      browse.setOnAction(event -> {
+        var chooser = new javafx.stage.FileChooser();
+        chooser.setTitle("Attach " + rules.getValue().getType());
+        var files = chooser.showOpenMultipleDialog(getScene() == null ? null : getScene().getWindow());
+        if (files != null) for (var file : files) upload(file, rules.getValue());
+      });
+      list.getChildren().addAll(selectorRow, browse, uploadBox);
     }
     return list;
   }
@@ -716,7 +737,17 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     for (var upload : pendingAttachments.getOrDefault(selectedState.getId(), List.of())) {
       var pending = new Label(upload.getFileName() + " (" + upload.getType() + ", pending)");
       pending.setStyle("-fx-text-fill: -color-accent-fg;");
-      attachmentEntries.getChildren().add(pending);
+      if (!ReviewStageEditor.supports(workflow)) {
+        attachmentEntries.getChildren().add(pending);
+        continue;
+      }
+      var remove = new Button("Remove");
+      remove.setAccessibleText("Remove pending " + upload.getFileName());
+      remove.setOnAction(event -> {
+        pendingAttachments.getOrDefault(selectedState.getId(), List.of()).remove(upload);
+        refreshAttachmentEntries();
+      });
+      attachmentEntries.getChildren().add(new HBox(8, pending, remove));
     }
   }
 
@@ -758,6 +789,13 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
       return;
     }
     try {
+      requireUnconflictedDetails();
+      if (ReviewStageEditor.supports(workflow)) validateReviewUpload(rule.getMediaType(), Files.size(file.toPath()));
+      long count = selectedState.getAttachments().stream().filter(a -> Objects.equals(a.getType(), rule.getType())).count()
+          + pendingAttachments.getOrDefault(selectedState.getId(), List.of()).stream()
+              .filter(a -> Objects.equals(a.getType(), rule.getType())).count();
+      if (rule.getArity() >= 0 && count >= rule.getArity())
+        throw new IllegalArgumentException("This stage allows at most " + rule.getArity() + " " + rule.getType() + " attachment(s)");
       var upload = Flow.AttachmentUpload.create();
       upload.setType(rule.getType());
       upload.setFileName(file.getName());
@@ -769,6 +807,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
       upload.setAssetType(
           rule.getAssetType() == null ? selectedState.getAssetType() : rule.getAssetType());
       upload.setContent(Files.readAllBytes(file.toPath()));
+      if (ReviewStageEditor.supports(workflow)) validateReviewUpload(upload.getMediaType(), upload.getContent().length);
       clearError();
       if (provisional) {
         if (selectedEditor.content() instanceof ProposalStageEditor proposal) {
@@ -788,13 +827,28 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
             .add(upload);
         refreshAttachmentEntries();
       } else {
+        if (ReviewStageEditor.supports(workflow)) upload.setExpectedRevision(flow.getRevision());
         var stored = service.addFlowAttachment(flow.getId(), selectedState.getId(), upload, scope);
         if (stored == null)
           throw new IllegalStateException(
               "No attachment was returned; reload to reconcile the upload");
         if (selectedEditor.content() instanceof ProposalStageEditor proposal)
           proposal.bindUpload(upload.getContent(), stored.getId(), stored.getMediaType());
-        reload(selectedState.getId());
+        // Keep only local edits. A reload may also observe another editor's newer details.
+        var stageId = selectedState.getId();
+        var baseline = savedDetails.get(stageId);
+        var draft = new StageDetails(selectedState.getTitle(), selectedState.getDescription());
+        reload(stageId);
+        if (ReviewStageEditor.supports(workflow) && baseline != null) {
+          boolean titleDirty = !Objects.equals(baseline.title(), draft.title());
+          boolean descriptionDirty = !Objects.equals(baseline.description(), draft.description());
+          boolean conflict = (titleDirty || descriptionDirty) && !baseline.equals(savedDetails.get(stageId));
+          if (titleDirty) selectedState.setTitle(draft.title());
+          if (descriptionDirty) selectedState.setDescription(draft.description());
+          if (conflict) detailsConflicts.add(stageId);
+          show(selectedState);
+          requireUnconflictedDetails();
+        }
       }
     } catch (Throwable e) {
       fail(e);
@@ -814,17 +868,32 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
       bar.getChildren().add(buttons);
       return bar;
     }
-    if (readOnly || (ReviewStageEditor.supports(workflow) && !provisional)) return bar;
+    if (ReviewStageEditor.supports(workflow) && !provisional) {
+      var refresh = new Button("Refresh saved workflow");
+      refresh.setId("workflow-refresh");
+      refresh.setTooltip(new Tooltip("Reload stages after changes in the review UI"));
+      refresh.setOnAction(event -> {
+        try { if (requestClose()) reload(null); }
+        catch (Throwable error) { fail(error); }
+      });
+      bar.getChildren().add(refresh);
+    }
+    if (readOnly) return bar;
 
     var buttons = new HBox(8);
     buttons.setAlignment(Pos.CENTER_RIGHT);
     if (!provisional && flow.getCurrentStateIds().contains(selectedState.getId())) {
       for (var binding : schema.getActions()) {
+        if (ReviewStageEditor.supports(workflow) && "prepare-review-draft".equals(binding.id())
+            && selectedState.getAttachments().stream().anyMatch(a ->
+                "application/vnd.klab.proposal+yaml".equals(a.getMediaType())
+                    || "application/vnd.klab.ontology".equals(a.getMediaType()))) continue;
         var button =
             new Button(
                 binding.label() == null || binding.label().isBlank()
                     ? binding.id()
                     : binding.label());
+        button.setId("workflow-action-" + binding.id());
         button.setTooltip(new Tooltip("Run " + binding.action() + " using the saved stage"));
         button.setOnAction(event -> discoverBehaviorAction(binding.id()));
         buttons.getChildren().add(button);
@@ -832,7 +901,8 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     }
 
     if (provisional && workflow.getBehavior() != null) {
-      var create = new Button("Create workflow");
+      var create = new Button(ReviewStageEditor.supports(workflow) ? "Create private bootstrap" : "Create workflow");
+      create.setId("workflow-create");
       create.setTooltip(new Tooltip("Save the initial stage without advancing to review"));
       create.setOnAction(event -> createInitialFlow());
       create.setDisable(creationAttempted);
@@ -852,6 +922,13 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     }
 
     if (ReviewStageEditor.supports(workflow)) {
+      if (!provisional && canEdit(selectedState)
+          && ("bootstrap".equals(selectedState.getSchemaId()) || "coalescing".equals(selectedState.getSchemaId()))) {
+        var save = new Button("Save stage details");
+        save.setId("review-save-details");
+        save.setOnAction(event -> updateStage());
+        buttons.getChildren().add(save);
+      }
       bar.getChildren().add(buttons);
       return bar;
     }
@@ -930,7 +1007,8 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
   /** Persist a behavior workflow before invoking its saved-stage actions. */
   private void createInitialFlow() {
     if (!provisional || submitting || creationAttempted || !canEdit(selectedState)) return;
-    if (pendingAttachments.values().stream().anyMatch(uploads -> !uploads.isEmpty())) {
+    if (!ReviewStageEditor.supports(workflow)
+        && pendingAttachments.values().stream().anyMatch(uploads -> !uploads.isEmpty())) {
       fail(new IllegalStateException("Create the workflow before uploading attachments."));
       return;
     }
@@ -938,13 +1016,22 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     initial.setMetadata(Metadata.create(selectedEditor.metadata().get()));
     initial.setId(null);
     initial.setFlowId(null);
+    var uploads = pendingAttachments.getOrDefault(selectedState.getId(), List.of()).stream()
+        .map(WorkflowEditor::copyUpload).toList();
     creationAttempted = true;
     submitting = true;
     clearError();
     setDisable(true);
     var task = new Task<Flow>() {
       @Override protected Flow call() {
-        var created = service.createFlow(workflow.getId(), initial, scope);
+        Flow created;
+        if (ReviewStageEditor.supports(workflow)) {
+          var request = Flow.InitializationRequest.create();
+          request.setInitialState(initial);
+          request.setAttachments(uploads);
+          request.setPublicRead(false);
+          created = service.initializeFlow(workflow.getUrn(), request, scope);
+        } else created = service.createFlow(workflow.getId(), initial, scope);
         if (created == null) throw new IllegalStateException("No created workflow was returned");
         return created;
       }
@@ -954,6 +1041,7 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
       setDisable(false);
       flow = task.getValue();
       provisional = false;
+      pendingAttachments.clear();
       proposalDrafts.clear();
       refresh(selectInitialState());
       status.setText(status.getText() + " | Initial stage saved; no review transition submitted");
@@ -962,17 +1050,51 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
     task.setOnFailed(event -> {
       submitting = false;
       setDisable(false);
-      refresh(selectedState);
-      fail(new IllegalStateException(errorMessage(task.getException())
-          + ". Creation could not be confirmed. Reopen the workflow list to check whether it was saved before starting another workflow."));
+      boolean rejected = definiteCreationRejection(task.getException());
+      if (rejected) creationAttempted = false;
+      show(selectedState);
+      fail(new IllegalStateException(errorMessage(task.getException()) + (rejected
+          ? ". Creation was rejected. Correct the draft or attachments, then create again."
+          : ". Creation could not be confirmed. Reopen the workflow list to check whether it was saved before starting another workflow.")));
     });
     var worker = new Thread(task, "workflow-creation");
     worker.setDaemon(true);
     worker.start();
   }
 
+  static boolean definiteCreationRejection(Throwable failure) {
+    if (failure instanceof org.integratedmodelling.klab.api.exceptions.KlabIllegalArgumentException) return true;
+    if (failure instanceof org.integratedmodelling.common.utils.Utils.Http.Client.RequestFailure rejected)
+      return rejected.getStatus() == 400 || rejected.getStatus() == 422;
+    return false;
+  }
+
+  private void validateReviewUpload(String mediaType, long size) {
+    var pending = pendingAttachments.getOrDefault(selectedState.getId(), List.of());
+    long bytes = selectedState.getAttachments().stream().mapToLong(Flow.Attachment::getSize).sum()
+        + pending.stream().mapToLong(upload -> upload.getContent().length).sum();
+    validateReviewUpload(mediaType, size, bytes, selectedState.getAttachments().size() + pending.size());
+  }
+
+  static void validateReviewUpload(String mediaType, long size, long existingBytes, int existingCount) {
+    int limit = "application/vnd.klab.proposal+yaml".equals(mediaType)
+        ? org.integratedmodelling.klab.api.services.resources.workflow.ProposalReview.MAX_PROPOSAL_BYTES
+        : "application/vnd.klab.ontology".equals(mediaType)
+            ? org.integratedmodelling.klab.api.services.resources.workflow.ProposalReview.MAX_ONTOLOGY_BYTES
+            : org.integratedmodelling.klab.api.services.resources.workflow.ProposalReview.MAX_UPLOAD_BYTES;
+    if (size > limit) throw new IllegalArgumentException("This attachment exceeds its " + limit / (1024 * 1024) + " MiB limit");
+    if (existingCount >= org.integratedmodelling.klab.api.services.resources.workflow.ProposalReview.MAX_STAGE_ATTACHMENTS
+        || existingBytes + size > org.integratedmodelling.klab.api.services.resources.workflow.ProposalReview.MAX_STAGE_BYTES)
+      throw new IllegalArgumentException("This stage allows at most 256 attachments and 32 MiB in total");
+  }
+
   private void discoverBehaviorAction(String actionId) {
-    if (submitting || !requestClose()) return;
+    if (submitting) return;
+    if (reviewDetailsDirty()) {
+      fail(new IllegalStateException("Save stage details before preparing a proposal"));
+      return;
+    }
+    if (!requestClose()) return;
     String flowId = flow.getId();
     String stateId = selectedState.getId();
     submitting = true;
@@ -1158,11 +1280,20 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
 
   private void updateStage() {
     try {
+      requireUnconflictedDetails();
       clearError();
       var update = copyState(selectedState);
       update.setMetadata(selectedEditor.metadata().get());
-      service.updateFlowState(flow.getId(), selectedState.getId(), update, scope);
-      reload(selectedState.getId());
+      if (ReviewStageEditor.supports(workflow)) {
+        var updated = service.updateFlowStateDetails(flow.getId(), selectedState.getId(),
+            new Flow.StateDetailsUpdate(flow.getRevision(), update.getTitle(), update.getDescription()), scope);
+        if (updated == null) throw new IllegalStateException("No saved stage was returned; refresh before retrying");
+        flow = updated;
+        refresh(flow.getStates().get(selectedState.getId()));
+      } else {
+        service.updateFlowState(flow.getId(), selectedState.getId(), update, scope);
+        reload(selectedState.getId());
+      }
     } catch (Throwable error) {
       fail(error);
     }
@@ -1358,15 +1489,30 @@ public class WorkflowEditor extends BorderPane implements AutoCloseable {
             .anyMatch(
                 stage ->
                     stage.content() instanceof ProposalStageEditor view && view.model().dirty());
+    dirty |= reviewDetailsDirty() || pendingAttachments.values().stream().anyMatch(uploads -> !uploads.isEmpty());
     if (!dirty) return true;
     var dialog =
         new Alert(
             Alert.AlertType.CONFIRMATION,
-            "Discard unsaved proposal review edits and notes in this workflow?",
+            "Discard unsaved stage details, pending attachments, proposal edits and notes in this workflow?",
             ButtonType.OK,
             ButtonType.CANCEL);
     if (getScene() != null) dialog.initOwner(getScene().getWindow());
     return dialog.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK;
+  }
+
+  private void requireUnconflictedDetails() {
+    if (selectedState != null && detailsConflicts.contains(selectedState.getId()))
+      throw new IllegalStateException("The attachment was saved, but another editor changed the stage details. "
+          + "Your unsaved fields are retained. Copy them, refresh the saved workflow, and reconcile before saving or uploading again.");
+  }
+  private boolean reviewDetailsDirty() {
+    if (!ReviewStageEditor.supports(workflow)) return false;
+    return !detailsConflicts.isEmpty() || flow.getStates().values().stream().anyMatch(state -> {
+      var saved = savedDetails.get(state.getId());
+      return saved != null && (!Objects.equals(saved.title(), state.getTitle())
+          || !Objects.equals(saved.description(), state.getDescription()));
+    });
   }
 
   private void validateRequiredAttachments() {

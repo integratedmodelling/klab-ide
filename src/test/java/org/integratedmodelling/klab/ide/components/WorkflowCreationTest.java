@@ -83,7 +83,8 @@ class WorkflowCreationTest {
       var service = (ResourcesService) Proxy.newProxyInstance(ResourcesService.class.getClassLoader(), new Class<?>[]{ResourcesService.class}, (p,m,a) -> null);
       var editor = new WorkflowEditor(service, scope, workflow, flow,
           (w,f,state,schema,readOnly,changed) -> ReviewStageEditor.create(w,f,state,null));
-      assertNull(editor.lookup("#workflow-diagram-button"));
+      assertNotNull(editor.lookup("#workflow-diagram-button"));
+      assertNotNull(ReviewStageEditor.structure(workflow, flow));
       for (var state : flow.getStates().values())
         assertDoesNotThrow(() -> WorkflowProposalTransitionTest.call(editor, "show", Flow.State.class, state));
       editor.close();

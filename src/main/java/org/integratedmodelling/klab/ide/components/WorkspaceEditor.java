@@ -192,8 +192,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     List<Flow> flows;
     try {
       workflows =
-          Optional.ofNullable(workflowUIProvider.availableWorkflows(asset, scope))
-              .orElseGet(List::of);
+          WorkflowCatalog.latest(workflowUIProvider.availableWorkflows(asset, scope));
       flows =
           service.getFlows(true, scope).stream()
               .filter(flow -> Objects.equals(asset.getUrn(), flow.getAssetUrn()))
@@ -243,7 +242,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
               Workflow workflow;
               try {
                 workflow =
-                    service.getWorkflow(flow.getWorkflowId(), KlabIDEController.instance().user());
+                    service.getWorkflow(org.integratedmodelling.klab.api.services.resources.workflow.WorkflowUrns.workflow(
+                        flow.getWorkflowId(), flow.getWorkflowVersion()), KlabIDEController.instance().user());
               } catch (Throwable error) {
                 workflow = null;
               }
@@ -303,7 +303,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     try {
       var workflow =
           knownWorkflow == null
-              ? service.getWorkflow(flow.getWorkflowId(), KlabIDEController.instance().user())
+              ? service.getWorkflow(org.integratedmodelling.klab.api.services.resources.workflow.WorkflowUrns.workflow(
+                        flow.getWorkflowId(), flow.getWorkflowVersion()), KlabIDEController.instance().user())
               : knownWorkflow;
       var editorKey = "workflow:" + flow.getId();
       if (workflowEditors.containsKey(editorKey)) {
@@ -474,9 +475,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   private static String workflowName(Workflow workflow) {
-    return workflow.getName() == null || workflow.getName().isBlank()
-        ? workflow.getId()
-        : workflow.getName();
+    return WorkflowCatalog.label(workflow);
   }
 
   private static String shortFlowId(Flow flow) {
