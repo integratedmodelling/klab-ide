@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-07T14:28:31.4996591+01:00",
+  "title": "Design System: k.LAB Modeler IDE",
+  "extensions": {
+    "colorMeta": {
+      "workbench-blue": {
+        "role": "primary",
+        "displayName": "Workbench Blue (Primer Light)",
+        "tonalRamp": [
+          "#0a3069",
+          "#033d8b",
+          "#0550ae",
+          "#0969da",
+          "#218bff",
+          "#54aeff",
+          "#80ccff",
+          "#b6e3ff"
+        ]
+      },
+      "paper-white": {
+        "role": "neutral",
+        "displayName": "Paper White (Primer Light)",
+        "tonalRamp": [
+          "#24292f",
+          "#32383f",
+          "#424a53",
+          "#57606a",
+          "#6e7781",
+          "#8c959f",
+          "#afb8c1",
+          "#d0d7de"
+        ]
+      },
+      "reasoner-blue": {
+        "role": "secondary",
+        "displayName": "Reasoner Blue — declared constant; usage unverified"
+      },
+      "resources-green": {
+        "role": "secondary",
+        "displayName": "Resources Green — declared constant; usage unverified"
+      },
+      "resolver-orange": {
+        "role": "secondary",
+        "displayName": "Resolver Orange — declared constant; usage unverified"
+      },
+      "runtime-red": {
+        "role": "secondary",
+        "displayName": "Runtime Red — declared constant; usage unverified"
+      }
+    },
+    "typographyMeta": {
+      "body": {
+        "displayName": "Inherited desktop body",
+        "purpose": "Primer Light root size; family resolves through JavaFX/AtlantaFX."
+      },
+      "inspector-label": {
+        "displayName": "Existing compact inspector label",
+        "purpose": "Observed source size, not an accessibility recommendation."
+      }
+    },
+    "shadows": [
+      {
+        "name": "inspection-card-javafx",
+        "value": "dropshadow(gaussian, rgba(27, 31, 36, 0.08), 10, 0.16, 0, 2)",
+        "purpose": "Native JavaFX card effect; HTML previews use an approximate CSS translation."
+      }
+    ],
+    "motion": [],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Standard Button — light-theme translation",
+      "kind": "button",
+      "refersTo": "button-standard",
+      "description": "Illustrative HTML translation of AtlantaFX defaults, not a native control or verification artifact.",
+      "html": "<button class=\"ds-button\">Open workspace</button>",
+      "css": ".ds-button{background:#f6f8fa;color:#24292f;border:1px solid #d0d7de;border-radius:4px;padding:8px 12px;font:14px system-ui}.ds-button:hover{background:#eaeef2}.ds-button:focus-visible{outline:2px solid #0969da;outline-offset:2px}.ds-button:active{background:#f6f8fa}.ds-button:disabled{opacity:.4}"
+    },
+    {
+      "name": "Icon Toggle — selected",
+      "kind": "button",
+      "refersTo": "button-icon-selected",
+      "description": "Accent-wash selected state. Preview focus outline is illustrative; native icon-button focus remains unverified.",
+      "html": "<button class=\"ds-icon\" aria-label=\"Show inspector\" aria-pressed=\"true\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"10\" cy=\"10\" r=\"6\"/><path d=\"m15 15 5 5\"/></svg></button>",
+      "css": ".ds-icon{background:#ddf4ff;color:#0969da;border:0;border-radius:4px;padding:2px;cursor:pointer}.ds-icon:hover{background:#f6f8fa}.ds-icon:active{background:rgba(175,184,193,.2)}.ds-icon:focus-visible{outline:2px solid #0969da;outline-offset:2px}"
+    },
+    {
+      "name": "Command Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Visual translation only; command history and completion are native application behaviors.",
+      "html": "<input class=\"ds-input\" aria-label=\"Command or URN\" placeholder=\"Enter a command or a valid URN\" />",
+      "css": ".ds-input{background:#fff;color:#24292f;border:1px solid #d0d7de;border-radius:4px;padding:8px 12px;font:14px system-ui}.ds-input:hover{border-color:#afb8c1}.ds-input:focus-visible{outline:2px solid #0969da;outline-offset:0}.ds-input::selection{background:#ddf4ff}"
+    },
+    {
+      "name": "Inspection Card",
+      "kind": "card",
+      "refersTo": "inspection-card",
+      "description": "Geometry/metadata card family; CSS shadow is an approximation of the JavaFX effect.",
+      "html": "<article class=\"ds-card\"><strong>Geometry</strong><p>Spatial and temporal extent</p></article>",
+      "css": ".ds-card{background:#fff;color:#24292f;border:1px solid #d0d7de;border-radius:8px;padding:8px;box-shadow:0 2px 10px rgba(27,31,36,.08);font:14px system-ui}.ds-card strong{font-size:11px}.ds-card p{font-size:11px;color:#57606a}"
+    },
+    {
+      "name": "Geometry Chip",
+      "kind": "chip",
+      "refersTo": "geometry-chip",
+      "description": "Compact noninteractive geometry metadata label, shown at its observed source size.",
+      "html": "<span class=\"ds-chip\">Spatial extent</span>",
+      "css": ".ds-chip{display:inline-block;background:#f6f8fa;color:#57606a;border:1px solid #d0d7de;border-radius:5px;padding:2px 5px;font:9px system-ui}"
+    },
+    {
+      "name": "Inspection History — current breadcrumb",
+      "kind": "nav",
+      "description": "Source-derived current breadcrumb appearance; native navigation and truncation are not simulated.",
+      "html": "<nav class=\"ds-history\" aria-label=\"Inspection history\"><button aria-current=\"page\">Current observation</button></nav>",
+      "css": ".ds-history{display:flex;gap:3px}.ds-history button{background:#ddf4ff;color:#0969da;border:1px solid #80ccff;border-radius:4px;padding:1px 6px;font:9px system-ui;min-height:18px}.ds-history button:hover{background:#f6f8fa}.ds-history button:focus-visible{outline:2px solid #0969da;outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Scientific Workbench",
+    "overview": "Precise, restrained, and information-dense: familiar desktop controls organize semantic knowledge, service operations, and inspectable observations. Components are precise and utilitarian. The work area carries the scientific content while compact navigation and inspection tools support it.",
+    "keyCharacteristics": [
+      "Dockable desktop editors and a persistent service/navigation rail.",
+      "Theme-aware neutral surfaces, fine borders, and selective tonal emphasis.",
+      "Separate UI-state and semantic-type colors, plus declared service-role constants.",
+      "Compact cards, breadcrumbs, maps, metadata, and inspection history."
+    ],
+    "rules": [
+      {
+        "name": "The Role Separation Rule",
+        "body": "Keep UI feedback, service identity, and semantic type colors distinct in meaning. Semantic colors come from shared `Branding` constants and `KimStyle` token metadata, not a new local palette.",
+        "section": "colors"
+      },
+      {
+        "name": "The Theme Inheritance Rule",
+        "body": "Use the active theme's `-color-*` lookups for ordinary surfaces and text. `Theme.java` supports Primer Light/Dark, Nord Light/Dark, Cupertino Light/Dark, and Dracula; it falls back to Primer Light when the persisted theme is unavailable. Theme variants are not identical palettes. Existing fixed-color exceptions are implementation facts, not a mandate to add more hardcoded colors.",
+        "section": "colors"
+      },
+      {
+        "name": "The Density Is Evidence Rule",
+        "body": "Preserve the distinction between observed density and a safe reusable default. Do not propagate the inspector's smallest labels into new primary controls without checking native text scaling and readability.",
+        "section": "typography"
+      }
+    ],
+    "dos": [
+      "Do inherit active-theme surface and text roles in JavaFX controls.",
+      "Do preserve distinct service-role and semantic-type color meanings.",
+      "Do reuse the existing card, inspection-history, and dockable-editor patterns where their behavior fits the task.",
+      "Do validate native focus, text scaling, and hit areas before treating compact inspection controls as reusable defaults."
+    ],
+    "donts": [
+      "Don't flatten all supported themes into the light-theme frontmatter values.",
+      "Don't replace shared semantic colors with a new local color scheme.",
+      "Don't treat observed mouse-only wiring, tiny labels, or mismatched tooltips as endorsed design rules.",
+      "Don't treat HTML sidecar previews as production JavaFX components or proof of native accessibility."
+    ]
+  }
+}
