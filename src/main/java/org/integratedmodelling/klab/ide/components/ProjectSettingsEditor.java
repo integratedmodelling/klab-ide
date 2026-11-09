@@ -29,6 +29,7 @@ public class ProjectSettingsEditor extends VBox implements AutoCloseable {
   private final BooleanSupplier locked;
   private final Consumer<Project> onSaved;
   private final Map<String, Object> metadata = new LinkedHashMap<>();
+  private final atlantafx.base.controls.ToggleSwitch snapshot = new atlantafx.base.controls.ToggleSwitch("Snapshot: synchronize with Git origin before loading");
   private final TextField observer = new TextField(), definedWorldview = new TextField();
   private final VBox observerSection = new VBox(6);
   private String originalWorldview = "";
@@ -89,7 +90,9 @@ public class ProjectSettingsEditor extends VBox implements AutoCloseable {
     var entry = new HBox(8, key, value, format, put, remove);
     HBox.setHgrow(key, Priority.ALWAYS); HBox.setHgrow(value, Priority.ALWAYS);
     observerSection.getChildren().addAll(new Label("Default user observer"), observer, observerHelp);
-    form.getChildren().addAll(new Label("Defined worldview (administrator only)"), definedWorldview, observerSection,
+    snapshot.selectedProperty().addListener((property, old, selected) -> status.setText("Unsaved changes"));
+    snapshot.setTooltip(new Tooltip("Fetch and merge conflict-free remote changes before the Resources service loads this project. Problems appear in service status."));
+    form.getChildren().addAll(snapshot, new Separator(), new Label("Defined worldview (administrator only)"), definedWorldview, observerSection,
         new Separator(), new Label("Permissions"), permissions, permissionsHelp,
         new Separator(), new Label("Project metadata"), metadataHelp, entry, metadataCard);
     VBox.setVgrow(metadataCard, Priority.ALWAYS);
@@ -110,6 +113,7 @@ public class ProjectSettingsEditor extends VBox implements AutoCloseable {
         status.setText("Cannot load settings: " + message(error));
       } else {
         metadata.putAll(loaded.project().getSettings().getMetadata());
+        snapshot.setSelected(Boolean.TRUE.equals(loaded.project().getSettings().getSnapshot()));
         originalWorldview = Objects.toString(loaded.project().getManifest().getDefinedWorldview(), "");
         definedWorldview.setText(originalWorldview);
         administrator = canAdminister(loaded.info());
@@ -190,6 +194,7 @@ public class ProjectSettingsEditor extends VBox implements AutoCloseable {
     save.requestFocus();
     var settings = new ProjectSettings();
     settings.setMetadata(metadata);
+    settings.setSnapshot(snapshot.isSelected());
     if (hasWorldview(definedWorldview.getText())) settings.getMetadata().put(Worldview.USER_OBSERVER_SEMANTICS, observer.getText().strip());
     if (administrator && !Objects.equals(originalWorldview, definedWorldview.getText().strip()))
       settings.setDefinedWorldview(definedWorldview.getText().strip());
