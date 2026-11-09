@@ -108,6 +108,10 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
             thread.setDaemon(true);
             return thread;
           });
+  private org.integratedmodelling.klab.api.services.Reasoner diagnosticReasoner;
+  private final java.util.function.Consumer<org.integratedmodelling.klab.api.services.KlabService.ServiceStatus>
+      diagnosticStatusListener = status -> Platform.runLater(() -> showCandidateDiagnostics(status));
+
   private final WorkspaceSemanticValidation semanticValidation =
       new WorkspaceSemanticValidation(
           () -> KlabIDEController.instance().user(),
@@ -1781,6 +1785,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     workflowOpeningCallbacks.clear();
     validationCommands.shutdown(); // Finish already accepted saves; do not discard source writes.
     materialBrowsers.values().forEach(ProjectMaterialBrowser::close);
+    if (diagnosticReasoner != null)
+      KlabIDEController.instance().removeServiceStatusListener(diagnosticReasoner, diagnosticStatusListener);
     semanticValidation.close();
     super.close();
   }
@@ -2136,6 +2142,25 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
             .collect(java.util.stream.Collectors.toSet());
     semanticUpdates.keySet().retainAll(keys);
     semanticValidation.observeDocuments(documents);
+    var selected = WorkspaceSemanticValidation.selectedReasoner(KlabIDEController.instance().user());
+    if (selected != diagnosticReasoner) {
+      if (diagnosticReasoner != null)
+        KlabIDEController.instance().removeServiceStatusListener(diagnosticReasoner, diagnosticStatusListener);
+      diagnosticReasoner = selected;
+      if (selected != null)
+        KlabIDEController.instance().addServiceStatusListener(selected, diagnosticStatusListener);
+    }
+    showCandidateDiagnostics(selected == null ? null : selected.status());
+  }
+
+  private void showCandidateDiagnostics(org.integratedmodelling.klab.api.services.KlabService.ServiceStatus status) {
+    if (closed.get() || root == null) return;
+    // A queued status from the previously selected service must not repaint this workspace.
+    if (status != null && diagnosticReasoner != null
+        && !Objects.equals(status.getServiceId(), diagnosticReasoner.serviceId())) return;
+    var documents = new ArrayList<KlabDocument<?>>();
+    collectSemanticDocuments(root.getValue(), documents);
+    semanticValidation.observeCandidateDiagnostics(documents, status);
   }
 
   private void collectSemanticDocuments(NavigableAsset asset, List<KlabDocument<?>> documents) {

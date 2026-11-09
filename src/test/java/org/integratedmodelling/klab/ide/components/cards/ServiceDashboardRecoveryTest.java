@@ -23,6 +23,7 @@ import org.integratedmodelling.klab.api.services.impl.ServiceStatusImpl;
 import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.Theme;
 import org.integratedmodelling.klab.ide.components.generic.Notebook;
+import org.integratedmodelling.klab.ide.components.generic.LogViewer;
 import org.kordamp.ikonli.materialdesign.MaterialDesign;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -56,6 +57,7 @@ class ServiceDashboardRecoveryTest {
         var notebook = new Notebook();
         root.getChildren().add(notebook);
         new Scene(root, 1200, 800);
+        root.getScene().getStylesheets().add(Theme.class.getResource("custom.css").toExternalForm());
         notebook.addCard("service", MaterialDesign.MDI_SERVER, "Service", dashboard);
         var detachments = new AtomicInteger();
         dashboard.sceneProperty().addListener((property, before, after) -> {
@@ -64,6 +66,28 @@ class ServiceDashboardRecoveryTest {
         for (int i = 0; i < 8; i++) {
           root.applyCss(); root.layout();
           for (int j = 0; j < 90; j++) sample(dashboard, status);
+          // Exercise the reported sequence: render logs, detach them, then restore charts.
+          var display = (StackPane) read(dashboard, "display");
+          var overview = display.getChildren().getFirst();
+          var logs = new LogViewer(
+              java.nio.file.Path.of("target", "css-regression-missing.log"));
+          logs.shutdown();
+          for (String level : new String[]{"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"}) {
+            logs.getEntries().add(new LogViewer.LogEntry(
+                "", level, "", "", "test", "Message\nDetails"));
+          }
+          var showView = ServiceDashboard.class.getDeclaredMethod("showView", javafx.scene.Node.class);
+          showView.setAccessible(true);
+          showView.invoke(dashboard, logs);
+          assertSame(root.getScene(), overview.getScene(), "Live charts must retain their CSS context");
+          assertFalse(overview.isVisible());
+          assertFalse(overview.isManaged());
+          root.applyCss(); root.layout();
+          sample(dashboard, status);
+          showView.invoke(dashboard, overview);
+          assertTrue(overview.isVisible());
+          assertTrue(overview.isManaged());
+          assertNull(logs.getScene(), "Auxiliary views must detach so log polling can stop");
           notebook.addCard("other" + i, MaterialDesign.MDI_SERVER, "Other", new Label("Other"));
           assertEquals(0, detachments.get(), "Adding another card must retain the dashboard's scene");
           notebook.pinCard("service");
@@ -85,6 +109,16 @@ class ServiceDashboardRecoveryTest {
           assertNotNull(line);
           assertNotEquals(Color.BLACK, line.getStroke(), "Chart lost its theme after reattachment");
           assertNotNull(((Label) chart.lookup(".chart-title")).getSkin());
+          var card = dashboard.getParent();
+          while (card != null && !card.getClass().getSimpleName().equals("CardView")) {
+            card = card.getParent();
+          }
+          assertNotNull(card);
+          var border = ((javafx.scene.layout.Region) card).getBorder();
+          assertNotNull(border, "Notebook card must not blend into the background after logs");
+          assertFalse(border.getStrokes().isEmpty());
+          assertTrue(border.getStrokes().getFirst().getWidths().getTop() > 0);
+          assertNotEquals(Color.TRANSPARENT, border.getStrokes().getFirst().getTopStroke());
         }
         return null;
       });
@@ -206,6 +240,6 @@ class ServiceDashboardRecoveryTest {
   private static <T> T fx(Callable<T> action) throws Exception {
     var result = new CompletableFuture<T>();
     Platform.runLater(() -> { try { result.complete(action.call()); } catch (Throwable error) { result.completeExceptionally(error); } });
-    return result.get(10, TimeUnit.SECONDS);
+    return result.get(60, TimeUnit.SECONDS);
   }
 }

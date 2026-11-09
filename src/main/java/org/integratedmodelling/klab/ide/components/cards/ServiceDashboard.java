@@ -107,6 +107,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
   private int sample;
   private boolean monitoring;
   private StackPane display;
+  private Node dashboardView;
   private HBox navigation;
   private ToggleGroup viewGroup;
   private ToggleButton settingsButton;
@@ -176,6 +177,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
     components.setMaxWidth(Double.MAX_VALUE);
     components.addItem(new Label("Loading service components…"));
     var dashboard = new VBox(10, status, charts, componentHeading, components);
+    dashboardView = dashboard;
     dashboard.setPadding(new Insets(4, 0, 0, 0));
     VBox.setVgrow(dashboard, Priority.ALWAYS);
     display = new StackPane(dashboard);
@@ -196,13 +198,28 @@ public class ServiceDashboard extends BaseAssetViewComponent {
             });
     if (getScene() != null) startMonitoring();
 
-    dashboardButton.setOnAction(e -> display.getChildren().setAll(dashboard));
+    dashboardButton.setOnAction(e -> showView(dashboard));
     importButton.setOnAction(e -> showImportView(importButton));
-    if (logsButton != null) logsButton.setOnAction(e -> display.getChildren().setAll(logView()));
+    if (logsButton != null) logsButton.setOnAction(e -> showView(logView()));
     if (isLocalService()) addSettingsButton();
     capabilitiesReadiness.becameReady(service.status().isOperational());
     loadCapabilities();
     return this;
+  }
+
+  /** Keep the live charts in their scene while auxiliary views are displayed. */
+  private void showView(Node view) {
+    if (dashboardView == null) {
+      display.getChildren().setAll(view);
+      return;
+    }
+    // The sampler continues to update the chart series. Detaching the charts here tears down
+    // their CSS context on every log/settings visit, including while samples are arriving.
+    boolean overview = view == dashboardView;
+    dashboardView.setVisible(overview);
+    dashboardView.setManaged(overview);
+    display.getChildren().removeIf(child -> child != dashboardView);
+    if (!overview) display.getChildren().add(view);
   }
 
   private void loadCapabilities() {
@@ -229,12 +246,12 @@ public class ServiceDashboard extends BaseAssetViewComponent {
                       credentialsButton = viewButton(MaterialDesign.MDI_KEY, "Credentials");
                       credentialsButton.setId("service-credentials");
                       credentialsButton.setToggleGroup(viewGroup);
-                      credentialsButton.setOnAction(e -> display.getChildren().setAll(
+                      credentialsButton.setOnAction(e -> showView(
                           new CredentialsView(service, KlabIDEController.instance().user())));
                       navigation.getChildren().add(credentialsButton);
                     }
                   } else if (credentialsButton != null) {
-                    if (credentialsButton.isSelected()) display.getChildren().setAll(new Label("Credential administration requires an administrator."));
+                    if (credentialsButton.isSelected()) showView(new Label("Credential administration requires an administrator."));
                     navigation.getChildren().remove(credentialsButton);
                     credentialsButton = null;
                   }
@@ -245,12 +262,12 @@ public class ServiceDashboard extends BaseAssetViewComponent {
     if (settingsButton != null) return;
     settingsButton = viewButton(MaterialDesign.MDI_SETTINGS, "Service settings");
     settingsButton.setToggleGroup(viewGroup);
-    settingsButton.setOnAction(e -> display.getChildren().setAll(settingsView()));
+    settingsButton.setOnAction(e -> showView(settingsView()));
     navigation.getChildren().add(2, settingsButton);
   }
 
   private void showImportView(ToggleButton importButton) {
-    display.getChildren().setAll(new Label("Loading import components…"));
+    showView(new Label("Loading import components…"));
     var future = capabilitiesFuture;
     if (future == null) return;
     future.whenComplete(
@@ -264,7 +281,7 @@ public class ServiceDashboard extends BaseAssetViewComponent {
   }
 
   private void renderImport(KlabService.ServiceCapabilities capabilities, Throwable error) {
-    display.getChildren().setAll(error == null ? importView(capabilities)
+    showView(error == null ? importView(capabilities)
         : new Label("Import information is currently unavailable."));
   }
 

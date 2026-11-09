@@ -67,7 +67,7 @@ public class TreeSearchField<T> extends HBox {
     searchField.setOpacity(0.45);
     searchField.setPadding(new Insets(4, 26, 4, 7));
 
-    searchIcon = new IconLabel(FontAwesomeSolid.SEARCH, 13, STYLE_INACTIVE);
+    searchIcon = new IconLabel(FontAwesomeSolid.SEARCH, 13, "-color-fg-muted");
     searchIcon.setCursor(Cursor.HAND);
     searchIcon.setPadding(new Insets(0, 6, 0, 0));
     searchIcon.setMouseTransparent(false);

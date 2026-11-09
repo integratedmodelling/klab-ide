@@ -15,6 +15,71 @@ import org.integratedmodelling.klab.api.services.reasoner.objects.*;
 import org.junit.jupiter.api.Test;
 
 class WorkspaceSemanticValidationTest {
+  @Test void rejectedStartupStatusDeliversLocationsWithoutValidationOrPolling() throws Exception {
+    var calls = new AtomicInteger(); var polls = new AtomicInteger();
+    var state = new AtomicReference<>(status("reasoner", "boot", 0, "unavailable"));
+    state.get().getMetadata().put("semantic.validation.blocked", true);
+    state.get().getMetadata().put("semantic.validation.reason", "Worldview rejected");
+    var saved = new org.integratedmodelling.klab.api.lang.kim.impl.KimOntologyImpl();
+    saved.setUrn("earth"); saved.setProjectName("imod"); saved.setSourceCode("thing Waterway is Riverine Subject;");
+    state.get().getMetadata().put("semantic.candidate", Map.of("inputGeneration", 1,
+        "logicalStatus", "INVALID", "candidateSources", Map.of("ONTOLOGY:earth",
+            SemanticValidationRequest.sourceHash(saved.getSourceCode()))));
+    var occurrence = new org.integratedmodelling.klab.api.lang.kim.impl.KimConceptImpl();
+    occurrence.setOffsetInDocument(17); occurrence.setLength(8);
+    state.get().getAdvisories().add(org.integratedmodelling.klab.api.services.runtime.Notification.error(
+        "Predicate outside its applies to domain",
+        org.integratedmodelling.klab.api.services.runtime.Notification.LexicalContext.of(occurrence, saved)));
+    var backend = signaledReasoner(state, polls, request -> { calls.incrementAndGet(); return success(request); });
+    var ui = new ConcurrentLinkedQueue<Runnable>();
+    var updates = new ArrayList<WorkspaceSemanticValidation.Update>();
+    try (var coordinator = new WorkspaceSemanticValidation(() -> scope(new AtomicReference<>(backend)),
+        ui::add, (key, update) -> updates.add(update))) {
+      coordinator.observeDocuments(List.of(saved)); coordinator.start(); settle(coordinator); drain(ui);
+      coordinator.observeCandidateDiagnostics(List.of(saved), state.get());
+      assertEquals(1, updates.size());
+      assertEquals(17, updates.getLast().response().getNotifications().getFirst().getLexicalContext().getOffsetInDocument());
+      for (int i = 0; i < 5; i++) coordinator.observeCandidateDiagnostics(List.of(saved), state.get());
+      coordinator.pause(); coordinator.observeDocuments(List.of(saved)); coordinator.start(); settle(coordinator); drain(ui);
+      coordinator.observeCandidateDiagnostics(List.of(saved), state.get());
+      assertEquals(1, updates.size()); assertEquals(0, calls.get()); assertEquals(0, polls.get());
+      coordinator.pause();
+      saved.setSourceCode(saved.getSourceCode() + " ");
+      coordinator.observeDocuments(List.of(saved));
+      coordinator.observeCandidateDiagnostics(List.of(saved), state.get());
+      assertNull(updates.getLast(), "Old source offsets must be removed after an edit");
+      assertEquals(0, calls.get()); assertEquals(0, polls.get());
+      state.set(status("reasoner", "boot", 1, "ready"));
+      coordinator.start(); settle(coordinator); drain(ui);
+      assertEquals(1, calls.get(), "Removing a rejected overlay must retain validation of the edited source");
+    }
+  }
+
+  @Test void blockedValidationFetchesRetainedDiagnosticsOnlyOnce() throws Exception {
+    var state = new AtomicReference<>(status("reasoner", "boot", 0, "unavailable"));
+    state.get().getMetadata().put("semantic.validation.blocked", true);
+    state.get().getMetadata().put("semantic.validation.diagnostics", true);
+    var calls = new AtomicInteger(); var polls = new AtomicInteger();
+    var backend = signaledReasoner(state, polls, request -> {
+      assertTrue(request.isDiagnosticsOnly(), "Blocked startup must not execute validation");
+      calls.incrementAndGet();
+      var response = SemanticValidationResponse.forRequest(request);
+      response.setStatus(SemanticValidationResponse.Status.FAILED);
+      response.setReason("Worldview rejected");
+      response.addDocumentDiagnostic(request, org.integratedmodelling.klab.api.services.runtime.Notification.Level.Error);
+      return response;
+    });
+    var ui = new ConcurrentLinkedQueue<Runnable>(); var updates = new ArrayList<WorkspaceSemanticValidation.Update>();
+    var saved = document("source");
+    try (var coordinator = new WorkspaceSemanticValidation(() -> scope(new AtomicReference<>(backend)),
+        ui::add, (key, update) -> updates.add(update))) {
+      coordinator.documents(List.of(saved)); coordinator.start();
+      until(() -> updates.stream().anyMatch(u -> u.response() != null), ui);
+      refresh(coordinator, saved, polls, ui);
+      assertEquals(1, calls.get());
+    }
+  }
+
   @Test void publishedWorkspaceOpeningAndVisibilityDoNotValidateOrPoll() throws Exception {
     var calls=new AtomicInteger();var polls=new AtomicInteger();
     var state=new AtomicReference<>(status("reasoner","boot",1,"ready"));

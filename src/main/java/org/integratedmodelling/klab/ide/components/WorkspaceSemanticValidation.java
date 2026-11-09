@@ -109,6 +109,7 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
   private final Map<String, Entry> entries = new ConcurrentHashMap<>();
   private final Map<String, String> observedSources = new HashMap<>();
   private boolean observedWorkspace;
+  private final Map<String, Update> candidatePresentations = new HashMap<>();
   private final Supplier<Scope> scopeSupplier;
   private final Executor ui;
   private final BiConsumer<String, Update> listener;
@@ -128,6 +129,7 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
   private String publishedAuthority = "";
   private String publishedReason = "";
   private boolean publishedBlocked;
+  private String publishedDiagnostics = "";
   private PendingCandidate publishedCandidate = PendingCandidate.NONE;
 
   /** Detached display context only: never changes readiness, retry stamps or protocol results. */
@@ -247,6 +249,54 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
     observedWorkspace = true;
     documents(changed);
     entries.values().forEach(entry -> entry.sourceTriggered = true);
+  }
+
+  /** Consume the existing service-status stream, with no RPC, enrollment or validation work. */
+  void observeCandidateDiagnostics(Collection<? extends KlabDocument<?>> documents,
+      org.integratedmodelling.klab.api.services.KlabService.ServiceStatus status) {
+    if (closed) return;
+    var retained = new HashSet<String>();
+    var metadata = status == null ? null : status.getMetadata();
+    var candidate = metadata != null && metadata.get("semantic.candidate") instanceof Map<?, ?> value
+        ? value : Map.of();
+    var sources = candidate.get("candidateSources") instanceof Map<?, ?> value ? value : Map.of();
+    boolean rejected = status != null && status.isConnected() && status.isAvailable() && !status.isShutdown()
+        && metadata != null && Boolean.TRUE.equals(metadata.get("semantic.validation.blocked"));
+    for (var document : documents) {
+      if (!(document instanceof KimOntology)) continue;
+      if (!rejected) break;
+      String key = key(document);
+      var hash = SemanticValidationRequest.sourceHash(document.getSourceCode());
+      String sourceKey = "ONTOLOGY:" + document.getUrn();
+      if (hash == null || !hash.equals(sources.get(sourceKey))) continue;
+      var notifications = status.getAdvisories().stream().filter(notification -> {
+        var context = notification.getLexicalContext();
+        return context != null && Objects.equals(context.getDocumentUrn(), document.getUrn())
+            && Objects.equals(context.getProjectUrn(), document.getProjectName())
+            && context.getDocumentType() == org.integratedmodelling.klab.api.knowledge.KlabAsset.KnowledgeClass.ONTOLOGY;
+      }).toList();
+      if (notifications.isEmpty()) continue;
+      var request = SemanticValidationRequest.of(document, DocumentValidationTrace.version(document));
+      var response = SemanticValidationResponse.forRequest(request);
+      response.setStatus(SemanticValidationResponse.Status.FAILED);
+      response.setReason(Objects.toString(metadata.get("semantic.validation.reason"), "Worldview rejected"));
+      response.getNotifications().addAll(notifications);
+      response.deduplicateNotifications();
+      var update = new Update(request, response);
+      var stamp = presentation(update);
+      retained.add(key);
+      var previous = candidatePresentations.put(key, update);
+      if (previous == null || !Objects.equals(presentation(previous), stamp)) listener.accept(key, update);
+    }
+    for (var key : List.copyOf(candidatePresentations.keySet()))
+      if (!retained.contains(key)) {
+        var obsolete = candidatePresentations.remove(key);
+        // Discard an obsolete overlay's entry, but retain validation of a newly saved source.
+        entries.computeIfPresent(key, (ignored, entry) -> Objects.equals(
+            SemanticValidationRequest.sourceHash(entry.request.document().getSourceCode()),
+            obsolete.response().getSourceHash()) ? null : entry);
+        listener.accept(key, null);
+      }
   }
 
   // Explicit enrolment (Validate now); automatic workspace observation uses observeDocuments.
@@ -388,6 +438,7 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
     var authority = publishedAuthority;
     var reason = publishedReason;
     var blocked = publishedBlocked;
+    var diagnostics = publishedDiagnostics;
     long presentationVisibility = visibility;
     ui.execute(
         () -> {
@@ -398,7 +449,7 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
               && Objects.equals(fingerprint, stamp)
               && (stamp == null
                   || currentSelection(
-                      selected, published, authority, reason, blocked, candidate, uptime))) {
+                      selected, published, authority, reason, blocked, diagnostics, candidate, uptime))) {
             if (DocumentValidationTrace.enabled())
               DocumentValidationTrace.response(
                   DocumentValidationTrace.Event.IDE_DELIVERY,
@@ -426,6 +477,7 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
       String authority,
       String reason,
       boolean blocked,
+      String diagnostics,
       PendingCandidate candidate,
       long sampledUptime) {
     try {
@@ -443,11 +495,21 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
           && Objects.equals(published, status.getMetadata().get("semantic.validation"))
           && reason.equals(validationReason(status.getMetadata(), published))
           && blocked == validationBlocked(status.getMetadata(), published)
+          && diagnostics.equals(diagnosticRevision(status.getMetadata()))
           && authority.equals(
               authorityRevisions(status.getMetadata().get("authority.codelist.revisions")));
     } catch (RuntimeException e) {
       return false;
     }
+  }
+
+  /** Retained diagnostics have their own generation; they never grant readable knowledge. */
+  private static String diagnosticRevision(org.integratedmodelling.klab.api.data.Metadata metadata) {
+    if (metadata == null || !Boolean.TRUE.equals(metadata.get("semantic.validation.diagnostics"))) return "";
+    if (metadata.get("semantic.candidate") instanceof Map<?, ?> candidate)
+      return Objects.toString(candidate.get("inputGeneration"), "") + ":"
+          + Objects.toString(candidate.get("logicalStatus"), "");
+    return "supported";
   }
 
   private static boolean validationBlocked(
@@ -513,6 +575,7 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
     publishedSignal = published instanceof String value ? value : null;
     publishedReason = validationReason(metadata, publishedSignal);
     publishedBlocked = validationBlocked(metadata, publishedSignal);
+    publishedDiagnostics = diagnosticRevision(metadata);
     publishedCandidate = PendingCandidate.from(status);
     var revisions = metadata == null ? null : metadata.get("authority.codelist.revisions");
     String authorityRevision = authorityRevisions(revisions);
@@ -537,7 +600,8 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
               + ":"
               + publishedReason
               + ":"
-              + publishedBlocked,
+              + publishedBlocked
+              + ":" + publishedDiagnostics,
           revision,
           parts[2],
           status.getServiceId() + ":" + connection + ":" + parts[0] + ":" + authorityRevision,
@@ -738,7 +802,8 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
                 && signal.state().equals("failed")
                 && entry.request.document() instanceof KimOntology
                 && entry.attemptedAgainst == null;
-        if (!signal.ready() && !repair) {
+        boolean retainedDiagnostics = signal.blocked() && !publishedDiagnostics.isEmpty();
+        if (!signal.ready() && !repair && !retainedDiagnostics) {
           entry.checkedAgainst = null;
           unavailableEntry(
               item.getKey(),
@@ -761,7 +826,7 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
                 entry.pendingPresentationEligible);
           continue;
         }
-        if (!validate) {
+        if (!validate && !retainedDiagnostics) {
           entry.checkedAgainst = null;
           var stale = SemanticValidationResponse.forRequest(entry.request);
           stale.setStatus(SemanticValidationResponse.Status.STALE_KNOWLEDGE);
@@ -782,7 +847,14 @@ final class WorkspaceSemanticValidation implements AutoCloseable {
         SemanticValidationResponse response;
         boolean pendingEligible = true;
         try {
-          response = reasoner.validateDocument(entry.request, scope);
+          // Opening a rejected workspace may read results, but must never trigger validation.
+          var rpcRequest = entry.request;
+          if (retainedDiagnostics) {
+            rpcRequest = SemanticValidationRequest.of(entry.request.document(), entry.request.getDocumentVersion());
+            rpcRequest.setKnowledgeRevision(entry.request.getKnowledgeRevision());
+            rpcRequest.setDiagnosticsOnly(true);
+          }
+          response = reasoner.validateDocument(rpcRequest, scope);
         } catch (RuntimeException e) {
           pendingEligible = false;
           response = SemanticValidationResponse.forRequest(entry.request);
