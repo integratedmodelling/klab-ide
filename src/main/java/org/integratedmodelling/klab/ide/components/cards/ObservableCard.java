@@ -2,6 +2,8 @@ package org.integratedmodelling.klab.ide.components.cards;
 
 import javafx.geometry.Insets;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -46,6 +48,29 @@ public class ObservableCard extends BaseCard<Observable> {
     observable.setSemantics(concept); observable.setUrn(concept.getUrn()); return observable;
   }
 
+  /** Size to the wrapped content, adding vertical scrolling only beyond the tooltip height limit. */
+  public ScrollPane tooltipContent(double width, double maxHeight) {
+    setMinHeight(Region.USE_PREF_SIZE);
+    setMaxHeight(Region.USE_PREF_SIZE);
+    var scroll = new ScrollPane(this) {
+      @Override
+      protected double computePrefHeight(double availableWidth) {
+        // Reserve room for a vertical scrollbar so wrapping also fits when it becomes visible.
+        double contentWidth = Math.max(1, width - 20);
+        return Math.min(maxHeight,
+            ObservableCard.this.prefHeight(contentWidth) + getInsets().getTop()
+                + getInsets().getBottom() + 2);
+      }
+    };
+    scroll.setFitToWidth(true);
+    scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+    scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+    scroll.setMinSize(0, 0);
+    scroll.setPrefWidth(width);
+    scroll.setMaxSize(width, maxHeight);
+    return scroll;
+  }
+
   /** Add already-loaded graph evidence without remote calls while rendering an inspector. */
   public void addRelationships(Map<String, List<Concept>> relationships) {
     if (relationships.isEmpty()) return;
@@ -53,7 +78,10 @@ public class ObservableCard extends BaseCard<Observable> {
     content.getChildren().add(new Label("Relationships in the current graph"));
     relationships.forEach((label, concepts) -> {
       for (var concept : concepts) {
-        var row = new VBox(2, new Label(label), Theme.semanticExpression(List.of(StyledKimToken.create(concept))));
+        var relationship = new Label(label);
+        relationship.setWrapText(true);
+        var row = new VBox(2, relationship, Theme.semanticExpression(List.of(StyledKimToken.create(concept))));
+        row.setMinHeight(Region.USE_PREF_SIZE);
         content.getChildren().add(row);
       }
     });
@@ -79,6 +107,10 @@ public class ObservableCard extends BaseCard<Observable> {
     for (var notification : asset.getSemantics().getNotifications()) {
       var text = new Label(notification.getMessage()); text.setWrapText(true); content.getChildren().add(text);
     }
+    // VBox must retain each wrapped paragraph's full height inside a scrolling tooltip.
+    content.getChildren().forEach(child -> {
+      if (child instanceof Region region) region.setMinHeight(Region.USE_PREF_SIZE);
+    });
     content.setPadding(new Insets(10)); setCenter(content);
     setStyle("-fx-background-color: -color-bg-subtle; -fx-border-color: -color-border-default; -fx-border-radius: 4;");
   }

@@ -13,6 +13,7 @@ import javafx.scene.input.MouseEvent;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.*;
+import javafx.util.Duration;
 import org.integratedmodelling.klab.api.knowledge.*;
 import org.integratedmodelling.klab.api.knowledge.Observable;
 import org.integratedmodelling.klab.api.lang.kim.*;
@@ -28,7 +29,7 @@ import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
 
 /**
- * Read-only worldview browser. Only the tree uses syntax; all graph edges come from the reasoner.
+ * Read-only worldview browser using reasoner projections and explicitly labeled source contracts.
  */
 public class WorldviewEditor extends EditorPage<Worldview, Object> {
   private Worldview worldview;
@@ -56,6 +57,7 @@ public class WorldviewEditor extends EditorPage<Worldview, Object> {
   private TreeView<Object> tree;
   private TreeSearchField<Object> treeSearch;
   private ObservableCard currentCard;
+  private Tooltip hoverTooltip;
   private String cardUrn;
   private WorldviewGraphModel.Snapshot cardSnapshot;
   private SmartGraphPanel<Concept, WorldviewGraphModel.Link> graph;
@@ -76,11 +78,12 @@ public class WorldviewEditor extends EditorPage<Worldview, Object> {
     semanticUrns = WorldviewConcepts.index(worldview);
     focus = WorldviewConcepts.initialFocus(worldview);
     this.reasoner = reasoner;
-    model = new WorldviewGraphModel(reasoner);
+    model = new WorldviewGraphModel(reasoner, worldview);
     var layers = new MenuButton("Relations", new FontIcon(Material2AL.FILTER_LIST));
     layers.getStyleClass().addAll(Styles.FLAT, Styles.SMALL);
     for (var relation : WorldviewGraphModel.Relation.values()) {
       var item = new GraphLayerMenuItem(relation.label);
+      Tooltip.install(item.getContent(), new Tooltip(relation.description));
       item.setSelected(relation.selected);
       if (relation.selected) relations.add(relation);
       item.selectedProperty()
@@ -90,18 +93,6 @@ public class WorldviewEditor extends EditorPage<Worldview, Object> {
                 else relations.remove(relation);
                 reload();
               });
-      layers.getItems().add(item);
-    }
-    layers.getItems().add(new SeparatorMenuItem());
-    for (var clause :
-        List.of(
-            "Requires identity / realm / extent / attribute / authority",
-            "Emerges from",
-            "Implies observables",
-            "Equals / disjoint children",
-            "Deniable as")) {
-      var item = new MenuItem(clause + " — unavailable from reasoner API");
-      item.setDisable(true);
       layers.getItems().add(item);
     }
     depth.setPrefWidth(90);
@@ -282,7 +273,7 @@ public class WorldviewEditor extends EditorPage<Worldview, Object> {
     worldview = updated;
     semanticUrns = WorldviewConcepts.index(updated);
     if (focus == null) focus = WorldviewConcepts.initialFocus(updated);
-    worker.submit(model::refreshKnowledge);
+    worker.submit(() -> model.refreshKnowledge(updated));
     if (tree != null) {
       if (treeSearch != null) treeSearch.clearSearch();
       boolean declaredSelection =
@@ -550,6 +541,7 @@ public class WorldviewEditor extends EditorPage<Worldview, Object> {
   }
 
   private void drawGraph(WorldviewGraphModel.Snapshot result) {
+    hideHoverTooltip();
     if (graph != null) {
       var data = graph.getModel();
       for (var edge : new ArrayList<>(data.edges()))
@@ -602,9 +594,22 @@ public class WorldviewEditor extends EditorPage<Worldview, Object> {
     try (var stream =
         java.nio.file.Files.newInputStream(
             GraphResources.applicationFile("smartgraph.properties"))) {
-      properties = new SmartGraphProperties(stream);
+      // The editor installs ObservableCard tooltips instead of SmartGraph's plain URN tooltips.
+      properties =
+          new SmartGraphProperties(stream) {
+            @Override
+            public boolean getUseVertexTooltip() {
+              return false;
+            }
+          };
     } catch (java.io.IOException error) {
-      properties = new SmartGraphProperties();
+      properties =
+          new SmartGraphProperties() {
+            @Override
+            public boolean getUseVertexTooltip() {
+              return false;
+            }
+          };
     }
     var panel =
         new SmartGraphPanel<>(
@@ -732,10 +737,35 @@ public class WorldviewEditor extends EditorPage<Worldview, Object> {
     if (visual instanceof Node node
         && node.getProperties().putIfAbsent("worldview-click", true) == null) {
       node.setMouseTransparent(false);
+      var tooltip = new Tooltip();
+      tooltip.setShowDelay(Duration.seconds(1));
+      tooltip.setShowDuration(Duration.INDEFINITE);
+      tooltip.setOnShowing(
+          event -> {
+            hideHoverTooltip();
+            var card = createCard(currentConcept(concept));
+            var bounds = node.localToScreen(node.getBoundsInLocal());
+            var screens = bounds == null ? List.<javafx.stage.Screen>of()
+                : javafx.stage.Screen.getScreensForRectangle(
+                    bounds.getMinX(), bounds.getMinY(), bounds.getWidth(), bounds.getHeight());
+            var screen = screens.isEmpty() ? javafx.stage.Screen.getPrimary() : screens.getFirst();
+            var visualBounds = screen.getVisualBounds();
+            tooltip.setGraphic(card.tooltipContent(
+                Math.min(360, visualBounds.getWidth() * 0.8),
+                Math.min(400, visualBounds.getHeight() * 0.45)));
+            hoverTooltip = tooltip;
+          });
+      tooltip.setOnHidden(
+          event -> {
+            tooltip.setGraphic(null);
+            if (hoverTooltip == tooltip) hoverTooltip = null;
+          });
+      Tooltip.install(node, tooltip);
       node.addEventHandler(
           MouseEvent.MOUSE_CLICKED,
           event -> {
             if (event.getButton() != javafx.scene.input.MouseButton.PRIMARY) return;
+            hideHoverTooltip();
             var current = currentConcept(concept);
             select(current);
             graph.requestFocus();
@@ -843,10 +873,15 @@ public class WorldviewEditor extends EditorPage<Worldview, Object> {
       KlabIDEController.instance().getInspector().inspect(concept.getUrn(), currentCard);
       return;
     }
-    var card = new ObservableCard(concept, List.of());
+    var card = createCard(concept);
     currentCard = card;
     cardUrn = concept.getUrn();
     cardSnapshot = snapshot;
+    KlabIDEController.instance().getInspector().inspect(concept.getUrn(), card);
+  }
+
+  private ObservableCard createCard(Concept concept) {
+    var card = new ObservableCard(concept, List.of());
     if (snapshot != null) {
       var details = new LinkedHashMap<String, List<Concept>>();
       for (var link : snapshot.links()) {
@@ -857,7 +892,11 @@ public class WorldviewEditor extends EditorPage<Worldview, Object> {
       }
       card.addRelationships(details);
     }
-    KlabIDEController.instance().getInspector().inspect(concept.getUrn(), card);
+    return card;
+  }
+
+  private void hideHoverTooltip() {
+    if (hoverTooltip != null) hoverTooltip.hide();
   }
 
   @Override
@@ -880,6 +919,7 @@ public class WorldviewEditor extends EditorPage<Worldview, Object> {
 
   @Override
   protected void onVisualize(boolean visible) {
+    if (!visible) hideHoverTooltip();
     KlabIDEController.instance().setFocalEditor(this, visible);
   }
 
@@ -893,6 +933,7 @@ public class WorldviewEditor extends EditorPage<Worldview, Object> {
 
   @Override
   public void close() {
+    hideHoverTooltip();
     closed = true;
     generation++;
     selectionGeneration++;

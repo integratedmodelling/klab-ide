@@ -17,9 +17,27 @@ final class WorldviewGraphModel {
     DISCRETIZES("Discretizes", true),
     CLASSIFIES("Classifies", true),
     DESCRIBES("Described type", true),
-    TRAITS("Inherited predicates", false),
-    ROLES("Roles", false),
-    INHERENT("Of / within", false),
+    IDENTITIES("Identity traits", true),
+    ATTRIBUTES("Attributes", true),
+    REALMS("Realm qualifications", true),
+    ROLES("Roles", true),
+    INHERENT(
+        "Of: native bearer",
+        true,
+        "Quality or process → native bearer. Independent of observational containment."),
+    CONTAINS(
+        "Contains / within: observational containment",
+        true,
+        "Declared container → contained type. Does not imply members exist, physical enclosure or inherency."),
+    EMERGENCE(
+        "Emerges from: configuration ingredients",
+        true,
+        "Declared configuration → ingredient expression. Ingredients are not native bearers or application targets."),
+    REQUIRED_IDENTITIES(
+        "Requires identity (declared)",
+        true,
+        "Declared identity requirement. On qualities and processes this constrains the bearer, not their own traits."),
+    REQUIRED_REALMS("Requires realm (declared)", false),
     ADJACENT("Adjacent to", false),
     CAUSED("Caused by", false),
     CAUSANT("Causing", false),
@@ -29,15 +47,24 @@ final class WorldviewGraphModel {
     RELATIVE("Relative to", false),
     SOURCE("Links: source", true),
     TARGET("Links: target", true),
-    APPLIES("Applies to", false),
-    IMPLIES("Implies roles", false),
+    APPLIES(
+        "Applies to: predicate / configuration target",
+        true,
+        "Application scope, including predicate 'of'. Distinct from native dependence and emergence ingredients."),
+    IMPLIES("Implies roles", true),
     OPERANDS("Logical operands", false);
     final String label;
     final boolean selected;
+    final String description;
 
     Relation(String label, boolean selected) {
+      this(label, selected, label);
+    }
+
+    Relation(String label, boolean selected, String description) {
       this.label = label;
       this.selected = selected;
+      this.description = description;
     }
   }
 
@@ -51,16 +78,26 @@ final class WorldviewGraphModel {
   private static final int CONCURRENCY = 6;
 
   private static final class Cache {
+    final WorldviewGraphDeclarations declarations;
     final Map<String, Concept> concepts = new ConcurrentHashMap<>();
     final Map<String, Map<Relation, Set<Link>>> relations = new ConcurrentHashMap<>();
     final Map<String, Collection<SemanticInfluence>> influences = new ConcurrentHashMap<>();
+
+    Cache(WorldviewGraphDeclarations declarations) {
+      this.declarations = declarations;
+    }
   }
 
   private final Reasoner reasoner;
-  private volatile Cache cache = new Cache();
+  private volatile Cache cache;
 
   WorldviewGraphModel(Reasoner reasoner) {
+    this(reasoner, null);
+  }
+
+  WorldviewGraphModel(Reasoner reasoner, Worldview worldview) {
     this.reasoner = reasoner;
+    cache = new Cache(new WorldviewGraphDeclarations(worldview));
   }
 
   void accept(Concept concept) {
@@ -69,14 +106,18 @@ final class WorldviewGraphModel {
   }
 
   void invalidate() {
-    var replacement = new Cache();
+    var replacement = new Cache(cache.declarations);
     replacement.concepts.putAll(cache.concepts);
     cache = replacement;
   }
 
   // In-flight requests retain their old cache; late replies cannot repopulate a new revision.
   void refreshKnowledge() {
-    cache = new Cache();
+    cache = new Cache(cache.declarations);
+  }
+
+  void refreshKnowledge(Worldview worldview) {
+    cache = new Cache(new WorldviewGraphDeclarations(worldview));
   }
 
   Concept resolve(String urn) {
@@ -241,9 +282,27 @@ final class WorldviewGraphModel {
                 influence.kind().name().toLowerCase(Locale.ROOT).replace('_', ' '));
       }
       case DESCRIBES -> add(state, ret, concept, reasoner.describedType(concept), "describes");
-      case TRAITS -> addAll(state, ret, concept, reasoner.directTraits(concept), "inherits");
+      case IDENTITIES ->
+          addAll(state, ret, concept, reasoner.directIdentities(concept), "identity");
+      case ATTRIBUTES ->
+          addAll(state, ret, concept, reasoner.directAttributes(concept), "attribute");
+      case REALMS -> addAll(state, ret, concept, reasoner.directRealms(concept), "realm");
       case ROLES -> addAll(state, ret, concept, reasoner.directRoles(concept), "role");
-      case INHERENT -> add(state, ret, concept, reasoner.directInherent(concept), "of");
+      case INHERENT -> {
+        if (SemanticType.isDependent(concept.getType()) && !concept.is(SemanticType.CONFIGURATION))
+          add(state, ret, concept, reasoner.directInherent(concept), "of");
+      }
+      case CONTAINS, EMERGENCE, REQUIRED_IDENTITIES, REQUIRED_REALMS -> {
+        for (var link : state.declarations.links(concept.getUrn(), relation)) {
+          var source = resolve(link.source(), state);
+          var target = resolve(link.target(), state);
+          if (relation == Relation.CONTAINS
+              && !WorldviewGraphDeclarations.supportedContainment(source, target)) continue;
+          if (relation == Relation.EMERGENCE
+              && (source == null || !source.is(SemanticType.CONFIGURATION))) continue;
+          add(state, ret, source, target, link.label());
+        }
+      }
       case ADJACENT -> add(state, ret, concept, reasoner.directAdjacent(concept), "adjacent to");
       case CAUSED -> add(state, ret, concept, reasoner.directCaused(concept), "caused by");
       case CAUSANT -> add(state, ret, concept, reasoner.directCausant(concept), "causing");
@@ -255,8 +314,12 @@ final class WorldviewGraphModel {
           addAll(state, ret, concept, reasoner.relationshipSources(concept), "links source");
       case TARGET ->
           addAll(state, ret, concept, reasoner.relationshipTargets(concept), "links target");
-      case APPLIES ->
-          addAll(state, ret, concept, reasoner.applicableObservables(concept), "applies to");
+      case APPLIES -> {
+        addAll(state, ret, concept, reasoner.applicableObservables(concept), "applies to");
+        if (concept.is(SemanticType.PREDICATE)
+            || concept.getType().stream().anyMatch(SemanticType::isPredicate))
+          add(state, ret, concept, reasoner.directInherent(concept), "applies to");
+      }
       case IMPLIES -> {
         if (concept.is(SemanticType.ROLE))
           addAll(state, ret, concept, reasoner.impliedRoles(concept, false), "implies");
