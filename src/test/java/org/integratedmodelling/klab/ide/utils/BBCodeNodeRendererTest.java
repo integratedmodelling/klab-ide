@@ -70,6 +70,36 @@ class BBCodeNodeRendererTest {
     assertValidBbCode(bbCode);
   }
 
+  @Test
+  void joinsSourceWrappedProseWithoutRequiringMarkdownMarkup() {
+    for (String newline : new String[] {"\n", "\r\n"}) {
+      assertEquals("A source wrapped description.\n\nAnother paragraph.\n\n",
+          BBCodeNodeRenderer.fromMarkdown("A source" + newline + "wrapped description."
+              + newline + newline + "Another paragraph."));
+    }
+  }
+
+  @Test
+  void joinsSoftBreaksInsideFormattedParagraphsAndListItems() {
+    assertEquals("A [b]formatted[/b] description.\n\n",
+        BBCodeNodeRenderer.fromMarkdown("A **formatted**\ndescription."));
+    String list = BBCodeNodeRenderer.fromMarkdown("- A source\n  wrapped item\n- Another item");
+    assertTrue(list.contains("[li]A source wrapped item[/li]"));
+    assertTrue(list.contains("[li]Another item[/li]"));
+  }
+
+  @Test
+  void preservesExplicitHardBreaksAndCodeBlockNewlines() {
+    assertEquals("First line\nSecond line\n\n",
+        BBCodeNodeRenderer.fromMarkdown("First line  \nSecond line"));
+    assertEquals("First line\nSecond line\n\n",
+        BBCodeNodeRenderer.fromMarkdown("First line\\\nSecond line"));
+    assertTrue(BBCodeNodeRenderer.fromMarkdown("```\nfirst\nsecond\n```")
+        .contains("[code]first\nsecond\n[/code]"));
+    assertTrue(BBCodeNodeRenderer.fromMarkdown("    first\n    second")
+        .contains("[code]first\nsecond"));
+  }
+
   private static String render(String markdown) {
     return Utils.Markdown.render(markdown, new BBCodeNodeRenderer());
   }

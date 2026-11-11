@@ -147,7 +147,8 @@ public class BBCodeNodeRenderer implements NodeRenderer {
   }
 
   private void render(SoftLineBreak node, NodeRendererContext context, HtmlWriter html) {
-    html.raw("\n");
+    // Source wrapping is whitespace within a Markdown paragraph, not a displayed line break.
+    html.raw(" ");
   }
 
   private void render(HardLineBreak node, NodeRendererContext context, HtmlWriter html) {
