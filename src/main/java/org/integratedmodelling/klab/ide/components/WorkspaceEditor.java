@@ -22,6 +22,7 @@ import org.integratedmodelling.klab.api.authentication.CRUDOperation;
 import org.integratedmodelling.klab.api.configuration.Setting;
 import org.integratedmodelling.klab.api.data.RepositoryState;
 import org.integratedmodelling.klab.api.knowledge.KlabAsset;
+import org.integratedmodelling.klab.api.knowledge.SemanticType;
 import org.integratedmodelling.klab.api.knowledge.observation.Observation;
 import org.integratedmodelling.klab.api.knowledge.organization.ProjectStorage;
 import org.integratedmodelling.klab.api.lang.kactors.KActorsAction;
@@ -1545,6 +1546,12 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   private static IconLabel getTreeGraphics(NavigableAsset asset) {
+    if (asset instanceof NavigableKimConceptStatement definition) {
+      var type = SemanticType.fundamentalType(definition.getType());
+      if (type != null) {
+        return new IconLabel(Theme.WORLDVIEW_ICON, 14, Theme.getColorForType(type));
+      }
+    }
     return asset instanceof KActorsAction
         ? new IconLabel(Theme.ACTION_ICON, 15, THEME_ICON_COLOR)
         : Theme.getGraphics(asset);
