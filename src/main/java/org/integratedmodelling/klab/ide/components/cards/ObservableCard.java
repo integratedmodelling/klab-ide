@@ -1,12 +1,16 @@
 package org.integratedmodelling.klab.ide.components.cards;
 
+import atlantafx.base.theme.Styles;
 import atlantafx.base.util.BBCodeParser;
 import javafx.event.ActionEvent;
 import javafx.scene.control.Hyperlink;
 import javafx.geometry.Insets;
+import javafx.geometry.VPos;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.ColumnConstraints;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -80,16 +84,35 @@ public class ObservableCard extends BaseCard<Observable> {
   public void addRelationships(Map<String, List<Concept>> relationships) {
     if (relationships.isEmpty()) return;
     var content = (VBox) getCenter();
-    content.getChildren().add(new Label("Relationships in the current graph"));
+    var table = new GridPane();
+    table.setHgap(10);
+    table.setVgap(4);
+    table.setMinHeight(Region.USE_PREF_SIZE);
+    var relationshipColumn = new ColumnConstraints();
+    relationshipColumn.setMinWidth(Region.USE_PREF_SIZE);
+    relationshipColumn.setMaxWidth(Region.USE_PREF_SIZE);
+    relationshipColumn.setHgrow(Priority.NEVER);
+    var targetColumn = new ColumnConstraints();
+    targetColumn.setMinWidth(0);
+    targetColumn.setPrefWidth(0);
+    targetColumn.setHgrow(Priority.ALWAYS);
+    targetColumn.setFillWidth(true);
+    table.getColumnConstraints().addAll(relationshipColumn, targetColumn);
     relationships.forEach((label, concepts) -> {
       for (var concept : concepts) {
         var relationship = new Label(label);
         relationship.setWrapText(true);
-        var row = new VBox(2, relationship, Theme.semanticExpression(List.of(StyledKimToken.create(concept))));
-        row.setMinHeight(Region.USE_PREF_SIZE);
-        content.getChildren().add(row);
+        relationship.getStyleClass().add(Styles.TEXT_BOLD);
+        relationship.setMinHeight(Region.USE_PREF_SIZE);
+        var target = Theme.semanticExpression(List.of(StyledKimToken.create(concept)));
+        target.setMinWidth(0);
+        target.setMinHeight(Region.USE_PREF_SIZE);
+        GridPane.setValignment(relationship, VPos.TOP);
+        GridPane.setValignment(target, VPos.TOP);
+        table.addRow(table.getRowCount(), relationship, target);
       }
     });
+    content.getChildren().add(table);
   }
   @Override protected void drawContent() {
     var title = Theme.semanticExpression(List.of(StyledKimToken.create(asset.getSemantics())));

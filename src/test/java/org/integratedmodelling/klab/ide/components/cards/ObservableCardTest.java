@@ -107,7 +107,12 @@ class ObservableCardTest {
             : "A short description.";
         concept.getMetadata().put(Metadata.DC_COMMENT, description);
         var card = new ObservableCard(concept, List.of());
-        if (longContent) card.addRelationships(Map.of("Related observable", List.of(concept)));
+        if (longContent) {
+          var target = new ConceptImpl();
+          target.setUrn("test:" + "VeryLongSemanticTargetName".repeat(8));
+          target.getType().add(SemanticType.SUBJECT);
+          card.addRelationships(Map.of("Related observable", List.of(target)));
+        }
         var scroll = card.tooltipContent(360, 320);
         var root = new StackPane(scroll);
         new Scene(root);
@@ -128,6 +133,20 @@ class ObservableCardTest {
             .filter(bar -> bar.getOrientation() == Orientation.VERTICAL).findFirst().orElseThrow();
         assertEquals(longContent, verticalBar.isVisible(), "Scroll only when content exceeds the cap");
         if (longContent) {
+          var table = (javafx.scene.layout.GridPane)
+              ((javafx.scene.layout.VBox) card.getCenter()).getChildren().getLast();
+          table.layout();
+          var relationship = (javafx.scene.control.Label) table.getChildren().get(0);
+          var target = (javafx.scene.text.TextFlow) table.getChildren().get(1);
+          assertEquals(relationship.prefWidth(-1), relationship.getWidth(), 1,
+              "Relationship column must fit its content");
+          assertEquals(table.getWidth() - relationship.getWidth() - table.getHgap(),
+              target.getWidth(), 1, "Target must fill the remaining width");
+          assertTrue(target.getBoundsInParent().getMaxX() <= table.getWidth() + 1,
+              "Long target must stay inside the tooltip");
+          assertTrue(target.getHeight() > target.prefHeight(10000), "Long target must wrap");
+          assertTrue(target.getHeight() >= target.prefHeight(target.getWidth()) - 1,
+              "Wrapped target must retain its full height");
           assertTrue(card.getHeight() > viewportHeight, "Long content must scroll");
           scroll.setVvalue(1);
           scroll.layout();
