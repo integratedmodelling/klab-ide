@@ -1,3 +1,7 @@
+> **Historical reference:** retained from the previous documentation. Contains
+> superseded descriptions and dated evidence; use the [developer index](../README.md),
+> [current architecture](../ARCHITECTURE.md), and [gap ledger](../GAPS.md) for current guidance.
+
 ### What I changed
 - Added a Conveyor configuration file `conveyor.conf` at the project root that describes how to package the app for Windows/macOS/Linux, including icons, Java settings, main class, and classpath.
 - Extended `pom.xml` with a new Maven profile `conveyor` that:

@@ -1,3 +1,7 @@
+> **Historical reference:** retained from the previous documentation. Contains
+> superseded descriptions and dated evidence; use the [developer index](../README.md),
+> [current architecture](../ARCHITECTURE.md), and [gap ledger](../GAPS.md) for current guidance.
+
 # KnowledgeGraphView
 - Added a simple callback mechanism to `KnowledgeGraphView` that fires when the view is brought back into view/focus.
 

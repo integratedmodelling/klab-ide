@@ -1,3 +1,7 @@
+> **Historical reference:** retained from the previous documentation. Contains
+> superseded descriptions and dated evidence; use the [developer index](../README.md),
+> [current architecture](../ARCHITECTURE.md), and [gap ledger](../GAPS.md) for current guidance.
+
 # Timeline Component
 
 The Timeline component is a JavaFX UI component that displays a timeline with alternating vertical sections of contrasting grey colors. It is configured with a start and end time (in milliseconds from epoch) and a temporal resolution (time unit and multiplier).

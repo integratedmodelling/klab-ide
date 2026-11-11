@@ -1,3 +1,7 @@
+> **Historical reference:** retained from the previous documentation. Contains
+> superseded descriptions and dated evidence; use the [developer index](../README.md),
+> [current architecture](../ARCHITECTURE.md), and [gap ledger](../GAPS.md) for current guidance.
+
 # k.LAB IDE Architecture
 
 ## 1. Purpose and scope

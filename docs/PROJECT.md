@@ -1,278 +1,170 @@
-# Project structure
+# Workspaces and projects
 
-### 1. Overall Directory Structure (Top 2-3 Levels)
+[Documentation home](../README.md) · [Using the IDE](IDE.md)
 
-```
-C:\Users\Ferd\git\klab-ide/
-├── .git/                          (Git repository)
-├── .idea/                         (IntelliJ IDEA configuration)
-├── .mvn/                          (Maven wrapper)
-├── src/
-│   └── main/
-│       ├── java/
-│       │   └── org/integratedmodelling/klab/ide/
-│       │       ├── api/
-│       │       ├── components/
-│       │       │   ├── cards/
-│       │       │   ├── generic/
-│       │       │   └── treeviews/
-│       │       ├── events/
-│       │       ├── lsp/
-│       │       ├── notifications/
-│       │       ├── pages/
-│       │       ├── test/
-│       │       ├── utils/
-│       │       ├── IDEContextScope.java
-│       │       ├── KlabIDEApplication.java
-│       │       ├── KlabIDEController.java
-│       │       └── Theme.java
-│       └── resources/
-│           ├── org/integratedmodelling/klab/ide/
-│           │   ├── custom.css
-│           │   ├── ide.fxml
-│           │   ├── icons/
-│           │   └── templates/
-│           └── package/
-│               ├── images/
-│               ├── linux/
-│               ├── macosx/
-│               ├── windows/
-│               └── install4j.utf8
-├── target/                        (Build artifacts)
-├── jte-classes/                   (JTE template classes)
-├── pom.xml                        (Maven build configuration)
-├── conveyor.conf                  (Conveyor packaging configuration)
-├── mvnw, mvnw.cmd                (Maven wrapper scripts)
-└── docs/                         (Project documentation)
-    ├── BUILD.md, BUILD_README.md  (Build documentation)
-    └── Other documentation files
-```
+A workspace groups projects hosted by a Resources service. Projects contain model
+namespaces, ontologies, observation strategies, applications, scripts, test cases,
+and supporting material. Access rights determine what you can inspect or change.
 
-### 2. Build Files Contents
+## Open or create a workspace
 
-#### pom.xml (464 lines)
-The Maven build file for the k.LAB IDE JavaFX application. Key features:
-- **Project Info:**
-    - Group ID: `org.integratedmodelling`
-    - Artifact ID: `klab-ide`
-    - Version: `1.0.0-SNAPSHOT`
-    - Java Target: 21
+Open **Workspaces** and its browser. Local services appear before remote services.
+Choose a workspace to open it in a tab. To create one, use the add button, enter a
+name and description, choose a Resources service that allows creation, and select
+**Create**.
 
-- **Key Dependencies:**
-    - JavaFX 21 (controls, fxml, web, swing, media, graphics)
-    - klab-cli and klab.modeler (1.0.0-SNAPSHOT)
-    - klab-editor
-    - javafx-graph (2.4.0-SNAPSHOT)
-    - LSP4J for language server support
-    - AtlantaFX UI themes (2.1.0)
-    - Ikonli icon packs (multiple - FontAwesome, Material Design, Carbon Icons, etc.)
-    - JUnit 5 testing framework
+The right-hand tree organizes projects, folders, documents, and statements. The
+toolbar adds projects, searches by URN, expands or collapses the tree, and opens
+workspace settings. A single click follows an already-open source editor and the
+visible inspector. A double click opens the containing document at the statement.
+Moving the source cursor selects the corresponding statement in the tree.
 
-- **Build Plugins:**
-    - javafx-maven-plugin (v0.0.8) - runs and packages JavaFX applications
-    - maven-compiler-plugin - targets Java 21
-    - maven-dependency-plugin - generates classpath files
-    - maven-shade-plugin (v3.5.1) - creates fat JAR (klab-ide-all-1.0.0-SNAPSHOT.jar)
+> **Screenshot placeholder — Workspace authoring:** show a project with its
+> document types, a source editor, diagnostics, and the selected tree statement.
 
-- **Profiles:**
-    - `conveyor` profile - handles Conveyor packaging (runs `conveyor make app`)
+## Create and edit knowledge
 
-#### conveyor.conf (118 lines)
-Conveyor packaging configuration for cross-platform distribution. Key content:
-- **App Metadata:**
-    - fsname: `klab-ide`
-    - productName/displayName: `k.LAB Modeler`
-    - Vendor: `Integrated Modelling Partnership`
-    - Version: `1.0`
-    - RDNS ID: `org.integratedmodelling.klab.ide`
-    - Summary: "Integrated modelling IDE for the k.LAB platform"
-    - Description: "A JavaFX-based IDE for knowledge-based modelling with k.LAB."
+Use a project's context menu to create a namespace, behavior/application/test case,
+ontology, or observation strategy. Open the new document from the tree. Project
+locks prevent conflicting edits where supported; a lock also needs the service's
+write permission. Green project text indicates an editing lock.
 
-- **Main Class:** `org.integratedmodelling.klab.ide.KlabIDEApplication`
+Choose the document type for the work you want to do:
 
-- **JavaFX Configuration:**
-    - JavaFX version: `21.0.6`
-    - JavaFX modules: controls, fxml, web, media, graphics, swing
+| Document | Purpose |
+| --- | --- |
+| Ontology | Declare shared concepts and their relationships |
+| Model namespace | Describe how observables are modeled using knowledge and resources |
+| Observation strategy | Describe how observation requests can be approached |
+| Behavior/application/script/test case | Express executable activity in k.Actors |
 
-- **Input Artifacts:**
-    - Windows/Linux/Mac: Uses `target/klab-ide-all-1.0.0-SNAPSHOT.jar`
+Edit in the source editor and use **Save** to send the complete document to the
+hosting service. The returned document refreshes the tree and diagnostics. The
+toolbar reports whether edits remain unsaved. Behavior source saved here updates
+the project directly; a separate local working mirror needs its own synchronization
+action, explained in [Behaviors](BEHAVIORS.md).
 
-- **Platform Support:**
-    - Windows (amd64)
-    - Linux (amd64 glibc)
-    - macOS (amd64 and aarch64)
+The editor controls toggle line numbers, the minimap, review mode, and side-to-side
+workflow review. **Ctrl+Shift+Space** opens the [observable composer](SEMANTIC_COMPOSER.md).
+Accepting its expression inserts one undoable edit at the invoking cursor.
 
-- **JVM Configuration:**
-    - Minimum Java version: 21
-    - Additional modules: charsets, crypto, localedata, logging, desktop, XML, scripting, etc.
+## Understand validation
 
-- **Platform-Specific Settings:**
-    - Windows: Code signing disabled (can be enabled in CI), companyName = "Integrated Modelling Partnership"
-    - macOS: Code signing disabled, bundleId = `org.integratedmodelling.klab.ide`
-    - Linux: Category = "Development"
+Parser and language-service diagnostics appear in the editor. Saved namespaces and
+ontologies that change are also enrolled for semantic validation with the selected
+Reasoner. Editing and saving remain available while semantic validation runs.
 
-- **Build Site:**
-    - base-url: `https://klab.integratedmodelling.org`
+Tree badges aggregate errors for documents and projects; hover for details. Editor
+status distinguishes pending validation, unavailable services, syntax-blocked source,
+unsynchronized knowledge, and completed validation. A successful document has no
+validation badge. Editing clears its semantic markers until saved source is validated.
 
-### 3. Package Directory Contents
+Opening unchanged source retains its saved diagnostics. Use **Validate now** to request
+a fresh check of saved documents. A saved ontology's authoritative source and imports
+must be available to the Reasoner. Validation does not publish ontology drafts.
 
-#### /src/main/resources/package/ Structure:
+For source declarations that propose authority aliases, the editor also reports
+proposal status at the relevant declaration. Saving can submit those proposals
+to the configured authority host. Status updates distinguish an unsubmitted alias
+from its server-reported review status; using a proposed name does not imply it
+has been approved for the authority's codelist.
 
-```
-package/
-├── images/
-│   ├── klab-ide.svg (3,078 bytes) - SVG Scalable Vector Graphics
-│   ├── splashscreen.png (8,528 bytes) - 300 x 140 PNG
-│   └── splashscreen.svg (36,850 bytes) - SVG format
-├── linux/
-│   └── klab.png (2,171 bytes) - 96 x 96 PNG
-├── macosx/
-│   ├── DS_Store (10,244 bytes) - macOS folder metadata
-│   ├── klab-background.png (21,940 bytes) - 1000 x 600 PNG for DMG background
-│   └── klab.icns (58,056 bytes) - Mac OS X icon resource
-├── windows/
-│   └── klab.ico (38,732 bytes) - Windows icon resource
-└── install4j.utf8 (485 bytes) - Install4J wizard localization strings
-```
+## Work with Git
 
-### 4. Icon Files (Complete List)
+Open the project's **Team** menu for the repository operations offered by its
+service. Use **Add to version control...** for an untracked project. Save source
+drafts before committing or publishing; saving to Resources and committing/pushing
+to the origin repository are separate operations.
 
-**Packaging/Distribution Icons:**
+Branch switching presents **Commit and switch branch**: select an existing branch
+or enter a new name. **Merge branch** selects an existing branch to merge into
+the current branch. Review repository messages and resolve reported conflicts
+before continuing.
 
-1. **Windows Icon**
-    - Path: `/c/Users/Ferd/git/klab-ide/src/main/resources/package/windows/klab.ico`
-    - Type: MS Windows icon resource
-    - Contains: 5 icons (16x16 and 32x32, 32 bits/pixel)
-    - Size: 38,732 bytes
-    - Used by: Conveyor (Windows installer and shortcuts)
+For a local project, **Team → Use Git credential set...** associates a Resources-service
+credential set by ID. The next Git operation remembers that ID for the repository;
+later operations recheck access. Existing Git credential helpers also remain usable.
+Ask your service administrator if you need a credential set.
 
-2. **macOS Icon**
-    - Path: `/c/Users/Ferd/git/klab-ide/src/main/resources/package/macosx/klab.icns`
-    - Type: Mac OS X icon resource (ic12 type)
-    - Size: 58,056 bytes
-    - Used by: Conveyor (macOS .app bundle)
+### Copy a remote project locally
 
-3. **Linux Icon**
-    - Path: `/c/Users/Ferd/git/klab-ide/src/main/resources/package/linux/klab.png`
-    - Type: PNG image data (96 x 96, 8-bit/color RGBA)
-    - Size: 2,171 bytes
-    - Used by: Conveyor (Linux desktop shortcuts)
+In a remote workspace, choose **Export to local services** from the project menu.
+You need an operational local Resources service, and a project with that identity
+must not already exist locally. Import does not replace an existing local project.
 
-4. **General/SVG Icons**
-    - Path: `/c/Users/Ferd/git/klab-ide/src/main/resources/package/images/klab-ide.svg`
-    - Type: SVG Scalable Vector Graphics
-    - Size: 3,078 bytes
-    - Used by: Conveyor (Linux), general application icon
+A tracked project is cloned from its Git origin and branch, so changes present only
+in the remote service's working tree are excluded. An untracked project is copied
+as a snapshot into the local `local` workspace. Additional material is included;
+Git configuration and credentials are excluded from snapshots. Publish the local
+copy through its Team menu using the origin repository's permissions.
 
-**Splash/Background Graphics:**
+## Change project settings
 
-5. **Splash Screen PNG**
-    - Path: `/c/Users/Ferd/git/klab-ide/src/main/resources/package/images/splashscreen.png`
-    - Type: PNG image (300 x 140, 8-bit/color RGBA)
-    - Size: 8,528 bytes
+Right-click a project and choose **Project settings**. Lock it and check that you
+have edit access before changing settings. **Save settings** saves the complete draft;
+a rejected save leaves your draft visible.
 
-6. **Splash Screen SVG**
-    - Path: `/c/Users/Ferd/git/klab-ide/src/main/resources/package/images/splashscreen.svg`
-    - Type: SVG Scalable Vector Graphics
-    - Size: 36,850 bytes
+- **Worldview declaration:** administrators can set or clear the worldview defined
+  by the project; other users can inspect it.
+- **Default observer:** appears for worldview-defining projects. Enter observer
+  semantics or leave it blank to contribute no default observer.
+- **Snapshot:** synchronize with Git origin before the service loads the project.
+  The service fetches and merges conflict-free changes; problems appear in service status.
+- **Permissions:** access is stored by the Resources service. An empty selection
+  means owner-only access, while existing service grants and ownership are retained.
+- **Metadata:** edit scalar values inline, or use **Add / replace**, **Remove key**,
+  and **Edit JSON**. Choose **Text** for literal text and **JSON** for numbers,
+  booleans, arrays, objects, or null.
 
-7. **macOS DMG Background**
-    - Path: `/c/Users/Ferd/git/klab-ide/src/main/resources/package/macosx/klab-background.png`
-    - Type: PNG image (1000 x 600, 8-bit/color RGBA)
-    - Size: 21,940 bytes
-    - Used by: macOS DMG installer background
+Project metadata is saved in `META-INF/manifest.json`. Older project settings are
+migrated on save where needed. Settings changes remain pending Git changes until
+you commit and publish them through Team.
 
-**Embedded Application Icons (in resources):**
+### Change workspace settings
 
-8. **Elephant Logo PNG**
-    - Path: `/c/Users/Ferd/git/klab-ide/src/main/resources/org/integratedmodelling/klab/ide/icons/klab-elephant.png`
+Use the workspace settings button above the tree. Owners/creators and service
+administrators can change workspace metadata and permissions; other users with
+workspace access can inspect them. A project lock is not required. Workspace
+settings do not change project membership or project settings. Older workspaces
+without a recorded owner need an administrator to change their settings.
 
-9. **IM Logo PNG**
-    - Path: `/c/Users/Ferd/git/klab-ide/src/main/resources/org/integratedmodelling/klab/ide/icons/klab-im.png`
+> **Screenshot placeholder — Settings:** show project permissions and metadata,
+> the conditional observer field, and a read-only workspace settings example.
 
-10. **Elephant Logo SVG**
-    - Path: `/c/Users/Ferd/git/klab-ide/src/main/resources/org/integratedmodelling/klab/ide/icons/klab_elephant.svg`
+## Manage additional material
 
-### 5. Main Application Entry Point
+Choose **Additional material…** from the project context menu to manage stylesheets,
+localization properties, images, and other supporting files. Create/write access,
+including material-contributor access, is needed even to browse these folders.
+Deleting also requires delete permission.
 
-**Primary Entry Point:**
-```java
-org.integratedmodelling.klab.ide.KlabIDEApplication
-```
+1. Use **New folder…** at the material root.
+2. Select a folder to create a text file or **Import files…** from your computer.
+3. Select a file to inspect its text or a supported image preview.
+4. Use **Edit file** for CSS, properties, Markdown, JSON, and other structured text.
+   **Preview file** renders a Markdown draft without losing your edits.
+5. Save, then use **Commit and publish project…** or the project's Team menu.
 
-**Location:** `/c/Users/Ferd/git/klab-ide/src/main/java/org/integratedmodelling/klab/ide/KlabIDEApplication.java`
+Imports preserve binary files and refuse overwrites. Ordinary notes use a lightweight
+editor; structured text uses the source editor. Text encodings and byte-order marks
+are preserved on save. Use **Export…** to save a local copy. Files are limited to
+32 MiB. **Delete…** removes a file or an empty folder. Empty folders stay local
+until files are added. Close the browser using the toolbar control; unsaved changes
+require confirmation before discard.
 
-**Key Details:**
-- Extends `javafx.application.Application`
-- Main method: `public static void main(String[] args)` - calls `launch()`
-- Start method loads FXML from `ide.fxml` resource
-- Window title: "k.LAB Modeler :: v1.0 pre-alpha :: © 2025 Integrated Modelling Partnership"
-- Minimum window width: 1200px
-- Initial scene size: 1480 x 1060
-- Sidebar width: 270px
-- Uses AtlantaFX theme system
-- Custom CSS: `/src/main/resources/org/integratedmodelling/klab/ide/custom.css`
-- FXML: `/src/main/resources/org/integratedmodelling/klab/ide/ide.fxml`
+Names must start with an ASCII letter or digit. Project-managed folders (`src`,
+`apps`, `behaviors`, `scripts`, `testcases`, `strategies`, `components`, `resources`,
+`docs`, `META-INF`) and Git control paths cannot be used as material folders.
 
-**Supporting Files in Main Package:**
-- `IDEContextScope.java` - Context scope management
-- `KlabIDEController.java` - Main IDE controller (60KB+)
-- `Theme.java` - Theme management for AtlantaFX
+> **Screenshot placeholder — Additional material:** show the folder tree, image
+> preview, Markdown preview/edit controls, and commit/publish action.
 
-### 6. Jpackage/Installer Configuration
+## Review or remove content
 
-This project uses **Conveyor** for cross-platform packaging, NOT jpackage directly.
+A dot on an asset icon marks an associated workflow. Use its context menu to
+[open or start a workflow](WORKFLOWS.md). Side-to-side review keeps the source and
+[proposal review](PROPOSAL_REVIEW.md) together.
 
-**Conveyor Configuration Details (conveyor.conf):**
-
-**Entry Point:**
-- GUI Main Class: `org.integratedmodelling.klab.ide.KlabIDEApplication`
-
-**Icon Mappings (Conveyor):**
-```
-icons {
-  windows = "src/main/resources/package/windows/klab.ico"
-  mac = "src/main/resources/package/macosx/klab.icns"
-  linux = "src/main/resources/package/images/klab-ide.svg"
-}
-```
-
-**Classpath Configuration (for Conveyor):**
-```
-classpath = [
-  "target/classes",
-  "target/dependency/*"
-]
-```
-
-**JVM Arguments (Conveyor):**
-```
---add-modules=javafx.controls,javafx.fxml,javafx.web,javafx.media,javafx.graphics,javafx.swing
-```
-
-**Build Targets:**
-- `windows.amd64`
-- `linux.amd64.glibc`
-- `mac.amd64`
-- `mac.aarch64`
-
-**Maven Integration:**
-- Maven profile: `conveyor`
-- Executes: `mvn -P conveyor package`
-- Calls Conveyor binary: `conveyor make app`
-- Sets environment variable: `PROJECT_VERSION=${project.version}`
-- Maven plugin: `maven-antrun-plugin` (v3.1.0)
-
-**Dependencies for Packaging:**
-1. `maven-dependency-plugin` - copies runtime dependencies to `target/dependency/`
-2. `maven-shade-plugin` - creates fat JAR `klab-ide-all-1.0.0-SNAPSHOT.jar`
-
-**Software Versions:**
-- Java: 21
-- Maven: 3.13.0 (compiler plugin)
-- Conveyor: Latest (specified in project, not in pom.xml)
-- JavaFX: 21.0.6
-
-### Summary
-
-This is a **JavaFX-based IDE application** for the k.LAB modelling platform that uses **Maven for building** and **Conveyor for cross-platform packaging and distribution**. The project provides native installers for Windows (.exe, .msi), macOS (.dmg, .app), and Linux (.deb, .rpm). All necessary platform-specific icons and assets are included, with comprehensive build configuration for automated releases across all major operating systems.
+Document deletion requires confirmation. Project deletion permanently removes the
+project's contents for all users; read the confirmation and check your backups
+before proceeding.

@@ -1,38 +1,67 @@
-# Native proposal review
+# Proposal review
 
-The default `WorkflowUIProvider.stageEditor` selects `ProposalStageEditor` for stages whose outgoing transitions declare `proposalReviewOperation`, or which carry server review data. Existing workflows keep their generic editor. This implementation targets the backend version-1 contract in `klab-services` commit `d6e781daa0d440a11589fa550cdf69cdf765a04e`.
+[Documentation home](../README.md) · [Workflows](WORKFLOWS.md)
 
-`ProposalReviewModel` is independent of JavaFX and uses the API's `ProposalReview` records directly. `ProposalCandidateReader` delegates identity parsing and hashing to the shared `common.review.ProposalCandidateBinding`, and submission uses the API's `BootstrapDossierValidator`. There is no IDE-specific REST endpoint or parallel DTO schema. A later Vue client should consume the same wire records and repeat the same presentation rules; JavaFX controls are not intended for reuse in Vue.
+Some workflow stages provide a native proposal-review view. Use it to inspect the
+exact candidate and evidence, edit an authoring draft when assigned, and record a
+review decision. Other stages may open a service-hosted review page or a generic
+workflow view; follow the controls offered by that stage.
 
-The native tabs expose the exact candidate, evidence references, concepts and typed bindings, questions and observable mappings, invalid probes/gaps, quality limitations/predicates, unresolved semantics, coverage shortfalls, server checks and human rationale. Structured record forms edit an authoring draft. Reviewer stages cannot change reviewed evidence; request changes creates the next authoring stage. Counts are diagnostics rather than approval gates. Source titles/scope/status and detailed imported-parent rationale remain in the immutable proposal/supporting documents because this API projection does not expose dedicated fields. Textual attachments can be inspected through the authorized attachment API with checksum verification.
+## Inspect the candidate
 
-Uploads populate proposal/revision IDs, ordered action IDs and import digest using the shared inspector. Initial uploads use temporary local references; confirmation must match the pending bytes exactly before the backend resolves persisted IDs. Review transitions send the current expected flow revision without a preliminary metadata update. Every proposal transition displays its exact candidate, actions and rationale before transmission. Attachment bytes, candidate command, stage and revision are captured before opening the modal confirmation. Upload callbacks and repeated actions are rejected while it is open; retry the upload after cancellation or failure. Request-changes omits target ownership so the backend returns editing to the original author. Conflicts and failed responses retain the local draft; they never report success. Reentrant submission is guarded. Navigation preserves per-stage drafts, Reset confirms discard, and closing an individual workflow tab confirms unsaved edits. Edits persist through a transition, not a separate draft-save endpoint.
+Open a flow and select its review stage. The native view separates the candidate,
+evidence references, concepts and typed bindings, questions and observable mappings,
+invalid probes/gaps, quality limitations/predicates, unresolved semantics, coverage
+shortfalls, server checks, and human rationale.
 
-Acceptance is disabled when required server checks are absent, blocked, failed or not run, or unresolved semantics remain. Even a synthetic all-PASS result requires an explicit human rationale and confirmation. Required checks include import context, document schema, parser, adaptation and Reasoner. The default production validator performs isolated parsing and adaptation, while production schema, authoritative import and Reasoner checks remain blocked; the IDE does not synthesize readiness or validation. Application, PR publication and executable implication/detection consequences are outside this slice. Backend ownership and transition permissions remain authoritative. Review-flow deletion/reopen and candidate uploads outside authoring are hidden to reflect the audit lifecycle.
+Use the immutable proposal and supporting attachments for details beyond the
+structured view, including source scope/status and imported-parent rationale.
+Text attachments can be inspected through the authorized attachment viewer.
+Counts help you find issues; they are not evidence that the proposal is ready.
 
-## Paired document glyphs
+> **Screenshot placeholder — Review evidence:** show candidate/revision identity,
+> Concepts & bindings, an unresolved item, required checks, and rationale together.
 
-In the side-to-side view, loading a workflow stage refreshes the paired Monaco review markers. `ProposalLexicalMarkers` binds dossier concept expressions to exact parsed `KimConceptStatement` identities and offsets. It does not search prose or guess lines. Glyphs identify the proposal item and immutable revision; clicking selects that item in the stage's Concepts & bindings tab. Review mode controls visibility. Switching/closing the pair clears its markers; dirty document text invalidates them. Deferred rendering callbacks cannot restore a previous stage's markers.
+## Edit or request changes
 
-When a candidate includes an ontology artifact, its checksum must match the parsed document's UTF-8 bytes. Without that artifact, the marker is explicitly a lexical reference in the current parsed document, not a claim that the document is reviewed. Unbound expressions, ambiguous declarations, unsupported versions and mismatched snapshots produce no glyph. Version 1 has no explicit remote lexical-anchor DTO: arbitrary spans, asset proposals omitted from the dossier, and cross-document ranges require a future shared contract. Existing concept declarations can be bound now without introducing incompatible metadata.
+Authoring stages offer structured draft forms and permitted candidate uploads.
+Reviewer stages preserve the evidence under review. Use **Request changes** to
+return work to an authoring stage rather than trying to edit reviewed evidence.
+The next authoring stage returns editing to the original author.
 
-## Verification
+Before a transition, review the confirmation's exact candidate, actions, and rationale.
+The confirmation binds to the displayed candidate and revision. Cancelling or a
+failed/conflicted request retains your draft; check the saved state before retrying
+if the outcome is uncertain.
 
-Use Java 21 and the backend API/common modules built from the matching contract. Normal `mvn test` requires those current snapshots. To verify without replacing the shared Maven cache:
+Draft edits persist through a transition. Navigating stages preserves local drafts,
+but there is no separate persistent draft-save action. Reset asks before discarding,
+and closing an individual workflow tab checks unsaved edits. Keep important draft
+material separately before shutting down the whole application.
 
-1. Resolve the ordinary IDE classpath: `mvn -o dependency:build-classpath -Dmdep.outputFile=target/baseline-classpath.txt`.
-2. Run `scripts/verify-proposal-review.ps1 -BackendRoot <backend-worktree> -ResolvedClasspath <absolute-baseline-classpath.txt>`.
+## Understand acceptance
 
-The script packages private API/common jars and generates `.proposal-verification-pom.xml`, preserving the resolved dependency graph. It performs a full IDE compile and test-source compile, then runs the focused review suites. It does not install artifacts, start a service, or publish anything. On this Windows environment the Java compiler required execution outside the restricted sandbox to resolve jar paths; no global cache replacement was needed.
+Acceptance requires explicit human rationale and confirmation as well as successful
+required server checks. Missing, blocked, failed, or unrun checks and unresolved
+semantics disable acceptance. Required checks include import context, document
+schema, parsing, adaptation, and Reasoner checks.
 
-Verification on 2026-10-03: full compilation of 156 main sources and 49 test sources; 20 focused tests passed with zero failures/errors/skips. The final script log is `target/proposal-review-fixes-verification.log`; reports are in `target/surefire-reports`. This uses private jars packaged from the committed backend d6e781daa0d440a11589fa550cdf69cdf765a04e API/common build. Regression assertions cover absent and non-PASS adaptation results as well as the narrow assigned-reviewer rule, without granting reviewer users editor roles or upload permissions.
+If your server reports production checks as blocked, the IDE cannot make the
+candidate ready. Preserve the draft and resolve the check with the service/workflow
+administrator. A successful review decision alone does not apply ontology changes
+or publish a pull request.
 
-Tests cover unknown/missing data, read-only states, exact revision/action/import binding, duplicate/malformed YAML, shared JSON DTO round trips, scientific-vs-syntax gates, dossier reference validation, resubmission lineage, native record inspection, glyph offsets/staleness and actual shell cancellation/conflict/repeated-click behavior. The hydrology excerpt is a synthetic UI test projection of the source-first research dossier, not a converted or accepted proposal. It retains incomplete coverage and an invalid semantic probe; no source excerpt or derived type is invented.
+## Pair the review with source
 
-`target/proposal-ui/` contains rendered JavaFX inspection screens and the local Monaco/workflow split-view screenshot. These are component/integration fixtures, not a live authenticated Resources/Reasoner session. HTTP role enforcement, production validators and the four-artifact research manifest remain backend integration work. Whole-application shutdown draft recovery is not implemented; tab-level discard handling is covered. Persisted drafts and nonblocking transition transport remain follow-up work.
+Open **Side-to-side workflow review** from a workspace source editor. Review markers
+can link exact concept declarations to proposal items. Clicking a marker selects
+the item in **Concepts & bindings**. Review mode controls marker visibility.
 
-## Ownership integration regression
+Markers apply only to declarations that can be matched unambiguously to the current
+snapshot. Editing source invalidates them. If no candidate ontology artifact binds
+the document, a marker is a lexical reference in the current parsed document rather
+than proof that this source was reviewed. Missing markers do not imply missing
+evidence: inspect the candidate and attachments directly.
 
-`scripts/integration/IDERequestChangesLifecycle.java` exercises an actual native WorkflowEditor request through the committed backend WorkflowManager, then checks that the original EDITOR can upload revision r2 and the REVIEWER cannot upload. It uses the backend's in-memory test store and explicit test validator; no Resources service is started. Compile this standalone source with the built backend test classes, backend main classes and dependencies, and IDE classes/dependencies on the classpath; run its fully qualified main class `org.integratedmodelling.klab.services.resources.workflow.IDERequestChangesLifecycle`. The local resolved argument files are `target/ownership-compile.args` and `target/ownership-run.args`; the passing output is `target/ownership-integration.log`.
-
-The 20 focused tests also replay a queued upload callback inside the confirmation dialog's nested JavaFX event loop, mutate a retained byte array, and verify exact frozen outgoing bytes, cancellation/failure draft preservation and repeated-action rejection. Glyph QA verifies the rendered Monaco DOM marker and invokes its Java selection callback; a physical mouse click through the full Monaco JavaScript bridge has not been exercised.
+> **Screenshot placeholder — Paired review:** show the source glyph, matching
+> proposal concept item, immutable revision identity, and review-mode control.

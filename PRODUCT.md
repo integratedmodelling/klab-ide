@@ -59,9 +59,9 @@ an integrated authoring environment.
 - Preserve established domain terminology, including observable, observer,
   context observation, perceived geometry, occupied geometry, and focal digital
   twin. Their distinctions affect behavior and must not be collapsed in UI copy.
-- Treat the application as under active development. README.md and docs/IDE.md
-  describe a pre-alpha prototype; the current application title says alpha.
-  Release maturity terminology needs reconciliation before new public claims.
+- Treat the application as under active development. The current application title
+  says alpha; user documentation describes capabilities and service prerequisites
+  without making deployment-readiness guarantees.
 - Consult current source and docs/IDE.md before presenting any incomplete feature
   as available. Older architecture and build documents are supporting context,
   not authority over current implementation.
@@ -76,10 +76,10 @@ voice or aesthetic commitment was established during initialization.
 ## Evidence on Hand
 
 - README.md: product overview, core capabilities, setup, and service dependencies.
-- docs/IDE.md: workflows, terminology, and documented implementation boundaries;
-  its baseline review date is 2026-09-15, with subsequent additions.
-- docs/IDE_ARCHITECTURE.md and docs/WORKFLOWS.md: implementation and integration
-  context; verify older descriptions against current source.
+- docs/IDE.md and the task guides it links: current user workflows and terminology.
+- docs/developer/ARCHITECTURE.md and docs/developer/GAPS.md: current source map and
+  implementation boundaries. Subsystem integration notes live in the same directory;
+  older audits are explicitly historical under docs/developer/history.
 - pom.xml and conveyor.conf: build dependencies and packaging configuration.
 - src/main/java/org/integratedmodelling/klab/ide: current client implementation.
 - src/main/resources: existing FXML, styles, icons, and package assets.

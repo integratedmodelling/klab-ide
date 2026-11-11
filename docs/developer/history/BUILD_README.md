@@ -1,3 +1,7 @@
+> **Historical reference:** retained from the previous documentation. Contains
+> superseded descriptions and dated evidence; use the [developer index](../README.md),
+> [current architecture](../ARCHITECTURE.md), and [gap ledger](../GAPS.md) for current guidance.
+
 # Building k.LAB Modeler with Conveyor
 
 This project uses [Conveyor](https://www.hydraulic.dev/) for packaging the k.LAB Modeler as an executable for Windows, Linux, and macOS.
