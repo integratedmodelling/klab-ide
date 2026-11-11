@@ -42,6 +42,7 @@ import org.integratedmodelling.klab.ide.components.cards.ObservableCard;
 import org.integratedmodelling.klab.ide.components.cards.ObservationCard;
 import org.integratedmodelling.klab.ide.components.generic.BBCodeRenderer;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
+import org.integratedmodelling.klab.ide.utils.BBCodeNodeRenderer;
 import org.integratedmodelling.klab.modeler.model.NavigableKimConceptStatement;
 import org.integratedmodelling.klab.modeler.model.NavigableKimNamespace;
 import org.integratedmodelling.klab.modeler.model.NavigableKimOntology;
@@ -425,7 +426,12 @@ public enum Theme {
       text.setStyle(text.getStyle() + " -fx-font-weight: " + (bold ? "bold" : "normal")
           + "; -fx-font-style: " + (italic ? "italic" : "normal") + ";");
       if (token.getDescription() != null && !token.getDescription().isBlank()) {
-        Tooltip.install(text, new Tooltip(token.getDescription()));
+        var documentation = BBCodeParser.createLayout(BBCodeNodeRenderer.fromMarkdown(token.getDescription()));
+        documentation.setPrefWidth(360);
+        documentation.setMaxWidth(360);
+        var tooltip = new Tooltip();
+        tooltip.setGraphic(documentation);
+        Tooltip.install(text, tooltip);
       }
       flow.getChildren().add(text);
       previous = token;

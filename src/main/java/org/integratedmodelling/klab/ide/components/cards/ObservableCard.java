@@ -1,5 +1,6 @@
 package org.integratedmodelling.klab.ide.components.cards;
 
+import atlantafx.base.util.BBCodeParser;
 import javafx.geometry.Insets;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
@@ -13,6 +14,7 @@ import org.integratedmodelling.klab.api.knowledge.Concept;
 import org.integratedmodelling.klab.api.lang.SemanticLexicalElement;
 import org.integratedmodelling.klab.api.services.reasoner.objects.*;
 import org.integratedmodelling.klab.ide.Theme;
+import org.integratedmodelling.klab.ide.utils.BBCodeNodeRenderer;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.integratedmodelling.klab.api.knowledge.Observable;
@@ -100,7 +102,10 @@ public class ObservableCard extends BaseCard<Observable> {
     for (var key : List.of(org.integratedmodelling.klab.api.data.Metadata.DC_COMMENT,
         org.integratedmodelling.klab.api.data.Metadata.RDFS_COMMENT)) {
       if (metadata.get(key) instanceof String description && !description.isBlank()) {
-        var text = new Label(description); text.setWrapText(true); content.getChildren().add(text);
+        var text = BBCodeParser.createLayout(BBCodeNodeRenderer.fromMarkdown(description));
+        text.setMaxWidth(Double.MAX_VALUE);
+        text.getStyleClass().add("concept-documentation");
+        content.getChildren().add(text);
         break;
       }
     }
