@@ -7,6 +7,13 @@ The services available to you depend on your identity and permissions. Local
 distribution controls manage services on your computer; remote services have
 their own availability and access rules.
 
+Configure your identity before starting local services: download your user
+certificate from the [k.LAB Hub](https://integratedmodelling.org/hub) and drop it
+onto the user-profile card. See [certificate setup](GETTING_STARTED.md#set-up-your-identity-with-a-user-certificate)
+for registration, accepted files, and authentication status. Stop all local services
+and auxiliary processes before updating the certificate or switching identity;
+wait for authentication to finish before starting them again.
+
 ## Check the services you need
 
 | Service | What it provides in the IDE |

@@ -9,9 +9,49 @@ choose the installer for your platform, and follow its installation instructions
 Launch **k.LAB Modeler**. Installing the IDE does not by itself grant access to
 knowledge, datasets, or digital twins.
 
-Open the user-profile button in the navigation rail. Check that the identity shown
-is the one you intend to use. An anonymous or failed identity may have limited
-access. Next, inspect the service buttons in the lower part of the rail.
+## Set up your identity with a user certificate
+
+1. Open the [k.LAB Hub](https://integratedmodelling.org/hub). Register if you do not
+   yet have an account, or sign in to your existing account.
+2. Download your user certificate from the Hub to your computer.
+3. In the IDE, open the user-profile button in the navigation rail to display
+   **User information**.
+4. Ensure local services are stopped and wait for any start/stop operation to finish.
+   The IDE also requires auxiliary local processes to be stopped before installing
+   a certificate. If the drop area reports that services are still active, finish
+   stopping them before retrying.
+5. Drag the downloaded file from your file manager onto **Drop a new klab.cert
+   certificate** in the user-information card. Drop exactly one readable file named
+   `klab.cert` or beginning with `klab.cert`; renamed downloads such as
+   `klab.cert (2)` are accepted.
+6. Wait while the card shows **Installing certificate and authenticating…**.
+   Success is reported as **Certificate installed. Authenticated as** followed by
+   your username. Verify the displayed identity before starting services or work.
+
+The IDE installs the certificate and attempts authentication immediately; you do
+not need to copy it into a configuration folder yourself. If installation finishes
+but authentication does not succeed, check your Hub connection and certificate,
+then retry. An anonymous or failed identity may have limited access.
+
+> **Screenshot placeholder — Certificate setup:** show the User information card,
+> certificate drop area, installation progress, and successful authentication with
+> a sample username. Keep the certificate's contents out of the screenshot.
+
+### Update your certificate or switch identity
+
+Use the same procedure whenever you download an updated certificate or want to
+use another account. Save your work and stop local services first. To switch
+identity, sign in to the intended account on the Hub, download its certificate,
+and drop it onto the same profile card. Check the resulting username.
+
+When the active user scope changes, the IDE clears its focal digital-twin selection.
+Select the services and digital twin you intend to use under the new identity;
+available projects, data, and permissions may differ. Once authentication completes,
+you can start local services again.
+
+## Check and start services
+
+Inspect the service buttons in the lower part of the navigation rail.
 
 | Task | What you need |
 | --- | --- |

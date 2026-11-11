@@ -1,11 +1,19 @@
 package org.integratedmodelling.klab.ide.components.cards;
 
 import java.util.ArrayList;
+import java.io.File;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import javafx.application.Platform;
+import javafx.css.PseudoClass;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tooltip;
+import javafx.scene.control.ProgressIndicator;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.TransferMode;
@@ -16,6 +24,7 @@ import javafx.scene.layout.VBox;
 import org.integratedmodelling.common.authentication.Authentication;
 import org.integratedmodelling.klab.api.Klab;
 import org.integratedmodelling.klab.api.scope.UserScope;
+import org.integratedmodelling.klab.ide.KlabIDEController;
 import org.integratedmodelling.klab.ide.components.generic.IconLabel;
 import org.kordamp.ikonli.Ikon;
 import org.kordamp.ikonli.carbonicons.CarbonIcons;
@@ -31,10 +40,26 @@ public class UserViewComponent extends BaseAssetViewComponent {
   private GridPane groupIcons;
   private VBox groupArea;
   private Label federationLabel;
+  private final Supplier<String> installationRejection;
+  private final Function<File, CompletableFuture<UserScope>> certificateInstaller;
+  private boolean installing;
+  private Label dropLabel;
+  private VBox dropZone;
+  private static final PseudoClass DRAG_OVER = PseudoClass.getPseudoClass("drag-over");
+  private static final PseudoClass BUSY = PseudoClass.getPseudoClass("busy");
+  private static final PseudoClass ERROR = PseudoClass.getPseudoClass("error");
 
   public UserViewComponent(UserScope userScope) {
+    this(userScope, () -> KlabIDEController.instance().certificateInstallationRejection(),
+        file -> KlabIDEController.instance().installCertificateAsync(file));
+  }
+
+  UserViewComponent(UserScope userScope, Supplier<String> rejection,
+      Function<File, CompletableFuture<UserScope>> installer) {
     super(AssetViewComponent.Type.UserInfo, "User information", false);
     this.user = userScope;
+    this.installationRejection = rejection;
+    this.certificateInstaller = installer;
     createContent();
   }
 
@@ -163,25 +188,53 @@ public class UserViewComponent extends BaseAssetViewComponent {
     //        }
     //      }
 
-    VBox dropZone = new VBox();
+    dropZone = new VBox(10);
     dropZone.setAlignment(Pos.CENTER);
     dropZone.setPrefWidth(200);
     dropZone.setPrefHeight(180);
     dropZone.getStyleClass().add("user-certificate-drop-zone");
 
-    Label dropLabel = new Label("Drop a new certificate");
+    dropZone.setPadding(new Insets(12));
+    dropLabel = new Label("Drop a new klab.cert certificate");
+    dropLabel.setWrapText(true);
     dropLabel.getStyleClass().add("user-certificate-drop-zone-label");
     dropZone.getChildren().add(dropLabel);
 
     dropZone.setOnDragOver(
         event -> {
-          event.acceptTransferModes(TransferMode.COPY);
+          if (!installing) {
+            var rejection = installationRejection.get();
+            boolean acceptable = acceptsCertificate(event.getDragboard().getFiles()) && rejection == null;
+            dropZone.pseudoClassStateChanged(DRAG_OVER, acceptable);
+            dropZone.pseudoClassStateChanged(ERROR, !acceptable);
+            dropLabel.setText(rejection != null ? rejection : acceptable
+                ? "Release to install and authenticate"
+                : "Drop one file named klab.cert or starting with klab.cert");
+            if (acceptable) event.acceptTransferModes(TransferMode.COPY);
+          }
           event.consume();
         });
 
+    dropZone.setOnDragExited(event -> {
+      dropZone.pseudoClassStateChanged(DRAG_OVER, false);
+      if (!installing && !dropZone.getPseudoClassStates().contains(ERROR)) {
+        dropLabel.setText("Drop a new klab.cert certificate");
+      }
+      event.consume();
+    });
+
     dropZone.setOnDragDropped(
         event -> {
-          event.setDropCompleted(true);
+          dropZone.pseudoClassStateChanged(DRAG_OVER, false);
+          var files = event.getDragboard().getFiles();
+          var rejection = installationRejection.get();
+          boolean accepted = !installing && acceptsCertificate(files) && rejection == null;
+          if (accepted) installCertificate(files.getFirst());
+          else if (!installing) {
+            dropZone.pseudoClassStateChanged(ERROR, true);
+            dropLabel.setText(rejection != null ? rejection : "Drop one readable klab.cert file");
+          }
+          event.setDropCompleted(accepted);
           event.consume();
         });
 
@@ -193,6 +246,52 @@ public class UserViewComponent extends BaseAssetViewComponent {
     this.getChildren().add(main);
 
     return main;
+  }
+
+  static boolean acceptsCertificate(List<File> files) {
+    return files != null && files.size() == 1 && files.getFirst().isFile()
+        && files.getFirst().canRead() && files.getFirst().getName().startsWith("klab.cert");
+  }
+
+  void installCertificate(File file) {
+    installing = true;
+    dropZone.pseudoClassStateChanged(ERROR, false);
+    dropZone.pseudoClassStateChanged(BUSY, true);
+    dropLabel.setText("Installing certificate and authenticating…");
+    var progress = new ProgressIndicator();
+    progress.setPrefSize(28, 28);
+    dropZone.getChildren().addFirst(progress);
+    CompletableFuture<UserScope> installation;
+    try {
+      installation = certificateInstaller.apply(file);
+    } catch (RuntimeException e) {
+      installation = CompletableFuture.failedFuture(e);
+    }
+    installation.whenComplete((authenticated, failure) -> Platform.runLater(() -> {
+      installing = false;
+      if (authenticated != null) {
+        user = authenticated;
+        getChildren().clear();
+        createContent();
+      } else {
+        dropZone.getChildren().remove(progress);
+      }
+      dropZone.pseudoClassStateChanged(BUSY, false);
+      boolean success = failure == null && authenticated != null
+          && authenticated.getUser().isAuthenticated() && !authenticated.getUser().isAnonymous();
+      dropZone.pseudoClassStateChanged(ERROR, !success);
+      if (failure != null) {
+        var cause = failure;
+        while ((cause instanceof java.util.concurrent.CompletionException
+            || cause instanceof java.util.concurrent.ExecutionException) && cause.getCause() != null) {
+          cause = cause.getCause();
+        }
+        dropLabel.setText("Certificate installation failed: " + cause.getMessage());
+      } else {
+        dropLabel.setText(success ? "Certificate installed. Authenticated as " + user.getUser().getUsername()
+            : "Certificate installed, but authentication did not succeed. Check the Hub connection and certificate.");
+      }
+    }));
   }
 
   //    public void setupAuthenticationUI() {

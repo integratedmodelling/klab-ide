@@ -24,6 +24,11 @@ distribution management, settings, inspector, and user profile. Service buttons
 indicate their type, availability, and the number of services. Hover over icon-only
 controls for their tooltips.
 
+Open **User information** with the user-profile button to inspect your identity
+and groups. Its certificate drop area configures authentication for first use,
+updates a certificate, or switches to another identity. Stop local services before
+replacing a certificate and follow [certificate setup](GETTING_STARTED.md#set-up-your-identity-with-a-user-certificate).
+
 > **Screenshot placeholder — Window anatomy:** annotate the navigation rail,
 > section browser, editor tabs, right-hand asset tree, Knowledge Inspector,
 > digital-twin panel, and bottom status bar.

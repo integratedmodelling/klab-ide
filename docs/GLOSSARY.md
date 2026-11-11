@@ -8,6 +8,7 @@
 | Agent | A running behavior instance or an agent observation in a twin; an eligible agent can act as observer |
 | Authority identity | A canonical identity/code supplied through a configured worldview authority binding |
 | Behavior | A k.Actors program, including applications, scripts, test cases, and other behavior types |
+| Certificate | A user authentication file downloaded from the k.LAB Hub and installed through the IDE's user-profile drop area; see [certificate setup](GETTING_STARTED.md#set-up-your-identity-with-a-user-certificate) |
 | Context observation | An existing subject selected as the context for dependent observation requests |
 | Digital twin | A runtime-hosted context containing observations, activities, relationships, and a knowledge graph |
 | Flow | One instance of a workflow definition, with its stages and history |

@@ -142,6 +142,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
       new ModelerCommandLine(() -> focalScope == null ? modeler().engine().getOwner() : focalScope);
   private boolean knowledgeInitialized;
   private final AtomicBoolean localServiceActionRunning = new AtomicBoolean(false);
+  private final AtomicBoolean certificateInstallationRunning = new AtomicBoolean();
   private CompletableFuture<Void> initializationFuture;
 
   private Map<KlabService, KlabService.ServiceStatus> serviceStatus = new ConcurrentHashMap<>() {};
@@ -1069,7 +1070,8 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
             ? Engine.Status.EngineCondition.INOPERATIVE
             : engineStatus.get().getCondition();
 
-    if (condition == Engine.Status.EngineCondition.TRANSITIONING
+    if (certificateInstallationRunning.get()
+        || condition == Engine.Status.EngineCondition.TRANSITIONING
         || !localServiceActionRunning.compareAndSet(false, true)) {
       Toolkit.getDefaultToolkit().beep();
       return;
@@ -1116,7 +1118,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   }
 
   private void setStartButtonDisabled(boolean disabled) {
-    Platform.runLater(() -> startButton.setDisable(disabled));
+    Platform.runLater(() -> startButton.setDisable(disabled || certificateInstallationRunning.get()));
   }
 
   public boolean handleNotification(Notification notification) {
@@ -2021,6 +2023,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   /** True only when no local k.LAB or auxiliary process is active or transitioning. */
   public boolean canChangeSoftwareStack() {
+    if (certificateInstallationRunning.get()) return false;
     var status = engineStatus.get();
     if (status == null) {
       return engine().areLocalServicesStopped();
@@ -2238,6 +2241,49 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   @Override
   public UserScope authenticate() {
     return modeler.authenticate();
+  }
+
+  public String certificateInstallationRejection() {
+    if (certificateInstallationRunning.get()) return "Certificate authentication is already in progress";
+    if (localServiceActionRunning.get() || !canChangeSoftwareStack()) {
+      return "Stop all local services before replacing the certificate; their authentication would be compromised";
+    }
+    return null;
+  }
+
+  public CompletableFuture<UserScope> installCertificateAsync(File file) {
+    var rejection = certificateInstallationRejection();
+    if (rejection != null) return CompletableFuture.failedFuture(new IllegalStateException(rejection));
+    if (!certificateInstallationRunning.compareAndSet(false, true)) {
+      return CompletableFuture.failedFuture(new IllegalStateException("Certificate authentication is already in progress"));
+    }
+    if (!localServiceActionRunning.compareAndSet(false, true)) {
+      certificateInstallationRunning.set(false);
+      return CompletableFuture.failedFuture(new IllegalStateException("Wait for the local service operation to finish"));
+    }
+    setStartButtonDisabled(true);
+    var result = StartupInitialization.run(() -> modeler.installCertificate(file));
+    return result.handleAsync((authenticated, failure) -> {
+      try {
+        var currentUser = modeler.engine().getOwner();
+        if (currentUser != null && currentUser != user) {
+          setFocalScope(null, false);
+          contextMap.clear();
+          user = currentUser;
+          notifyUser(user.getUser());
+        }
+        if (failure != null) {
+          handleNotification(Notification.error("Certificate installation failed", failure));
+          throw new java.util.concurrent.CompletionException(failure);
+        }
+        return authenticated;
+      } finally {
+        certificateInstallationRunning.set(false);
+        localServiceActionRunning.set(false);
+        setStartButtonDisabled(false);
+        notifySoftwareStackStateListeners();
+      }
+    }, Platform::runLater);
   }
 
   @Override

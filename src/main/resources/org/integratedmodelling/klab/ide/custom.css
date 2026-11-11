@@ -92,6 +92,20 @@
     -fx-text-fill: -color-fg-muted;
 }
 
+.user-certificate-drop-zone:drag-over {
+    -fx-border-color: -color-accent-emphasis;
+    -fx-background-color: -color-accent-subtle;
+}
+
+.user-certificate-drop-zone:busy {
+    -fx-border-color: -color-accent-emphasis;
+    -fx-border-style: solid;
+}
+
+.user-certificate-drop-zone:error {
+    -fx-border-color: -color-danger-fg;
+}
+
 .inspector-view {
     -fx-background-color: -color-bg-default;
     -fx-border-color: -color-border-muted transparent transparent transparent;

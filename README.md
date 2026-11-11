@@ -20,10 +20,14 @@ permissions, connected k.LAB services, and the adapters installed on those servi
 ## Start working
 
 1. Download and install the application for your platform.
-2. Open the user profile and check your identity. Check the service buttons in the
-   navigation rail; use distribution management and the power button if you need a
-   local service stack.
-3. Open **Workspaces** to author knowledge, **Resources** to describe data,
+2. Register or sign in at the [k.LAB Hub](https://integratedmodelling.org/hub) and
+   download your user certificate. With local services stopped, open the IDE's user
+   profile and drop the file onto **Drop a new klab.cert certificate** to authenticate.
+   Use the same procedure to update the certificate or switch identity; see
+   [certificate setup](docs/GETTING_STARTED.md#set-up-your-identity-with-a-user-certificate).
+3. Check the service buttons in the navigation rail; use distribution management
+   and the power button if you need a local service stack.
+4. Open **Workspaces** to author knowledge, **Resources** to describe data,
    **Applications, Scripts and Test cases** to run behaviors, or **Digital Twins**
    to create and explore an observation context.
 

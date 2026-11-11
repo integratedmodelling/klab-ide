@@ -7,6 +7,12 @@ actions reflect missing permission or a service capability rather than a client 
 
 | Symptom | What to check or do |
 | --- | --- |
+| First launch shows an anonymous or incorrect identity | Register/sign in at the Hub, download the intended account's certificate, and follow [certificate setup](GETTING_STARTED.md#set-up-your-identity-with-a-user-certificate) |
+| The certificate drop is rejected | Drop exactly one readable file whose name starts with `klab.cert`; folders and multiple files are not accepted |
+| Certificate replacement asks you to stop services | Stop all local services and auxiliary processes and wait for start/stop operations to finish before dropping again |
+| Certificate authentication is already in progress | Wait for the current installation/authentication attempt to finish before retrying |
+| Certificate installed, but authentication did not succeed | Check the Hub connection and certificate, then retry; confirm the resulting username before starting services |
+| Certificate installation failed | Read the drop area's error, check that the file is a valid user certificate downloaded from the Hub, and retry after resolving the reported problem |
 | No workspaces or resources appear | Check your profile and Resources service, then access to the workspace/project/resource |
 | Local services do not start | Check distribution management and the power state; failures before HTTP need distribution/infrastructure logs |
 | Worldview stays empty | Connect a Reasoner with your certificate's worldview loaded and refresh Worldview |
