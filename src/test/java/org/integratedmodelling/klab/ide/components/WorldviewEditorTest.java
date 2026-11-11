@@ -92,7 +92,7 @@ class WorldviewEditorTest {
         await(() -> !((javafx.scene.layout.VBox) overlay.getScene().lookup("#semantic-card")).getChildren().isEmpty());
         fx(() -> {
           var card = overlay.getScene().lookup("#semantic-card");
-          assertTrue(card.lookupAll(".label").stream().anyMatch(n -> n instanceof javafx.scene.control.Label l
+          assertTrue(card.lookupAll(".text").stream().anyMatch(n -> n instanceof javafx.scene.text.Text l
               && "Selected concept documentation".equals(l.getText())));
           overlay.close(); return null;
         });

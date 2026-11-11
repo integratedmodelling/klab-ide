@@ -13,13 +13,13 @@ import javafx.scene.input.MouseEvent;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.*;
-import javafx.util.Duration;
 import org.integratedmodelling.klab.api.knowledge.*;
 import org.integratedmodelling.klab.api.knowledge.Observable;
 import org.integratedmodelling.klab.api.lang.kim.*;
 import org.integratedmodelling.klab.api.services.Reasoner;
 import org.integratedmodelling.klab.ide.*;
 import org.integratedmodelling.klab.ide.components.cards.ObservableCard;
+import org.integratedmodelling.klab.ide.components.generic.HoverCard;
 import org.integratedmodelling.klab.ide.components.generic.TreeSearchField;
 import org.integratedmodelling.klab.ide.pages.EditorPage;
 import org.integratedmodelling.klabeditor.MonacoEditorView.ObservableCompositionContext;
@@ -57,7 +57,7 @@ public class WorldviewEditor extends EditorPage<Worldview, Object> {
   private TreeView<Object> tree;
   private TreeSearchField<Object> treeSearch;
   private ObservableCard currentCard;
-  private Tooltip hoverTooltip;
+  private final HoverCard hoverTooltip = new HoverCard();
   private String cardUrn;
   private WorldviewGraphModel.Snapshot cardSnapshot;
   private SmartGraphPanel<Concept, WorldviewGraphModel.Link> graph;
@@ -737,30 +737,18 @@ public class WorldviewEditor extends EditorPage<Worldview, Object> {
     if (visual instanceof Node node
         && node.getProperties().putIfAbsent("worldview-click", true) == null) {
       node.setMouseTransparent(false);
-      var tooltip = new Tooltip();
-      tooltip.setShowDelay(Duration.seconds(1));
-      tooltip.setShowDuration(Duration.INDEFINITE);
-      tooltip.setOnShowing(
-          event -> {
-            hideHoverTooltip();
-            var card = createCard(currentConcept(concept));
-            var bounds = node.localToScreen(node.getBoundsInLocal());
-            var screens = bounds == null ? List.<javafx.stage.Screen>of()
-                : javafx.stage.Screen.getScreensForRectangle(
-                    bounds.getMinX(), bounds.getMinY(), bounds.getWidth(), bounds.getHeight());
-            var screen = screens.isEmpty() ? javafx.stage.Screen.getPrimary() : screens.getFirst();
-            var visualBounds = screen.getVisualBounds();
-            tooltip.setGraphic(card.tooltipContent(
-                Math.min(360, visualBounds.getWidth() * 0.8),
-                Math.min(400, visualBounds.getHeight() * 0.45)));
-            hoverTooltip = tooltip;
-          });
-      tooltip.setOnHidden(
-          event -> {
-            tooltip.setGraphic(null);
-            if (hoverTooltip == tooltip) hoverTooltip = null;
-          });
-      Tooltip.install(node, tooltip);
+      hoverTooltip.install(node, () -> {
+        var card = createCard(currentConcept(concept));
+        var bounds = node.localToScreen(node.getBoundsInLocal());
+        var screens = bounds == null ? List.<javafx.stage.Screen>of()
+            : javafx.stage.Screen.getScreensForRectangle(
+                bounds.getMinX(), bounds.getMinY(), bounds.getWidth(), bounds.getHeight());
+        var screen = screens.isEmpty() ? javafx.stage.Screen.getPrimary() : screens.getFirst();
+        var visualBounds = screen.getVisualBounds();
+        return card.tooltipContent(
+            Math.min(360, visualBounds.getWidth() * 0.8),
+            Math.min(400, visualBounds.getHeight() * 0.45));
+      });
       node.addEventHandler(
           MouseEvent.MOUSE_CLICKED,
           event -> {
@@ -896,7 +884,7 @@ public class WorldviewEditor extends EditorPage<Worldview, Object> {
   }
 
   private void hideHoverTooltip() {
-    if (hoverTooltip != null) hoverTooltip.hide();
+    hoverTooltip.hide();
   }
 
   @Override

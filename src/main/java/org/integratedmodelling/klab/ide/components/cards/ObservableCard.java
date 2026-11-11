@@ -1,6 +1,8 @@
 package org.integratedmodelling.klab.ide.components.cards;
 
 import atlantafx.base.util.BBCodeParser;
+import javafx.event.ActionEvent;
+import javafx.scene.control.Hyperlink;
 import javafx.geometry.Insets;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
@@ -14,6 +16,7 @@ import org.integratedmodelling.klab.api.knowledge.Concept;
 import org.integratedmodelling.klab.api.lang.SemanticLexicalElement;
 import org.integratedmodelling.klab.api.services.reasoner.objects.*;
 import org.integratedmodelling.klab.ide.Theme;
+import org.integratedmodelling.klab.ide.utils.AppContext;
 import org.integratedmodelling.klab.ide.utils.BBCodeNodeRenderer;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
@@ -103,6 +106,16 @@ public class ObservableCard extends BaseCard<Observable> {
         org.integratedmodelling.klab.api.data.Metadata.RDFS_COMMENT)) {
       if (metadata.get(key) instanceof String description && !description.isBlank()) {
         var text = BBCodeParser.createLayout(BBCodeNodeRenderer.fromMarkdown(description));
+        text.addEventHandler(ActionEvent.ACTION, event -> {
+          if (event.getTarget() instanceof Hyperlink link && link.getUserData() instanceof String url
+              && (url.startsWith("https://") || url.startsWith("http://") || url.startsWith("mailto:"))) {
+            var hostServices = AppContext.getHostServices();
+            if (hostServices != null) {
+              hostServices.showDocument(url);
+              event.consume();
+            }
+          }
+        });
         text.setMaxWidth(Double.MAX_VALUE);
         text.getStyleClass().add("concept-documentation");
         content.getChildren().add(text);
