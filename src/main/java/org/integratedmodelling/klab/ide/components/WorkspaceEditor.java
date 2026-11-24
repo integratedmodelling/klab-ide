@@ -1705,6 +1705,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                   } else showSemanticValidation(document, ret);
                 });
           });
+      KlabIDEController.instance().conceptHighlighting().attach(ret, service);
       initializeLanguageSupport(ret, languageId, status);
       return ret;
     }
@@ -1718,6 +1719,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     editorDocuments.remove(editor);
     editorCursorOffsets.remove(editor);
     if (editor instanceof MonacoEditorView monaco) {
+      KlabIDEController.instance().conceptHighlighting().detach(monaco);
       lspOpening.cancel(monaco);
       var feedback = authorityFeedback.remove(monaco);
       if (feedback != null) feedback.close();
@@ -1769,7 +1771,6 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                 var lsp = KlabLspService.getInstance();
                 editor.preloadKeywordHighlighterCache(
                     languageId, lsp.getLanguageKeywords(languageId));
-                editor.preloadConceptHighlighterCache(lsp.getConceptCache());
                 lspSessions.put(
                     editor, new LspDocumentSession(editor, languageId, editor.getText()));
                 status.setTooltip(null);

@@ -145,6 +145,12 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   private final AtomicBoolean certificateInstallationRunning = new AtomicBoolean();
   private CompletableFuture<Void> initializationFuture;
 
+  private final ConceptHighlighting conceptHighlighting = new ConceptHighlighting(() -> modeler == null ? null : user());
+
+  public ConceptHighlighting conceptHighlighting() {
+    return conceptHighlighting;
+  }
+
   private Map<KlabService, KlabService.ServiceStatus> serviceStatus = new ConcurrentHashMap<>() {};
   private final Map<KlabService, List<Consumer<KlabService.ServiceStatus>>> serviceStatusListeners =
       new ConcurrentHashMap<>();
@@ -534,7 +540,17 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
 
   private void createModeler() {
 
-    modeler = new ModelerImpl(this);
+    modeler = new ModelerImpl(this) {
+      @Override
+      public void dispatch(UIReactor sender, UIEvent event, Object... payload) {
+        // The Resources navigator filters out worldview events and unopened workspaces.
+        if (event == UIEvent.WorkspaceModified && payload.length > 0
+            && payload[0] instanceof ResourceSet changes) {
+          conceptHighlighting.workspaceChanged(changes);
+        }
+        super.dispatch(sender, event, payload);
+      }
+    };
 
     this.servicesController = modeler.viewController(ServicesViewController.class);
     this.runtimeController = modeler.viewController(RuntimeViewController.class);
@@ -1452,6 +1468,7 @@ public class KlabIDEController implements UIView, ServicesView, RuntimeView, Mod
   @Override
   public void notifyServiceStatus(KlabService service, KlabService.ServiceStatus status) {
     this.serviceStatus.put(service, status);
+    conceptHighlighting.serviceStatusChanged(status);
     refreshServiceDashboardAccess(status.getServiceType());
     if (ontologyView != null && (status.getServiceType() == KlabService.Type.RESOURCES
         || status.getServiceType() == KlabService.Type.REASONER)) ontologyView.refresh();

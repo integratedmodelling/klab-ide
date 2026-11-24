@@ -220,7 +220,9 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
         context -> ObservableComposerDialog.show(monacoEditor, context));
     monacoEditor.runAfterEditorRendered(
         () -> monacoEditor.markNotifications(currentNotifications, false));
-    monacoEditor.setUseSharedLspMetadata(lspAvailable);
+    monacoEditor.setUseSharedLspMetadata(false);
+    if (lspAvailable) monacoEditor.preloadKeywordHighlighterCache(languageId, lsp.getLanguageKeywords(languageId));
+    KlabIDEController.instance().conceptHighlighting().attach(monacoEditor, null);
     monacoEditor.loadEditor(source, languageId, theme);
     if (lspAvailable) {
       var session = new LspDocumentSession(monacoEditor, languageId, source);
@@ -238,6 +240,9 @@ public class BehaviorEditor extends EditorPage<NavigableKActorsBehavior, Object>
 
   @Override
   protected void disposeEditor(Object asset, Node editor) {
+    if (Objects.equals(asset, sourceEditorAsset) && monacoEditor != null) {
+      KlabIDEController.instance().conceptHighlighting().detach(monacoEditor);
+    }
     var session = lspSessions.remove(editor);
     if (session != null) {
       session.close();
