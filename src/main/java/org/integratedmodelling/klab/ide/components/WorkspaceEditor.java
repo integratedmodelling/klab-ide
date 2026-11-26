@@ -30,6 +30,9 @@ import org.integratedmodelling.klab.api.lang.kactors.KActorsBehavior;
 import org.integratedmodelling.klab.api.lang.kim.KlabDocument;
 import org.integratedmodelling.klab.api.lang.kim.KlabStatement;
 import org.integratedmodelling.klab.api.services.ResourcesService;
+import org.integratedmodelling.klab.api.services.ResourcesService.ProjectEditingLock;
+import org.integratedmodelling.klab.api.services.ResourcesService.ProjectLockAction;
+import org.integratedmodelling.klab.api.services.ResourcesService.ProjectLockRequest;
 import org.integratedmodelling.klab.api.services.RuntimeService;
 import org.integratedmodelling.klab.api.services.resources.AuthoringSource;
 import org.integratedmodelling.klab.api.services.resources.ResourceInfo;
@@ -182,6 +185,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
               if (project instanceof NavigableProject navigable
                   && access.lockedProjects().contains(project.getUrn())) navigable.setLocked(true);
             });
+    access.projectLocks().forEach(this::applyProjectLock);
     access
         .failures()
         .forEach(
@@ -737,6 +741,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
               if (treeView != null) treeView.refresh();
             });
     projectSettingsEditors.put(key, editor);
+    trackProjectActivity(editor, project);
     var tab = showAuxiliaryEditor(key, project.getUrn() + " settings", editor);
     tab.setOnCloseRequest(
         event -> {
@@ -787,6 +792,88 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     }
   }
 
+  private final Map<Node, Runnable> documentAccess = new IdentityHashMap<>();
+  private final Map<String, ProjectEditingLock> projectLocks = new HashMap<>();
+  private final Map<String, javafx.animation.PauseTransition> lockExpiry = new HashMap<>();
+  private final Map<String, Long> nextLockRenewal = new HashMap<>();
+  private final Set<String> pendingLockRequests = new HashSet<>();
+
+  private NavigableProject lockProjectNode(String name) {
+    for (var project : workspace.getProjects()) {
+      if (project instanceof NavigableProject navigable && Objects.equals(project.getUrn(), name))
+        return navigable;
+    }
+    return null;
+  }
+
+  private void showProjectLock(String name, boolean editable) {
+    var project = lockProjectNode(name);
+    if (project == null || project.isLocked() == editable) return;
+    project.setLocked(editable);
+    if (treeView != null) treeView.refresh();
+    for (var entry : editorDocuments.entrySet()) {
+      if (Objects.equals(name, entry.getValue().getProjectName())) {
+        var update = documentAccess.get(entry.getKey());
+        if (update != null) update.run();
+      }
+    }
+    var settings = projectSettingsEditors.get("project-settings:" + name);
+    if (settings != null) settings.refreshAccess();
+  }
+
+  private void applyProjectLock(String name, ProjectEditingLock state) {
+    projectLocks.put(name, state);
+    var previous = lockExpiry.remove(name);
+    if (previous != null) previous.stop();
+    showProjectLock(name, state.editable());
+    if (state.remainingMillis() == null) return;
+    var expiry = new javafx.animation.PauseTransition(javafx.util.Duration.millis(state.remainingMillis()));
+    lockExpiry.put(name, expiry);
+    expiry.setOnFinished(event -> {
+      showProjectLock(name, false);
+      requestProjectLock(name, ProjectLockAction.STATUS);
+    });
+    expiry.play();
+  }
+
+  private void requestProjectLock(String name, ProjectLockAction action) {
+    if (closed.get() || !pendingLockRequests.add(name)) return;
+    var user = KlabIDEController.instance().user();
+    var request = new ProjectLockRequest(workspace.getUrn(), name, action);
+    Thread.startVirtualThread(() -> {
+      ProjectEditingLock state = null;
+      RuntimeException failure = null;
+      try { state = service.projectEditingLock(request, user); }
+      catch (RuntimeException reason) { failure = reason; }
+      var result = state;
+      var error = failure;
+      Platform.runLater(() -> {
+        pendingLockRequests.remove(name);
+        if (closed.get() || user != KlabIDEController.instance().user()) return;
+        if (result != null) applyProjectLock(name, result);
+        if (action == ProjectLockAction.ACQUIRE && (result == null || !result.owned())) {
+          KlabIDEController.instance().handleNotification(Notification.warning(
+              error == null ? "Project lock unavailable for " + name : error.getMessage()));
+        }
+      });
+    });
+  }
+
+  private void trackProjectActivity(Node editor, NavigableProject project) {
+    String name = project.getUrn();
+    javafx.event.EventHandler<javafx.scene.input.InputEvent> activity = event -> {
+      var lock = projectLocks.get(name);
+      if (lock == null || !lock.editable() || lock.idleTimeoutMillis() == null || !project.isLocked()) return;
+      long now = System.currentTimeMillis();
+      if (now < nextLockRenewal.getOrDefault(name, 0L)) return;
+      nextLockRenewal.put(name, now + Math.max(1, Math.min(10000, lock.idleTimeoutMillis() / 3)));
+      requestProjectLock(name, ProjectLockAction.RENEW);
+    };
+    editor.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, activity);
+    editor.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_PRESSED, activity);
+    editor.addEventFilter(javafx.scene.input.ScrollEvent.SCROLL, activity);
+  }
+
   private void setupProjectMenu(ContextMenu contextMenu, NavigableProject project) {
     if (!service.isLocal()) {
       var export = new MenuItem("Export to local services");
@@ -828,31 +915,19 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
             });
           }));
     }
+    var lockState = projectLocks.get(project.getUrn());
+    boolean ownsLock = lockState != null && lockState.owned();
     var lockUnlock =
         new MenuItem(
-            project.isLocked() ? "Unlock" : "Lock",
+            ownsLock ? "Unlock" : "Lock",
             new IconLabel(
-                project.isLocked() ? BootstrapIcons.LOCK : BootstrapIcons.UNLOCK,
+                ownsLock ? BootstrapIcons.LOCK : BootstrapIcons.UNLOCK,
                 16,
                 THEME_ICON_COLOR));
+    lockUnlock.setDisable(pendingLockRequests.contains(project.getUrn()));
     lockUnlock.setOnAction(
-        e -> {
-          if (project.isLocked()) {
-            if (service.unlockProject(project.getUrn(), KlabIDEController.instance().user()))
-              project.setLocked(false);
-          } else {
-            if (service.lockProject(project.getUrn(), KlabIDEController.instance().user()))
-              project.setLocked(true);
-          }
-        });
-
-    lockUnlock.addEventHandler(
-        javafx.event.ActionEvent.ACTION,
-        event -> {
-          var editor = projectSettingsEditors.get("project-settings:" + project.getUrn());
-          if (editor != null) editor.refreshAccess();
-        });
-
+        event -> requestProjectLock(project.getUrn(),
+            ownsLock ? ProjectLockAction.RELEASE : ProjectLockAction.ACQUIRE));
     var projectSettings =
         new MenuItem(
             "Project settings...",
@@ -1561,6 +1636,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   protected Node createEditor(NavigableAsset asset) {
     if (asset instanceof NavigableKlabDocument<?, ?> document) {
 
+      var project = asset.parent(NavigableProject.class);
       String languageId =
           document.getLanguage().languageId(); // even if Monaco treats it as plain-text for now
 
@@ -1690,7 +1766,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
           dirty -> {
             Platform.runLater(
                 () -> {
-                  saveButton.setDisable(!dirty);
+                  saveButton.setDisable(!dirty || project == null || !project.isLocked());
                   if (dirty) ret.clearReviewMarkers();
                   else if (pairedReviewRefresh.containsKey(ret)) pairedReviewRefresh.get(ret).run();
                   if (!(document instanceof org.integratedmodelling.klab.api.lang.kim.KimNamespace
@@ -1706,7 +1782,35 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
                 });
           });
       KlabIDEController.instance().conceptHighlighting().attach(ret, service);
-      initializeLanguageSupport(ret, languageId, status);
+      if (project != null) trackProjectActivity(ret, project);
+      Runnable updateAccess = () -> {
+        if (project == null || !project.isLocked()) {
+          lspOpening.cancel(ret);
+          var session = lspSessions.remove(ret);
+          if (session != null) session.close();
+        } else if (!lspSessions.containsKey(ret)) {
+          initializeLanguageSupport(ret, languageId, status, project);
+        }
+        saveButton.setDisable(project == null || !project.isLocked() || !ret.isDirty());
+        ret.runAfterEditorRendered(() -> {
+          boolean readOnly = project == null || !project.isLocked();
+          if (ret.lookup(".web-view") instanceof javafx.scene.web.WebView webView) {
+            try {
+              webView.getEngine().executeScript(
+                  "window.MonacoBridge.editor.updateOptions({readOnly:" + readOnly + "})");
+              ret.setDisable(false);
+              return;
+            } catch (netscape.javascript.JSException failure) {
+              status.setText("Editor access could not be applied");
+            }
+          }
+          ret.setDisable(true);
+        });
+      };
+      documentAccess.put(ret, updateAccess);
+      updateAccess.run();
+      if (project != null && !project.isLocked()) requestProjectLock(project.getUrn(),
+          service.isLocal() ? ProjectLockAction.ACQUIRE : ProjectLockAction.STATUS);
       return ret;
     }
     return null;
@@ -1714,6 +1818,7 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
 
   @Override
   protected void disposeEditor(NavigableAsset asset, Node editor) {
+    documentAccess.remove(editor);
     editorSources.remove(editor);
     editorSourceVersions.remove(editor);
     editorDocuments.remove(editor);
@@ -1740,7 +1845,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
     }
   }
 
-  private void initializeLanguageSupport(MonacoEditorView editor, String languageId, Label status) {
+  private void initializeLanguageSupport(
+      MonacoEditorView editor, String languageId, Label status, NavigableProject project) {
     var controller = KlabIDEController.instance();
     var server = controller.getLanguageServer();
     var user = controller.user();
@@ -1748,6 +1854,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
         () ->
             !closed.get()
                 && editorSources.containsKey(editor)
+                && editorDocuments.get(editor) != null
+                && project.isLocked()
                 && user == controller.user()
                 && server == controller.getLanguageServer();
     status.setTooltip(new Tooltip("Language support is loading; source is editable"));
@@ -1786,6 +1894,8 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   @Override
   public void close() {
     if (!closed.compareAndSet(false, true)) return;
+    lockExpiry.values().forEach(javafx.animation.PauseTransition::stop);
+    lockExpiry.clear();
     lspOpening.cancelAll();
     pairedWorkflowOpening.cancelAll();
     workflowOpenings.values().forEach(WorkflowOpening::close);
@@ -1844,6 +1954,11 @@ public class WorkspaceEditor extends EditorPage<NavigableWorkspace, NavigableAss
   }
 
   private void saveDocument(String text, NavigableAsset asset) {
+    var project = asset.parent(NavigableProject.class);
+    if (project == null || !project.isLocked()) {
+      KlabIDEController.instance().handleNotification(Notification.warning("Lock the project before saving."));
+      return;
+    }
     //    Logging.INSTANCE.info("Save document requested: " + asset.getUrn());
     if (asset instanceof KlabDocument<?> document) {
       pendingSavedSources

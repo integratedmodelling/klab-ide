@@ -9,11 +9,17 @@ import org.integratedmodelling.klab.api.knowledge.organization.Workspace;
 import org.integratedmodelling.klab.api.knowledge.organization.impl.WorkspaceImpl;
 import org.integratedmodelling.klab.api.scope.UserScope;
 import org.integratedmodelling.klab.api.services.ResourcesService;
+import org.integratedmodelling.klab.api.services.ResourcesService.ProjectEditingLock;
+import org.integratedmodelling.klab.api.services.ResourcesService.ProjectLockAction;
+import org.integratedmodelling.klab.api.services.ResourcesService.ProjectLockRequest;
 import org.integratedmodelling.klab.ide.utils.AsyncOpen;
 import org.integratedmodelling.klab.modeler.model.NavigableWorkspace;
 import org.junit.jupiter.api.Test;
 
 class WorkspaceOpeningTest {
+  private static final ProjectEditingLock OWNED =
+      new ProjectEditingLock(true, false, true, true, 900000L, 900000L);
+
   @Test void slowWorkspaceServiceAndModelPreparationRunOffCallerThread() throws Exception {
     var entered = new CountDownLatch(1); var release = new CountDownLatch(1);
     var service = mock(ResourcesService.class); var user = mock(UserScope.class);
@@ -46,9 +52,10 @@ class WorkspaceOpeningTest {
     when(service.getFlows(true, user)).thenReturn(List.of());
     var entered = new CountDownLatch(1); var release = new CountDownLatch(1);
     var caller = Thread.currentThread();
-    when(service.lockProject("imod", user)).thenAnswer(call -> {
+    when(service.isLocal()).thenReturn(true);
+    when(service.projectEditingLock(new ProjectLockRequest("local", "imod", ProjectLockAction.ACQUIRE), user)).thenAnswer(call -> {
       assertNotSame(caller, Thread.currentThread()); entered.countDown();
-      assertTrue(release.await(5, TimeUnit.SECONDS)); return true;
+      assertTrue(release.await(5, TimeUnit.SECONDS)); return OWNED;
     });
     var ui = new LinkedBlockingQueue<Runnable>(); var results = new ArrayList<WorkspaceOpening.Prepared>();
     var open = new AsyncOpen<String, WorkspaceOpening.Prepared>(task -> Thread.startVirtualThread(task), ui::add);
@@ -73,23 +80,39 @@ class WorkspaceOpeningTest {
   @Test void cancelledWorkspaceAccessDoesNotStartMoreProjectLocksOrUnlockExistingScopeLocks() {
     var service = mock(ResourcesService.class); var user = mock(UserScope.class); var closed = new AtomicBoolean();
     when(service.getFlows(true, user)).thenReturn(List.of());
-    when(service.lockProject("a", user)).thenAnswer(call -> { closed.set(true); return true; });
-    var access = WorkspaceOpening.access(service, List.of("a", "b"), user, closed::get);
+    when(service.isLocal()).thenReturn(true);
+    when(service.projectEditingLock(new ProjectLockRequest("local", "a", ProjectLockAction.ACQUIRE), user)).thenAnswer(call -> { closed.set(true); return OWNED; });
+    var access = WorkspaceOpening.access(service, "local", List.of("a", "b"), user, closed::get);
     assertEquals(Set.of("a"), access.lockedProjects());
-    verify(service, never()).lockProject("b", user);
+    verify(service, never()).projectEditingLock(new ProjectLockRequest("local", "b", ProjectLockAction.ACQUIRE), user);
     verify(service, never()).unlockProject(anyString(), any());
     clearInvocations(service);
-    WorkspaceOpening.access(service, List.of("a", "b"), user, () -> true);
+    WorkspaceOpening.access(service, "local", List.of("a", "b"), user, () -> true);
     verifyNoInteractions(service);
   }
 
   @Test void optionalFlowFailureAndOneProjectFailureDoNotPreventOtherProjectsOpening() {
     var service = mock(ResourcesService.class); var user = mock(UserScope.class);
     when(service.getFlows(true, user)).thenThrow(new IllegalStateException("Offline workflow provider"));
-    when(service.lockProject("a", user)).thenThrow(new IllegalStateException("Locked elsewhere"));
-    when(service.lockProject("b", user)).thenReturn(true);
-    var access = WorkspaceOpening.access(service, List.of("a", "b"), user, () -> false);
+    when(service.isLocal()).thenReturn(true);
+    when(service.projectEditingLock(new ProjectLockRequest("local", "a", ProjectLockAction.ACQUIRE), user)).thenThrow(new IllegalStateException("Locked elsewhere"));
+    when(service.projectEditingLock(new ProjectLockRequest("local", "b", ProjectLockAction.ACQUIRE), user)).thenReturn(OWNED);
+    var access = WorkspaceOpening.access(service, "local", List.of("a", "b"), user, () -> false);
     assertEquals(Set.of("b"), access.lockedProjects()); assertTrue(access.flows().isEmpty());
     assertEquals(1, access.failures().size()); assertTrue(access.failures().getFirst().contains("Locked elsewhere"));
+  }
+
+  @Test void remoteWorkspaceChecksOwnershipWithoutTakingAnAvailableLock() {
+    var service = mock(ResourcesService.class);
+    var user = mock(UserScope.class);
+    when(service.projectEditingLock(new ProjectLockRequest("remote", "a", ProjectLockAction.STATUS), user))
+        .thenReturn(new ProjectEditingLock(false, true, false, false, null, null));
+    when(service.projectEditingLock(new ProjectLockRequest("remote", "b", ProjectLockAction.STATUS), user))
+        .thenReturn(OWNED);
+    var access = WorkspaceOpening.access(service, "remote", List.of("a", "b"), user, () -> false);
+    assertEquals(Set.of("b"), access.lockedProjects());
+    assertTrue(access.projectLocks().get("a").canLock());
+    verify(service, never()).projectEditingLock(
+        argThat(request -> request.action() == ProjectLockAction.ACQUIRE), eq(user));
   }
 }
